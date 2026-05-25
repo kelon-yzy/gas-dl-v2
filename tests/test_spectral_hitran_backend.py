@@ -2,11 +2,14 @@ import numpy as np
 import pytest
 
 from sim.generation.spectral import (
+    BOLTZMANN_J_PER_K,
     NDIRFilter,
+    STANDARD_ATMOSPHERE_PA,
     SpectralCacheKey,
     HitranGasSpec,
     HitranGridSpec,
     compute_hitran_ndir_absorbance,
+    convert_hitran_coeff_to_per_percent_m,
     read_cached_spectrum,
     write_cached_spectrum,
 )
@@ -26,10 +29,32 @@ class FakeHapi:
     def absorptionCoefficient_Voigt(self, *, SourceTables, Environment, WavenumberRange, WavenumberStep, HITRAN_units):
         self.coefficient_calls.append((SourceTables, Environment, WavenumberRange, WavenumberStep, HITRAN_units))
         wavenumber = np.linspace(WavenumberRange[0], WavenumberRange[1], int(round((WavenumberRange[1] - WavenumberRange[0]) / WavenumberStep)) + 1)
-        scale = 0.011 if SourceTables == "CO2" else 0.002
+        scale = 1.1e-22 if SourceTables == "CO2" else 2.0e-23
         center = 2340.0 if SourceTables == "CO2" else 2365.0
         coeff = np.exp(-0.5 * ((wavenumber - center) / 8.0) ** 2) * scale
         return wavenumber, coeff
+
+
+def test_hitran_unit_conversion_uses_ideal_gas_column_density():
+    coeff = np.array([1.0e-22, 2.0e-22], dtype=np.float64)
+    temperature_k = 296.0
+    pressure_atm = 1.0
+
+    converted = convert_hitran_coeff_to_per_percent_m(
+        coeff,
+        temperature_k=temperature_k,
+        pressure_atm=pressure_atm,
+    )
+
+    expected_column_density = pressure_atm * STANDARD_ATMOSPHERE_PA / (BOLTZMANN_J_PER_K * temperature_k) * 1e-6
+    np.testing.assert_allclose(converted, coeff * expected_column_density)
+
+
+def test_hitran_unit_conversion_rejects_invalid_state():
+    with pytest.raises(ValueError, match="temperature_k"):
+        convert_hitran_coeff_to_per_percent_m(np.array([1.0e-22]), temperature_k=0.0, pressure_atm=1.0)
+    with pytest.raises(ValueError, match="pressure_atm"):
+        convert_hitran_coeff_to_per_percent_m(np.array([1.0e-22]), temperature_k=296.0, pressure_atm=0.0)
 
 
 def test_hitran_backend_uses_hapi_then_cache(tmp_path):

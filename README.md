@@ -12,7 +12,7 @@
 - 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor` 和 `TCNRegressor`。
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口。
-- 已建立测试入口：`python -m pytest tests`（87 个测试，覆盖 sim + dl + pipeline）。
+- 已建立测试入口：`python -m pytest tests`（89 个测试，覆盖 sim + dl + pipeline）。
 
 ## 目标目录
 

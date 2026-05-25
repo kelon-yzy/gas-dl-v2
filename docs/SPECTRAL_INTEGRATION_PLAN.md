@@ -99,7 +99,7 @@ src/sim/generation/spectral/
   cache.py                # 光谱网格与吸收系数缓存
 ```
 
-已落地的是本地光谱积分核心、表格谱 backend、HAPI 适配层和缓存。`hitran_backend.py` 支持注入 HAPI-like 对象做离线回归测试；真实 HITRAN 下载仍需要安装 HAPI 并配置其数据库目录。后续仍需补充：
+已落地的是本地光谱积分核心、表格谱 backend、HAPI 适配层、缓存和 HITRAN 单位换算。`hitran_backend.py` 支持注入 HAPI-like 对象做离线回归测试；真实 HITRAN 下载仍需要安装 HAPI 并配置其数据库目录。后续仍需补充：
 
 ```text
 configs/
@@ -138,9 +138,10 @@ def compute_ndir_absorbance(
 
 - 单气体浓度增加时，目标通道吸收单调增加。
 - 非目标气体对目标通道的交叉响应非负，且小于主响应。
+- HITRAN HAPI 输出的 cm²/molecule 系数必须先按理想气体数密度换算为 per-percent-per-meter 系数，再进入 `TabulatedSpectrum`。
 - `main_sensor_features` 的固定种子回归测试必须更新并记录谱源版本。
 - 文档和 manifest 必须记录 `optical_absorption_backend`，例如 `empirical_v1`、`hitran_hapi_v1` 或 `pnnl_tabulated_v1`。
 
 ## 当前结论
 
-短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型和 `hitran_hapi_v1` 适配层；下一阶段如需更强物理支撑，应接入真实 HITRAN HAPI 数据下载与滤光片响应配置，再用 PNNL/NIST 定量 IR 数据进行 sanity check 或标定对照。
+短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层和 HITRAN 单位换算；下一阶段如需更强物理支撑，应接入真实 HITRAN HAPI 数据下载与滤光片响应配置，再用 PNNL/NIST 定量 IR 数据进行 sanity check 或标定对照。

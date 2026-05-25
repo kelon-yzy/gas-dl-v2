@@ -12,6 +12,8 @@ from sim.generation.spectral.tabulated_backend import TabulatedSpectrum, compute
 
 
 HITRAN_ABSORPTION_BACKEND = "hitran_hapi_v1"
+BOLTZMANN_J_PER_K = 1.380649e-23
+STANDARD_ATMOSPHERE_PA = 101325.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,7 +78,7 @@ def _spectrum_for_gas(
         )
     else:
         wavenumber_cm1, absorption_coeff_cm1 = cached
-    return _tabulated_spectrum_from_hitran_coefficients(gas_spec, wavenumber_cm1, absorption_coeff_cm1)
+    return _tabulated_spectrum_from_hitran_coefficients(gas_spec, wavenumber_cm1, absorption_coeff_cm1, grid_spec)
 
 
 def _fetch_table(hapi: object, gas_spec: HitranGasSpec, grid_spec: HitranGridSpec, cache_root: Path | str) -> None:
@@ -105,13 +107,41 @@ def _tabulated_spectrum_from_hitran_coefficients(
     gas_spec: HitranGasSpec,
     wavenumber_cm1: np.ndarray,
     absorption_coeff_cm1: np.ndarray,
+    grid_spec: HitranGridSpec,
 ) -> TabulatedSpectrum:
     return TabulatedSpectrum(
         gas=gas_spec.gas,
         wavenumber_cm1=wavenumber_cm1,
-        absorption_coeff_per_percent_m=absorption_coeff_cm1.astype(np.float64),
+        absorption_coeff_per_percent_m=convert_hitran_coeff_to_per_percent_m(
+            absorption_coeff_cm1.astype(np.float64),
+            temperature_k=grid_spec.temperature_k,
+            pressure_atm=grid_spec.pressure_atm,
+        ),
         source_version=gas_spec.source_version,
     )
+
+
+def convert_hitran_coeff_to_per_percent_m(
+    absorption_coeff_cm2_per_molecule: np.ndarray,
+    *,
+    temperature_k: float,
+    pressure_atm: float,
+) -> np.ndarray:
+    """Convert HITRAN k(nu) to optical depth per 1% concentration and 1 m path.
+
+    HAPI with ``HITRAN_units=True`` returns the HITRAN line absorption
+    coefficient in cm^2 / molecule. Multiplying it by the ideal-gas column
+    number density for 1% volume fraction over 1 meter yields the unit expected
+    by ``TabulatedSpectrum.absorption_coeff_per_percent_m``.
+    """
+
+    if temperature_k <= 0.0:
+        raise ValueError("temperature_k must be > 0")
+    if pressure_atm <= 0.0:
+        raise ValueError("pressure_atm must be > 0")
+    total_number_density_m3 = pressure_atm * STANDARD_ATMOSPHERE_PA / (BOLTZMANN_J_PER_K * temperature_k)
+    column_density_per_percent_m_cm2 = total_number_density_m3 * 1e-6
+    return absorption_coeff_cm2_per_molecule.astype(np.float64) * column_density_per_percent_m_cm2
 
 
 def _cache_key(gas_spec: HitranGasSpec, grid_spec: HitranGridSpec) -> SpectralCacheKey:

@@ -180,10 +180,11 @@ A_channel = −ln(T_channel)
 3. 缓存未命中时调用 HAPI：
    - `hapi.db_begin(cache_root)` 设置本地数据库目录；
    - `hapi.fetch(table, molecule_id, isotopologue_id, ν_min, ν_max)` 下载谱线；
-   - `hapi.absorptionCoefficient_Voigt(...)` 用 Voigt 线型生成 `(ν, k(ν))`，传 `HITRAN_units=True` 锁定单位。
-4. 写缓存（`cache.py:38`），文件名嵌入全部 key 字段，便于人工检查。
+   - `hapi.absorptionCoefficient_Voigt(...)` 用 Voigt 线型生成 `(ν, k(ν))`，传 `HITRAN_units=True` 锁定 HITRAN 的 cm²/molecule 系数。
+4. 写缓存（`cache.py:38`），缓存保存 HAPI 原始 cm²/molecule 系数，文件名嵌入全部 key 字段，便于人工检查。
+5. `convert_hitran_coeff_to_per_percent_m()` 使用理想气体数密度，把 cm²/molecule 换算为 `TabulatedSpectrum.absorption_coeff_per_percent_m` 需要的「每 1% 体积浓度、每米光程」光学深度系数。
 
-为了让测试不依赖外网，`compute_hitran_ndir_absorbance` 接受 `hapi_module` 注入参数。`tests/test_spectral_hitran_backend.py` 用一个 fake HAPI 验证了缓存 miss/hit 行为和缓存 roundtrip。
+为了让测试不依赖外网，`compute_hitran_ndir_absorbance` 接受 `hapi_module` 注入参数。`tests/test_spectral_hitran_backend.py` 用一个 fake HAPI 验证了缓存 miss/hit 行为、缓存 roundtrip 和 HITRAN 单位换算。
 
 ### 4.5 公共输出契约
 
@@ -216,17 +217,17 @@ A_channel = −ln(T_channel)
 python -m pytest tests
 ```
 
-当前 76 个测试全部通过（2026-05-25 状态）。
+当前 89 个测试全部通过（2026-05-25 状态）。
 
 ## 6. 当前缺口
 
-物理支撑路径已实现的部分：滤光片高斯响应、通道积分公式、表格谱 backend、HITRAN 适配层、缓存读写。
+物理支撑路径已实现的部分：滤光片高斯响应、通道积分公式、表格谱 backend、HITRAN 适配层、缓存读写、HITRAN cm²/molecule 到 per-percent-per-meter 的单位换算。
 
 仍缺的部分（按集成难度排序）：
 
 1. **滤光片配置不存在**。`NDIRFilter` 的 `center_cm1`、`fwhm_cm1` 还没有项目级正式取值。需要根据目标传感器滤光片实际带宽决定，且必须有出处。
 2. **真实谱表 / HITRAN 数据未集成**。`TabulatedSpectrum` 目前只在测试里手工构造；HITRAN 路径需要安装 HAPI、配置本地数据库目录、决定 T/P 网格策略（多少格点、插值还是按条件下载）。
-3. **单位标定未校验**。`HITRAN_units=True` 下 HAPI 返回的吸收系数单位是 cm⁻¹·molecule⁻¹·cm²。换算到 `absorption_coeff_per_percent_m` 必须乘上以 percent 浓度表示时的数密度因子（Loschmidt 常数 + T/P 修正）。当前 `hitran_backend.py` 直接把 HAPI 系数当 `absorption_coeff_per_percent_m` 用，相当于假定调用方在外面已经处理好换算。要么在 hitran_backend 里加一层 `convert_units`，要么把契约改成传摩尔分数 + 数密度。
+3. **真实单位标定仍需外部对照**。代码已经完成 HITRAN cm²/molecule 到 `absorption_coeff_per_percent_m` 的理想气体换算，但尚未用真实 HAPI 输出和仪器/PNNL/NIST 数据做数值 sanity check。
 4. **PNNL/NIST 对照尚未做**。`docs/SPECTRAL_INTEGRATION_PLAN.md` 提到把 PNNL/NIST 作为 sanity check 或标定参考，目前没有拉数据，也没有对照脚本。
 
 ## 7. 下一步选项
@@ -236,7 +237,7 @@ python -m pytest tests
 | 选项  | 内容                                                                                                                   | 成本  |
 | --- | -------------------------------------------------------------------------------------------------------------------- | --- |
 | A   | 把 `OPTICAL_ABSORPTION_BACKEND` 改成可选项，让 benchmark 可以跑 `tabulated_spectrum_v1`，配一个本地合成小型谱表，给 empirical_v1 保留独立的回归测试基线。 | 中   |
-| B   | 装 HAPI、写谱线下载脚本、补单位换算、做一次 HITRAN vs empirical 的小规模 benchmark 对照。                                                      | 高   |
+| B   | 装 HAPI、写谱线下载脚本、做一次 HITRAN vs empirical 的小规模 benchmark 对照，并用 PNNL/NIST 做 sanity check。                                | 高   |
 | C   | 暂停物理支撑，回到 Phase 3 实现 TCNRegressor，物理路径作为后续可插拔升级。                                                                     | 低   |
 
 ## 8. 相关文档

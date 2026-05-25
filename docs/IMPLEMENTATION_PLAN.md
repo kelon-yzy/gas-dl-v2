@@ -4,28 +4,28 @@
 
 ## 当前状态总览
 
-| 子系统               | 状态                                              | 完成度 |
-| ----------------- | ----------------------------------------------- | --- |
-| `src/sim`         | 最小垂直切片完成（core/generation/packaging/validation）  | 78% |
-| `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers     | 40% |
+| 子系统               | 状态                                                              | 完成度 |
+| ----------------- | --------------------------------------------------------------- | --- |
+| `src/sim`         | 最小垂直切片完成（core/generation/packaging/validation）                  | 78% |
+| `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers                     | 40% |
 | `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1DRegressor + TCNRegressor + registry | 25% |
-| `src/dl/training` | 未迁移                                             | 0%  |
-| `src/ml`          | 仅有占位 `__init__.py`                              | 0%  |
-| `src/pipeline`    | 仅有 layout + generate_benchmark CLI              | 15% |
-| `configs/`        | 全部 `.gitkeep`，无实际配置                             | 0%  |
-| `experiments/`    | 仅有 `.gitkeep`                                   | 0%  |
-| `tests/`          | 87 个测试（sim + dl + pipeline）                     | 49% |
+| `src/dl/training` | 未迁移                                                             | 0%  |
+| `src/ml`          | 仅有占位 `__init__.py`                                              | 0%  |
+| `src/pipeline`    | 仅有 layout + generate_benchmark CLI                              | 15% |
+| `configs/`        | 全部 `.gitkeep`，无实际配置                                             | 0%  |
+| `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
+| `tests/`          | 89 个测试（sim + dl + pipeline）                                     | 50% |
 
 ## PLAN 6 项问题对照
 
-| #   | 问题                                                 | 状态                            |
-| --- | -------------------------------------------------- | ----------------------------- |
-| 1   | 删除 base_condition_id / noise_seed 旧列，mixture_id 唯一 | ✅ v4 sim 已落地                  |
+| #   | 问题                                                 | 状态                                                 |
+| --- | -------------------------------------------------- | -------------------------------------------------- |
+| 1   | 删除 base_condition_id / noise_seed 旧列，mixture_id 唯一 | ✅ v4 sim 已落地                                       |
 | 2   | TCN 感受野较短                                          | ⚠️ TCNRegressor 已落地并记录 receptive_field，感受野调参待实验配置化 |
-| 3   | 时间步分布不合理                                           | ⚠️ phase 仍为固定四等分              |
-| 4   | LHS 采样 + Dropout 语义归位                              | ⚠️ LHS 已完成，Dropout 待 training |
-| 5   | 文件命名过长，结果混乱                                        | ✅ output 分区 + run 契约已定义       |
-| 6   | 光学变量显式分层建模                                         | ✅ NDIR 交叉敏感度已显式建模             |
+| 3   | 时间步分布不合理                                           | ⚠️ phase 仍为固定四等分                                   |
+| 4   | LHS 采样 + Dropout 语义归位                              | ⚠️ LHS 已完成，Dropout 待 training                      |
+| 5   | 文件命名过长，结果混乱                                        | ✅ output 分区 + run 契约已定义                            |
+| 6   | 光学变量显式分层建模                                         | ✅ NDIR 交叉敏感度已显式建模                                  |
 
 ---
 
@@ -63,8 +63,8 @@
 - **状态**：已完成资料调研与实施方案文档，见 `docs/SPECTRAL_INTEGRATION_PLAN.md`
 - **HITRAN 路线**：用 HAPI 下载 CH4/CO2/H2O line-by-line 数据，按温度、压力、浓度、光程和滤光片响应积分得到 NDIR 通道吸收
 - **PNNL/NIST 路线**：读取定量 IR absorption coefficient 或 cross-section 谱，按浓度和光程缩放后做滤光片窗口积分
-- **已落地**：新增 `src/sim/generation/spectral/` 本地积分核心、`tabulated_spectrum_v1` backend、`hitran_hapi_v1` 适配层和谱线缓存，并在 manifest 中记录 `optical_absorption_backend`
-- **后续实现**：接入真实 HITRAN 下载流程、真实滤光片响应配置和 PNNL/NIST 谱表导入
+- **已落地**：新增 `src/sim/generation/spectral/` 本地积分核心、`tabulated_spectrum_v1` backend、`hitran_hapi_v1` 适配层、谱线缓存和 HITRAN 单位换算，并在 manifest 中记录 `optical_absorption_backend`
+- **后续实现**：接入真实 HITRAN 下载流程、真实滤光片响应配置、PNNL/NIST 谱表导入和 HITRAN vs empirical 小规模对照
 
 ---
 
@@ -170,7 +170,7 @@
 | **P2**    | TCN + LSTM/GRU + Transformer 模型   | 5        | P0  |
 | **P3**    | training 模块（loss/metrics/trainer） | 5        | P0  |
 | **P4** ✅  | 光谱交叉敏感建模                          | 2        | —   |
-| **P4** 🔜 | 真实 HITRAN/PNNL 数据接入                 | 3        | P4  |
+| **P4** 🔜 | 真实 HITRAN/PNNL 数据接入               | 3        | P4  |
 | **P5**    | ML 特征导出 + 传统模型                    | 4        | P3  |
 | **P6**    | 配置落地 + 实验编排 + 报告                  | 5        | P3  |
 
