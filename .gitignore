@@ -10,5 +10,6 @@ outputs/archive/*
 !outputs/summary/.gitkeep
 !outputs/reports/.gitkeep
 !outputs/archive/.gitkeep
+data/hitran_cache*/
 .ace-tool/
 .claude/settings.local.json

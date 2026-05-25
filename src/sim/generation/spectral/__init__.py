@@ -1,4 +1,11 @@
 from sim.generation.spectral.cache import SpectralCacheKey, cache_path, read_cached_spectrum, write_cached_spectrum
+from sim.generation.spectral.defaults import (
+    DEFAULT_HITRAN_GAS_SPECS,
+    DEFAULT_HITRAN_GRID_SPECS,
+    DEFAULT_NDIR_FILTERS,
+    get_default_hitran_grid,
+    get_default_ndir_filter,
+)
 from sim.generation.spectral.filters import NDIRFilter, gaussian_filter
 from sim.generation.spectral.hitran_backend import (
     BOLTZMANN_J_PER_K,
@@ -14,6 +21,9 @@ from sim.generation.spectral.tabulated_backend import TabulatedSpectrum, compute
 
 __all__ = [
     "BOLTZMANN_J_PER_K",
+    "DEFAULT_HITRAN_GAS_SPECS",
+    "DEFAULT_HITRAN_GRID_SPECS",
+    "DEFAULT_NDIR_FILTERS",
     "HITRAN_ABSORPTION_BACKEND",
     "HitranGasSpec",
     "HitranGridSpec",
@@ -26,6 +36,8 @@ __all__ = [
     "compute_tabulated_ndir_absorbance",
     "convert_hitran_coeff_to_per_percent_m",
     "gaussian_filter",
+    "get_default_hitran_grid",
+    "get_default_ndir_filter",
     "integrate_channel_absorbance",
     "read_cached_spectrum",
     "write_cached_spectrum",

@@ -1,0 +1,32 @@
+{
+  "optical_absorption_backend": "hitran_hapi_v1",
+  "gas_specs": [
+    {"gas": "CH4", "table_name": "CH4", "molecule_id": 6, "isotopologue_id": 1},
+    {"gas": "CO2", "table_name": "CO2", "molecule_id": 2, "isotopologue_id": 1},
+    {"gas": "H2O", "table_name": "H2O", "molecule_id": 1, "isotopologue_id": 1}
+  ],
+  "filters": {
+    "ch4": {"channel": "ch4", "center_cm1": 3030.0, "fwhm_cm1": 30.0},
+    "co2": {"channel": "co2", "center_cm1": 2347.0, "fwhm_cm1": 24.0}
+  },
+  "hitran_grids": {
+    "ch4": {
+      "wavenumber_min_cm1": 2960.0,
+      "wavenumber_max_cm1": 3100.0,
+      "wavenumber_step_cm1": 0.1,
+      "temperature_k": 296.0,
+      "pressure_atm": 1.0
+    },
+    "co2": {
+      "wavenumber_min_cm1": 2280.0,
+      "wavenumber_max_cm1": 2410.0,
+      "wavenumber_step_cm1": 0.1,
+      "temperature_k": 296.0,
+      "pressure_atm": 1.0
+    }
+  },
+  "notes": [
+    "Reference defaults for HITRAN smoke runs only.",
+    "Final center_cm1 and fwhm_cm1 must be replaced by target sensor filter specifications before formal benchmark use."
+  ]
+}

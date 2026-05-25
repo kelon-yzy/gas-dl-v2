@@ -82,9 +82,10 @@ def _spectrum_for_gas(
 
 
 def _fetch_table(hapi: object, gas_spec: HitranGasSpec, grid_spec: HitranGridSpec, cache_root: Path | str) -> None:
+    table_name = _hapi_table_name(gas_spec, grid_spec)
     hapi.db_begin(str(Path(cache_root)))
     hapi.fetch(
-        gas_spec.table_name,
+        table_name,
         gas_spec.molecule_id,
         gas_spec.isotopologue_id,
         grid_spec.wavenumber_min_cm1,
@@ -93,8 +94,9 @@ def _fetch_table(hapi: object, gas_spec: HitranGasSpec, grid_spec: HitranGridSpe
 
 
 def _absorption_coefficient(hapi: object, gas_spec: HitranGasSpec, grid_spec: HitranGridSpec) -> tuple[np.ndarray, np.ndarray]:
+    table_name = _hapi_table_name(gas_spec, grid_spec)
     wavenumber_cm1, absorption_coeff_cm1 = hapi.absorptionCoefficient_Voigt(
-        SourceTables=gas_spec.table_name,
+        SourceTables=table_name,
         Environment={"T": grid_spec.temperature_k, "p": grid_spec.pressure_atm},
         WavenumberRange=(grid_spec.wavenumber_min_cm1, grid_spec.wavenumber_max_cm1),
         WavenumberStep=grid_spec.wavenumber_step_cm1,
@@ -155,6 +157,16 @@ def _cache_key(gas_spec: HitranGasSpec, grid_spec: HitranGridSpec) -> SpectralCa
         temperature_k=grid_spec.temperature_k,
         pressure_atm=grid_spec.pressure_atm,
     )
+
+
+def _hapi_table_name(gas_spec: HitranGasSpec, grid_spec: HitranGridSpec) -> str:
+    min_part = _format_table_number(grid_spec.wavenumber_min_cm1)
+    max_part = _format_table_number(grid_spec.wavenumber_max_cm1)
+    return f"{gas_spec.table_name}_{min_part}_{max_part}"
+
+
+def _format_table_number(value: float) -> str:
+    return f"{value:.4f}".replace("-", "m").replace(".", "p")
 
 
 def _load_hapi() -> object:

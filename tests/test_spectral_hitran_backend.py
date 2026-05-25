@@ -29,8 +29,8 @@ class FakeHapi:
     def absorptionCoefficient_Voigt(self, *, SourceTables, Environment, WavenumberRange, WavenumberStep, HITRAN_units):
         self.coefficient_calls.append((SourceTables, Environment, WavenumberRange, WavenumberStep, HITRAN_units))
         wavenumber = np.linspace(WavenumberRange[0], WavenumberRange[1], int(round((WavenumberRange[1] - WavenumberRange[0]) / WavenumberStep)) + 1)
-        scale = 1.1e-22 if SourceTables == "CO2" else 2.0e-23
-        center = 2340.0 if SourceTables == "CO2" else 2365.0
+        scale = 1.1e-22 if SourceTables.startswith("CO2") else 2.0e-23
+        center = 2340.0 if SourceTables.startswith("CO2") else 2365.0
         coeff = np.exp(-0.5 * ((wavenumber - center) / 8.0) ** 2) * scale
         return wavenumber, coeff
 
@@ -92,6 +92,8 @@ def test_hitran_backend_uses_hapi_then_cache(tmp_path):
     assert first["backend"] == "hitran_hapi_v1"
     assert second["absorbance_observed"] == pytest.approx(first["absorbance_observed"], rel=1e-12)
     assert len(fake_hapi.fetch_calls) == 2
+    assert fake_hapi.fetch_calls[0][0] == "CO2_2300p0000_2400p0000"
+    assert fake_hapi.fetch_calls[1][0] == "CH4_2300p0000_2400p0000"
     assert len(fake_hapi.coefficient_calls) == 2
     assert first["absorbance_by_gas"]["CO2"] > first["absorbance_by_gas"]["CH4"]
 

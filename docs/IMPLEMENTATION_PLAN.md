@@ -14,7 +14,7 @@
 | `src/pipeline`    | 仅有 layout + generate_benchmark CLI                              | 15% |
 | `configs/`        | 全部 `.gitkeep`，无实际配置                                             | 0%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 89 个测试（sim + dl + pipeline）                                     | 50% |
+| `tests/`          | 95 个测试（sim + dl + pipeline）                                     | 52% |
 
 ## PLAN 6 项问题对照
 
@@ -63,8 +63,8 @@
 - **状态**：已完成资料调研与实施方案文档，见 `docs/SPECTRAL_INTEGRATION_PLAN.md`
 - **HITRAN 路线**：用 HAPI 下载 CH4/CO2/H2O line-by-line 数据，按温度、压力、浓度、光程和滤光片响应积分得到 NDIR 通道吸收
 - **PNNL/NIST 路线**：读取定量 IR absorption coefficient 或 cross-section 谱，按浓度和光程缩放后做滤光片窗口积分
-- **已落地**：新增 `src/sim/generation/spectral/` 本地积分核心、`tabulated_spectrum_v1` backend、`hitran_hapi_v1` 适配层、谱线缓存和 HITRAN 单位换算，并在 manifest 中记录 `optical_absorption_backend`
-- **后续实现**：接入真实 HITRAN 下载流程、真实滤光片响应配置、PNNL/NIST 谱表导入和 HITRAN vs empirical 小规模对照
+- **已落地**：新增 `src/sim/generation/spectral/` 本地积分核心、`tabulated_spectrum_v1` backend、`hitran_hapi_v1` 适配层、谱线缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI 和 empirical/HITRAN 小规模对照 CLI，并在 manifest 中记录 `optical_absorption_backend`
+- **后续实现**：安装真实 HAPI 环境并执行谱线下载，替换默认滤光片参数为目标传感器规格，导入 PNNL/NIST 谱表并做 sanity check
 
 ---
 
@@ -170,7 +170,7 @@
 | **P2**    | TCN + LSTM/GRU + Transformer 模型   | 5        | P0  |
 | **P3**    | training 模块（loss/metrics/trainer） | 5        | P0  |
 | **P4** ✅  | 光谱交叉敏感建模                          | 2        | —   |
-| **P4** 🔜 | 真实 HITRAN/PNNL 数据接入               | 3        | P4  |
+| **P4** 🔜 | 真实 HITRAN/PNNL 数据接入与外部对照         | 3        | P4  |
 | **P5**    | ML 特征导出 + 传统模型                    | 4        | P3  |
 | **P6**    | 配置落地 + 实验编排 + 报告                  | 5        | P3  |
 

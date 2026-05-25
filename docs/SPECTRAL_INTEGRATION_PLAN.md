@@ -92,6 +92,7 @@ A_channel = integral R_channel(nu) * sum_i A_i(nu) dnu
 ```text
 src/sim/generation/spectral/
   __init__.py
+  defaults.py             # 默认气体、滤光片和 HITRAN 网格配置
   filters.py              # NDIR 通道滤光片响应函数
   hitran_backend.py       # HAPI/HITRAN line-by-line 计算适配层
   tabulated_backend.py    # PNNL/NIST 谱表读取与积分
@@ -99,14 +100,19 @@ src/sim/generation/spectral/
   cache.py                # 光谱网格与吸收系数缓存
 ```
 
-已落地的是本地光谱积分核心、表格谱 backend、HAPI 适配层、缓存和 HITRAN 单位换算。`hitran_backend.py` 支持注入 HAPI-like 对象做离线回归测试；真实 HITRAN 下载仍需要安装 HAPI 并配置其数据库目录。后续仍需补充：
+已落地的是本地光谱积分核心、表格谱 backend、HAPI 适配层、缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI 和 empirical/HITRAN 对照 CLI。`hitran_backend.py` 支持注入 HAPI-like 对象做离线回归测试；真实 HITRAN 下载仍需要安装 HAPI 并配置其数据库目录。当前入口：
 
 ```text
 configs/
-  spectral filter response 配置
+  data/spectral-defaults.json
 data/
-  已下载 HITRAN/PNNL 谱表缓存
+  hitran_cache/            # 运行 precompute 后生成
+src/pipeline/
+  precompute_hitran_spectra.py
+  compare_optical_backends.py
 ```
+
+`spectral-defaults.json` 是 smoke 运行参考配置，不是目标仪器的最终滤光片标定。
 
 建议公共接口：
 
@@ -144,4 +150,4 @@ def compute_ndir_absorbance(
 
 ## 当前结论
 
-短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层和 HITRAN 单位换算；下一阶段如需更强物理支撑，应接入真实 HITRAN HAPI 数据下载与滤光片响应配置，再用 PNNL/NIST 定量 IR 数据进行 sanity check 或标定对照。
+短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、预计算入口和 empirical/HITRAN 对照入口；下一阶段如需更强物理支撑，应在真实 HAPI 环境中下载谱线，替换目标传感器滤光片参数，再用 PNNL/NIST 定量 IR 数据进行 sanity check 或标定对照。

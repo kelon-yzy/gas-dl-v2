@@ -12,7 +12,8 @@
 - 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor` 和 `TCNRegressor`。
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口。
-- 已建立测试入口：`python -m pytest tests`（89 个测试，覆盖 sim + dl + pipeline）。
+- 已建立 `src/pipeline/precompute_hitran_spectra.py` 和 `src/pipeline/compare_optical_backends.py`：HITRAN 谱缓存预计算和 empirical/HITRAN 小规模对照入口。
+- 已建立测试入口：`python -m pytest tests`（95 个测试，覆盖 sim + dl + pipeline）。
 
 ## 目标目录
 
@@ -45,3 +46,12 @@ python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke --s
 ```
 
 当前生成主线已经落地条件表、索引表、标签表、split、manifest、validation summary、slow 张量、超声 waveform、光纤麦克风 waveform、metadata 和 scaler。默认使用 LHS 采样，默认声程候选为 `(0.20, 0.25, 0.30, 0.35, 0.40)`，NDIR 光学通道已加入 CH4/CO2 交叉敏感度。当前 NDIR 吸收系数是 `empirical_v1` 合成经验参数；本地表格谱积分原型为 `tabulated_spectrum_v1`，HITRAN 适配层为 `hitran_hapi_v1`，HITRAN/PNNL 谱线积分升级路线见 `docs/SPECTRAL_INTEGRATION_PLAN.md`。正式 v4 只写 `splits/train.csv` 这类新命名，不写 V3 的 `train_sequence_ids.csv` 等旧命名。
+
+## HITRAN 光谱预计算
+
+```powershell
+python -m pipeline.precompute_hitran_spectra --cache-root data/hitran_cache --channels ch4,co2
+python -m pipeline.compare_optical_backends --cache-root data/hitran_cache
+```
+
+这两个入口需要真实 HAPI 环境才能在缓存 miss 时下载谱线；缺少 HAPI 时会直接报错，不会生成 fake 谱线。
