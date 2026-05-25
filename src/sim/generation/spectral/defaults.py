@@ -10,9 +10,16 @@ DEFAULT_HITRAN_GAS_SPECS = (
     HitranGasSpec("H2O", "H2O", molecule_id=1, isotopologue_id=1),
 )
 
+# Industry-reference placeholders, not the actual datasheet of the target
+# TraceGas-HC-NDIR series sensor (Shenzhen Trace Gas Sensing Technology Co., Ltd.).
+# ch4: InfraTec LIM-262 NBP filter, CWL 3.3 um, FWHM 160 nm (~147 cm-1 at 3.3 um).
+#      MDPI Sensors 2012, doi:10.3390/s120912729.
+# co2: InfraTec standard CO2 NBP filter, CWL 4.26-4.27 um, HPBW 170 nm
+#      (~93 cm-1 at 4.26 um). InfraTec gas analysis docs (infratec-infrared.com).
+# See configs/data/spectral-defaults.json -> filter_source for the same record.
 DEFAULT_NDIR_FILTERS = {
-    "ch4": NDIRFilter(channel="ch4", center_cm1=3030.0, fwhm_cm1=30.0),
-    "co2": NDIRFilter(channel="co2", center_cm1=2347.0, fwhm_cm1=24.0),
+    "ch4": NDIRFilter(channel="ch4", center_cm1=3030.0, fwhm_cm1=147.0),
+    "co2": NDIRFilter(channel="co2", center_cm1=2347.0, fwhm_cm1=93.0),
 }
 
 DEFAULT_HITRAN_GRID_SPECS = {

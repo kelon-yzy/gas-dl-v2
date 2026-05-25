@@ -6,8 +6,15 @@
     {"gas": "H2O", "table_name": "H2O", "molecule_id": 1, "isotopologue_id": 1}
   ],
   "filters": {
-    "ch4": {"channel": "ch4", "center_cm1": 3030.0, "fwhm_cm1": 30.0},
-    "co2": {"channel": "co2", "center_cm1": 2347.0, "fwhm_cm1": 24.0}
+    "ch4": {"channel": "ch4", "center_cm1": 3030.0, "fwhm_cm1": 147.0},
+    "co2": {"channel": "co2", "center_cm1": 2347.0, "fwhm_cm1": 93.0}
+  },
+  "filter_source": {
+    "type": "industry_reference_only",
+    "target_vendor_model": "TraceGas-HC-NDIR (Shenzhen Trace Gas Sensing Technology Co., Ltd.) — actual datasheet pending",
+    "ch4_reference": "InfraTec LIM-262 pyroelectric methane detector NBP filter, CWL 3.3 um, FWHM 160 nm (~147 cm-1 at 3.3 um). Cited in MDPI Sensors 2012, doi:10.3390/s120912729.",
+    "co2_reference": "InfraTec standard CO2 NBP filter, CWL 4.26-4.27 um, HPBW 170 nm (~93 cm-1 at 4.26 um). InfraTec gas analysis docs (infratec-infrared.com).",
+    "replace_before_formal_benchmark": true
   },
   "hitran_grids": {
     "ch4": {
@@ -26,7 +33,9 @@
     }
   },
   "notes": [
-    "Reference defaults for HITRAN smoke runs only.",
-    "Final center_cm1 and fwhm_cm1 must be replaced by target sensor filter specifications before formal benchmark use."
+    "Filter center_cm1 and fwhm_cm1 are industry-reference placeholders, not the actual datasheet of the target TraceGas-HC-NDIR series sensor.",
+    "ch4 fwhm_cm1=147 derives from InfraTec LIM-262 NBP filter 3.3 um / 160 nm FWHM; co2 fwhm_cm1=93 derives from InfraTec standard CO2 NBP filter 4.26 um / 170 nm HPBW.",
+    "Replace center_cm1 / fwhm_cm1 with the vendor datasheet of the actual sensor (e.g., TraceGas-HC-NDIR) before any formal benchmark or publication run.",
+    "hitran_grids half-widths (ch4 +/-70, co2 +/-63 cm-1) are now narrower than the new filter main lobe (+/-FWHM = +/-147 / +/-93 cm-1). The gaussian filter wings will be truncated at grid edges. If higher fidelity is needed, widen hitran_grids and re-download HITRAN cache."
   ]
 }
