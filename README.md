@@ -12,7 +12,7 @@
 - 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor` 和 `TCNRegressor`。
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口。
-- 已建立 `src/pipeline/precompute_hitran_spectra.py` 和 `src/pipeline/compare_optical_backends.py`：HITRAN 谱缓存预计算和 empirical/HITRAN 小规模对照入口。
+- 已建立 `src/pipeline/precompute_hitran_spectra.py` 和 `src/pipeline/compare_optical_backends.py`：HITRAN 谱缓存预计算和 empirical/HITRAN 小规模对照入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
 - 已建立测试入口：`python -m pytest tests`（95 个测试，覆盖 sim + dl + pipeline）。
 
 ## 目标目录
@@ -50,8 +50,9 @@ python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke --s
 ## HITRAN 光谱预计算
 
 ```powershell
+$env:PYTHONPATH = "src"
 python -m pipeline.precompute_hitran_spectra --cache-root data/hitran_cache --channels ch4,co2
 python -m pipeline.compare_optical_backends --cache-root data/hitran_cache
 ```
 
-这两个入口需要真实 HAPI 环境才能在缓存 miss 时下载谱线；缺少 HAPI 时会直接报错，不会生成 fake 谱线。
+这两个入口需要真实 HAPI 环境才能在缓存 miss 时下载谱线；缺少 HAPI 时会直接报错，不会生成 fake 谱线。当前本地环境已验证 `hitran-api 1.3.0.0` 可用，`precompute_hitran_spectra` 已成功下载 CH4/CO2/H2O 在 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.npz` 预计算缓存。`data/hitran_cache*/` 是本地运行缓存，已加入 `.gitignore`，不纳入版本库。

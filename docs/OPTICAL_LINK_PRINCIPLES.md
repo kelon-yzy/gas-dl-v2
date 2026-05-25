@@ -27,7 +27,7 @@
 | ----------------------- | ------------------------------------------------------------------------------------- | -------------- | ------------------------ |
 | `empirical_v1`          | `src/sim/generation/acoustic_physics.py`<br>`src/sim/generation/optical_crosstalk.py` | benchmark 实际使用 | 可解释、可回归测试的合成吸收模型         |
 | `tabulated_spectrum_v1` | `src/sim/generation/spectral/tabulated_backend.py`                                    | 已实现，未启用        | 预制气体吸收谱表的滤光片积分           |
-| `hitran_hapi_v1`        | `src/sim/generation/spectral/hitran_backend.py`                                       | 预计算入口就位，真实数据未下载 | HITRAN line-by-line 谱线积分 |
+| `hitran_hapi_v1`        | `src/sim/generation/spectral/hitran_backend.py`                                       | 已真实下载验证，未接入 benchmark | HITRAN line-by-line 谱线积分 |
 
 `tabulated_spectrum_v1` 和 `hitran_hapi_v1` 共用同一套积分公式，区别只在「谱来自哪里」。
 
@@ -125,7 +125,7 @@ OPTICAL_ABSORPTION_BACKEND = "empirical_v1"
 
 ## 4. spectral 子模块：物理支撑路径
 
-`src/sim/generation/spectral/` 下的实现遵循 NDIR + Beer–Lambert + 滤光片积分的标准流程。当前不集成进 benchmark；可通过 `pipeline.precompute_hitran_spectra` 预计算 HITRAN 缓存，并通过 `pipeline.compare_optical_backends` 与 empirical_v1 做小规模对照。
+`src/sim/generation/spectral/` 下的实现遵循 NDIR + Beer–Lambert + 滤光片积分的标准流程。当前不集成进 benchmark；可通过 `pipeline.precompute_hitran_spectra` 预计算 HITRAN 缓存，并通过 `pipeline.compare_optical_backends` 与 empirical_v1 做小规模对照。本地已用真实 HAPI 环境完成 CH4/CO2/H2O 两个 NDIR 窗口的下载验证。
 
 ### 4.1 滤光片响应
 
@@ -181,8 +181,9 @@ A_channel = −ln(T_channel)
    - `hapi.db_begin(cache_root)` 设置本地数据库目录；
    - `hapi.fetch(table, molecule_id, isotopologue_id, ν_min, ν_max)` 下载谱线；
    - `hapi.absorptionCoefficient_Voigt(...)` 用 Voigt 线型生成 `(ν, k(ν))`，传 `HITRAN_units=True` 锁定 HITRAN 的 cm²/molecule 系数。
-4. 写缓存（`cache.py:38`），缓存保存 HAPI 原始 cm²/molecule 系数，文件名嵌入全部 key 字段，便于人工检查。
-5. `convert_hitran_coeff_to_per_percent_m()` 使用理想气体数密度，把 cm²/molecule 换算为 `TabulatedSpectrum.absorption_coeff_per_percent_m` 需要的「每 1% 体积浓度、每米光程」光学深度系数。
+4. HAPI 原始表名使用气体名 + 波数窗口，例如 `CH4_2960p0000_3100p0000`，避免 CH4/CO2 通道用不同窗口时复用或覆盖错误谱线范围。
+5. 写缓存（`cache.py:38`），缓存保存 HAPI 原始 cm²/molecule 系数，文件名嵌入全部 key 字段，便于人工检查。
+6. `convert_hitran_coeff_to_per_percent_m()` 使用理想气体数密度，把 cm²/molecule 换算为 `TabulatedSpectrum.absorption_coeff_per_percent_m` 需要的「每 1% 体积浓度、每米光程」光学深度系数。
 
 为了让测试不依赖外网，`compute_hitran_ndir_absorbance` 接受 `hapi_module` 注入参数。`tests/test_spectral_hitran_backend.py` 用一个 fake HAPI 验证了缓存 miss/hit 行为、缓存 roundtrip 和 HITRAN 单位换算。
 
@@ -222,14 +223,14 @@ python -m pytest tests
 
 ## 6. 当前缺口
 
-物理支撑路径已实现的部分：滤光片高斯响应、通道积分公式、表格谱 backend、HITRAN 适配层、缓存读写、HITRAN cm²/molecule 到 per-percent-per-meter 的单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI、empirical/HITRAN 对照 CLI。
+物理支撑路径已实现的部分：滤光片高斯响应、通道积分公式、表格谱 backend、HITRAN 适配层、缓存读写、HITRAN cm²/molecule 到 per-percent-per-meter 的单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI、empirical/HITRAN 对照 CLI，以及本地真实 HAPI 下载验证。
 
 仍缺的部分（按集成难度排序）：
 
 1. **真实滤光片规格未替换**。当前 `spectral-defaults.json` 是 smoke 参考值，需要根据目标传感器滤光片实际带宽替换，并记录出处。
-2. **真实谱表 / HITRAN 数据未下载**。HITRAN 预计算入口已存在，但需要安装 HAPI、配置本地数据库目录并实际运行。
-3. **真实单位标定仍需外部对照**。代码已经完成 HITRAN cm²/molecule 到 `absorption_coeff_per_percent_m` 的理想气体换算，但尚未用真实 HAPI 输出和仪器/PNNL/NIST 数据做数值 sanity check。
-4. **PNNL/NIST 谱表导入未做**。目前只有对照路线和 HITRAN/empirical 对照入口，还没有 PNNL/NIST parser。
+2. **真实单位标定仍需外部对照**。代码已经完成 HITRAN cm²/molecule 到 `absorption_coeff_per_percent_m` 的理想气体换算，并已用真实 HAPI 输出跑通缓存生成，但尚未用仪器/PNNL/NIST 数据做数值 sanity check。
+3. **PNNL/NIST 谱表导入未做**。目前只有对照路线和 HITRAN/empirical 对照入口，还没有 PNNL/NIST parser。
+4. **benchmark 尚未切换 backend**。当前正式生成主线仍使用 `empirical_v1`，HITRAN 路径只作为显式预计算和对照入口存在。
 
 ## 7. 下一步选项
 
@@ -237,7 +238,7 @@ python -m pytest tests
 
 | 选项  | 内容                                                                                                                   | 成本  |
 | --- | -------------------------------------------------------------------------------------------------------------------- | --- |
-| A   | 安装 HAPI，运行 `pipeline.precompute_hitran_spectra` 生成真实缓存，再运行 `pipeline.compare_optical_backends` 输出对照。 | 中   |
+| A   | 获取目标传感器滤光片中心波数和 FWHM，替换 smoke 默认配置并记录出处。                                                | 中   |
 | B   | 导入 PNNL/NIST 谱表 parser，对 HITRAN 积分结果做 sanity check。                                             | 高   |
 | C   | 把 `OPTICAL_ABSORPTION_BACKEND` 改成可选项，让 benchmark 可以显式切换到 spectral backend。                        | 中   |
 

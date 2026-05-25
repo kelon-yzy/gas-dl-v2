@@ -100,13 +100,13 @@ src/sim/generation/spectral/
   cache.py                # 光谱网格与吸收系数缓存
 ```
 
-已落地的是本地光谱积分核心、表格谱 backend、HAPI 适配层、缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI 和 empirical/HITRAN 对照 CLI。`hitran_backend.py` 支持注入 HAPI-like 对象做离线回归测试；真实 HITRAN 下载仍需要安装 HAPI 并配置其数据库目录。当前入口：
+已落地的是本地光谱积分核心、表格谱 backend、HAPI 适配层、缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI 和 empirical/HITRAN 对照 CLI。`hitran_backend.py` 支持注入 HAPI-like 对象做离线回归测试；本地已用真实 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.data/.header/.npz` 缓存。当前入口：
 
 ```text
 configs/
   data/spectral-defaults.json
 data/
-  hitran_cache/            # 运行 precompute 后生成
+  hitran_cache*/           # 运行 precompute 后生成，本地缓存不进 git
 src/pipeline/
   precompute_hitran_spectra.py
   compare_optical_backends.py
@@ -145,9 +145,10 @@ def compute_ndir_absorbance(
 - 单气体浓度增加时，目标通道吸收单调增加。
 - 非目标气体对目标通道的交叉响应非负，且小于主响应。
 - HITRAN HAPI 输出的 cm²/molecule 系数必须先按理想气体数密度换算为 per-percent-per-meter 系数，再进入 `TabulatedSpectrum`。
+- HAPI 原始表名必须绑定气体和波数窗口，避免不同 NDIR 通道复用错误谱线范围。
 - `main_sensor_features` 的固定种子回归测试必须更新并记录谱源版本。
 - 文档和 manifest 必须记录 `optical_absorption_backend`，例如 `empirical_v1`、`hitran_hapi_v1` 或 `pnnl_tabulated_v1`。
 
 ## 当前结论
 
-短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、预计算入口和 empirical/HITRAN 对照入口；下一阶段如需更强物理支撑，应在真实 HAPI 环境中下载谱线，替换目标传感器滤光片参数，再用 PNNL/NIST 定量 IR 数据进行 sanity check 或标定对照。
+短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、真实 HAPI 谱线下载、预计算入口和 empirical/HITRAN 对照入口；下一阶段如需更强物理支撑，应替换目标传感器滤光片参数，再用 PNNL/NIST 定量 IR 数据进行 sanity check 或标定对照。
