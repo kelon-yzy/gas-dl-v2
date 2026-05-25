@@ -12,7 +12,7 @@
 | `src/dl/training` | 未迁移                                                             | 0%  |
 | `src/ml`          | 仅有占位 `__init__.py`                                              | 0%  |
 | `src/pipeline`    | layout + generate_benchmark + HITRAN 预计算/对照 CLI                 | 22% |
-| `configs/`        | 已新增 `configs/data/spectral-defaults.json`，其余配置未落地               | 5%  |
+| `configs/`        | 已新增 `configs/data/spectral-defaults.json`（含 `filter_source` 行业参考占位元信息），其余配置未落地 | 5%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
 | `tests/`          | 95 个测试（sim + dl + pipeline）                                     | 52% |
 
@@ -65,7 +65,7 @@
 - **PNNL/NIST 路线**：读取定量 IR absorption coefficient 或 cross-section 谱，按浓度和光程缩放后做滤光片窗口积分
 - **已落地**：新增 `src/sim/generation/spectral/` 本地积分核心、`tabulated_spectrum_v1` backend、`hitran_hapi_v1` 适配层、谱线缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI 和 empirical/HITRAN 小规模对照 CLI，并在 manifest 中记录 `optical_absorption_backend`
 - **真实下载验证**：本地已用 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的 HITRAN 谱线；HAPI 原始表名已绑定波数窗口，避免不同通道缓存互相污染
-- **后续实现**：替换默认滤光片参数为目标传感器规格，导入 PNNL/NIST 谱表并做 sanity check；benchmark 主线仍未切换到 `hitran_hapi_v1`
+- **后续实现**：当前默认滤光片已用行业参考占位（CH4 InfraTec LIM-262 3.3 μm/160 nm，对应 147 cm⁻¹ FWHM；CO2 InfraTec 4.26 μm/170 nm，对应 93 cm⁻¹ FWHM），仍需替换为目标传感器 TraceGas-HC-NDIR 实际 datasheet；按需扩大 `hitran_grids` 与重下 HITRAN cache 以匹配实际 FWHM 主响应；导入 PNNL/NIST 谱表并做 sanity check；benchmark 主线仍未切换到 `hitran_hapi_v1`
 
 ---
 
@@ -171,7 +171,7 @@
 | **P2**    | TCN + LSTM/GRU + Transformer 模型   | 5        | P0  |
 | **P3**    | training 模块（loss/metrics/trainer） | 5        | P0  |
 | **P4** ✅  | 光谱交叉敏感建模                          | 2        | —   |
-| **P4** 🔜 | 目标滤光片规格 + PNNL/NIST 外部对照         | 3        | P4  |
+| **P4** 🔜 | TraceGas-HC-NDIR datasheet 替换占位 + 按需扩 HITRAN grid + PNNL/NIST 外部对照 | 3        | P4  |
 | **P5**    | ML 特征导出 + 传统模型                    | 4        | P3  |
 | **P6**    | 配置落地 + 实验编排 + 报告                  | 5        | P3  |
 

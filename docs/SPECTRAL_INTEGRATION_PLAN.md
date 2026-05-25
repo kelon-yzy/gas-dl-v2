@@ -112,7 +112,7 @@ src/pipeline/
   compare_optical_backends.py
 ```
 
-`spectral-defaults.json` 是 smoke 运行参考配置，不是目标仪器的最终滤光片标定。
+`spectral-defaults.json` 当前已切到行业参考占位（`filter_source.type=industry_reference_only`，CH4 来源 InfraTec LIM-262 NBP 3.3 μm/160 nm，对应 ~147 cm⁻¹ FWHM；CO2 来源 InfraTec 标准 CO2 NBP 4.26 μm/170 nm，对应 ~93 cm⁻¹ FWHM），不是目标仪器 TraceGas-HC-NDIR（深圳市痕量气体传感科技有限公司）的最终滤光片标定，正式 benchmark 前必须替换为厂商 datasheet。
 
 建议公共接口：
 
@@ -151,4 +151,4 @@ def compute_ndir_absorbance(
 
 ## 当前结论
 
-短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、真实 HAPI 谱线下载、预计算入口和 empirical/HITRAN 对照入口；下一阶段如需更强物理支撑，应替换目标传感器滤光片参数，再用 PNNL/NIST 定量 IR 数据进行 sanity check 或标定对照。
+短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、真实 HAPI 谱线下载、预计算入口和 empirical/HITRAN 对照入口；默认滤光片已从 smoke 占位（CH4 30 / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 / CO2 93 cm⁻¹ FWHM，来源见 `filter_source`），仍需获取 TraceGas-HC-NDIR 实际 datasheet 才能进入正式标定，再用 PNNL/NIST 定量 IR 数据进行 sanity check 或标定对照。

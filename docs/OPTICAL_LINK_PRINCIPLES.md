@@ -138,12 +138,14 @@ R(ν) = exp(−½ · ((ν − ν0) / σ)²)
 
 只使用归一形状，量纲在通道归一时约掉。`np.trapezoid(response, ν)` 必须 > 0，否则报错。
 
-`configs/data/spectral-defaults.json` 和 `defaults.py` 提供 smoke 运行参考值（实际取值由传感器滤光片决定）：
+`configs/data/spectral-defaults.json` 和 `defaults.py` 当前使用行业参考占位（`filter_source.type=industry_reference_only`，实际取值由目标传感器 TraceGas-HC-NDIR 决定）：
 
-| 通道  | 中心波长     | 波数         |
-| --- | -------- | ---------- |
-| CO2 | ~4.26 μm | ~2347 cm⁻¹ |
-| CH4 | ~3.3 μm  | ~3030 cm⁻¹ |
+| 通道  | 中心波长     | 中心波数       | FWHM       | 来源占位                                                                                                |
+| --- | -------- | ---------- | ---------- | --------------------------------------------------------------------------------------------------- |
+| CO2 | ~4.26 μm | 2347 cm⁻¹  | 93 cm⁻¹    | InfraTec 标准 CO2 NBP filter 4.26 μm / 170 nm HPBW（infratec-infrared.com）                              |
+| CH4 | ~3.3 μm  | 3030 cm⁻¹  | 147 cm⁻¹   | InfraTec LIM-262 pyroelectric methane detector NBP 3.3 μm / 160 nm FWHM（MDPI Sensors 2012, doi:10.3390/s120912729） |
+
+以上属于 `industry_reference_only` 占位，正式 benchmark 前必须替换为目标传感器 TraceGas-HC-NDIR（深圳市痕量气体传感科技有限公司）实际 datasheet。
 
 ### 4.2 单气体光学深度
 
@@ -227,7 +229,7 @@ python -m pytest tests
 
 仍缺的部分（按集成难度排序）：
 
-1. **真实滤光片规格未替换**。当前 `spectral-defaults.json` 是 smoke 参考值，需要根据目标传感器滤光片实际带宽替换，并记录出处。
+1. **真实滤光片规格未替换**。当前 `spectral-defaults.json` 已从 smoke 占位（CH4 30 cm⁻¹ / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 cm⁻¹ / CO2 93 cm⁻¹，来源见 `filter_source` 字段），但仍非目标传感器 TraceGas-HC-NDIR 的实际 datasheet。新 FWHM 主响应（±FWHM）已宽于 `hitran_grids` 半宽（CH4 ±70 / CO2 ±63 cm⁻¹），高斯滤光片在 grid 边缘会被截断；若要更高保真需扩大 `hitran_grids` 并重下 HITRAN cache。
 2. **真实单位标定仍需外部对照**。代码已经完成 HITRAN cm²/molecule 到 `absorption_coeff_per_percent_m` 的理想气体换算，并已用真实 HAPI 输出跑通缓存生成，但尚未用仪器/PNNL/NIST 数据做数值 sanity check。
 3. **PNNL/NIST 谱表导入未做**。目前只有对照路线和 HITRAN/empirical 对照入口，还没有 PNNL/NIST parser。
 4. **benchmark 尚未切换 backend**。当前正式生成主线仍使用 `empirical_v1`，HITRAN 路径只作为显式预计算和对照入口存在。
@@ -238,7 +240,7 @@ python -m pytest tests
 
 | 选项  | 内容                                                                                                                   | 成本  |
 | --- | -------------------------------------------------------------------------------------------------------------------- | --- |
-| A   | 获取目标传感器滤光片中心波数和 FWHM，替换 smoke 默认配置并记录出处。                                                | 中   |
+| A   | 获取目标传感器 TraceGas-HC-NDIR 实际 datasheet 替换当前行业参考占位；并按需扩大 `hitran_grids` 与重下 HITRAN cache 以匹配实际 FWHM 主响应。 | 中   |
 | B   | 导入 PNNL/NIST 谱表 parser，对 HITRAN 积分结果做 sanity check。                                             | 高   |
 | C   | 把 `OPTICAL_ABSORPTION_BACKEND` 改成可选项，让 benchmark 可以显式切换到 spectral backend。                        | 中   |
 
