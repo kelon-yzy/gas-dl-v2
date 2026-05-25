@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 
+from sim.generation.optical_crosstalk import apply_optical_crosstalk
+
 
 PROCESSING_PARAMS = {
     "t_delay_s": 0.00008,
@@ -159,6 +161,7 @@ def main_sensor_features(condition: dict[str, str], rng) -> dict[str, float | bo
 
     absorption_ch4 = _hidden_absorption_ch4(x_ch4, h_rh, p_mpa, t_c)
     absorption_co2 = _hidden_absorption_co2(x_co2, h_rh, p_mpa, t_c)
+    optical_absorption = apply_optical_crosstalk(absorption_ch4=absorption_ch4, absorption_co2=absorption_co2)
     lambda_true = _hidden_lambda_mix(x_h2, x_co2, t_c)
 
     optical_drift_ch4 = 0.0007 * (h_rh - 50.0) + 0.004 * (p_mpa - 1.0) + rng.gauss(0.0, 0.004)
@@ -169,8 +172,14 @@ def main_sensor_features(condition: dict[str, str], rng) -> dict[str, float | bo
     optical_baseline_co2_now = PROCESSING_PARAMS["optical_baseline_co2_init"] + optical_drift_co2 + rng.gauss(0.0, 0.006)
     thermal_baseline_now = PROCESSING_PARAMS["thermal_baseline_init"] + thermal_drift
 
-    v_ndir_ch4 = max(0.1, optical_baseline_ch4_now * math.exp(-absorption_ch4) + rng.gauss(0.0, 0.008))
-    v_ndir_co2 = max(0.1, optical_baseline_co2_now * math.exp(-absorption_co2) + rng.gauss(0.0, 0.008))
+    v_ndir_ch4 = max(
+        0.1,
+        optical_baseline_ch4_now * math.exp(-optical_absorption["absorption_ch4_observed"]) + rng.gauss(0.0, 0.008),
+    )
+    v_ndir_co2 = max(
+        0.1,
+        optical_baseline_co2_now * math.exp(-optical_absorption["absorption_co2_observed"]) + rng.gauss(0.0, 0.008),
+    )
     v_tcs = (
         thermal_baseline_now
         + PROCESSING_PARAMS["tcs_response_slope"] * (lambda_true - PROCESSING_PARAMS["tcs_lambda_offset"])
@@ -186,8 +195,9 @@ def main_sensor_features(condition: dict[str, str], rng) -> dict[str, float | bo
         "V_NDIR_CH4": v_ndir_ch4,
         "V_NDIR_CO2": v_ndir_co2,
         "V_TCS": v_tcs,
-        "ndir_ch4_saturated": absorption_ch4 > PROCESSING_PARAMS["optical_saturation_absorbance"],
-        "ndir_co2_saturated": absorption_co2 > PROCESSING_PARAMS["optical_saturation_absorbance"],
+        "ndir_ch4_saturated": optical_absorption["absorption_ch4_observed"] > PROCESSING_PARAMS["optical_saturation_absorbance"],
+        "ndir_co2_saturated": optical_absorption["absorption_co2_observed"] > PROCESSING_PARAMS["optical_saturation_absorbance"],
+        **optical_absorption,
         "optical_baseline_drift_ch4_observed": optical_drift_ch4,
         "optical_baseline_drift_co2_observed": optical_drift_co2,
         "thermal_baseline_drift_observed": thermal_drift,

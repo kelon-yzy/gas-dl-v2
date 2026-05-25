@@ -34,6 +34,7 @@ def test_generate_benchmark_dataset_writes_v4_assets(tmp_path):
     assert len(label_rows) == 16
     assert manifest["schema_version"] == "v4-benchmark-1"
     assert manifest["path_lms"] == [0.2, 0.25, 0.3, 0.35, 0.4]
+    assert manifest["optical_absorption_backend"] == "empirical_v1"
 
     forbidden_fields = {"base_condition_id", "noise_seed_index", "noise_seed"}
     assert forbidden_fields.isdisjoint(condition_rows[0])
@@ -80,6 +81,7 @@ def test_generate_benchmark_dataset_writes_npz_storage_arrays_and_metadata(tmp_p
     condition_rows = _read_csv(dataset_dir / "condition_grid_sequence.csv")
     slow_rows = _read_csv(dataset_dir / "sequences" / "slow_sequence_long.csv")
     manifest = json.loads((dataset_dir / "manifest.json").read_text(encoding="utf-8"))
+    waveform_spec = json.loads((dataset_dir / "metadata" / "waveform_spec.json").read_text(encoding="utf-8"))
     validation = json.loads((dataset_dir / "quality" / "validation_summary.json").read_text(encoding="utf-8"))
 
     y = np.load(dataset_dir / "labels" / "y.npy")
@@ -93,6 +95,7 @@ def test_generate_benchmark_dataset_writes_npz_storage_arrays_and_metadata(tmp_p
 
     assert manifest["storage"] == "npz"
     assert manifest["shapes"]["slow"] == [5, 8, len(slow_channel_names)]
+    assert waveform_spec["optical_absorption_backend"] == "empirical_v1"
     assert validation["status"] == "pass"
     assert y.shape == (5, 4)
     assert slow.shape == (5, 8, len(slow_channel_names))

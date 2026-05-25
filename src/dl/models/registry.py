@@ -5,9 +5,11 @@ from typing import Callable
 from torch import nn
 
 from dl.models.cnn1d import CNN1DRegressor
+from dl.models.tcn import TCNRegressor
 
 MODEL_REGISTRY: dict[str, type[nn.Module] | Callable[..., nn.Module]] = {
     "cnn1d": CNN1DRegressor,
+    "tcn": TCNRegressor,
 }
 
 

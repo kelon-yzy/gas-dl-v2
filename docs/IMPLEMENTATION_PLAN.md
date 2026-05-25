@@ -6,26 +6,26 @@
 
 | 子系统               | 状态                                              | 完成度 |
 | ----------------- | ----------------------------------------------- | --- |
-| `src/sim`         | 最小垂直切片完成（core/generation/packaging/validation）  | 70% |
+| `src/sim`         | 最小垂直切片完成（core/generation/packaging/validation）  | 78% |
 | `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers     | 40% |
-| `src/dl/models`   | P0 完成：BaseRegressor + CNN1DRegressor + registry | 10% |
+| `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1DRegressor + TCNRegressor + registry | 25% |
 | `src/dl/training` | 未迁移                                             | 0%  |
 | `src/ml`          | 仅有占位 `__init__.py`                              | 0%  |
 | `src/pipeline`    | 仅有 layout + generate_benchmark CLI              | 15% |
 | `configs/`        | 全部 `.gitkeep`，无实际配置                             | 0%  |
 | `experiments/`    | 仅有 `.gitkeep`                                   | 0%  |
-| `tests/`          | 58 个测试（sim + dl + pipeline）                     | 40% |
+| `tests/`          | 87 个测试（sim + dl + pipeline）                     | 49% |
 
 ## PLAN 6 项问题对照
 
 | #   | 问题                                                 | 状态                            |
 | --- | -------------------------------------------------- | ----------------------------- |
 | 1   | 删除 base_condition_id / noise_seed 旧列，mixture_id 唯一 | ✅ v4 sim 已落地                  |
-| 2   | TCN 感受野较短                                          | ❌ 模型层未开始                      |
+| 2   | TCN 感受野较短                                          | ⚠️ TCNRegressor 已落地并记录 receptive_field，感受野调参待实验配置化 |
 | 3   | 时间步分布不合理                                           | ⚠️ phase 仍为固定四等分              |
 | 4   | LHS 采样 + Dropout 语义归位                              | ⚠️ LHS 已完成，Dropout 待 training |
 | 5   | 文件命名过长，结果混乱                                        | ✅ output 分区 + run 契约已定义       |
-| 6   | 光学变量显式分层建模                                         | ⚠️ 吸收层已有，谱线重叠/交叉敏感未建模         |
+| 6   | 光学变量显式分层建模                                         | ✅ NDIR 交叉敏感度已显式建模             |
 
 ---
 
@@ -45,16 +45,26 @@
 - **manifest 记录**：声程候选写入 `manifest.json` 和 `metadata/waveform_spec.json`
 - **默认值**：`(0.20, 0.25, 0.30, 0.35, 0.40)` 作为正式默认声程候选
 
-### 2.3 声学物理单元测试
+### 2.3 声学物理单元测试 ✅
 
-- 对 `acoustic_physics.py` 中 `hidden_sound_speed_v2`、`hidden_attenuation_v2`、`main_sensor_features` 编写确定性回归测试
-- 固定输入 → 固定输出，防止物理公式意外变更
+- **状态**：已完成。`tests/test_acoustic_physics_regression.py` 覆盖 `hidden_sound_speed_v2`、`hidden_attenuation_v2`、`main_sensor_features`
+- **策略**：固定输入 → 固定输出，防止物理公式意外变更
 
-### 2.4 光谱交叉敏感度显式建模
+### 2.4 光谱交叉敏感度显式建模 ✅
 
-- 新增 `src/sim/generation/optical_crosstalk.py`
-- 定义交叉敏感矩阵参数（CH₄ 通道对 CO₂ 的响应系数、CO₂ 通道对 CH₄ 的响应系数）
-- 在 `main_sensor_features` 中插入交叉层
+- **状态**：已完成。新增 `src/sim/generation/optical_crosstalk.py`
+- **实现**：定义交叉敏感矩阵参数，CH4 通道响应 3.5% CO2 吸收，CO2 通道响应 1.2% CH4 吸收
+- **接入**：在 `main_sensor_features` 中把原始吸收转换为 NDIR 观测吸收，并用于 NDIR 电压与饱和判断
+- **测试**：`tests/test_optical_crosstalk.py` 覆盖默认矩阵和显式矩阵
+- **边界**：当前吸收系数为 `empirical_v1` 合成经验参数，不是 HITRAN/PNNL 谱线积分或真实仪器标定值
+
+### 2.5 HITRAN/PNNL 光谱积分支撑
+
+- **状态**：已完成资料调研与实施方案文档，见 `docs/SPECTRAL_INTEGRATION_PLAN.md`
+- **HITRAN 路线**：用 HAPI 下载 CH4/CO2/H2O line-by-line 数据，按温度、压力、浓度、光程和滤光片响应积分得到 NDIR 通道吸收
+- **PNNL/NIST 路线**：读取定量 IR absorption coefficient 或 cross-section 谱，按浓度和光程缩放后做滤光片窗口积分
+- **已落地**：新增 `src/sim/generation/spectral/` 本地积分核心、`tabulated_spectrum_v1` backend、`hitran_hapi_v1` 适配层和谱线缓存，并在 manifest 中记录 `optical_absorption_backend`
+- **后续实现**：接入真实 HITRAN 下载流程、真实滤光片响应配置和 PNNL/NIST 谱表导入
 
 ---
 
@@ -62,9 +72,11 @@
 
 ### 3.1 TCN 回归器
 
-- 文件：`src/dl/models/tcn.py`
-- 从 V3 迁移 `TCNRegressor`，适配 v4 接口
-- 记录感受野参数
+- **状态**：已完成。新增 `src/dl/models/tcn.py`
+- **实现**：从 V3 的因果卷积残差块思路迁移，适配 v4 `BaseRegressor`、`forward(x) -> Tensor[batch, out_dim]`、默认 `in_channels=8` / `out_dim=4`
+- **注册**：`MODEL_REGISTRY["tcn"]` + `build_model({"name": "tcn", ...})`
+- **感受野记录**：`TCNRegressor.dilations` 与 `TCNRegressor.receptive_field`
+- **测试**：`tests/test_dl_models.py` 覆盖注册、参数透传、NCT forward、梯度、因果卷积长度保持和 dataset → TCN 前向
 
 ### 3.2 LSTM / GRU 回归器
 
@@ -154,10 +166,11 @@
 | --------- | --------------------------------- | -------- | --- |
 | **P0** ✅  | dl data + cnn1d 最小可用链路            | 10       | —   |
 | **P1** ✅  | LHS 采样完成                          | 1 (done) | P0  |
-| **P1** 🔜 | 声程配置化 + acoustic 测试               | 3        | P0  |
+| **P1** ✅  | 声程配置化 + acoustic 测试               | 3        | P0  |
 | **P2**    | TCN + LSTM/GRU + Transformer 模型   | 5        | P0  |
 | **P3**    | training 模块（loss/metrics/trainer） | 5        | P0  |
-| **P4**    | 光谱交叉敏感建模                          | 2        | —   |
+| **P4** ✅  | 光谱交叉敏感建模                          | 2        | —   |
+| **P4** 🔜 | 真实 HITRAN/PNNL 数据接入                 | 3        | P4  |
 | **P5**    | ML 特征导出 + 传统模型                    | 4        | P3  |
 | **P6**    | 配置落地 + 实验编排 + 报告                  | 5        | P3  |
 

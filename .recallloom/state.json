@@ -1,5 +1,5 @@
 {
-  "workspace_revision": 12,
+  "workspace_revision": 28,
   "update_protocol_revision": 1,
   "git_exclude_mode": "skipped",
   "bridged_entries": {},
@@ -11,10 +11,10 @@
       "base_workspace_revision": 2
     },
     "rolling_summary": {
-      "file_revision": 7,
-      "updated_at": "2026-05-24T16:39:48+08:00",
-      "writer_id": "Claude",
-      "base_workspace_revision": 12
+      "file_revision": 17,
+      "updated_at": "2026-05-25T15:14:16+08:00",
+      "writer_id": "Codex",
+      "base_workspace_revision": 27
     },
     "update_protocol": {
       "file_revision": 1,
@@ -24,9 +24,9 @@
     }
   },
   "daily_logs": {
-    "latest_file": "daily_logs/2026-05-24.md",
-    "latest_entry_id": "entry-4",
-    "latest_entry_seq": 4,
-    "entry_count": 4
+    "latest_file": "daily_logs/2026-05-25.md",
+    "latest_entry_id": "entry-6",
+    "latest_entry_seq": 6,
+    "entry_count": 6
   }
 }

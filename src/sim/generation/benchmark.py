@@ -32,6 +32,7 @@ from sim.validation.integrity import validate_benchmark_assets
 
 
 DEFAULT_WAVEFORM_PATH_LMS = (0.20, 0.25, 0.30, 0.35, 0.40)
+OPTICAL_ABSORPTION_BACKEND = "empirical_v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +82,7 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
         multi_path_phase=spec.multi_path_phase,
         sampling_strategy=spec.sampling_strategy,
         path_lms=spec.path_lms,
+        optical_absorption_backend=OPTICAL_ABSORPTION_BACKEND,
         shapes=shapes,
         slow_channels=SLOW_CHANNELS,
         labels=COMPONENT_FIELDS,
@@ -122,6 +124,7 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
             "timesteps": spec.timesteps,
             "dt_s": spec.dt_s,
             "path_lms": [float(path_l_m) for path_l_m in spec.path_lms],
+            "optical_absorption_backend": OPTICAL_ABSORPTION_BACKEND,
         },
     )
     write_json(output_dir / "manifest.json", manifest)
