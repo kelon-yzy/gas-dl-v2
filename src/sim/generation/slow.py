@@ -6,8 +6,15 @@ import random
 import numpy as np
 
 from sim.core.schema import SLOW_CHANNELS, SLOW_DYNAMIC_CHANNELS
-from sim.generation.acoustic_physics import main_sensor_features
+from sim.generation.acoustic_physics import PROCESSING_PARAMS, main_sensor_features
+from sim.generation.optical_backend import (
+    EMPIRICAL_ABSORPTION_BACKEND,
+    HITRAN_ABSORPTION_BACKEND,
+    VALID_OPTICAL_ABSORPTION_BACKENDS,
+    compute_hitran_optical_absorption,
+)
 from sim.generation.phases import blend_for_timestep, phase_boundaries, phase_for_timestep
+from sim.generation.spectral import HitranGridSpec, TabulatedSpectrum
 from sim.generation.waveforms import FiberMicSpec, WaveformSpec, simulate_fiber_mic_measurement, simulate_waveform_measurement
 
 
@@ -34,7 +41,11 @@ def build_sequence_arrays(
     ultrasonic_spec: WaveformSpec,
     fiber_mic_spec: FiberMicSpec,
     path_lms: tuple[float, ...],
+    optical_absorption_backend: str = EMPIRICAL_ABSORPTION_BACKEND,
+    hitran_cache_root: str = "data/hitran_cache",
 ) -> dict[str, object]:
+    if optical_absorption_backend not in VALID_OPTICAL_ABSORPTION_BACKENDS:
+        raise ValueError(f"optical_absorption_backend must be one of {list(VALID_OPTICAL_ABSORPTION_BACKENDS)}, got {optical_absorption_backend!r}")
     sequence_count = len(conditions)
     slow = np.zeros((sequence_count, timesteps, len(SLOW_CHANNELS)), dtype=np.float32)
     ultrasonic = np.zeros((sequence_count, timesteps, ultrasonic_spec.waveform_samples), dtype=np.int16)
@@ -45,6 +56,9 @@ def build_sequence_arrays(
     q1, q2, q3 = phase_boundaries(timesteps)
     is_baseline_scan = multi_path_phase == "baseline"
     is_steady_scan = multi_path_phase == "steady"
+    spectra_cache: dict[tuple[str, HitranGridSpec], tuple[TabulatedSpectrum, ...]] | None = (
+        {} if optical_absorption_backend == HITRAN_ABSORPTION_BACKEND else None
+    )
 
     root_rng = random.Random(seed)
     for seq_index, condition in enumerate(conditions):
@@ -64,13 +78,10 @@ def build_sequence_arrays(
         )
         slow_params = _channel_dynamic_params(sequence_rng)
         slow_walk = {channel: 0.0 for channel in SLOW_DYNAMIC_CHANNELS}
+        ndir_state: dict[str, float] = {}
         for timestep in range(timesteps):
             phase_id = phase_for_timestep(timestep, timesteps)
             blend = blend_for_timestep(timestep, timesteps)
-            current = _dynamic_slow_features(baseline_main, target_main, timestep, timesteps, slow_params, slow_walk, sequence_rng)
-            current["T_C"] = float(condition["T_C_base"])
-            current["P_MPa"] = float(condition["P_MPa_base"])
-            current["H_RH"] = float(condition["H_RH_base"])
             current_l_m = _path_l_m_for_timestep(
                 float(condition["L_m_base"]),
                 timestep,
@@ -81,11 +92,45 @@ def build_sequence_arrays(
                 is_steady_scan,
                 path_lms,
             )
+            composition = _blend_composition(condition, blend)
+            if optical_absorption_backend == EMPIRICAL_ABSORPTION_BACKEND:
+                current = _dynamic_slow_features(baseline_main, target_main, timestep, timesteps, slow_params, slow_walk, sequence_rng)
+            else:
+                current = _dynamic_slow_features(
+                    baseline_main,
+                    target_main,
+                    timestep,
+                    timesteps,
+                    slow_params,
+                    slow_walk,
+                    sequence_rng,
+                    channels=("V_TCS",),
+                )
+                ndir_equilibrium = _hitran_ndir_equilibrium(
+                    condition,
+                    composition=composition,
+                    l_m=current_l_m,
+                    hitran_cache_root=hitran_cache_root,
+                    spectra_cache=spectra_cache,
+                )
+                current.update(
+                    _dynamic_features_from_equilibrium(
+                        ndir_equilibrium,
+                        ndir_state,
+                        timestep,
+                        slow_params,
+                        slow_walk,
+                        sequence_rng,
+                        channels=("V_NDIR_CH4", "V_NDIR_CO2"),
+                    )
+                )
+            current["T_C"] = float(condition["T_C_base"])
+            current["P_MPa"] = float(condition["P_MPa_base"])
+            current["H_RH"] = float(condition["H_RH_base"])
             current["L_m"] = current_l_m
             current["piston_position_m"] = current_l_m
             slow_values = [float(current[channel]) for channel in SLOW_CHANNELS]
             slow[seq_index, timestep, :] = np.array(slow_values, dtype=np.float32)
-            composition = _blend_composition(condition, blend)
             ultrasonic_result = simulate_waveform_measurement(
                 **composition,
                 t_c=float(current["T_C"]),
@@ -149,9 +194,10 @@ def _dynamic_slow_features(
     slow_params: dict[str, dict[str, float]],
     slow_walk: dict[str, float],
     sequence_rng: random.Random,
+    channels: tuple[str, ...] = SLOW_DYNAMIC_CHANNELS,
 ) -> dict[str, float]:
     current = {}
-    for channel in SLOW_DYNAMIC_CHANNELS:
+    for channel in channels:
         value = _channel_value(
             baseline=float(baseline_main[channel]),
             target=float(target_main[channel]),
@@ -165,6 +211,65 @@ def _dynamic_slow_features(
         value += slow_walk[channel]
         value += sequence_rng.gauss(0.0, slow_params[channel]["noise_sigma"])
         current[channel] = max(1e-9, value)
+    return current
+
+
+def _hitran_ndir_equilibrium(
+    condition: dict[str, str],
+    *,
+    composition: dict[str, float],
+    l_m: float,
+    hitran_cache_root: str,
+    spectra_cache: dict[tuple[str, HitranGridSpec], tuple[TabulatedSpectrum, ...]] | None,
+) -> dict[str, float]:
+    optical = compute_hitran_optical_absorption(
+        _main_feature_condition(
+            condition,
+            composition["x_h2"],
+            composition["x_ch4"],
+            composition["x_co2"],
+            composition["x_n2"],
+            l_m,
+        ),
+        cache_root=hitran_cache_root,
+        spectra_cache=spectra_cache,
+    )
+    return {
+        "V_NDIR_CH4": max(
+            0.1,
+            PROCESSING_PARAMS["optical_baseline_ch4_init"] * math.exp(-float(optical["absorption_ch4_observed"])),
+        ),
+        "V_NDIR_CO2": max(
+            0.1,
+            PROCESSING_PARAMS["optical_baseline_co2_init"] * math.exp(-float(optical["absorption_co2_observed"])),
+        ),
+    }
+
+
+def _dynamic_features_from_equilibrium(
+    equilibrium: dict[str, float],
+    state: dict[str, float],
+    timestep: int,
+    slow_params: dict[str, dict[str, float]],
+    slow_walk: dict[str, float],
+    sequence_rng: random.Random,
+    *,
+    channels: tuple[str, ...],
+) -> dict[str, float]:
+    current = {}
+    for channel in channels:
+        target = float(equilibrium[channel])
+        previous = state.get(channel, target)
+        tau_key = "tau_rise_system_s" if target >= previous else "tau_decay_system_s"
+        response = 1.0 - math.exp(-1.0 / slow_params[channel][tau_key])
+        value = previous + (target - previous) * response
+        slow_walk[channel] += sequence_rng.gauss(0.0, slow_params[channel]["random_walk_sigma"])
+        value += slow_params[channel]["drift_slope"] * timestep
+        value += slow_walk[channel]
+        value += sequence_rng.gauss(0.0, slow_params[channel]["noise_sigma"])
+        value = max(1e-9, value)
+        state[channel] = value
+        current[channel] = value
     return current
 
 

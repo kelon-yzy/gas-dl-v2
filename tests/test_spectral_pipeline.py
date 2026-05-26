@@ -4,8 +4,12 @@ from pathlib import Path
 import numpy as np
 
 from pipeline.compare_optical_backends import compare_optical_backends
+from pipeline.precompute_hitran_benchmark_cache import main as precompute_benchmark_main
+from pipeline.precompute_hitran_benchmark_cache import precompute_hitran_benchmark_cache
 from pipeline.precompute_hitran_spectra import main as precompute_main
 from pipeline.precompute_hitran_spectra import parse_channels, precompute_hitran_spectra
+from sim.generation.conditions import generate_condition_rows
+from sim.generation.optical_backend import collect_hitran_cache_requirements
 from sim.generation.spectral import DEFAULT_HITRAN_GAS_SPECS, get_default_hitran_grid, get_default_ndir_filter
 
 
@@ -107,6 +111,48 @@ def test_precompute_cli_prints_json_summary(tmp_path, capsys, monkeypatch):
     assert exit_code == 0
     assert payload["channels"] == ["co2"]
     assert payload["results"]["co2"]["backend"] == "hitran_hapi_v1"
+
+
+def test_precompute_hitran_benchmark_cache_matches_condition_spec(tmp_path):
+    fake_hapi = FakeHapi()
+    summary = precompute_hitran_benchmark_cache(
+        cache_root=tmp_path,
+        sequence_count=2,
+        seed=29,
+        sampling_strategy="lhs",
+        hapi_module=fake_hapi,
+    )
+    conditions = generate_condition_rows(2, seed=29, sampling_strategy="lhs")
+    requirements = collect_hitran_cache_requirements(conditions, cache_root=tmp_path)
+
+    assert summary["required_cache_entries"] == len(requirements)
+    assert summary["conditions"] == 2
+    assert len(fake_hapi.fetch_calls) == len(requirements)
+    assert all(requirement.path.is_file() for requirement in requirements)
+
+
+def test_precompute_hitran_benchmark_cache_cli_prints_summary(tmp_path, capsys, monkeypatch):
+    fake_hapi = FakeHapi()
+
+    def fake_precompute(**kwargs):
+        kwargs["hapi_module"] = fake_hapi
+        return precompute_hitran_benchmark_cache(**kwargs)
+
+    monkeypatch.setattr("pipeline.precompute_hitran_benchmark_cache.precompute_hitran_benchmark_cache", fake_precompute)
+    exit_code = precompute_benchmark_main([
+        "--cache-root",
+        str(tmp_path),
+        "--sequences",
+        "1",
+        "--seed",
+        "31",
+    ])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["sequence_count"] == 1
+    assert payload["required_cache_entries"] > 0
+    assert len(fake_hapi.fetch_calls) == payload["required_cache_entries"]
 
 
 def test_compare_optical_backends_reports_delta(tmp_path):

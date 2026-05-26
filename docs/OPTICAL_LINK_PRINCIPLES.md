@@ -1,8 +1,8 @@
 # 光学链路物理仿真原理
 
-本文记录 v4 正式实验中 NDIR 光学通道（`V_NDIR_CH4`、`V_NDIR_CO2`）从配气方案到电压信号的完整物理仿真链路、当前实际使用的经验模型、已实现但未启用的光谱积分原型，以及两条路径之间的契约关系。
+本文记录 v4 正式实验中 NDIR 光学通道（`V_NDIR_CH4`、`V_NDIR_CO2`）从配气方案到电压信号的完整物理仿真链路、默认 `hitran_hapi_v1` 光谱积分路径、显式兼容的 `empirical_v1` 经验路径，以及两条路径之间的契约关系。
 
-更新日期：2026-05-25。最新状态以 `manifest.json` 的 `optical_absorption_backend` 字段为准。
+更新日期：2026-05-26。最新状态以 `manifest.json` 的 `optical_absorption_backend` 字段为准。
 
 ## 1. 在系统里的位置
 
@@ -25,17 +25,45 @@
 
 | backend                 | 代码位置                                                                                  | 状态             | 用途                       |
 | ----------------------- | ------------------------------------------------------------------------------------- | -------------- | ------------------------ |
-| `empirical_v1`          | `src/sim/generation/acoustic_physics.py`<br>`src/sim/generation/optical_crosstalk.py` | benchmark 实际使用 | 可解释、可回归测试的合成吸收模型         |
-| `tabulated_spectrum_v1` | `src/sim/generation/spectral/tabulated_backend.py`                                    | 已实现，未启用        | 预制气体吸收谱表的滤光片积分           |
-| `hitran_hapi_v1`        | `src/sim/generation/spectral/hitran_backend.py`                                       | 已真实下载验证，未接入 benchmark | HITRAN line-by-line 谱线积分 |
+| `hitran_hapi_v1`        | `src/sim/generation/optical_backend.py`<br>`src/sim/generation/spectral/hitran_backend.py` | benchmark 默认使用 | HITRAN line-by-line 谱线积分 |
+| `empirical_v1`          | `src/sim/generation/acoustic_physics.py`<br>`src/sim/generation/optical_crosstalk.py` | 显式兼容路径 | 可解释、可回归测试的合成吸收模型 |
+| `tabulated_spectrum_v1` | `src/sim/generation/spectral/tabulated_backend.py` | 已实现，作为外部 sanity check 支撑 | 预制气体吸收谱表的滤光片积分 |
 
 `tabulated_spectrum_v1` 和 `hitran_hapi_v1` 共用同一套积分公式，区别只在「谱来自哪里」。
 
-## 3. empirical_v1：当前 benchmark 跑的链路
+## 3. hitran_hapi_v1：默认 benchmark 链路
 
-入口在 `acoustic_physics.py:145` 的 `main_sensor_features`。给定一个稳态条件，按以下顺序生成两路 NDIR 信号。
+默认 `pipeline.generate_benchmark` 使用 `hitran_hapi_v1`。生成前会按同一批 `conditions` 收集 CH4/CO2/H2O 在 CH4 与 CO2 两个 NDIR 通道窗口、每条 condition 的温压状态下需要的 HITRAN cache key；只要有缺失，就在写出 dataset 前失败，并提示先运行 `pipeline.precompute_hitran_benchmark_cache`。
 
-### 3.1 单气体真值吸光度
+关键契约：
+
+- `temperature_k = round(T_C + 273.15, 3)`。
+- `pressure_atm = round(P_MPa / 0.101325, 6)`。
+- `H2O` 不进入 label 组分和 100% 组分校验，只由 `T/P/RH` 换算为光学吸收中的水汽 mole percent。
+- 每个 timestep 使用当前 `blend` 后的组分和当前 `L_m` 计算 NDIR equilibrium，因此 steady/baseline 声程扫描会真实影响 `V_NDIR_CH4` 与 `V_NDIR_CO2`。
+- HITRAN 多气体滤光片积分已经表达通道交叉响应，不再叠加 `apply_optical_crosstalk` 的经验矩阵，避免双计数。
+- 生成阶段只读 `.npz` cache，不导入 HAPI、不联网、不写谱线缓存。
+
+推荐流程：
+
+```powershell
+python -m pipeline.precompute_hitran_benchmark_cache --cache-root data/hitran_cache --sequences 32 --seed 42
+python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke --sequences 32 --seed 42 --storage npz
+```
+
+`manifest.json` 与 `metadata/waveform_spec.json` 会记录：
+
+- `optical_absorption_backend = "hitran_hapi_v1"`
+- `hitran_cache_policy = "cache_only_prechecked"`
+- `hitran_temperature_pressure_mode = "per_condition"`
+- `h2o_policy = "rh_to_mole_pct"`
+- `optical_crosstalk_policy = "spectral_multigas_integral"`
+
+## 4. empirical_v1：显式兼容链路
+
+如需旧合成经验路径，可显式传 `--optical-absorption-backend empirical_v1`。入口在 `acoustic_physics.py` 的 `main_sensor_features`。给定一个稳态条件，按以下顺序生成两路 NDIR 信号。
+
+### 4.1 单气体真值吸光度
 
 由两条经验线性公式生成（`acoustic_physics.py:214`、`:218`）：
 
@@ -52,7 +80,7 @@ A_CO2_true = 0.045 · x_CO2 + 0.0006 · H_RH + 0.012 · P_MPa + 0.00015 · (T_C 
 
 参考阅读：`docs/SPECTRAL_INTEGRATION_PLAN.md` 对这些系数为何不能当作物理标定值的说明。
 
-### 3.2 通道交叉敏感度
+### 4.2 通道交叉敏感度
 
 `apply_optical_crosstalk` 在 `optical_crosstalk.py:15`，把真值吸光度转换成通道观测吸光度：
 
@@ -65,7 +93,7 @@ A_CO2_observed = A_CO2_true + 0.012 · A_CH4_true
 - 物理含义：CH4 通道的滤光带宽内有一部分 CO2 的吸收漏入，反之亦然。
 - 当切换到光谱积分 backend 时，这一层会被取消，因为通道间串扰直接由滤光片响应 + 各气体真实谱形给出，不再需要单独的交叉矩阵。
 
-### 3.3 基线 + 漂移 + 噪声 → 探测器电压
+### 4.3 基线 + 漂移 + 噪声 → 探测器电压
 
 NDIR 探测器电压用 Beer–Lambert 形式的指数衰减（`acoustic_physics.py:175`）：
 
@@ -86,7 +114,7 @@ V_NDIR_CO2 = max(0.1, baseline_CO2_now · exp(−A_CO2_observed) + ε)
 
 饱和判断在 `acoustic_physics.py:198`：阈值是吸光度而不是电压，`optical_saturation_absorbance = 4.0`，对应透射率约 1.8%。
 
-### 3.4 时序：从静态条件展开为序列
+### 4.4 时序：从静态条件展开为序列
 
 `src/sim/generation/slow.py:50` 把单条件快照扩展成 `(timesteps,)` 序列：
 
@@ -113,21 +141,11 @@ V_NDIR_CO2 = max(0.1, baseline_CO2_now · exp(−A_CO2_observed) + ε)
 
 输出落入 `slow[seq, t, channel_index]` 三维数组对应槽位，同时写入 `sequences/slow_sequence_long.csv` 长表。
 
-### 3.5 manifest 标记
+## 5. spectral 子模块：物理支撑路径
 
-`src/sim/generation/benchmark.py:35` 硬编码：
+`src/sim/generation/spectral/` 下的实现遵循 NDIR + Beer–Lambert + 滤光片积分的标准流程。benchmark 默认通过 `src/sim/generation/optical_backend.py` 走 cache-only `hitran_hapi_v1`；也可通过 `pipeline.precompute_hitran_spectra` 做通用通道预计算，通过 `pipeline.compare_optical_backends` 与 empirical_v1 做小规模对照，并通过 `pipeline.sanity_check_tabulated_spectra` 把外部定量谱表与 `hitran_hapi_v1` 做同条件 sanity check。本地已用真实 HAPI 环境完成 CH4/CO2/H2O 两个 NDIR 窗口的下载验证。
 
-```python
-OPTICAL_ABSORPTION_BACKEND = "empirical_v1"
-```
-
-由 `build_manifest`（`packaging/manifest.py:17`）和 `metadata/waveform_spec.json`（`benchmark.py:127`）同步写出。这是「这一份 benchmark 用了哪个吸收模型」的唯一可信来源，后续切换 backend 时必须同步修改。
-
-## 4. spectral 子模块：物理支撑路径
-
-`src/sim/generation/spectral/` 下的实现遵循 NDIR + Beer–Lambert + 滤光片积分的标准流程。当前不集成进 benchmark；可通过 `pipeline.precompute_hitran_spectra` 预计算 HITRAN 缓存，通过 `pipeline.compare_optical_backends` 与 empirical_v1 做小规模对照，并通过 `pipeline.sanity_check_tabulated_spectra` 把外部定量谱表与 `hitran_hapi_v1` 做同条件 sanity check。本地已用真实 HAPI 环境完成 CH4/CO2/H2O 两个 NDIR 窗口的下载验证。
-
-### 4.1 滤光片响应
+### 5.1 滤光片响应
 
 `filters.py:8` 定义 `NDIRFilter(channel, center_cm1, fwhm_cm1)`。`gaussian_filter` 根据 FWHM 推 σ：
 
@@ -147,7 +165,7 @@ R(ν) = exp(−½ · ((ν − ν0) / σ)²)
 
 以上属于 `industry_reference_only` 占位，正式 benchmark 前必须替换为目标传感器 TraceGas-HC-NDIR（深圳市痕量气体传感科技有限公司）实际 datasheet。
 
-### 4.2 单气体光学深度
+### 5.2 单气体光学深度
 
 `tabulated_backend.py:36`：
 
@@ -157,7 +175,7 @@ R(ν) = exp(−½ · ((ν − ν0) / σ)²)
 
 `TabulatedSpectrum.absorption_coeff_per_percent_m` 的单位约定是「每 1% 体积浓度、每米光程」的吸收系数，方便直接乘以 percent 浓度。所有气体必须共享同一套 wavenumber grid，函数内部用 `np.allclose` 校验。
 
-### 4.3 通道透射率与吸光度
+### 5.3 通道透射率与吸光度
 
 `integration.py:8` 是核心公式：
 
@@ -173,7 +191,7 @@ A_channel = −ln(T_channel)
 - 同时返回 `transmittance_channel` 和 `filter_area`，便于排查滤光片配置。
 - 每个气体还会单独跑一次 `integrate_channel_absorbance`，得到 `absorbance_by_gas`，方便后续推导交叉敏感度矩阵或单组分诊断。
 
-### 4.4 HITRAN 适配层
+### 5.4 HITRAN 适配层
 
 `hitran_backend.py:35` 的 `compute_hitran_ndir_absorbance` 内部委托给 `compute_tabulated_ndir_absorbance`，只负责「把 HAPI 算出来的吸收系数包成 `TabulatedSpectrum`」。流程：
 
@@ -189,7 +207,7 @@ A_channel = −ln(T_channel)
 
 为了让测试不依赖外网，`compute_hitran_ndir_absorbance` 接受 `hapi_module` 注入参数。`tests/test_spectral_hitran_backend.py` 用一个 fake HAPI 验证了缓存 miss/hit 行为、缓存 roundtrip 和 HITRAN 单位换算。
 
-### 4.5 公共输出契约
+### 5.5 公共输出契约
 
 `compute_tabulated_ndir_absorbance` 和 `compute_hitran_ndir_absorbance` 返回同一组字段：
 
@@ -223,7 +241,7 @@ A_channel = −ln(T_channel)
 python -m pytest tests
 ```
 
-当前 118 个测试全部通过（2026-05-26 状态）。
+当前 125 个测试全部通过（2026-05-26 状态）。
 
 ## 6. 当前缺口
 
@@ -234,7 +252,7 @@ python -m pytest tests
 1. **真实滤光片规格未替换**。当前 `spectral-defaults.json` 已从 smoke 占位（CH4 30 cm⁻¹ / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 cm⁻¹ / CO2 93 cm⁻¹，来源见 `filter_source` 字段），但仍非目标传感器 TraceGas-HC-NDIR 的实际 datasheet。默认 `hitran_grids` 已扩大到覆盖当前滤光片 `center ± FWHM`；grid 变化后需要重下 HITRAN cache，未来拿到真实 datasheet 后仍需再次复核窗口。
 2. **真实单位标定仍需外部对照**。代码已经完成 HITRAN cm²/molecule 到 `absorption_coeff_per_percent_m` 的理想气体换算，并已用真实 HAPI 输出跑通缓存生成；通用 CSV sanity check 入口已可用，但尚未接入真实仪器/PNNL/NIST 数据文件。
 3. **PNNL/NIST 原始格式适配未做**。当前支持显式列名和显式单位的通用 CSV，真实数据库导出格式若不同，需要新增薄适配器转换到该 CSV 契约。
-4. **benchmark 尚未切换 backend**。当前正式生成主线仍使用 `empirical_v1`，HITRAN 路径只作为显式预计算和对照入口存在。
+4. **真实谱表对照仍待补实测数据**。benchmark 默认已接入 `hitran_hapi_v1`，但真实 PNNL/NIST 或仪器数据尚未导入，当前只完成通用 CSV sanity check 路径。
 
 ## 7. 下一步选项
 
@@ -244,7 +262,7 @@ python -m pytest tests
 | --- | -------------------------------------------------------------------------------------------------------------------- | --- |
 | A   | 获取目标传感器 TraceGas-HC-NDIR 实际 datasheet 替换当前行业参考占位；按实际 FWHM 复核 `hitran_grids` 并重下 HITRAN cache。 | 中   |
 | B   | 获取真实 PNNL/NIST 或仪器定量谱表，转换为通用 CSV 契约并运行 sanity check；若原始格式复杂，再补专用适配器。 | 中   |
-| C   | 把 `OPTICAL_ABSORPTION_BACKEND` 改成可选项，让 benchmark 可以显式切换到 spectral backend。                        | 中   |
+| C   | 在获得真实 datasheet 后复核滤光片窗口与 HITRAN grid，重新预计算 benchmark cache，并重新运行外部 sanity check。 | 中 |
 
 ## 8. 相关文档
 

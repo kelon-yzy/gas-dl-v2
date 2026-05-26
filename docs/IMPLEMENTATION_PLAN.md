@@ -6,15 +6,15 @@
 
 | 子系统               | 状态                                                              | 完成度 |
 | ----------------- | --------------------------------------------------------------- | --- |
-| `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN grid 扩窗 + 外部谱表 sanity check 入口） | 88% |
+| `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN benchmark 默认接入 + 外部谱表 sanity check 入口） | 90% |
 | `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers                     | 40% |
 | `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1DRegressor + TCNRegressor + registry | 25% |
 | `src/dl/training` | loss/metrics 基础完成，trainer/checkpoint 待实现                       | 20% |
 | `src/ml`          | 仅有占位 `__init__.py`                                              | 0%  |
-| `src/pipeline`    | layout + generate_benchmark + HITRAN 预计算/对照 CLI + 外部谱表 sanity check CLI | 24% |
+| `src/pipeline`    | layout + generate_benchmark + HITRAN benchmark cache 预计算/对照 CLI + 外部谱表 sanity check CLI | 26% |
 | `configs/`        | 已新增 `configs/data/spectral-defaults.json`（含 `filter_source` 行业参考占位元信息），其余配置未落地 | 5%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 118 个测试（sim + dl + pipeline）                                    | 58% |
+| `tests/`          | 125 个测试（sim + dl + pipeline）                                    | 60% |
 
 ## PLAN 6 项问题对照
 
@@ -25,7 +25,7 @@
 | 3   | 时间步分布不合理                                           | ⚠️ phase 仍为固定四等分                                   |
 | 4   | LHS 采样 + Dropout 语义归位                              | ⚠️ LHS 已完成，Dropout 待 training                      |
 | 5   | 文件命名过长，结果混乱                                        | ✅ output 分区 + run 契约已定义                            |
-| 6   | 光学变量显式分层建模                                         | ✅ NDIR 交叉敏感度已显式建模                                  |
+| 6   | 光学变量显式分层建模                                         | ✅ NDIR 默认走 HITRAN 多气体光谱积分，empirical 交叉敏感度保留为显式兼容路径 |
 
 ---
 
@@ -56,16 +56,16 @@
 - **实现**：定义交叉敏感矩阵参数，CH4 通道响应 3.5% CO2 吸收，CO2 通道响应 1.2% CH4 吸收
 - **接入**：在 `main_sensor_features` 中把原始吸收转换为 NDIR 观测吸收，并用于 NDIR 电压与饱和判断
 - **测试**：`tests/test_optical_crosstalk.py` 覆盖默认矩阵和显式矩阵
-- **边界**：当前吸收系数为 `empirical_v1` 合成经验参数，不是 HITRAN/PNNL 谱线积分或真实仪器标定值
+- **边界**：该矩阵仅用于显式 `empirical_v1` 兼容路径；默认 `hitran_hapi_v1` 已由多气体滤光片积分表达交叉响应，不再叠加经验矩阵
 
 ### 2.5 HITRAN/PNNL 光谱积分支撑
 
-- **状态**：HITRAN 主路径已形成可运行原型；PNNL/NIST 外部对照仍待实现，见 `docs/SPECTRAL_INTEGRATION_PLAN.md`
+- **状态**：HITRAN 主路径已接入 benchmark 默认生成；PNNL/NIST 外部真实数据对照仍待补实测/数据库文件，见 `docs/SPECTRAL_INTEGRATION_PLAN.md`
 - **HITRAN 路线**：用 HAPI 下载 CH4/CO2/H2O line-by-line 数据，按温度、压力、浓度、光程和滤光片响应积分得到 NDIR 通道吸收
 - **PNNL/NIST 路线**：读取定量 IR absorption coefficient 或 cross-section 谱，按浓度和光程缩放后做滤光片窗口积分
-- **已落地**：新增 `src/sim/generation/spectral/` 本地积分核心、`tabulated_spectrum_v1` backend、外部定量谱表 CSV 读取与重采样、`hitran_hapi_v1` 适配层、谱线缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI、empirical/HITRAN 小规模对照 CLI 和外部谱表 sanity check CLI，并在 manifest 中记录 `optical_absorption_backend`
+- **已落地**：新增 `src/sim/generation/spectral/` 本地积分核心、`tabulated_spectrum_v1` backend、外部定量谱表 CSV 读取与重采样、`hitran_hapi_v1` 适配层、谱线缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN benchmark cache-only 接入、benchmark 专用预计算 CLI、empirical/HITRAN 小规模对照 CLI 和外部谱表 sanity check CLI，并在 manifest 中记录 `optical_absorption_backend` 与 HITRAN cache policy
 - **真实下载验证**：本地已用 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在早期 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的 HITRAN 谱线；HAPI 原始表名已绑定波数窗口，避免不同通道缓存互相污染。当前默认窗口已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，需重新预计算生成新缓存
-- **后续实现**：当前默认滤光片已用行业参考占位（CH4 InfraTec LIM-262 3.3 μm/160 nm，对应 147 cm⁻¹ FWHM；CO2 InfraTec 4.26 μm/170 nm，对应 93 cm⁻¹ FWHM），默认 `hitran_grids` 已扩大到覆盖当前滤光片 `center ± FWHM`；仍需替换为目标传感器 TraceGas-HC-NDIR 实际 datasheet，并在 grid 变化后重下 HITRAN cache；获取真实 PNNL/NIST 或仪器定量谱表并运行 sanity check；benchmark 主线仍未切换到 `hitran_hapi_v1`
+- **后续实现**：当前默认滤光片已用行业参考占位（CH4 InfraTec LIM-262 3.3 μm/160 nm，对应 147 cm⁻¹ FWHM；CO2 InfraTec 4.26 μm/170 nm，对应 93 cm⁻¹ FWHM），默认 `hitran_grids` 已扩大到覆盖当前滤光片 `center ± FWHM`；仍需替换为目标传感器 TraceGas-HC-NDIR 实际 datasheet，并在 grid 变化后重下 HITRAN benchmark cache；获取真实 PNNL/NIST 或仪器定量谱表并运行 sanity check
 
 ---
 

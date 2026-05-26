@@ -22,6 +22,7 @@ def _make_smoke_dataset(tmp_path: Path, slug: str = "lhs-smoke", sequences: int 
         seed=42,
         timesteps=16,
         storage="npz",
+        optical_absorption_backend="empirical_v1",
     )
     if sampling != "lhs":
         spec = BenchmarkGenerationSpec(
@@ -31,6 +32,7 @@ def _make_smoke_dataset(tmp_path: Path, slug: str = "lhs-smoke", sequences: int 
             timesteps=16,
             storage="npz",
             sampling_strategy=sampling,
+            optical_absorption_backend="empirical_v1",
         )
     generate_benchmark_dataset(tmp_path, spec)
     return tmp_path / slug

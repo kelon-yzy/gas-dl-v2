@@ -18,6 +18,8 @@ def test_generate_benchmark_cli_writes_summary(tmp_path, capsys):
             "npz",
             "--path-lms",
             "0.20,0.25,0.30",
+            "--optical-absorption-backend",
+            "empirical_v1",
         ]
     )
 
@@ -32,3 +34,4 @@ def test_generate_benchmark_cli_writes_summary(tmp_path, capsys):
 
     manifest = json.loads((tmp_path / "wv4-cli" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["path_lms"] == [0.2, 0.25, 0.3]
+    assert manifest["optical_absorption_backend"] == "empirical_v1"

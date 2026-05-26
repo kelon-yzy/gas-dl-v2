@@ -21,6 +21,7 @@ def _make_smoke_dataset(tmp_path: Path) -> Path:
             seed=1,
             timesteps=16,
             storage="npz",
+            optical_absorption_backend="empirical_v1",
         ),
     )
     return tmp_path / "model-smoke"

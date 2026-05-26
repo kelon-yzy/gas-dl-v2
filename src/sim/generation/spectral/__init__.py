@@ -13,8 +13,10 @@ from sim.generation.spectral.hitran_backend import (
     STANDARD_ATMOSPHERE_PA,
     HitranGasSpec,
     HitranGridSpec,
+    MissingHitranCacheError,
     compute_hitran_ndir_absorbance,
     convert_hitran_coeff_to_per_percent_m,
+    hitran_cache_key,
 )
 from sim.generation.spectral.integration import integrate_channel_absorbance
 from sim.generation.spectral.quantitative_table import (
@@ -34,6 +36,7 @@ __all__ = [
     "HITRAN_ABSORPTION_BACKEND",
     "HitranGasSpec",
     "HitranGridSpec",
+    "MissingHitranCacheError",
     "NDIRFilter",
     "QUANTITATIVE_TABLE_BACKEND",
     "SpectralCacheKey",
@@ -48,6 +51,7 @@ __all__ = [
     "gaussian_filter",
     "get_default_hitran_grid",
     "get_default_ndir_filter",
+    "hitran_cache_key",
     "integrate_channel_absorbance",
     "load_quantitative_spectrum_csv",
     "read_cached_spectrum",

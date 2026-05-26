@@ -14,7 +14,7 @@ def _read_csv(path):
 def test_generate_benchmark_dataset_writes_v4_assets(tmp_path):
     summary = generate_benchmark_dataset(
         tmp_path,
-        BenchmarkGenerationSpec(dataset_slug="wv4-smoke", sequence_count=16, seed=7),
+        BenchmarkGenerationSpec(dataset_slug="wv4-smoke", sequence_count=16, seed=7, optical_absorption_backend="empirical_v1"),
     )
 
     dataset_dir = tmp_path / "wv4-smoke"
@@ -53,7 +53,7 @@ def test_generate_benchmark_dataset_writes_v4_assets(tmp_path):
 def test_generated_condition_rows_have_component_sum_100(tmp_path):
     generate_benchmark_dataset(
         tmp_path,
-        BenchmarkGenerationSpec(dataset_slug="wv4-components", sequence_count=8, seed=11),
+        BenchmarkGenerationSpec(dataset_slug="wv4-components", sequence_count=8, seed=11, optical_absorption_backend="empirical_v1"),
     )
 
     rows = _read_csv(tmp_path / "wv4-components" / "condition_grid_sequence.csv")
@@ -74,6 +74,7 @@ def test_generate_benchmark_dataset_writes_npz_storage_arrays_and_metadata(tmp_p
             dt_s=0.25,
             storage="npz",
             multi_path_phase="off",
+            optical_absorption_backend="empirical_v1",
         ),
     )
 
@@ -118,6 +119,7 @@ def test_generate_benchmark_dataset_uses_configured_path_lms(tmp_path):
             storage="npz",
             multi_path_phase="steady",
             path_lms=(0.25, 0.35),
+            optical_absorption_backend="empirical_v1",
         ),
     )
 
@@ -145,6 +147,7 @@ def test_generate_benchmark_dataset_writes_memmap_storage_arrays_without_npz(tmp
             seed=23,
             timesteps=8,
             storage="memmap",
+            optical_absorption_backend="empirical_v1",
         ),
     )
 

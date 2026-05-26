@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 from sim.generation.optical_crosstalk import apply_optical_crosstalk
+from sim.generation.gas_state import h2o_mole_percent_from_rh
 
 
 PROCESSING_PARAMS = {
@@ -142,7 +143,12 @@ def hidden_attenuation_v2(
     }
 
 
-def main_sensor_features(condition: dict[str, str], rng) -> dict[str, float | bool]:
+def main_sensor_features(
+    condition: dict[str, str],
+    rng,
+    *,
+    optical_absorption: dict[str, object] | None = None,
+) -> dict[str, float | bool | object]:
     x_h2 = float(condition["x_H2"])
     x_ch4 = float(condition["x_CH4"])
     x_co2 = float(condition["x_CO2"])
@@ -159,9 +165,10 @@ def main_sensor_features(condition: dict[str, str], rng) -> dict[str, float | bo
     f_peak = 40000.0 + 23.0 * x_h2 - 18.0 * x_co2 + 2.0 * (t_c - 20.0) + rng.gauss(0.0, 65.0)
     a_fft_max = amp * (900.0 + rng.gauss(0.0, 20.0))
 
-    absorption_ch4 = _hidden_absorption_ch4(x_ch4, h_rh, p_mpa, t_c)
-    absorption_co2 = _hidden_absorption_co2(x_co2, h_rh, p_mpa, t_c)
-    optical_absorption = apply_optical_crosstalk(absorption_ch4=absorption_ch4, absorption_co2=absorption_co2)
+    if optical_absorption is None:
+        absorption_ch4 = _hidden_absorption_ch4(x_ch4, h_rh, p_mpa, t_c)
+        absorption_co2 = _hidden_absorption_co2(x_co2, h_rh, p_mpa, t_c)
+        optical_absorption = apply_optical_crosstalk(absorption_ch4=absorption_ch4, absorption_co2=absorption_co2)
     lambda_true = _hidden_lambda_mix(x_h2, x_co2, t_c)
 
     optical_drift_ch4 = 0.0007 * (h_rh - 50.0) + 0.004 * (p_mpa - 1.0) + rng.gauss(0.0, 0.004)
@@ -205,10 +212,7 @@ def main_sensor_features(condition: dict[str, str], rng) -> dict[str, float | bo
 
 
 def _h2o_mole_pct(t_c: float, p_mpa: float, h_rh: float) -> float:
-    p_sat_kpa = 0.61121 * math.exp(17.502 * t_c / (240.97 + t_c))
-    p_amb_kpa = max(p_mpa, 1e-3) * 1000.0
-    h_w_pct = (h_rh / 100.0) * (p_sat_kpa / p_amb_kpa) * 100.0
-    return max(0.0, min(h_w_pct, 5.0))
+    return h2o_mole_percent_from_rh(t_c, p_mpa, h_rh)
 
 
 def _hidden_absorption_ch4(x_ch4: float, h_rh: float, p_mpa: float, t_c: float) -> float:

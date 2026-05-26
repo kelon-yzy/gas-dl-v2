@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-当前 `src/sim/generation/acoustic_physics.py` 中的 NDIR 吸收量仍是合成 benchmark 的经验模型：
+`hitran_hapi_v1` 已接入 benchmark 默认生成主线；旧 `src/sim/generation/acoustic_physics.py` 中的 NDIR 经验吸收量仍保留为显式 `empirical_v1` 兼容/对照路径：
 
 ```text
 CH4_abs = 0.008 * x_CH4 + 0.0008 * H_RH + 0.015 * P_MPa + 0.0002 * (T_C - 25)
@@ -18,7 +18,7 @@ CH4_observed = CH4_abs + 0.035 * CO2_abs
 CO2_observed = CO2_abs + 0.012 * CH4_abs
 ```
 
-这些系数的作用是生成可解释、可回归测试的合成数据。它们不是仪器标定值，也不是 HITRAN/PNNL 谱线积分结果。
+这些系数的作用是生成可解释、可回归测试的合成数据。它们不是仪器标定值，也不是 HITRAN/PNNL 谱线积分结果；正式默认 benchmark 不再把它们作为 NDIR 吸收主线。
 
 ## 资料依据
 
@@ -110,6 +110,7 @@ data/
   hitran_cache*/           # 运行 precompute 后生成，本地缓存不进 git
 src/pipeline/
   precompute_hitran_spectra.py
+  precompute_hitran_benchmark_cache.py
   compare_optical_backends.py
   sanity_check_tabulated_spectra.py
 ```
@@ -150,9 +151,9 @@ def compute_ndir_absorbance(
 - 外部 PNNL/NIST 或仪器定量谱表必须显式声明单位；当前支持 `per_percent_m`、`per_fraction_m` 和 `per_ppm_m`，禁止隐式猜测。
 - 外部谱表必须覆盖当前 HITRAN grid；重采样只允许插值，不允许外推。
 - HAPI 原始表名必须绑定气体和波数窗口，避免不同 NDIR 通道复用错误谱线范围。
-- `main_sensor_features` 的固定种子回归测试必须更新并记录谱源版本。
+- `main_sensor_features` 的固定种子回归测试继续固定 `empirical_v1` 兼容路径；benchmark 默认路径必须另用 cache-only HITRAN 测试覆盖。
 - 文档和 manifest 必须记录 `optical_absorption_backend`，例如 `empirical_v1`、`hitran_hapi_v1` 或 `pnnl_tabulated_v1`。
 
 ## 当前结论
 
-短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、真实 HAPI 谱线下载、预计算入口、empirical/HITRAN 对照入口和外部定量谱表 sanity check 入口；默认滤光片已从 smoke 占位（CH4 30 / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 / CO2 93 cm⁻¹ FWHM，来源见 `filter_source`），默认 HITRAN grid 已覆盖当前滤光片 `center ± FWHM`。仍需获取 TraceGas-HC-NDIR 实际 datasheet 和真实 PNNL/NIST 或仪器定量谱表，才能进入正式标定对照。
+benchmark 默认已切换到 `hitran_hapi_v1`，生成前按同一批 conditions 预检查 cache，生成中只读缓存；`empirical_v1` 保留为显式兼容/对照路径。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、真实 HAPI 谱线下载、benchmark 专用预计算入口、empirical/HITRAN 对照入口和外部定量谱表 sanity check 入口；默认滤光片已从 smoke 占位（CH4 30 / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 / CO2 93 cm⁻¹ FWHM，来源见 `filter_source`），默认 HITRAN grid 已覆盖当前滤光片 `center ± FWHM`。仍需获取 TraceGas-HC-NDIR 实际 datasheet 和真实 PNNL/NIST 或仪器定量谱表，才能进入正式标定对照。

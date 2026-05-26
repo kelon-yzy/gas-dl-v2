@@ -20,6 +20,13 @@ from sim.core.schema import (
     VALID_STORAGE_FORMATS,
 )
 from sim.generation.conditions import build_label_rows, generate_condition_rows
+from sim.generation.optical_backend import (
+    EMPIRICAL_ABSORPTION_BACKEND,
+    HITRAN_ABSORPTION_BACKEND,
+    VALID_OPTICAL_ABSORPTION_BACKENDS,
+    hitran_manifest_metadata,
+    validate_hitran_benchmark_cache,
+)
 from sim.generation.slow import build_sequence_arrays
 from sim.generation.waveforms import FiberMicSpec, WaveformSpec
 from sim.packaging.arrays import write_arrays
@@ -32,7 +39,7 @@ from sim.validation.integrity import validate_benchmark_assets
 
 
 DEFAULT_WAVEFORM_PATH_LMS = (0.20, 0.25, 0.30, 0.35, 0.40)
-OPTICAL_ABSORPTION_BACKEND = "empirical_v1"
+DEFAULT_HITRAN_CACHE_ROOT = "data/hitran_cache"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +54,8 @@ class BenchmarkGenerationSpec:
     stage_profile: str = "standard_exposure"
     sampling_strategy: str = "lhs"
     path_lms: tuple[float, ...] = DEFAULT_WAVEFORM_PATH_LMS
+    optical_absorption_backend: str = HITRAN_ABSORPTION_BACKEND
+    hitran_cache_root: str = DEFAULT_HITRAN_CACHE_ROOT
 
 
 def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGenerationSpec) -> dict[str, object]:
@@ -55,6 +64,9 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
     output_dir = Path(output_root) / str(dataset_id)
 
     conditions = generate_condition_rows(spec.sequence_count, seed=spec.seed, sampling_strategy=spec.sampling_strategy)
+    optical_metadata = _optical_absorption_metadata(spec)
+    if spec.optical_absorption_backend == HITRAN_ABSORPTION_BACKEND:
+        validate_hitran_benchmark_cache(conditions, cache_root=spec.hitran_cache_root)
     split_rows = build_default_split_rows(conditions, seed=spec.seed)
     labels = _label_array(conditions)
     ultrasonic_spec = WaveformSpec()
@@ -68,6 +80,8 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
         ultrasonic_spec=ultrasonic_spec,
         fiber_mic_spec=fiber_mic_spec,
         path_lms=spec.path_lms,
+        optical_absorption_backend=spec.optical_absorption_backend,
+        hitran_cache_root=spec.hitran_cache_root,
     )
     validation_summary = validate_benchmark_assets(conditions, split_rows, arrays, labels)
     sequence_ids = [row["sequence_id"] for row in conditions]
@@ -82,10 +96,11 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
         multi_path_phase=spec.multi_path_phase,
         sampling_strategy=spec.sampling_strategy,
         path_lms=spec.path_lms,
-        optical_absorption_backend=OPTICAL_ABSORPTION_BACKEND,
+        optical_absorption_backend=spec.optical_absorption_backend,
         shapes=shapes,
         slow_channels=SLOW_CHANNELS,
         labels=COMPONENT_FIELDS,
+        optical_absorption_metadata=optical_metadata,
     )
 
     write_csv(output_dir / "condition_grid_sequence.csv", CONDITION_GRID_FIELDS, conditions)
@@ -124,7 +139,8 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
             "timesteps": spec.timesteps,
             "dt_s": spec.dt_s,
             "path_lms": [float(path_l_m) for path_l_m in spec.path_lms],
-            "optical_absorption_backend": OPTICAL_ABSORPTION_BACKEND,
+            "optical_absorption_backend": spec.optical_absorption_backend,
+            **optical_metadata,
         },
     )
     write_json(output_dir / "manifest.json", manifest)
@@ -134,6 +150,7 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
         "dataset_slug": str(dataset_id),
         "sequence_count": len(conditions),
         "output_dir": str(output_dir),
+        "optical_absorption_backend": spec.optical_absorption_backend,
         "validation": validation_summary,
     }
 
@@ -149,6 +166,22 @@ def _validate_spec(spec: BenchmarkGenerationSpec) -> None:
         raise ValueError("path_lms must contain at least one value")
     if any(path_l_m <= 0.0 for path_l_m in spec.path_lms):
         raise ValueError("path_lms values must be > 0")
+    if spec.optical_absorption_backend not in VALID_OPTICAL_ABSORPTION_BACKENDS:
+        raise ValueError(
+            f"optical_absorption_backend must be one of {list(VALID_OPTICAL_ABSORPTION_BACKENDS)}, got {spec.optical_absorption_backend!r}"
+        )
+    if spec.optical_absorption_backend == HITRAN_ABSORPTION_BACKEND and not str(spec.hitran_cache_root).strip():
+        raise ValueError("hitran_cache_root must be non-empty when optical_absorption_backend is hitran_hapi_v1")
+
+
+def _optical_absorption_metadata(spec: BenchmarkGenerationSpec) -> dict[str, object]:
+    if spec.optical_absorption_backend == HITRAN_ABSORPTION_BACKEND:
+        return hitran_manifest_metadata(spec.hitran_cache_root)
+    if spec.optical_absorption_backend == EMPIRICAL_ABSORPTION_BACKEND:
+        return {
+            "optical_crosstalk_policy": "empirical_matrix_v1",
+        }
+    raise ValueError(f"unsupported optical_absorption_backend: {spec.optical_absorption_backend!r}")
 
 
 def _label_array(conditions: list[dict[str, str]]) -> np.ndarray:

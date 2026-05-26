@@ -18,8 +18,9 @@ def build_manifest(
     shapes: dict[str, list[int]],
     slow_channels: tuple[str, ...],
     labels: tuple[str, ...],
+    optical_absorption_metadata: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    return {
+    manifest = {
         "schema_version": SCHEMA_VERSION,
         "dataset_slug": dataset_slug,
         "sequence_count": int(sequence_count),
@@ -38,3 +39,6 @@ def build_manifest(
         "slow_channels": list(slow_channels),
         "labels": list(labels),
     }
+    if optical_absorption_metadata is not None:
+        manifest.update(optical_absorption_metadata)
+    return manifest

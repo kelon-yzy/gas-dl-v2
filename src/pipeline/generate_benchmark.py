@@ -5,7 +5,8 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from sim.generation.benchmark import DEFAULT_WAVEFORM_PATH_LMS, BenchmarkGenerationSpec, generate_benchmark_dataset
+from sim.generation.benchmark import DEFAULT_HITRAN_CACHE_ROOT, DEFAULT_WAVEFORM_PATH_LMS, BenchmarkGenerationSpec, generate_benchmark_dataset
+from sim.generation.optical_backend import VALID_OPTICAL_ABSORPTION_BACKENDS
 
 
 def parse_path_lms(value: str) -> tuple[float, ...]:
@@ -29,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--multi-path-phase", choices=("off", "baseline", "steady"), default="steady")
     parser.add_argument("--sampling-strategy", choices=("lhs", "random"), default="lhs")
     parser.add_argument("--path-lms", type=parse_path_lms, default=DEFAULT_WAVEFORM_PATH_LMS)
+    parser.add_argument("--optical-absorption-backend", choices=VALID_OPTICAL_ABSORPTION_BACKENDS, default="hitran_hapi_v1")
+    parser.add_argument("--hitran-cache-root", default=DEFAULT_HITRAN_CACHE_ROOT)
     return parser
 
 
@@ -46,6 +49,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             multi_path_phase=args.multi_path_phase,
             sampling_strategy=args.sampling_strategy,
             path_lms=args.path_lms,
+            optical_absorption_backend=args.optical_absorption_backend,
+            hitran_cache_root=args.hitran_cache_root,
         ),
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2))

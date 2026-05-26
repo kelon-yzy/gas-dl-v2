@@ -21,6 +21,7 @@ def _make_smoke_dataset(tmp_path: Path, slug: str = "dl-smoke", sequences: int =
             timesteps=32,
             dt_s=0.5,
             storage="npz",
+            optical_absorption_backend="empirical_v1",
         ),
     )
     return tmp_path / slug
