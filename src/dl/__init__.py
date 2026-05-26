@@ -4,6 +4,8 @@ from dl.data.scalers import apply_scaler, load_scaler
 from dl.data.splits import SPLIT_NAMES, load_splits, resolve_split_indices, split_sequence_ids
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.models.registry import MODEL_REGISTRY, build_model
+from dl.training.losses import LOSS_REGISTRY, build_loss
+from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
 
 __all__ = [
     "V4BenchmarkDataset",
@@ -16,4 +18,9 @@ __all__ = [
     "apply_scaler",
     "MODEL_REGISTRY",
     "build_model",
+    "LOSS_REGISTRY",
+    "build_loss",
+    "RegressionMetrics",
+    "regression_metrics",
+    "component_regression_metrics",
 ]
