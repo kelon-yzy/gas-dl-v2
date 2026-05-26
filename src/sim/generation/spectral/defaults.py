@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from sim.generation.spectral.filters import NDIRFilter
 from sim.generation.spectral.hitran_backend import HitranGasSpec, HitranGridSpec
 
 
-DEFAULT_HITRAN_GAS_SPECS = (
-    HitranGasSpec("CH4", "CH4", molecule_id=6, isotopologue_id=1),
-    HitranGasSpec("CO2", "CO2", molecule_id=2, isotopologue_id=1),
-    HitranGasSpec("H2O", "H2O", molecule_id=1, isotopologue_id=1),
+SPECTRAL_DEFAULTS_CONFIG_PATH = Path(__file__).resolve().parents[4] / "configs" / "data" / "spectral-defaults.json"
+SPECTRAL_DEFAULTS_PAYLOAD = json.loads(SPECTRAL_DEFAULTS_CONFIG_PATH.read_text(encoding="utf-8"))
+
+DEFAULT_HITRAN_GAS_SPECS = tuple(
+    HitranGasSpec(
+        gas=str(spec["gas"]),
+        table_name=str(spec["table_name"]),
+        molecule_id=int(spec["molecule_id"]),
+        isotopologue_id=int(spec["isotopologue_id"]),
+    )
+    for spec in SPECTRAL_DEFAULTS_PAYLOAD["gas_specs"]
 )
 
 # Industry-reference placeholders, not the actual datasheet of the target
@@ -18,25 +28,23 @@ DEFAULT_HITRAN_GAS_SPECS = (
 #      (~93 cm-1 at 4.26 um). InfraTec gas analysis docs (infratec-infrared.com).
 # See configs/data/spectral-defaults.json -> filter_source for the same record.
 DEFAULT_NDIR_FILTERS = {
-    "ch4": NDIRFilter(channel="ch4", center_cm1=3030.0, fwhm_cm1=147.0),
-    "co2": NDIRFilter(channel="co2", center_cm1=2347.0, fwhm_cm1=93.0),
+    channel: NDIRFilter(
+        channel=str(spec["channel"]),
+        center_cm1=float(spec["center_cm1"]),
+        fwhm_cm1=float(spec["fwhm_cm1"]),
+    )
+    for channel, spec in SPECTRAL_DEFAULTS_PAYLOAD["filters"].items()
 }
 
 DEFAULT_HITRAN_GRID_SPECS = {
-    "ch4": HitranGridSpec(
-        wavenumber_min_cm1=2880.0,
-        wavenumber_max_cm1=3180.0,
-        wavenumber_step_cm1=0.1,
-        temperature_k=296.0,
-        pressure_atm=1.0,
-    ),
-    "co2": HitranGridSpec(
-        wavenumber_min_cm1=2250.0,
-        wavenumber_max_cm1=2445.0,
-        wavenumber_step_cm1=0.1,
-        temperature_k=296.0,
-        pressure_atm=1.0,
-    ),
+    channel: HitranGridSpec(
+        wavenumber_min_cm1=float(spec["wavenumber_min_cm1"]),
+        wavenumber_max_cm1=float(spec["wavenumber_max_cm1"]),
+        wavenumber_step_cm1=float(spec["wavenumber_step_cm1"]),
+        temperature_k=float(spec["temperature_k"]),
+        pressure_atm=float(spec["pressure_atm"]),
+    )
+    for channel, spec in SPECTRAL_DEFAULTS_PAYLOAD["hitran_grids"].items()
 }
 
 
@@ -44,11 +52,11 @@ def get_default_ndir_filter(channel: str) -> NDIRFilter:
     try:
         return DEFAULT_NDIR_FILTERS[channel.lower()]
     except KeyError as exc:
-        raise ValueError(f"Unknown NDIR channel: {channel!r}") from exc
+        raise ValueError(f"Unknown NDIR channel: {channel!r}. Available: {list(DEFAULT_NDIR_FILTERS)}") from exc
 
 
 def get_default_hitran_grid(channel: str) -> HitranGridSpec:
     try:
         return DEFAULT_HITRAN_GRID_SPECS[channel.lower()]
     except KeyError as exc:
-        raise ValueError(f"Unknown HITRAN grid channel: {channel!r}") from exc
+        raise ValueError(f"Unknown HITRAN grid channel: {channel!r}. Available: {list(DEFAULT_HITRAN_GRID_SPECS)}") from exc

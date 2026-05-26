@@ -3,6 +3,8 @@ from sim.generation.spectral.defaults import (
     DEFAULT_HITRAN_GAS_SPECS,
     DEFAULT_HITRAN_GRID_SPECS,
     DEFAULT_NDIR_FILTERS,
+    SPECTRAL_DEFAULTS_CONFIG_PATH,
+    SPECTRAL_DEFAULTS_PAYLOAD,
     get_default_hitran_grid,
     get_default_ndir_filter,
 )
@@ -26,7 +28,13 @@ from sim.generation.spectral.quantitative_table import (
     load_quantitative_spectrum_csv,
     resample_spectrum_to_grid,
 )
-from sim.generation.spectral.tabulated_backend import TabulatedSpectrum, compute_tabulated_ndir_absorbance
+from sim.generation.spectral.tabulated_backend import (
+    PreparedTabulatedSpectra,
+    TabulatedSpectrum,
+    compute_prepared_tabulated_ndir_absorbance,
+    compute_tabulated_ndir_absorbance,
+    prepare_tabulated_spectra,
+)
 
 __all__ = [
     "BOLTZMANN_J_PER_K",
@@ -38,13 +46,17 @@ __all__ = [
     "HitranGridSpec",
     "MissingHitranCacheError",
     "NDIRFilter",
+    "PreparedTabulatedSpectra",
     "QUANTITATIVE_TABLE_BACKEND",
+    "SPECTRAL_DEFAULTS_CONFIG_PATH",
+    "SPECTRAL_DEFAULTS_PAYLOAD",
     "SpectralCacheKey",
     "STANDARD_ATMOSPHERE_PA",
     "SUPPORTED_QUANTITATIVE_UNITS",
     "TabulatedSpectrum",
     "cache_path",
     "compute_hitran_ndir_absorbance",
+    "compute_prepared_tabulated_ndir_absorbance",
     "compute_tabulated_ndir_absorbance",
     "convert_hitran_coeff_to_per_percent_m",
     "convert_quantitative_coeff_to_per_percent_m",
@@ -54,6 +66,7 @@ __all__ = [
     "hitran_cache_key",
     "integrate_channel_absorbance",
     "load_quantitative_spectrum_csv",
+    "prepare_tabulated_spectra",
     "read_cached_spectrum",
     "resample_spectrum_to_grid",
     "write_cached_spectrum",

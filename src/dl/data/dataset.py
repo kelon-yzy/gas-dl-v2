@@ -97,11 +97,11 @@ class V4BenchmarkDataset(Dataset):
         labels_path = self._dataset_dir / "labels" / "y.npy"
         self._labels = np.load(labels_path).astype(np.float32)
         if "slow" in self._modalities:
-            self._slow = np.load(seq_dir / "slow.npy", mmap_mode="r").astype(np.float32)
+            self._slow = np.load(seq_dir / "slow.npy", mmap_mode="r")
         if "ultrasonic" in self._modalities:
-            self._ultrasonic = np.load(seq_dir / "ultrasonic_int16.npy", mmap_mode="r").astype(np.float32)
+            self._ultrasonic = np.load(seq_dir / "ultrasonic_int16.npy", mmap_mode="r")
         if "fiber_mic" in self._modalities:
-            self._fiber_mic = np.load(seq_dir / "fiber_mic_int16.npy", mmap_mode="r").astype(np.float32)
+            self._fiber_mic = np.load(seq_dir / "fiber_mic_int16.npy", mmap_mode="r")
 
     def _build_input(self, src_idx: int) -> torch.Tensor:
         parts: list[np.ndarray] = []
@@ -118,7 +118,7 @@ class V4BenchmarkDataset(Dataset):
         x = np.concatenate(parts, axis=-1) if len(parts) > 1 else parts[0]
         if self._input_format == "NCT":
             x = np.transpose(x, (1, 0))
-        return torch.from_numpy(np.asarray(x, dtype=np.float32))
+        return torch.from_numpy(np.array(x, dtype=np.float32, copy=True))
 
 
 def _validate_modalities(modalities: tuple[str, ...]) -> None:

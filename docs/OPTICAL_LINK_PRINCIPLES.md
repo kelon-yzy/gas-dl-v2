@@ -15,7 +15,7 @@
 | `ndir_ch4_saturated` | CH4 通道吸光度是否超过饱和阈值            |
 | `ndir_co2_saturated` | CO2 通道吸光度是否超过饱和阈值            |
 
-注意：`V_TCS` 是热导式氢传感器，不走光学链路。代码上和 NDIR 共用同一个函数 `main_sensor_features`，只是因为复用 baseline + drift + noise 的处理风格。
+注意：`V_TCS` 是热导式氢传感器，不走光学链路。`empirical_v1` 兼容路径仍在 `main_sensor_features` 中同时生成 NDIR 与 TCS；默认 `hitran_hapi_v1` benchmark 主线会改走 `thermal_conductivity_sensor_feature` 只计算 TCS，NDIR 由 HITRAN 光谱积分单独给出，避免顺带跑 empirical NDIR。
 
 仿真方向与真实测量相反：真实仪器是「红外光 → 经过混合气 → 滤光片 → 电压 → 反推吸光度」，仿真是从配气方案直接给出真值吸光度，再退化成电压。
 
@@ -43,6 +43,7 @@
 - 每个 timestep 使用当前 `blend` 后的组分和当前 `L_m` 计算 NDIR equilibrium，因此 steady/baseline 声程扫描会真实影响 `V_NDIR_CH4` 与 `V_NDIR_CO2`。
 - HITRAN 多气体滤光片积分已经表达通道交叉响应，不再叠加 `apply_optical_crosstalk` 的经验矩阵，避免双计数。
 - 生成阶段只读 `.npz` cache，不导入 HAPI、不联网、不写谱线缓存。
+- 同一 `(channel, HitranGridSpec)` 会准备成 `PreparedTabulatedSpectra` 缓存在生成过程中复用；栅格一致性和滤光片响应只在 cache 载入时处理一次。
 
 推荐流程：
 
@@ -118,7 +119,7 @@ V_NDIR_CO2 = max(0.1, baseline_CO2_now · exp(−A_CO2_observed) + ε)
 
 `src/sim/generation/slow.py:50` 把单条件快照扩展成 `(timesteps,)` 序列：
 
-1. 计算两份 `main_sensor_features`：
+1. 计算两份 `main_sensor_features`（仅 `empirical_v1` 兼容路径）：
    - `baseline_main`：零浓度初态。
    - `target_main`：目标配气稳态。
 2. 把 timesteps 四等分（`phases.py`，边界为 `q1, q2, q3`），每段含义：
@@ -156,7 +157,7 @@ R(ν) = exp(−½ · ((ν − ν0) / σ)²)
 
 只使用归一形状，量纲在通道归一时约掉。`np.trapezoid(response, ν)` 必须 > 0，否则报错。
 
-`configs/data/spectral-defaults.json` 和 `defaults.py` 当前使用行业参考占位（`filter_source.type=industry_reference_only`，实际取值由目标传感器 TraceGas-HC-NDIR 决定）：
+`configs/data/spectral-defaults.json` 是运行时默认值来源，`defaults.py` 读取该 JSON 构造 dataclass 常量。当前配置使用行业参考占位（`filter_source.type=industry_reference_only`，实际取值由目标传感器 TraceGas-HC-NDIR 决定）：
 
 | 通道  | 中心波长     | 中心波数       | FWHM       | 来源占位                                                                                                |
 | --- | -------- | ---------- | ---------- | --------------------------------------------------------------------------------------------------- |
@@ -167,13 +168,13 @@ R(ν) = exp(−½ · ((ν − ν0) / σ)²)
 
 ### 5.2 单气体光学深度
 
-`tabulated_backend.py:36`：
+`tabulated_backend.py`：
 
 ```text
 τ_i(ν) = k_i(ν) · concentration_i_pct · L_m
 ```
 
-`TabulatedSpectrum.absorption_coeff_per_percent_m` 的单位约定是「每 1% 体积浓度、每米光程」的吸收系数，方便直接乘以 percent 浓度。所有气体必须共享同一套 wavenumber grid，函数内部用 `np.allclose` 校验。
+`TabulatedSpectrum.absorption_coeff_per_percent_m` 的单位约定是「每 1% 体积浓度、每米光程」的吸收系数，方便直接乘以 percent 浓度。所有气体必须共享同一套 wavenumber grid；`prepare_tabulated_spectra` 会用 `np.allclose` 校验并构造滤光片响应，HITRAN benchmark 生成会缓存这个 prepared 对象。
 
 ### 5.3 通道透射率与吸光度
 
@@ -221,7 +222,7 @@ A_channel = −ln(T_channel)
 | `backend`               | `tabulated_spectrum_v1` 或 `hitran_hapi_v1` |
 | `source_version`        | 每气体的谱源版本字典                                 |
 
-这是后续替换 empirical 链路时的对接面。要切换到光谱积分时，把 `main_sensor_features` 里 3.1 + 3.2 两层换成调用 `compute_*_ndir_absorbance` 两次，分别取 `absorbance_observed` 作为 `absorption_ch4_observed` / `absorption_co2_observed`，下游 3.3 / 3.4 / 3.5 不需要改动。
+这是 empirical 对照、HITRAN 主线和外部谱表 sanity check 的共同对接面。默认 benchmark 已在 `optical_backend.py` 中调用 HITRAN cache-only 积分，并把 `absorbance_observed` 映射为 `V_NDIR_CH4` / `V_NDIR_CO2` 的 equilibrium。
 
 ## 5. 测试覆盖
 
@@ -229,7 +230,7 @@ A_channel = −ln(T_channel)
 | ------------------------------------------- | -------------------------------------------------------------- |
 | `tests/test_acoustic_physics_regression.py` | `main_sensor_features` 固定种子回归基线（含 empirical 吸收 + 交叉敏感度 + 电压退化） |
 | `tests/test_optical_crosstalk.py`           | `apply_optical_crosstalk` 的对称性和单调性                             |
-| `tests/test_spectral_integration.py`        | 常数 optical depth、Gaussian 滤光片响应、表格谱交叉响应                        |
+| `tests/test_spectral_integration.py`        | 常数 optical depth、Gaussian 滤光片响应、表格谱交叉响应、prepared 谱表复用       |
 | `tests/test_spectral_hitran_backend.py`     | fake HAPI 调用、缓存命中、缓存 roundtrip、单位换算                         |
 | `tests/test_spectral_pipeline.py`           | 默认谱学配置、HITRAN 预计算 CLI、empirical/HITRAN 对照入口                  |
 | `tests/test_quantitative_table.py`          | 外部定量谱表 CSV 读取、单位转换、grid 重采样和拒绝外推                         |
@@ -241,7 +242,7 @@ A_channel = −ln(T_channel)
 python -m pytest tests
 ```
 
-当前 125 个测试全部通过（2026-05-26 状态）。
+当前 132 个测试全部通过（2026-05-26 状态）。
 
 ## 6. 当前缺口
 

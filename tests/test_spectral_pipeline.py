@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from pipeline.compare_optical_backends import compare_optical_backends
 from pipeline.precompute_hitran_benchmark_cache import main as precompute_benchmark_main
@@ -10,7 +11,13 @@ from pipeline.precompute_hitran_spectra import main as precompute_main
 from pipeline.precompute_hitran_spectra import parse_channels, precompute_hitran_spectra
 from sim.generation.conditions import generate_condition_rows
 from sim.generation.optical_backend import collect_hitran_cache_requirements
-from sim.generation.spectral import DEFAULT_HITRAN_GAS_SPECS, get_default_hitran_grid, get_default_ndir_filter
+from sim.generation.spectral import (
+    DEFAULT_HITRAN_GAS_SPECS,
+    SPECTRAL_DEFAULTS_CONFIG_PATH,
+    SPECTRAL_DEFAULTS_PAYLOAD,
+    get_default_hitran_grid,
+    get_default_ndir_filter,
+)
 
 
 class FakeHapi:
@@ -40,10 +47,12 @@ def test_default_spectral_specs_cover_ch4_and_co2():
     assert {spec.gas for spec in DEFAULT_HITRAN_GAS_SPECS} == {"CH4", "CO2", "H2O"}
 
 
-def test_spectral_defaults_config_matches_code_defaults():
+def test_spectral_defaults_are_loaded_from_config_source_of_truth():
     config_path = Path(__file__).resolve().parents[1] / "configs" / "data" / "spectral-defaults.json"
     payload = json.loads(config_path.read_text(encoding="utf-8"))
 
+    assert SPECTRAL_DEFAULTS_CONFIG_PATH == config_path
+    assert SPECTRAL_DEFAULTS_PAYLOAD == payload
     assert payload["optical_absorption_backend"] == "hitran_hapi_v1"
     assert payload["filters"]["ch4"]["center_cm1"] == get_default_ndir_filter("ch4").center_cm1
     assert payload["filters"]["co2"]["fwhm_cm1"] == get_default_ndir_filter("co2").fwhm_cm1
@@ -65,12 +74,8 @@ def test_default_hitran_grids_cover_filter_main_lobe():
 
 
 def test_parse_channels_rejects_unknown_channel():
-    try:
+    with pytest.raises(Exception, match="o2"):
         parse_channels("ch4,o2")
-    except Exception as exc:
-        assert "o2" in str(exc)
-    else:
-        raise AssertionError("parse_channels should reject unsupported channels")
 
 
 def test_precompute_hitran_spectra_uses_real_backend_contract(tmp_path):

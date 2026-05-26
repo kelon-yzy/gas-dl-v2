@@ -3,12 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 import torch
 
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.data.scalers import apply_scaler, load_scaler
 from dl.data.splits import SPLIT_NAMES, load_splits, resolve_split_indices, split_sequence_ids
 from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+from sim.packaging.scalers import fit_z_score_scalers
 
 
 def _make_smoke_dataset(tmp_path: Path, slug: str = "dl-smoke", sequences: int = 16) -> Path:
@@ -89,6 +91,36 @@ class TestScalers:
         assert np.all(np.abs(means) < 0.5)
         assert np.all(stds > 0.5)
 
+    def test_fit_and_apply_scaler_share_near_zero_std_threshold(self):
+        matrix = np.array(
+            [
+                [[1.0, 10.0], [1.0, 10.0 + 1e-13]],
+                [[1.0, 10.0 - 1e-13], [1.0, 10.0]],
+            ],
+            dtype=np.float64,
+        )
+        scaler, _ = fit_z_score_scalers(
+            matrix,
+            [0, 1],
+            channel_names=("constant", "tiny"),
+            modal_groups={"all": ("constant", "tiny")},
+        )
+
+        assert scaler["std"] == [1.0, 1.0]
+        np.testing.assert_allclose(apply_scaler(matrix, scaler), matrix - np.array(scaler["mean"]))
+
+    def test_apply_scaler_rejects_unsupported_ndim(self):
+        scaler = {"method": "z_score", "channel_names": ["a"], "mean": [0.0], "std": [1.0]}
+
+        with pytest.raises(ValueError, match="2D or 3D"):
+            apply_scaler(np.array([1.0], dtype=np.float32), scaler)
+
+    def test_apply_scaler_rejects_channel_mismatch(self):
+        scaler = {"method": "z_score", "channel_names": ["a", "b"], "mean": [0.0, 0.0], "std": [1.0, 1.0]}
+
+        with pytest.raises(ValueError, match="last dimension"):
+            apply_scaler(np.ones((4, 1), dtype=np.float32), scaler)
+
 
 class TestV4BenchmarkDataset:
     def test_slow_only_nct_format(self, tmp_path: Path):
@@ -130,7 +162,18 @@ class TestV4BenchmarkDataset:
         ds = V4BenchmarkDataset(dataset_dir, split="train", modalities=("slow",), lazy=True)
         assert ds._slow is None
         _ = ds[0]
-        assert ds._slow is not None
+        assert isinstance(ds._slow, np.memmap)
+
+    def test_lazy_loading_keeps_waveforms_memmapped_int16_until_sample_cast(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-wave-lazy", sequences=8)
+        ds = V4BenchmarkDataset(dataset_dir, split="train", modalities=("ultrasonic", "fiber_mic"), lazy=False)
+
+        assert isinstance(ds._ultrasonic, np.memmap)
+        assert isinstance(ds._fiber_mic, np.memmap)
+        assert ds._ultrasonic.dtype == np.int16
+        assert ds._fiber_mic.dtype == np.int16
+        x, _ = ds[0]
+        assert x.dtype == torch.float32
 
     def test_multimodal_concatenates_channels(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-multi", sequences=8)
@@ -146,17 +189,13 @@ class TestV4BenchmarkDataset:
 
     def test_rejects_invalid_modality(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-bad")
-        try:
+        with pytest.raises(ValueError, match="imaginary"):
             V4BenchmarkDataset(dataset_dir, split="train", modalities=("imaginary",))
-        except ValueError as exc:
-            assert "imaginary" in str(exc)
 
     def test_rejects_invalid_input_format(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-fmt")
-        try:
+        with pytest.raises(ValueError, match="input_format"):
             V4BenchmarkDataset(dataset_dir, split="train", input_format="TNC")
-        except ValueError as exc:
-            assert "input_format" in str(exc)
 
     def test_modality_options_constant(self):
         assert MODALITY_OPTIONS == ("slow", "ultrasonic", "fiber_mic")

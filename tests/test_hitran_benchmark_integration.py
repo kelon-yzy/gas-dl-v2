@@ -93,6 +93,29 @@ def test_hitran_ndir_changes_with_steady_phase_path_length(tmp_path: Path):
     assert abs(float(rows[4]["V_NDIR_CH4"]) - float(rows[5]["V_NDIR_CH4"])) > 1e-6
 
 
+def test_hitran_sequence_generation_does_not_call_empirical_main_sensor_features(tmp_path: Path, monkeypatch):
+    cache_root = tmp_path / "hitran-cache"
+    conditions = generate_condition_rows(1, seed=37, sampling_strategy="lhs")
+    _write_synthetic_hitran_cache(cache_root, conditions)
+
+    def fail_main_sensor_features(*args, **kwargs):
+        raise AssertionError("HITRAN sequence generation must not call empirical main_sensor_features")
+
+    monkeypatch.setattr("sim.generation.slow.main_sensor_features", fail_main_sensor_features)
+
+    generate_benchmark_dataset(
+        tmp_path,
+        BenchmarkGenerationSpec(
+            dataset_slug="hitran-no-empirical",
+            sequence_count=1,
+            seed=37,
+            timesteps=8,
+            storage="npz",
+            hitran_cache_root=str(cache_root),
+        ),
+    )
+
+
 def test_hitran_environment_helpers_are_reproducible():
     grid = build_hitran_grid_for_condition("ch4", t_c=25.12345, p_mpa=0.101325)
 

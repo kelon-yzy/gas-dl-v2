@@ -6,15 +6,15 @@
 
 | 子系统               | 状态                                                              | 完成度 |
 | ----------------- | --------------------------------------------------------------- | --- |
-| `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN benchmark 默认接入 + 外部谱表 sanity check 入口） | 90% |
-| `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers                     | 40% |
+| `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN benchmark 默认接入 + 外部谱表 sanity check 入口 + spectral 默认配置 source-of-truth） | 90% |
+| `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers；lazy memmap 与 scaler 阈值契约已收敛 | 45% |
 | `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1DRegressor + TCNRegressor + registry | 25% |
 | `src/dl/training` | loss/metrics 基础完成，trainer/checkpoint 待实现                       | 20% |
 | `src/ml`          | 仅有占位 `__init__.py`                                              | 0%  |
 | `src/pipeline`    | layout + generate_benchmark + HITRAN benchmark cache 预计算/对照 CLI + 外部谱表 sanity check CLI | 26% |
-| `configs/`        | 已新增 `configs/data/spectral-defaults.json`（含 `filter_source` 行业参考占位元信息），其余配置未落地 | 5%  |
+| `configs/`        | 已新增 `configs/data/spectral-defaults.json`（运行时 spectral 默认值 source-of-truth，含 `filter_source` 行业参考占位元信息），其余配置未落地 | 8%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 125 个测试（sim + dl + pipeline）                                    | 60% |
+| `tests/`          | 132 个测试（sim + dl + pipeline）                                    | 62% |
 
 ## PLAN 6 项问题对照
 
@@ -64,6 +64,7 @@
 - **HITRAN 路线**：用 HAPI 下载 CH4/CO2/H2O line-by-line 数据，按温度、压力、浓度、光程和滤光片响应积分得到 NDIR 通道吸收
 - **PNNL/NIST 路线**：读取定量 IR absorption coefficient 或 cross-section 谱，按浓度和光程缩放后做滤光片窗口积分
 - **已落地**：新增 `src/sim/generation/spectral/` 本地积分核心、`tabulated_spectrum_v1` backend、外部定量谱表 CSV 读取与重采样、`hitran_hapi_v1` 适配层、谱线缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN benchmark cache-only 接入、benchmark 专用预计算 CLI、empirical/HITRAN 小规模对照 CLI 和外部谱表 sanity check CLI，并在 manifest 中记录 `optical_absorption_backend` 与 HITRAN cache policy
+- **契约收敛**：`configs/data/spectral-defaults.json` 已作为运行时默认值来源；HITRAN 主线不再调用 empirical `main_sensor_features` 计算 NDIR；同一 `(channel, grid)` 的谱表会准备成 `PreparedTabulatedSpectra` 后复用
 - **真实下载验证**：本地已用 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在早期 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的 HITRAN 谱线；HAPI 原始表名已绑定波数窗口，避免不同通道缓存互相污染。当前默认窗口已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，需重新预计算生成新缓存
 - **后续实现**：当前默认滤光片已用行业参考占位（CH4 InfraTec LIM-262 3.3 μm/160 nm，对应 147 cm⁻¹ FWHM；CO2 InfraTec 4.26 μm/170 nm，对应 93 cm⁻¹ FWHM），默认 `hitran_grids` 已扩大到覆盖当前滤光片 `center ± FWHM`；仍需替换为目标传感器 TraceGas-HC-NDIR 实际 datasheet，并在 grid 变化后重下 HITRAN benchmark cache；获取真实 PNNL/NIST 或仪器定量谱表并运行 sanity check
 

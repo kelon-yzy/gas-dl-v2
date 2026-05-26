@@ -16,6 +16,14 @@ class TabulatedSpectrum:
     source_version: str
 
 
+@dataclass(frozen=True, slots=True)
+class PreparedTabulatedSpectra:
+    spectra: tuple[TabulatedSpectrum, ...]
+    wavenumber_cm1: np.ndarray
+    filter_response: np.ndarray
+    filter_spec: NDIRFilter
+
+
 def compute_tabulated_ndir_absorbance(
     *,
     spectra: tuple[TabulatedSpectrum, ...],
@@ -23,21 +31,51 @@ def compute_tabulated_ndir_absorbance(
     path_length_m: float,
     filter_spec: NDIRFilter,
 ) -> dict[str, object]:
-    if path_length_m <= 0.0:
-        raise ValueError("path_length_m must be > 0")
+    prepared = prepare_tabulated_spectra(spectra=spectra, filter_spec=filter_spec)
+    return compute_prepared_tabulated_ndir_absorbance(
+        prepared=prepared,
+        concentrations_pct=concentrations_pct,
+        path_length_m=path_length_m,
+    )
+
+
+def prepare_tabulated_spectra(
+    *,
+    spectra: tuple[TabulatedSpectrum, ...],
+    filter_spec: NDIRFilter,
+) -> PreparedTabulatedSpectra:
     if len(spectra) == 0:
         raise ValueError("spectra must contain at least one gas")
     wavenumber = spectra[0].wavenumber_cm1.astype(np.float64)
-    optical_depth = np.zeros_like(wavenumber, dtype=np.float64)
-    absorbance_by_gas = {}
-    source_versions = {}
-    filter_response = gaussian_filter(wavenumber, filter_spec)
-
     for spectrum in spectra:
         if spectrum.wavenumber_cm1.shape != wavenumber.shape or not np.allclose(spectrum.wavenumber_cm1, wavenumber):
             raise ValueError("all spectra must share the same wavenumber grid")
         if spectrum.absorption_coeff_per_percent_m.shape != wavenumber.shape:
             raise ValueError("absorption_coeff_per_percent_m must match wavenumber_cm1 shape")
+    return PreparedTabulatedSpectra(
+        spectra=spectra,
+        wavenumber_cm1=wavenumber,
+        filter_response=gaussian_filter(wavenumber, filter_spec),
+        filter_spec=filter_spec,
+    )
+
+
+def compute_prepared_tabulated_ndir_absorbance(
+    *,
+    prepared: PreparedTabulatedSpectra,
+    concentrations_pct: dict[str, float],
+    path_length_m: float,
+) -> dict[str, object]:
+    if path_length_m <= 0.0:
+        raise ValueError("path_length_m must be > 0")
+    wavenumber = prepared.wavenumber_cm1
+    filter_response = prepared.filter_response
+    filter_spec = prepared.filter_spec
+    optical_depth = np.zeros_like(wavenumber, dtype=np.float64)
+    absorbance_by_gas = {}
+    source_versions = {}
+
+    for spectrum in prepared.spectra:
         concentration = float(concentrations_pct.get(spectrum.gas, 0.0))
         if concentration < 0.0:
             raise ValueError("concentrations_pct values must be >= 0")

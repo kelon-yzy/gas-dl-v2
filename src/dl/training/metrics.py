@@ -7,6 +7,9 @@ import torch
 from sim.core.schema import COMPONENT_FIELDS
 
 
+R2_ZERO_VARIANCE_EPSILON = 1e-12
+
+
 @dataclass(frozen=True)
 class RegressionMetrics:
     """四组分浓度回归的整体指标。"""
@@ -17,7 +20,10 @@ class RegressionMetrics:
 
 
 def regression_metrics(y_pred: torch.Tensor, y_true: torch.Tensor) -> RegressionMetrics:
-    """计算整体 MAE、RMSE 与 R2。"""
+    """计算整体 MAE、RMSE 与 pooled R2。
+
+    R2 使用按输出通道去均值后的总平方和，不是逐组分 R2 的宏平均。
+    """
     _validate_prediction_shapes(y_pred, y_true)
     pred = y_pred.detach().float()
     true = y_true.detach().float()
@@ -28,8 +34,8 @@ def regression_metrics(y_pred: torch.Tensor, y_true: torch.Tensor) -> Regression
     ss_res = torch.sum(err.square())
     centered = true - torch.mean(true, dim=0, keepdim=True)
     ss_tot = torch.sum(centered.square())
-    if ss_tot.item() == 0:
-        r2 = torch.tensor(1.0 if ss_res.item() == 0 else 0.0, dtype=true.dtype, device=true.device)
+    if ss_tot.item() < R2_ZERO_VARIANCE_EPSILON:
+        r2 = torch.tensor(1.0 if ss_res.item() < R2_ZERO_VARIANCE_EPSILON else 0.0, dtype=true.dtype, device=true.device)
     else:
         r2 = 1.0 - ss_res / ss_tot
     return RegressionMetrics(mae=float(mae.item()), rmse=float(rmse.item()), r2=float(r2.item()))

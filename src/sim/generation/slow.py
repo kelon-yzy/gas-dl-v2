@@ -6,7 +6,7 @@ import random
 import numpy as np
 
 from sim.core.schema import SLOW_CHANNELS, SLOW_DYNAMIC_CHANNELS
-from sim.generation.acoustic_physics import PROCESSING_PARAMS, main_sensor_features
+from sim.generation.acoustic_physics import PROCESSING_PARAMS, main_sensor_features, thermal_conductivity_sensor_feature
 from sim.generation.optical_backend import (
     EMPIRICAL_ABSORPTION_BACKEND,
     HITRAN_ABSORPTION_BACKEND,
@@ -14,7 +14,7 @@ from sim.generation.optical_backend import (
     compute_hitran_optical_absorption,
 )
 from sim.generation.phases import blend_for_timestep, phase_boundaries, phase_for_timestep
-from sim.generation.spectral import HitranGridSpec, TabulatedSpectrum
+from sim.generation.spectral import HitranGridSpec, PreparedTabulatedSpectra
 from sim.generation.waveforms import FiberMicSpec, WaveformSpec, simulate_fiber_mic_measurement, simulate_waveform_measurement
 
 
@@ -56,7 +56,7 @@ def build_sequence_arrays(
     q1, q2, q3 = phase_boundaries(timesteps)
     is_baseline_scan = multi_path_phase == "baseline"
     is_steady_scan = multi_path_phase == "steady"
-    spectra_cache: dict[tuple[str, HitranGridSpec], tuple[TabulatedSpectrum, ...]] | None = (
+    spectra_cache: dict[tuple[str, HitranGridSpec], PreparedTabulatedSpectra] | None = (
         {} if optical_absorption_backend == HITRAN_ABSORPTION_BACKEND else None
     )
 
@@ -64,18 +64,21 @@ def build_sequence_arrays(
     for seq_index, condition in enumerate(conditions):
         condition_rng = random.Random(root_rng.randrange(0, 2**32))
         sequence_rng = random.Random(root_rng.randrange(0, 2**32))
-        baseline_main = main_sensor_features(_main_feature_condition(condition, 0.0, 0.0, 0.0, 100.0, float(condition["L_m_base"])), condition_rng)
-        target_main = main_sensor_features(
-            _main_feature_condition(
-                condition,
-                float(condition["x_H2"]),
-                float(condition["x_CH4"]),
-                float(condition["x_CO2"]),
-                float(condition["x_N2"]),
-                float(condition["L_m_base"]),
-            ),
-            condition_rng,
+        baseline_condition = _main_feature_condition(condition, 0.0, 0.0, 0.0, 100.0, float(condition["L_m_base"]))
+        target_condition = _main_feature_condition(
+            condition,
+            float(condition["x_H2"]),
+            float(condition["x_CH4"]),
+            float(condition["x_CO2"]),
+            float(condition["x_N2"]),
+            float(condition["L_m_base"]),
         )
+        if optical_absorption_backend == EMPIRICAL_ABSORPTION_BACKEND:
+            baseline_main = main_sensor_features(baseline_condition, condition_rng)
+            target_main = main_sensor_features(target_condition, condition_rng)
+        else:
+            baseline_main = thermal_conductivity_sensor_feature(baseline_condition, condition_rng)
+            target_main = thermal_conductivity_sensor_feature(target_condition, condition_rng)
         slow_params = _channel_dynamic_params(sequence_rng)
         slow_walk = {channel: 0.0 for channel in SLOW_DYNAMIC_CHANNELS}
         ndir_state: dict[str, float] = {}
@@ -220,7 +223,7 @@ def _hitran_ndir_equilibrium(
     composition: dict[str, float],
     l_m: float,
     hitran_cache_root: str,
-    spectra_cache: dict[tuple[str, HitranGridSpec], tuple[TabulatedSpectrum, ...]] | None,
+    spectra_cache: dict[tuple[str, HitranGridSpec], PreparedTabulatedSpectra] | None,
 ) -> dict[str, float]:
     optical = compute_hitran_optical_absorption(
         _main_feature_condition(
@@ -313,12 +316,19 @@ def _path_l_m_for_timestep(
     path_lms: tuple[float, ...],
 ) -> float:
     if is_baseline_scan and timestep < q1:
-        return float(path_lms[min(len(path_lms) - 1, timestep // max(1, q1 // len(path_lms)))])
+        return float(path_lms[_scan_path_index(timestep, q1, len(path_lms))])
     if is_steady_scan and q2 <= timestep < q3:
         local = timestep - q2
         span = max(1, q3 - q2)
-        return float(path_lms[min(len(path_lms) - 1, local // max(1, span // len(path_lms)))])
+        return float(path_lms[_scan_path_index(local, span, len(path_lms))])
     return float(l_m_base)
+
+
+def _scan_path_index(local_timestep: int, span: int, option_count: int) -> int:
+    if option_count <= 1 or span <= 1:
+        return 0
+    index = round(local_timestep * (option_count - 1) / (span - 1))
+    return min(option_count - 1, max(0, int(index)))
 
 
 def _slow_row(sequence_id: str, timestep: int, dt_s: float, phase_id: str, current: dict[str, float]) -> dict[str, str]:

@@ -10,14 +10,17 @@ from sim.generation.spectral import (
     HitranGasSpec,
     HitranGridSpec,
     MissingHitranCacheError,
+    NDIRFilter,
+    PreparedTabulatedSpectra,
     SpectralCacheKey,
     TabulatedSpectrum,
     cache_path,
-    compute_tabulated_ndir_absorbance,
+    compute_prepared_tabulated_ndir_absorbance,
     convert_hitran_coeff_to_per_percent_m,
     get_default_hitran_grid,
     get_default_ndir_filter,
     hitran_cache_key,
+    prepare_tabulated_spectra,
     read_cached_spectrum,
 )
 
@@ -110,7 +113,7 @@ def compute_hitran_optical_absorption(
     condition: dict[str, str],
     *,
     cache_root: Path | str,
-    spectra_cache: dict[tuple[str, HitranGridSpec], tuple[TabulatedSpectrum, ...]] | None = None,
+    spectra_cache: dict[tuple[str, HitranGridSpec], PreparedTabulatedSpectra] | None = None,
 ) -> dict[str, object]:
     t_c = float(condition["T_C"])
     p_mpa = float(condition["P_MPa"])
@@ -170,40 +173,42 @@ def _compute_hitran_channel_from_cache(
     channel: str,
     concentrations_pct: dict[str, float],
     path_length_m: float,
-    filter_spec: object,
+    filter_spec: NDIRFilter,
     grid_spec: HitranGridSpec,
     cache_root: Path | str,
-    spectra_cache: dict[tuple[str, HitranGridSpec], tuple[TabulatedSpectrum, ...]] | None,
+    spectra_cache: dict[tuple[str, HitranGridSpec], PreparedTabulatedSpectra] | None,
 ) -> dict[str, object]:
-    spectra = _cached_tabulated_spectra(
+    prepared = _cached_prepared_tabulated_spectra(
         channel=channel,
+        filter_spec=filter_spec,
         grid_spec=grid_spec,
         cache_root=cache_root,
         spectra_cache=spectra_cache,
     )
-    result = compute_tabulated_ndir_absorbance(
-        spectra=spectra,
+    result = compute_prepared_tabulated_ndir_absorbance(
+        prepared=prepared,
         concentrations_pct=concentrations_pct,
         path_length_m=path_length_m,
-        filter_spec=filter_spec,
     )
     return result | {"backend": HITRAN_ABSORPTION_BACKEND}
 
 
-def _cached_tabulated_spectra(
+def _cached_prepared_tabulated_spectra(
     *,
     channel: str,
+    filter_spec: NDIRFilter,
     grid_spec: HitranGridSpec,
     cache_root: Path | str,
-    spectra_cache: dict[tuple[str, HitranGridSpec], tuple[TabulatedSpectrum, ...]] | None,
-) -> tuple[TabulatedSpectrum, ...]:
+    spectra_cache: dict[tuple[str, HitranGridSpec], PreparedTabulatedSpectra] | None,
+) -> PreparedTabulatedSpectra:
     cache_key = (channel, grid_spec)
     if spectra_cache is not None and cache_key in spectra_cache:
         return spectra_cache[cache_key]
     spectra = tuple(_read_tabulated_spectrum(cache_root=cache_root, gas_spec=gas_spec, grid_spec=grid_spec) for gas_spec in DEFAULT_HITRAN_GAS_SPECS)
+    prepared = prepare_tabulated_spectra(spectra=spectra, filter_spec=filter_spec)
     if spectra_cache is not None:
-        spectra_cache[cache_key] = spectra
-    return spectra
+        spectra_cache[cache_key] = prepared
+    return prepared
 
 
 def _read_tabulated_spectrum(*, cache_root: Path | str, gas_spec: HitranGasSpec, grid_spec: HitranGridSpec) -> TabulatedSpectrum:

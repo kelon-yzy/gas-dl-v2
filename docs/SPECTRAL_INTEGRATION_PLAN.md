@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-`hitran_hapi_v1` 已接入 benchmark 默认生成主线；旧 `src/sim/generation/acoustic_physics.py` 中的 NDIR 经验吸收量仍保留为显式 `empirical_v1` 兼容/对照路径：
+`hitran_hapi_v1` 已接入 benchmark 默认生成主线；HITRAN 主线下，NDIR 不再调用 `main_sensor_features` 的 empirical 光学路径，只由 `src/sim/generation/optical_backend.py` 做 cache-only 多气体滤光片积分。旧 `src/sim/generation/acoustic_physics.py` 中的 NDIR 经验吸收量仍保留为显式 `empirical_v1` 兼容/对照路径：
 
 ```text
 CH4_abs = 0.008 * x_CH4 + 0.0008 * H_RH + 0.015 * P_MPa + 0.0002 * (T_C - 25)
@@ -92,7 +92,7 @@ A_channel = integral R_channel(nu) * sum_i A_i(nu) dnu
 ```text
 src/sim/generation/spectral/
   __init__.py
-  defaults.py             # 默认气体、滤光片和 HITRAN 网格配置
+  defaults.py             # 从 configs/data/spectral-defaults.json 读取默认气体、滤光片和 HITRAN 网格配置
   filters.py              # NDIR 通道滤光片响应函数
   hitran_backend.py       # HAPI/HITRAN line-by-line 计算适配层
   tabulated_backend.py    # PNNL/NIST 谱表读取与积分
@@ -101,7 +101,7 @@ src/sim/generation/spectral/
   cache.py                # 光谱网格与吸收系数缓存
 ```
 
-已落地的是本地光谱积分核心、表格谱 backend、HAPI 适配层、缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI、empirical/HITRAN 对照 CLI，以及外部定量谱表 sanity check CLI。`hitran_backend.py` 支持注入 HAPI-like 对象做离线回归测试；本地已用真实 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在早期 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.data/.header/.npz` 缓存。当前默认 HITRAN grid 已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，以覆盖行业参考滤光片 `center ± FWHM`，因此需要重新运行预计算生成新窗口缓存。当前入口：
+已落地的是本地光谱积分核心、表格谱 backend、HAPI 适配层、缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI、empirical/HITRAN 对照 CLI，以及外部定量谱表 sanity check CLI。`configs/data/spectral-defaults.json` 是运行时默认值来源；`defaults.py` 在导入时读取该 JSON 并构造 `HitranGasSpec`、`NDIRFilter` 和 `HitranGridSpec`，避免配置镜像漂移。`hitran_backend.py` 支持注入 HAPI-like 对象做离线回归测试；本地已用真实 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在早期 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.data/.header/.npz` 缓存。当前默认 HITRAN grid 已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，以覆盖行业参考滤光片 `center ± FWHM`，因此需要重新运行预计算生成新窗口缓存。当前入口：
 
 ```text
 configs/
@@ -148,12 +148,13 @@ def compute_ndir_absorbance(
 - 单气体浓度增加时，目标通道吸收单调增加。
 - 非目标气体对目标通道的交叉响应非负，且小于主响应。
 - HITRAN HAPI 输出的 cm²/molecule 系数必须先按理想气体数密度换算为 per-percent-per-meter 系数，再进入 `TabulatedSpectrum`。
+- 同一 `(channel, HitranGridSpec)` 的表格谱在 benchmark 生成中先准备为 `PreparedTabulatedSpectra`，栅格一致性和滤光片响应只在缓存载入时校验/构造一次；每个 timestep 只更新浓度和光程积分。
 - 外部 PNNL/NIST 或仪器定量谱表必须显式声明单位；当前支持 `per_percent_m`、`per_fraction_m` 和 `per_ppm_m`，禁止隐式猜测。
 - 外部谱表必须覆盖当前 HITRAN grid；重采样只允许插值，不允许外推。
 - HAPI 原始表名必须绑定气体和波数窗口，避免不同 NDIR 通道复用错误谱线范围。
-- `main_sensor_features` 的固定种子回归测试继续固定 `empirical_v1` 兼容路径；benchmark 默认路径必须另用 cache-only HITRAN 测试覆盖。
+- `main_sensor_features` 的固定种子回归测试继续固定 `empirical_v1` 兼容路径；benchmark 默认路径由 cache-only HITRAN 测试覆盖，并断言不会回落调用 empirical 主函数。
 - 文档和 manifest 必须记录 `optical_absorption_backend`，例如 `empirical_v1`、`hitran_hapi_v1` 或 `pnnl_tabulated_v1`。
 
 ## 当前结论
 
-benchmark 默认已切换到 `hitran_hapi_v1`，生成前按同一批 conditions 预检查 cache，生成中只读缓存；`empirical_v1` 保留为显式兼容/对照路径。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、真实 HAPI 谱线下载、benchmark 专用预计算入口、empirical/HITRAN 对照入口和外部定量谱表 sanity check 入口；默认滤光片已从 smoke 占位（CH4 30 / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 / CO2 93 cm⁻¹ FWHM，来源见 `filter_source`），默认 HITRAN grid 已覆盖当前滤光片 `center ± FWHM`。仍需获取 TraceGas-HC-NDIR 实际 datasheet 和真实 PNNL/NIST 或仪器定量谱表，才能进入正式标定对照。
+benchmark 默认已切换到 `hitran_hapi_v1`，生成前按同一批 conditions 预检查 cache，生成中只读缓存；`empirical_v1` 保留为显式兼容/对照路径。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、真实 HAPI 谱线下载、benchmark 专用预计算入口、empirical/HITRAN 对照入口和外部定量谱表 sanity check 入口；默认滤光片已从 smoke 占位（CH4 30 / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 / CO2 93 cm⁻¹ FWHM，来源见 `filter_source`），默认 HITRAN grid 已覆盖当前滤光片 `center ± FWHM`。HITRAN 主线已裁掉 empirical NDIR 计算，并缓存 `PreparedTabulatedSpectra` 派生量，减少每 timestep 重复校验和滤光片构造。仍需获取 TraceGas-HC-NDIR 实际 datasheet 和真实 PNNL/NIST 或仪器定量谱表，才能进入正式标定对照。

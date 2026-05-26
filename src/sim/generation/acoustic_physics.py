@@ -173,11 +173,10 @@ def main_sensor_features(
 
     optical_drift_ch4 = 0.0007 * (h_rh - 50.0) + 0.004 * (p_mpa - 1.0) + rng.gauss(0.0, 0.004)
     optical_drift_co2 = 0.0007 * (h_rh - 50.0) + 0.004 * (p_mpa - 1.0) + rng.gauss(0.0, 0.004)
-    thermal_drift = 0.002 * (t_c - 25.0) + 0.004 * (p_mpa - 1.0) + rng.gauss(0.0, 0.003)
+    thermal_drift = _thermal_baseline_drift(t_c, p_mpa, rng)
 
     optical_baseline_ch4_now = PROCESSING_PARAMS["optical_baseline_ch4_init"] + optical_drift_ch4 + rng.gauss(0.0, 0.006)
     optical_baseline_co2_now = PROCESSING_PARAMS["optical_baseline_co2_init"] + optical_drift_co2 + rng.gauss(0.0, 0.006)
-    thermal_baseline_now = PROCESSING_PARAMS["thermal_baseline_init"] + thermal_drift
 
     v_ndir_ch4 = max(
         0.1,
@@ -187,12 +186,7 @@ def main_sensor_features(
         0.1,
         optical_baseline_co2_now * math.exp(-optical_absorption["absorption_co2_observed"]) + rng.gauss(0.0, 0.008),
     )
-    v_tcs = (
-        thermal_baseline_now
-        + PROCESSING_PARAMS["tcs_response_slope"] * (lambda_true - PROCESSING_PARAMS["tcs_lambda_offset"])
-        + PROCESSING_PARAMS["tcs_temperature_response"] * (t_c - 20.0)
-        + rng.gauss(0.0, 0.006)
-    )
+    v_tcs = _tcs_voltage(lambda_true, t_c, thermal_drift, rng)
 
     return {
         "TOF": tof,
@@ -211,6 +205,20 @@ def main_sensor_features(
     }
 
 
+def thermal_conductivity_sensor_feature(condition: dict[str, str], rng) -> dict[str, float]:
+    """Compute the TCS equilibrium feature without NDIR or acoustic side products."""
+    x_h2 = float(condition["x_H2"])
+    x_co2 = float(condition["x_CO2"])
+    t_c = float(condition["T_C"])
+    p_mpa = float(condition["P_MPa"])
+    lambda_true = _hidden_lambda_mix(x_h2, x_co2, t_c)
+    thermal_drift = _thermal_baseline_drift(t_c, p_mpa, rng)
+    return {
+        "V_TCS": _tcs_voltage(lambda_true, t_c, thermal_drift, rng),
+        "thermal_baseline_drift_observed": thermal_drift,
+    }
+
+
 def _h2o_mole_pct(t_c: float, p_mpa: float, h_rh: float) -> float:
     return h2o_mole_percent_from_rh(t_c, p_mpa, h_rh)
 
@@ -225,3 +233,17 @@ def _hidden_absorption_co2(x_co2: float, h_rh: float, p_mpa: float, t_c: float) 
 
 def _hidden_lambda_mix(x_h2: float, x_co2: float, t_c: float) -> float:
     return 0.034 + 0.00155 * x_h2 - 0.00011 * x_co2 + 0.00002 * (t_c - 25.0)
+
+
+def _thermal_baseline_drift(t_c: float, p_mpa: float, rng) -> float:
+    return 0.002 * (t_c - 25.0) + 0.004 * (p_mpa - 1.0) + rng.gauss(0.0, 0.003)
+
+
+def _tcs_voltage(lambda_true: float, t_c: float, thermal_drift: float, rng) -> float:
+    thermal_baseline_now = PROCESSING_PARAMS["thermal_baseline_init"] + thermal_drift
+    return (
+        thermal_baseline_now
+        + PROCESSING_PARAMS["tcs_response_slope"] * (lambda_true - PROCESSING_PARAMS["tcs_lambda_offset"])
+        + PROCESSING_PARAMS["tcs_temperature_response"] * (t_c - 20.0)
+        + rng.gauss(0.0, 0.006)
+    )

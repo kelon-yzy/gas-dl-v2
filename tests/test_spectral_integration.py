@@ -4,9 +4,11 @@ import pytest
 from sim.generation.spectral import (
     NDIRFilter,
     TabulatedSpectrum,
+    compute_prepared_tabulated_ndir_absorbance,
     compute_tabulated_ndir_absorbance,
     gaussian_filter,
     integrate_channel_absorbance,
+    prepare_tabulated_spectra,
 )
 
 
@@ -56,3 +58,28 @@ def test_tabulated_backend_reports_cross_response_and_backend_metadata():
     assert result["absorbance_by_gas"]["CO2"] > result["absorbance_by_gas"]["CH4"]
     assert result["absorbance_observed"] > result["absorbance_by_gas"]["CO2"]
     assert result["source_version"] == {"CO2": "synthetic-co2-v1", "CH4": "synthetic-ch4-v1"}
+
+
+def test_prepared_tabulated_spectra_reuses_grid_validation_and_filter_response():
+    wavenumber = np.linspace(2300.0, 2400.0, 101)
+    spectra = (
+        TabulatedSpectrum("CO2", wavenumber, np.full_like(wavenumber, 0.01), "synthetic-co2-v1"),
+    )
+    prepared = prepare_tabulated_spectra(
+        spectra=spectra,
+        filter_spec=NDIRFilter(channel="co2", center_cm1=2340.0, fwhm_cm1=24.0),
+    )
+
+    first = compute_prepared_tabulated_ndir_absorbance(
+        prepared=prepared,
+        concentrations_pct={"CO2": 8.0},
+        path_length_m=0.2,
+    )
+    second = compute_prepared_tabulated_ndir_absorbance(
+        prepared=prepared,
+        concentrations_pct={"CO2": 8.0},
+        path_length_m=0.4,
+    )
+
+    assert prepared.filter_response.shape == wavenumber.shape
+    assert second["absorbance_observed"] == pytest.approx(first["absorbance_observed"] * 2.0, rel=1e-12)
