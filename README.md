@@ -12,8 +12,8 @@
 - 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor` 和 `TCNRegressor`。
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口。
-- 已建立 `src/pipeline/precompute_hitran_spectra.py` 和 `src/pipeline/compare_optical_backends.py`：HITRAN 谱缓存预计算和 empirical/HITRAN 小规模对照入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
-- 已建立测试入口：`python -m pytest tests`（107 个测试，覆盖 sim + dl + pipeline）。
+- 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/compare_optical_backends.py` 和 `src/pipeline/sanity_check_tabulated_spectra.py`：HITRAN 谱缓存预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check 入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
+- 已建立测试入口：`python -m pytest tests`（118 个测试，覆盖 sim + dl + pipeline）。
 
 ## 目标目录
 
@@ -56,3 +56,12 @@ python -m pipeline.compare_optical_backends --cache-root data/hitran_cache
 ```
 
 这两个入口需要真实 HAPI 环境才能在缓存 miss 时下载谱线；缺少 HAPI 时会直接报错，不会生成 fake 谱线。当前本地环境已验证 `hitran-api 1.3.0.0` 可用，早期已成功下载 CH4/CO2/H2O 在 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.npz` 预计算缓存；当前默认 HITRAN grid 已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，以覆盖行业参考滤光片 `center ± FWHM`，需重新运行预计算生成新窗口缓存。`data/hitran_cache*/` 是本地运行缓存，已加入 `.gitignore`，不纳入版本库。
+
+## 外部定量谱表 sanity check
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pipeline.sanity_check_tabulated_spectra --cache-root data/hitran_cache --unit per_percent_m --ch4-spectrum path/to/ch4.csv --co2-spectrum path/to/co2.csv --channels ch4,co2
+```
+
+外部谱表 CSV 默认列名为 `wavenumber_cm1,absorption_coeff`，单位必须显式指定为 `per_percent_m`、`per_fraction_m` 或 `per_ppm_m`，不会自动猜测。该入口用于把 PNNL/NIST 或仪器导出的定量谱表重采样到当前 HITRAN grid，并与 `hitran_hapi_v1` 做同条件滤光片积分对照。

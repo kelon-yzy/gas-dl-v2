@@ -125,7 +125,7 @@ OPTICAL_ABSORPTION_BACKEND = "empirical_v1"
 
 ## 4. spectral 子模块：物理支撑路径
 
-`src/sim/generation/spectral/` 下的实现遵循 NDIR + Beer–Lambert + 滤光片积分的标准流程。当前不集成进 benchmark；可通过 `pipeline.precompute_hitran_spectra` 预计算 HITRAN 缓存，并通过 `pipeline.compare_optical_backends` 与 empirical_v1 做小规模对照。本地已用真实 HAPI 环境完成 CH4/CO2/H2O 两个 NDIR 窗口的下载验证。
+`src/sim/generation/spectral/` 下的实现遵循 NDIR + Beer–Lambert + 滤光片积分的标准流程。当前不集成进 benchmark；可通过 `pipeline.precompute_hitran_spectra` 预计算 HITRAN 缓存，通过 `pipeline.compare_optical_backends` 与 empirical_v1 做小规模对照，并通过 `pipeline.sanity_check_tabulated_spectra` 把外部定量谱表与 `hitran_hapi_v1` 做同条件 sanity check。本地已用真实 HAPI 环境完成 CH4/CO2/H2O 两个 NDIR 窗口的下载验证。
 
 ### 4.1 滤光片响应
 
@@ -214,6 +214,8 @@ A_channel = −ln(T_channel)
 | `tests/test_spectral_integration.py`        | 常数 optical depth、Gaussian 滤光片响应、表格谱交叉响应                        |
 | `tests/test_spectral_hitran_backend.py`     | fake HAPI 调用、缓存命中、缓存 roundtrip、单位换算                         |
 | `tests/test_spectral_pipeline.py`           | 默认谱学配置、HITRAN 预计算 CLI、empirical/HITRAN 对照入口                  |
+| `tests/test_quantitative_table.py`          | 外部定量谱表 CSV 读取、单位转换、grid 重采样和拒绝外推                         |
+| `tests/test_spectral_sanity_check.py`       | 外部表格谱与 `hitran_hapi_v1` sanity check CLI 核心契约                    |
 
 执行：
 
@@ -221,17 +223,17 @@ A_channel = −ln(T_channel)
 python -m pytest tests
 ```
 
-当前 95 个测试全部通过（2026-05-25 状态）。
+当前 118 个测试全部通过（2026-05-26 状态）。
 
 ## 6. 当前缺口
 
-物理支撑路径已实现的部分：滤光片高斯响应、通道积分公式、表格谱 backend、HITRAN 适配层、缓存读写、HITRAN cm²/molecule 到 per-percent-per-meter 的单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI、empirical/HITRAN 对照 CLI，以及本地真实 HAPI 下载验证。
+物理支撑路径已实现的部分：滤光片高斯响应、通道积分公式、表格谱 backend、外部定量谱表 CSV 读取与单位转换、HITRAN 适配层、缓存读写、HITRAN cm²/molecule 到 per-percent-per-meter 的单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI、empirical/HITRAN 对照 CLI、外部表格谱 sanity check CLI，以及本地真实 HAPI 下载验证。
 
 仍缺的部分（按集成难度排序）：
 
 1. **真实滤光片规格未替换**。当前 `spectral-defaults.json` 已从 smoke 占位（CH4 30 cm⁻¹ / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 cm⁻¹ / CO2 93 cm⁻¹，来源见 `filter_source` 字段），但仍非目标传感器 TraceGas-HC-NDIR 的实际 datasheet。默认 `hitran_grids` 已扩大到覆盖当前滤光片 `center ± FWHM`；grid 变化后需要重下 HITRAN cache，未来拿到真实 datasheet 后仍需再次复核窗口。
-2. **真实单位标定仍需外部对照**。代码已经完成 HITRAN cm²/molecule 到 `absorption_coeff_per_percent_m` 的理想气体换算，并已用真实 HAPI 输出跑通缓存生成，但尚未用仪器/PNNL/NIST 数据做数值 sanity check。
-3. **PNNL/NIST 谱表导入未做**。目前只有对照路线和 HITRAN/empirical 对照入口，还没有 PNNL/NIST parser。
+2. **真实单位标定仍需外部对照**。代码已经完成 HITRAN cm²/molecule 到 `absorption_coeff_per_percent_m` 的理想气体换算，并已用真实 HAPI 输出跑通缓存生成；通用 CSV sanity check 入口已可用，但尚未接入真实仪器/PNNL/NIST 数据文件。
+3. **PNNL/NIST 原始格式适配未做**。当前支持显式列名和显式单位的通用 CSV，真实数据库导出格式若不同，需要新增薄适配器转换到该 CSV 契约。
 4. **benchmark 尚未切换 backend**。当前正式生成主线仍使用 `empirical_v1`，HITRAN 路径只作为显式预计算和对照入口存在。
 
 ## 7. 下一步选项
@@ -241,7 +243,7 @@ python -m pytest tests
 | 选项  | 内容                                                                                                                   | 成本  |
 | --- | -------------------------------------------------------------------------------------------------------------------- | --- |
 | A   | 获取目标传感器 TraceGas-HC-NDIR 实际 datasheet 替换当前行业参考占位；按实际 FWHM 复核 `hitran_grids` 并重下 HITRAN cache。 | 中   |
-| B   | 导入 PNNL/NIST 谱表 parser，对 HITRAN 积分结果做 sanity check。                                             | 高   |
+| B   | 获取真实 PNNL/NIST 或仪器定量谱表，转换为通用 CSV 契约并运行 sanity check；若原始格式复杂，再补专用适配器。 | 中   |
 | C   | 把 `OPTICAL_ABSORPTION_BACKEND` 改成可选项，让 benchmark 可以显式切换到 spectral backend。                        | 中   |
 
 ## 8. 相关文档
