@@ -229,7 +229,7 @@ python -m pytest tests
 
 仍缺的部分（按集成难度排序）：
 
-1. **真实滤光片规格未替换**。当前 `spectral-defaults.json` 已从 smoke 占位（CH4 30 cm⁻¹ / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 cm⁻¹ / CO2 93 cm⁻¹，来源见 `filter_source` 字段），但仍非目标传感器 TraceGas-HC-NDIR 的实际 datasheet。新 FWHM 主响应（±FWHM）已宽于 `hitran_grids` 半宽（CH4 ±70 / CO2 ±63 cm⁻¹），高斯滤光片在 grid 边缘会被截断；若要更高保真需扩大 `hitran_grids` 并重下 HITRAN cache。
+1. **真实滤光片规格未替换**。当前 `spectral-defaults.json` 已从 smoke 占位（CH4 30 cm⁻¹ / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 cm⁻¹ / CO2 93 cm⁻¹，来源见 `filter_source` 字段），但仍非目标传感器 TraceGas-HC-NDIR 的实际 datasheet。默认 `hitran_grids` 已扩大到覆盖当前滤光片 `center ± FWHM`；grid 变化后需要重下 HITRAN cache，未来拿到真实 datasheet 后仍需再次复核窗口。
 2. **真实单位标定仍需外部对照**。代码已经完成 HITRAN cm²/molecule 到 `absorption_coeff_per_percent_m` 的理想气体换算，并已用真实 HAPI 输出跑通缓存生成，但尚未用仪器/PNNL/NIST 数据做数值 sanity check。
 3. **PNNL/NIST 谱表导入未做**。目前只有对照路线和 HITRAN/empirical 对照入口，还没有 PNNL/NIST parser。
 4. **benchmark 尚未切换 backend**。当前正式生成主线仍使用 `empirical_v1`，HITRAN 路径只作为显式预计算和对照入口存在。
@@ -240,7 +240,7 @@ python -m pytest tests
 
 | 选项  | 内容                                                                                                                   | 成本  |
 | --- | -------------------------------------------------------------------------------------------------------------------- | --- |
-| A   | 获取目标传感器 TraceGas-HC-NDIR 实际 datasheet 替换当前行业参考占位；并按需扩大 `hitran_grids` 与重下 HITRAN cache 以匹配实际 FWHM 主响应。 | 中   |
+| A   | 获取目标传感器 TraceGas-HC-NDIR 实际 datasheet 替换当前行业参考占位；按实际 FWHM 复核 `hitran_grids` 并重下 HITRAN cache。 | 中   |
 | B   | 导入 PNNL/NIST 谱表 parser，对 HITRAN 积分结果做 sanity check。                                             | 高   |
 | C   | 把 `OPTICAL_ABSORPTION_BACKEND` 改成可选项，让 benchmark 可以显式切换到 spectral backend。                        | 中   |
 

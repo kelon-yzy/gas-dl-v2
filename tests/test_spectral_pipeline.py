@@ -43,8 +43,21 @@ def test_spectral_defaults_config_matches_code_defaults():
     assert payload["optical_absorption_backend"] == "hitran_hapi_v1"
     assert payload["filters"]["ch4"]["center_cm1"] == get_default_ndir_filter("ch4").center_cm1
     assert payload["filters"]["co2"]["fwhm_cm1"] == get_default_ndir_filter("co2").fwhm_cm1
+    assert payload["hitran_grids"]["ch4"]["wavenumber_min_cm1"] == get_default_hitran_grid("ch4").wavenumber_min_cm1
+    assert payload["hitran_grids"]["ch4"]["wavenumber_max_cm1"] == get_default_hitran_grid("ch4").wavenumber_max_cm1
+    assert payload["hitran_grids"]["co2"]["wavenumber_min_cm1"] == get_default_hitran_grid("co2").wavenumber_min_cm1
+    assert payload["hitran_grids"]["co2"]["wavenumber_max_cm1"] == get_default_hitran_grid("co2").wavenumber_max_cm1
     assert payload["hitran_grids"]["co2"]["wavenumber_step_cm1"] == get_default_hitran_grid("co2").wavenumber_step_cm1
     assert {spec["gas"] for spec in payload["gas_specs"]} == {spec.gas for spec in DEFAULT_HITRAN_GAS_SPECS}
+
+
+def test_default_hitran_grids_cover_filter_main_lobe():
+    for channel in ("ch4", "co2"):
+        filter_spec = get_default_ndir_filter(channel)
+        grid_spec = get_default_hitran_grid(channel)
+
+        assert grid_spec.wavenumber_min_cm1 <= filter_spec.center_cm1 - filter_spec.fwhm_cm1
+        assert grid_spec.wavenumber_max_cm1 >= filter_spec.center_cm1 + filter_spec.fwhm_cm1
 
 
 def test_parse_channels_rejects_unknown_channel():

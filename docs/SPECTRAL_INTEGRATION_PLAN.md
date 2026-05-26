@@ -100,7 +100,7 @@ src/sim/generation/spectral/
   cache.py                # 光谱网格与吸收系数缓存
 ```
 
-已落地的是本地光谱积分核心、表格谱 backend、HAPI 适配层、缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI 和 empirical/HITRAN 对照 CLI。`hitran_backend.py` 支持注入 HAPI-like 对象做离线回归测试；本地已用真实 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.data/.header/.npz` 缓存。当前入口：
+已落地的是本地光谱积分核心、表格谱 backend、HAPI 适配层、缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI 和 empirical/HITRAN 对照 CLI。`hitran_backend.py` 支持注入 HAPI-like 对象做离线回归测试；本地已用真实 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在早期 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.data/.header/.npz` 缓存。当前默认 HITRAN grid 已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，以覆盖行业参考滤光片 `center ± FWHM`，因此需要重新运行预计算生成新窗口缓存。当前入口：
 
 ```text
 configs/
@@ -151,4 +151,4 @@ def compute_ndir_absorbance(
 
 ## 当前结论
 
-短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、真实 HAPI 谱线下载、预计算入口和 empirical/HITRAN 对照入口；默认滤光片已从 smoke 占位（CH4 30 / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 / CO2 93 cm⁻¹ FWHM，来源见 `filter_source`），仍需获取 TraceGas-HC-NDIR 实际 datasheet 才能进入正式标定，再用 PNNL/NIST 定量 IR 数据进行 sanity check 或标定对照。
+短期内保留经验模型作为 `empirical_v1`，但文档和论文表述必须说明其为合成经验系数。当前已实现 `tabulated_spectrum_v1` 本地积分原型、`hitran_hapi_v1` 适配层、HITRAN 单位换算、真实 HAPI 谱线下载、预计算入口和 empirical/HITRAN 对照入口；默认滤光片已从 smoke 占位（CH4 30 / CO2 24 cm⁻¹ FWHM）切到行业参考占位（CH4 147 / CO2 93 cm⁻¹ FWHM，来源见 `filter_source`），默认 HITRAN grid 已覆盖当前滤光片 `center ± FWHM`。仍需获取 TraceGas-HC-NDIR 实际 datasheet 才能进入正式标定，并用 PNNL/NIST 定量 IR 数据进行 sanity check 或标定对照。

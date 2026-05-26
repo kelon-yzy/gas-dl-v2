@@ -24,15 +24,15 @@ DEFAULT_NDIR_FILTERS = {
 
 DEFAULT_HITRAN_GRID_SPECS = {
     "ch4": HitranGridSpec(
-        wavenumber_min_cm1=2960.0,
-        wavenumber_max_cm1=3100.0,
+        wavenumber_min_cm1=2880.0,
+        wavenumber_max_cm1=3180.0,
         wavenumber_step_cm1=0.1,
         temperature_k=296.0,
         pressure_atm=1.0,
     ),
     "co2": HitranGridSpec(
-        wavenumber_min_cm1=2280.0,
-        wavenumber_max_cm1=2410.0,
+        wavenumber_min_cm1=2250.0,
+        wavenumber_max_cm1=2445.0,
         wavenumber_step_cm1=0.1,
         temperature_k=296.0,
         pressure_atm=1.0,

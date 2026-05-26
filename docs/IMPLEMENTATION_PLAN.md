@@ -6,15 +6,15 @@
 
 | 子系统               | 状态                                                              | 完成度 |
 | ----------------- | --------------------------------------------------------------- | --- |
-| `src/sim`         | 最小垂直切片完成（core/generation/packaging/validation）                  | 78% |
+| `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN grid 扩窗） | 86% |
 | `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers                     | 40% |
 | `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1DRegressor + TCNRegressor + registry | 25% |
-| `src/dl/training` | 未迁移                                                             | 0%  |
+| `src/dl/training` | loss/metrics 基础完成，trainer/checkpoint 待实现                       | 20% |
 | `src/ml`          | 仅有占位 `__init__.py`                                              | 0%  |
 | `src/pipeline`    | layout + generate_benchmark + HITRAN 预计算/对照 CLI                 | 22% |
 | `configs/`        | 已新增 `configs/data/spectral-defaults.json`（含 `filter_source` 行业参考占位元信息），其余配置未落地 | 5%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 95 个测试（sim + dl + pipeline）                                     | 52% |
+| `tests/`          | 107 个测试（sim + dl + pipeline）                                    | 56% |
 
 ## PLAN 6 项问题对照
 
@@ -64,8 +64,8 @@
 - **HITRAN 路线**：用 HAPI 下载 CH4/CO2/H2O line-by-line 数据，按温度、压力、浓度、光程和滤光片响应积分得到 NDIR 通道吸收
 - **PNNL/NIST 路线**：读取定量 IR absorption coefficient 或 cross-section 谱，按浓度和光程缩放后做滤光片窗口积分
 - **已落地**：新增 `src/sim/generation/spectral/` 本地积分核心、`tabulated_spectrum_v1` backend、`hitran_hapi_v1` 适配层、谱线缓存、HITRAN 单位换算、默认滤光片/网格配置、HITRAN 预计算 CLI 和 empirical/HITRAN 小规模对照 CLI，并在 manifest 中记录 `optical_absorption_backend`
-- **真实下载验证**：本地已用 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的 HITRAN 谱线；HAPI 原始表名已绑定波数窗口，避免不同通道缓存互相污染
-- **后续实现**：当前默认滤光片已用行业参考占位（CH4 InfraTec LIM-262 3.3 μm/160 nm，对应 147 cm⁻¹ FWHM；CO2 InfraTec 4.26 μm/170 nm，对应 93 cm⁻¹ FWHM），仍需替换为目标传感器 TraceGas-HC-NDIR 实际 datasheet；按需扩大 `hitran_grids` 与重下 HITRAN cache 以匹配实际 FWHM 主响应；导入 PNNL/NIST 谱表并做 sanity check；benchmark 主线仍未切换到 `hitran_hapi_v1`
+- **真实下载验证**：本地已用 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在早期 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的 HITRAN 谱线；HAPI 原始表名已绑定波数窗口，避免不同通道缓存互相污染。当前默认窗口已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，需重新预计算生成新缓存
+- **后续实现**：当前默认滤光片已用行业参考占位（CH4 InfraTec LIM-262 3.3 μm/160 nm，对应 147 cm⁻¹ FWHM；CO2 InfraTec 4.26 μm/170 nm，对应 93 cm⁻¹ FWHM），默认 `hitran_grids` 已扩大到覆盖当前滤光片 `center ± FWHM`；仍需替换为目标传感器 TraceGas-HC-NDIR 实际 datasheet，并在 grid 变化后重下 HITRAN cache；导入 PNNL/NIST 谱表并做 sanity check；benchmark 主线仍未切换到 `hitran_hapi_v1`
 
 ---
 

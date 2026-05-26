@@ -18,15 +18,15 @@
   },
   "hitran_grids": {
     "ch4": {
-      "wavenumber_min_cm1": 2960.0,
-      "wavenumber_max_cm1": 3100.0,
+      "wavenumber_min_cm1": 2880.0,
+      "wavenumber_max_cm1": 3180.0,
       "wavenumber_step_cm1": 0.1,
       "temperature_k": 296.0,
       "pressure_atm": 1.0
     },
     "co2": {
-      "wavenumber_min_cm1": 2280.0,
-      "wavenumber_max_cm1": 2410.0,
+      "wavenumber_min_cm1": 2250.0,
+      "wavenumber_max_cm1": 2445.0,
       "wavenumber_step_cm1": 0.1,
       "temperature_k": 296.0,
       "pressure_atm": 1.0
@@ -36,6 +36,6 @@
     "Filter center_cm1 and fwhm_cm1 are industry-reference placeholders, not the actual datasheet of the target TraceGas-HC-NDIR series sensor.",
     "ch4 fwhm_cm1=147 derives from InfraTec LIM-262 NBP filter 3.3 um / 160 nm FWHM; co2 fwhm_cm1=93 derives from InfraTec standard CO2 NBP filter 4.26 um / 170 nm HPBW.",
     "Replace center_cm1 / fwhm_cm1 with the vendor datasheet of the actual sensor (e.g., TraceGas-HC-NDIR) before any formal benchmark or publication run.",
-    "hitran_grids half-widths (ch4 +/-70, co2 +/-63 cm-1) are now narrower than the new filter main lobe (+/-FWHM = +/-147 / +/-93 cm-1). The gaussian filter wings will be truncated at grid edges. If higher fidelity is needed, widen hitran_grids and re-download HITRAN cache."
+    "hitran_grids now cover at least center +/- FWHM for the current industry-reference filters. Re-run HITRAN precompute after this grid change because previous local cache windows were narrower."
   ]
 }
