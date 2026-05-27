@@ -10,18 +10,18 @@
 | `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers；lazy memmap 与 scaler 阈值契约已收敛 | 45% |
 | `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1DRegressor + TCNRegressor + registry | 25% |
 | `src/dl/training` | loss/metrics 基础完成，trainer/checkpoint 待实现                       | 20% |
-| `src/ml`          | 仅有占位 `__init__.py`                                              | 0%  |
+| `src/ml`          | 已落地 dependency-light 传统 ML baseline：v4 benchmark 表格特征抽取、Mean/Ridge 多输出回归、numpy 指标、split 训练/评估入口 | 25% |
 | `src/pipeline`    | layout + generate_benchmark + HITRAN benchmark cache 预计算/对照 CLI + 外部谱表 sanity check CLI | 26% |
 | `configs/`        | 已新增 `configs/data/spectral-defaults.json`（运行时 spectral 默认值 source-of-truth，含 `filter_source` 行业参考占位元信息），其余配置未落地 | 8%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 134 个测试（sim + dl + pipeline）                                    | 62% |
+| `tests/`          | HITRAN 主线阶段为 134 个测试（sim + dl + pipeline）通过；新增 `tests/test_ml_baselines.py` 覆盖 ML baseline，待完整依赖环境重新运行 | 64% |
 
 ## 环境与依赖基线
 
 - 依赖入口已版本化：`pyproject.toml` 声明运行依赖，`requirements.txt` 提供普通 pip 安装入口。
 - Python 版本范围固定为 `>=3.10,<3.14`；当前不使用 Python 3.14 作为主环境，避免科学计算和深度学习 wheel 暂未稳定覆盖时安装失败。
 - 新机器已验证 Python 3.12.10 虚拟环境可用，核心包版本为 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3`、`hitran-api 1.3.0.0`。
-- 当前验证命令：`.\.venv\Scripts\python -m pytest tests`，结果为 134 passed。
+- 当前验证命令：`.\.venv\Scripts\python -m pytest tests`，HITRAN 主线阶段结果为 134 passed；新增 ML baseline 后应重新运行 `.\.venv\Scripts\python -m pytest tests/test_ml_baselines.py` 或全量测试。
 
 ## PLAN 6 项问题对照
 
@@ -136,17 +136,36 @@
 
 ## Phase 5: ML 模块
 
+### 5.0 传统 ML baseline 最小闭环 ✅
+
+- **状态**：已完成第一版。`src/ml` 已从占位模块推进为可直接消费 v4 benchmark 数据集的传统 ML baseline。
+- **特征层**：新增 `src/ml/features.py`，支持按 split CSV 顺序读取 `slow`、`ultrasonic`、`fiber_mic`，并输出 `MLFeatureMatrix`。
+  - slow 模态：对 `(N, T, C)` 序列计算 `mean/std/min/max/last/delta/slope` 等统计量。
+  - waveform 模态：先提取帧级 `mean/std/mean_abs/max_abs/energy/peak_index`，再做序列统计，避免直接展开全波形采样点。
+  - 依赖边界：本地实现 split/scaler 读取，避免传统 ML 路径间接拉起 `torch` 或 `dl.data`。
+- **模型层**：新增 `src/ml/models.py`。
+  - `MeanRegressor`：多输出均值 baseline。
+  - `RidgeRegressor`：纯 numpy 闭式解多输出 ridge baseline，支持截距项和特征标准化。
+  - `build_regressor(...)`：通过名称或配置字典构造模型。
+- **指标与训练入口**：新增 `src/ml/metrics.py` 和 `src/ml/training.py`。
+  - numpy 版 MAE、RMSE、R2 和按组分指标。
+  - `train_regressor_on_dataset(...)`：加载 train split、拟合模型，并评估 train/val/test/extrapolation split。
+- **测试**：新增 `tests/test_ml_baselines.py`，覆盖特征统计、benchmark split 加载、波形特征、mean/ridge regressor、指标和训练入口。
+- **当前验证状态**：语法级校验已通过；由于当前会话可用解释器缺少 `numpy/pytest`，新增测试仍需在完整 Python 3.10-3.13 虚拟环境中运行。
+
 ### 5.1 特征打包
 
 - 文件：`src/sim/generation/feature_package.py`
-- 从 benchmark 数据导出传统 ML 特征表（慢变量统计量 + 声学特征）
+- 从 benchmark 数据导出可落盘的传统 ML 特征表（慢变量统计量 + 声学特征）
 - 输出到 `data/<slug>/feature_package/`
+- **状态**：尚未落地为独立导出包；当前第一版特征能力在 `src/ml/features.py` 中以内存矩阵形式提供。
 
 ### 5.2 传统模型训练
 
-- 文件：`src/ml/train.py`
-- SVR、Ridge、RandomForest 基线
-- 共享 split 和 metrics 契约
+- 文件：`src/ml/training.py`、`src/ml/models.py`
+- 已完成 Mean 与 Ridge 基线；未新增 scikit-learn 依赖。
+- SVR、RandomForest 等 sklearn baseline 暂缓，需先决定是否引入可选依赖。
+- 已共享 v4 split 和 metrics 契约。
 
 ---
 
@@ -180,14 +199,14 @@
 | **P3**    | training 模块（loss/metrics/trainer） | 5        | P0  |
 | **P4** ✅  | 光谱交叉敏感建模                          | 2        | —   |
 | **P4** 🔜 | TraceGas-HC-NDIR datasheet 替换占位 + 按需扩 HITRAN grid + PNNL/NIST 外部对照 | 3        | P4  |
-| **P5**    | ML 特征导出 + 传统模型                    | 4        | P3  |
+| **P5** ⚠️ | ML 特征抽取 + Mean/Ridge 传统 baseline 已完成；特征包落盘、SVR/RandomForest 可选依赖待决策 | 4        | P0  |
 | **P6**    | 配置落地 + 实验编排 + 报告                  | 5        | P3  |
 
 ## 文件规模预估
 
 | 已落地     | 待新增     | 预估总行数   |
 | ------- | ------- | ------- |
-| ~1600 行 | ~1800 行 | ~3400 行 |
+| ~2400 行 | ~1200 行 | ~3600 行 |
 
 ## 完成标准
 

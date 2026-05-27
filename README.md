@@ -8,12 +8,13 @@
 - 已建立 `src/sim/generation`：提供正式 benchmark 生成的最小垂直切片，默认使用拉丁超立方采样（LHS），NDIR 默认走 `hitran_hapi_v1` cache-only 光谱积分；HITRAN 主线只计算 TCS 热导慢变量，不再顺带跑 empirical NDIR；`empirical_v1` 保留为显式兼容/对照路径。
 - 已建立 `src/sim/packaging`：定义 `condition_grid`、`sequence_index`、split rows、manifest、scaler 常量和正式 run 最小输出契约。
 - 已建立 `src/sim/validation`：校验旧字段、ID 唯一性、组分和 split 覆盖。
+- 已建立 `src/ml`：提供 dependency-light 的传统 ML baseline，包含 v4 benchmark 表格特征抽取、`MeanRegressor`、闭式解 `RidgeRegressor`、numpy 回归指标和 `train_regressor_on_dataset` 训练/评估入口，不依赖 scikit-learn。
 - 已建立 `src/dl/data`：`V4BenchmarkDataset` 消费 v4 benchmark，支持慢变量/超声/光纤三模态、NTC/NCT 格式、split 加载、真正 lazy memmap（取单条样本时才转 float32）、scaler 归一化。
 - 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor` 和 `TCNRegressor`。
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口。
 - 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/precompute_hitran_benchmark_cache.py`、`src/pipeline/compare_optical_backends.py` 和 `src/pipeline/sanity_check_tabulated_spectra.py`：HITRAN 谱缓存预计算、benchmark 专用 cache 预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check 入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
-- 已建立测试入口：`python -m pytest tests`（134 个测试，覆盖 sim + dl + pipeline）。
+- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。历史 HITRAN 主线全量验证为 134 passed；新增 ML baseline 后已补充 `tests/test_ml_baselines.py`，需在完整 Python 3.10-3.13 虚拟环境中重新运行全量测试。
 
 ## 目标目录
 
@@ -46,7 +47,7 @@ py -3.12 -m venv .venv
 
 `data/hitran_cache*/` 与 `outputs/runs/*` 是本地缓存和实验产物，已被 `.gitignore` 排除，不会随远程仓库同步。新机器需要从旧机器复制这些目录，或按下面的 HITRAN 预计算命令重新生成缓存。
 
-当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 已通过 134 个测试。
+当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 在 HITRAN 主线阶段已通过 134 个测试。新增 ML baseline 后建议重新运行 `python -m pytest tests/test_ml_baselines.py` 或全量 `python -m pytest tests`。
 
 ## 核心语义
 
@@ -69,6 +70,43 @@ python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke-emp
 ```
 
 当前生成主线已经落地条件表、索引表、标签表、split、manifest、validation summary、slow 张量、超声 waveform、光纤麦克风 waveform、metadata 和 scaler。默认使用 LHS 采样，默认声程候选为 `(0.20, 0.25, 0.30, 0.35, 0.40)`，短 phase 下会均匀覆盖声程候选端点。NDIR 光学通道默认使用 `hitran_hapi_v1`，按每条 condition 的温压、每个 timestep 的当前组分和 `L_m` 做滤光片积分；H2O 由 `T/P/RH` 换算。benchmark 生成只读 cache，cache 缺失会在写出 dataset 前失败；`empirical_v1` 仍可通过 CLI 显式选择。本地表格谱积分原型为 `tabulated_spectrum_v1`，HITRAN/PNNL 谱线积分路线见 `docs/SPECTRAL_INTEGRATION_PLAN.md`。正式 v4 只写 `splits/train.csv` 这类新命名，不写 V3 的 `train_sequence_ids.csv` 等旧命名。
+
+## 传统 ML baseline
+
+`src/ml` 提供不依赖 scikit-learn 的传统机器学习最小闭环，用于快速评估 v4 benchmark 生成质量和作为 DL 模型对照基线。
+
+当前能力：
+
+- `ml.features.load_feature_matrix(...)`：按 split CSV 顺序读取 `slow`、`ultrasonic`、`fiber_mic` 模态并打包为表格特征。
+- `MLFeatureConfig`：控制模态选择、序列统计量、波形帧级描述符和 slow scaler。
+- `MeanRegressor`：多输出均值基线。
+- `RidgeRegressor`：纯 numpy 闭式解多输出 ridge baseline，支持标准化和截距项。
+- `regression_metrics(...)` / `component_regression_metrics(...)`：numpy 版 MAE、RMSE、R2 和按组分指标。
+- `train_regressor_on_dataset(...)`：加载训练 split、拟合模型并评估 train/val/test/extrapolation split。
+
+示例：
+
+```python
+from ml import MLFeatureConfig, train_regressor_on_dataset
+
+result = train_regressor_on_dataset(
+    "data/wv4-smoke",
+    model_config={"name": "ridge", "alpha": 1.0},
+    feature_config=MLFeatureConfig(
+        modalities=("slow",),
+        sequence_statistics=("mean", "last", "slope"),
+    ),
+    eval_splits=("train", "val", "test"),
+)
+
+print(result.evaluations["val"].metrics)
+```
+
+新增测试入口：
+
+```powershell
+python -m pytest tests/test_ml_baselines.py
+```
 
 ## HITRAN 光谱预计算
 
