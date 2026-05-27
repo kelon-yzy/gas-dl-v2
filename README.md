@@ -54,13 +54,12 @@ python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke-emp
 ## HITRAN 光谱预计算
 
 ```powershell
-$env:PYTHONPATH = "src"
 python -m pipeline.precompute_hitran_spectra --cache-root data/hitran_cache --channels ch4,co2
 python -m pipeline.precompute_hitran_benchmark_cache --cache-root data/hitran_cache --sequences 32 --seed 42
 python -m pipeline.compare_optical_backends --cache-root data/hitran_cache
 ```
 
-预计算入口需要真实 HAPI 环境才能在缓存 miss 时下载谱线；缺少 HAPI 时会直接报错，不会生成 fake 谱线。benchmark 专用预计算必须与后续生成使用相同的 `--sequences`、`--seed` 和 `--sampling-strategy`，因为 `hitran_hapi_v1` cache key 按每条 condition 的 `T_C_base/P_MPa_base` 派生。当前本地环境已验证 `hitran-api 1.3.0.0` 可用，早期已成功下载 CH4/CO2/H2O 在 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.npz` 预计算缓存；当前默认 HITRAN grid 已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，以覆盖行业参考滤光片 `center ± FWHM`。运行时默认滤光片、气体和 grid 以 `configs/data/spectral-defaults.json` 为 source-of-truth，`src/sim/generation/spectral/defaults.py` 只负责读取并构造 dataclass 常量。`data/hitran_cache*/` 是本地运行缓存，已加入 `.gitignore`，不纳入版本库。
+从仓库根目录运行时，根层 `pipeline` launcher 包会把 `src` 加入 Python import path，并把子模块解析转发到 `src/pipeline`，因此 README 中的 `python -m pipeline...` 命令可直接执行。预计算入口需要真实 HAPI 环境；缺少 HAPI 时会直接报错，不会生成 fake 谱线。benchmark 专用预计算必须与后续生成使用相同的 `--sequences`、`--seed` 和 `--sampling-strategy`，因为 `hitran_hapi_v1` cache key 按每条 condition 的 `T_C_base/P_MPa_base` 派生。若对应窗口的 HAPI 原始 `.data/.header` 表已在本地，预计算会复用本地真实谱线表并直接通过 `absorptionCoefficient_Voigt` 生成当前温压的 `.npz` cache；只有原始表缺失时才调用 `hapi.fetch` 下载。当前本地环境已验证 `hitran-api 1.3.0.0` 可用，早期已成功下载 CH4/CO2/H2O 在 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.npz` 预计算缓存；当前默认 HITRAN grid 已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，以覆盖行业参考滤光片 `center ± FWHM`。运行时默认滤光片、气体和 grid 以 `configs/data/spectral-defaults.json` 为 source-of-truth，`src/sim/generation/spectral/defaults.py` 只负责读取并构造 dataclass 常量。`data/hitran_cache*/` 是本地运行缓存，已加入 `.gitignore`，不纳入版本库。
 
 ## 外部定量谱表 sanity check
 

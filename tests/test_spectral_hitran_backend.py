@@ -98,6 +98,33 @@ def test_hitran_backend_uses_hapi_then_cache(tmp_path):
     assert first["absorbance_by_gas"]["CO2"] > first["absorbance_by_gas"]["CH4"]
 
 
+def test_hitran_backend_reuses_local_hapi_table_before_fetch(tmp_path):
+    fake_hapi = FakeHapi()
+    grid = HitranGridSpec(
+        wavenumber_min_cm1=2300.0,
+        wavenumber_max_cm1=2400.0,
+        wavenumber_step_cm1=1.0,
+        temperature_k=296.0,
+        pressure_atm=1.0,
+    )
+    (tmp_path / "CO2_2300p0000_2400p0000.data").write_text("local table\n", encoding="utf-8")
+    (tmp_path / "CO2_2300p0000_2400p0000.header").write_text("local header\n", encoding="utf-8")
+
+    result = compute_hitran_ndir_absorbance(
+        gas_specs=(HitranGasSpec("CO2", "CO2", 2, 1),),
+        concentrations_pct={"CO2": 8.0},
+        path_length_m=0.3,
+        filter_spec=NDIRFilter(channel="co2", center_cm1=2340.0, fwhm_cm1=24.0),
+        grid_spec=grid,
+        cache_root=tmp_path,
+        hapi_module=fake_hapi,
+    )
+
+    assert result["backend"] == "hitran_hapi_v1"
+    assert fake_hapi.fetch_calls == []
+    assert fake_hapi.coefficient_calls[0][0] == "CO2_2300p0000_2400p0000"
+
+
 def test_spectral_cache_roundtrip(tmp_path):
     key = SpectralCacheKey(
         backend="hitran_hapi_v1",

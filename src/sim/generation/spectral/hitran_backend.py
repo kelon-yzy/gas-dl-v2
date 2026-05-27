@@ -85,7 +85,7 @@ def _spectrum_for_gas(
         if not allow_fetch:
             raise MissingHitranCacheError(key, cache_path(cache_root, key))
         hapi = hapi_module if hapi_module is not None else _load_hapi()
-        _fetch_table(hapi, gas_spec, grid_spec, cache_root)
+        _ensure_hapi_table(hapi, gas_spec, grid_spec, cache_root)
         wavenumber_cm1, absorption_coeff_cm1 = _absorption_coefficient(hapi, gas_spec, grid_spec)
         write_cached_spectrum(
             cache_root,
@@ -98,9 +98,12 @@ def _spectrum_for_gas(
     return _tabulated_spectrum_from_hitran_coefficients(gas_spec, wavenumber_cm1, absorption_coeff_cm1, grid_spec)
 
 
-def _fetch_table(hapi: object, gas_spec: HitranGasSpec, grid_spec: HitranGridSpec, cache_root: Path | str) -> None:
+def _ensure_hapi_table(hapi: object, gas_spec: HitranGasSpec, grid_spec: HitranGridSpec, cache_root: Path | str) -> None:
     table_name = _hapi_table_name(gas_spec, grid_spec)
-    hapi.db_begin(str(Path(cache_root)))
+    cache_dir = Path(cache_root)
+    hapi.db_begin(str(cache_dir))
+    if _hapi_table_exists(cache_dir, table_name):
+        return
     hapi.fetch(
         table_name,
         gas_spec.molecule_id,
@@ -108,6 +111,10 @@ def _fetch_table(hapi: object, gas_spec: HitranGasSpec, grid_spec: HitranGridSpe
         grid_spec.wavenumber_min_cm1,
         grid_spec.wavenumber_max_cm1,
     )
+
+
+def _hapi_table_exists(cache_root: Path, table_name: str) -> bool:
+    return (cache_root / f"{table_name}.data").is_file() and (cache_root / f"{table_name}.header").is_file()
 
 
 def _absorption_coefficient(hapi: object, gas_spec: HitranGasSpec, grid_spec: HitranGridSpec) -> tuple[np.ndarray, np.ndarray]:
