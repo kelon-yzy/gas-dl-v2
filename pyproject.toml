@@ -1,3 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gas-dl-v2"
+version = "0.1.0"
+description = "V4 benchmark generation and deep-learning pipeline for multimodal hydrogen-blended natural gas experiments."
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "numpy",
+    "scipy",
+    "torch",
+    "hitran-api",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]

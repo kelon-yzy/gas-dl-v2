@@ -7,6 +7,7 @@
 - 顶层目录契约：`src/configs/data/outputs/docs/experiments/tests`。
 - 配置分组契约：`configs/data`、`configs/model`、`configs/train`、`configs/eval`、`configs/experiment`。
 - 输出分区契约：`outputs/runs`、`outputs/summary`、`outputs/reports`、`outputs/archive`。
+- 环境依赖契约：`pyproject.toml` 声明项目元数据、Python 范围和运行依赖，`requirements.txt` 提供普通 pip 安装入口；当前主环境建议 Python 3.10-3.13，不使用 Python 3.14 作为正式运行环境。
 - ID 契约：`MixtureId` 使用 `M000001` 风格，`SequenceId` 使用 `Q000001` 风格。
 - split 打包契约：默认按 `mixture_id` 分组，不把 `mixture_id` 改写为 `sequence_id`。
 - run 最小产物契约：`config.json`、`summary.json`、`component_metrics.csv`、`predictions.csv`、`train_log.csv`、`report.md`。
@@ -18,6 +19,7 @@
 - DL 数据加载：`V4BenchmarkDataset` 消费 v4 benchmark 目录，支持慢变量/超声/光纤麦克风三模态、NTC/NCT 格式切换、lazy memmap、按 split 消费。
 - DL 模型注册：`MODEL_REGISTRY` + `build_model()` 工厂，已落地 `CNN1DRegressor`（Conv1D + AdaptiveAvgPool + MLP head）和 `TCNRegressor`（因果 Conv1D 残差块 + AdaptiveAvgPool + MLP head），`TCNRegressor.receptive_field` 记录模型时间感受野。
 - v4 输出契约：正式 split 只使用 `splits/train.csv`、`splits/val.csv`、`splits/test.csv`、`splits/extrapolation.csv`；不写 V3 的 `*_sequence_ids.csv` 旧命名。
+- 验证基线：新机器 Python 3.12.10 虚拟环境已安装 `numpy/scipy/torch/pytest/hitran-api` 核心依赖，`python -m pytest tests` 当前为 134 passed。
 
 ## 未迁移
 

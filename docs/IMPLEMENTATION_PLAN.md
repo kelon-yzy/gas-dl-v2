@@ -14,7 +14,14 @@
 | `src/pipeline`    | layout + generate_benchmark + HITRAN benchmark cache 预计算/对照 CLI + 外部谱表 sanity check CLI | 26% |
 | `configs/`        | 已新增 `configs/data/spectral-defaults.json`（运行时 spectral 默认值 source-of-truth，含 `filter_source` 行业参考占位元信息），其余配置未落地 | 8%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 132 个测试（sim + dl + pipeline）                                    | 62% |
+| `tests/`          | 134 个测试（sim + dl + pipeline）                                    | 62% |
+
+## 环境与依赖基线
+
+- 依赖入口已版本化：`pyproject.toml` 声明运行依赖，`requirements.txt` 提供普通 pip 安装入口。
+- Python 版本范围固定为 `>=3.10,<3.14`；当前不使用 Python 3.14 作为主环境，避免科学计算和深度学习 wheel 暂未稳定覆盖时安装失败。
+- 新机器已验证 Python 3.12.10 虚拟环境可用，核心包版本为 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3`、`hitran-api 1.3.0.0`。
+- 当前验证命令：`.\.venv\Scripts\python -m pytest tests`，结果为 134 passed。
 
 ## PLAN 6 项问题对照
 

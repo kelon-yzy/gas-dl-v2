@@ -242,7 +242,7 @@ A_channel = −ln(T_channel)
 python -m pytest tests
 ```
 
-当前 132 个测试全部通过（2026-05-26 状态）。
+当前新机器 Python 3.12.10 虚拟环境下，`python -m pytest tests` 为 134 passed（2026-05-27 状态）。
 
 ## 6. 当前缺口
 

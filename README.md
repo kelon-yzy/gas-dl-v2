@@ -13,7 +13,7 @@
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口。
 - 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/precompute_hitran_benchmark_cache.py`、`src/pipeline/compare_optical_backends.py` 和 `src/pipeline/sanity_check_tabulated_spectra.py`：HITRAN 谱缓存预计算、benchmark 专用 cache 预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check 入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
-- 已建立测试入口：`python -m pytest tests`（132 个测试，覆盖 sim + dl + pipeline）。
+- 已建立测试入口：`python -m pytest tests`（134 个测试，覆盖 sim + dl + pipeline）。
 
 ## 目标目录
 
@@ -28,6 +28,25 @@ tests/
 ```
 
 `configs` 固定拆为 `data/model/train/eval/experiment`。`outputs` 固定拆为 `runs/summary/reports/archive`。
+
+## 新机器环境初始化
+
+依赖入口已经版本化：`pyproject.toml` 声明运行依赖，`requirements.txt` 提供普通 pip 安装入口。建议使用 Python 3.10-3.13。当前项目在 `pyproject.toml` 中显式排除了 Python 3.14，避免科学计算和深度学习依赖在新解释器上暂未提供稳定 wheel 时安装失败。
+
+Windows PowerShell 示例：
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python -m pip install -U pip
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python -m pytest tests
+```
+
+如果本机只有 Python 3.14，请先安装 Python 3.12 或 3.13 后再创建虚拟环境。若需要 GPU 版 PyTorch，可按本机 CUDA 版本参考 PyTorch 官方安装命令替换默认 `torch` 安装方式。
+
+`data/hitran_cache*/` 与 `outputs/runs/*` 是本地缓存和实验产物，已被 `.gitignore` 排除，不会随远程仓库同步。新机器需要从旧机器复制这些目录，或按下面的 HITRAN 预计算命令重新生成缓存。
+
+当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 已通过 134 个测试。
 
 ## 核心语义
 
