@@ -35,9 +35,10 @@ def test_generate_benchmark_dataset_writes_v4_assets(tmp_path):
     assert manifest["schema_version"] == "v4-benchmark-1"
     assert manifest["path_lms"] == [0.2, 0.25, 0.3, 0.35, 0.4]
     assert manifest["optical_absorption_backend"] == "empirical_v1"
-    assert manifest["ultrasonic_model"] == "simplified_tof_proxy_v1"
-    assert manifest["fiber_mic_model"] == "acoustic_proxy_v1"
-    assert manifest["fiber_optical_demodulation_model"] == "not_implemented"
+    assert manifest["ultrasonic_model"] == "tof_observed_transducer_proxy_v1"
+    assert manifest["ultrasonic_system_delay_model"] == "fixed_delay_plus_trigger_jitter_v1"
+    assert manifest["fiber_mic_model"] == "fiber_interferometric_proxy_v1"
+    assert manifest["fiber_optical_demodulation_model"] == "linear_phase_demodulation_proxy_v1"
 
     forbidden_fields = {"base_condition_id", "noise_seed_index", "noise_seed"}
     assert forbidden_fields.isdisjoint(condition_rows[0])
@@ -95,39 +96,57 @@ def test_generate_benchmark_dataset_writes_npz_storage_arrays_and_metadata(tmp_p
     slow = np.load(dataset_dir / "sequences" / "slow.npy")
     ultrasonic = np.load(dataset_dir / "sequences" / "ultrasonic_int16.npy")
     ultrasonic_tof_s = np.load(dataset_dir / "sequences" / "ultrasonic_tof_s.npy")
+    ultrasonic_tof_observed_s = np.load(dataset_dir / "sequences" / "ultrasonic_tof_observed_s.npy")
     ultrasonic_peak_index = np.load(dataset_dir / "sequences" / "ultrasonic_peak_index.npy")
     ultrasonic_sound_speed = np.load(dataset_dir / "sequences" / "ultrasonic_sound_speed_m_per_s.npy")
+    ultrasonic_sound_speed_estimated = np.load(dataset_dir / "sequences" / "ultrasonic_sound_speed_estimated_m_per_s.npy")
     ultrasonic_alpha = np.load(dataset_dir / "sequences" / "ultrasonic_alpha_true_npm.npy")
+    ultrasonic_tof_quality = np.load(dataset_dir / "sequences" / "ultrasonic_tof_quality.npy")
+    ultrasonic_tof_accepted = np.load(dataset_dir / "sequences" / "ultrasonic_tof_accepted.npy")
     fiber_mic = np.load(dataset_dir / "sequences" / "fiber_mic_int16.npy")
     bundle = np.load(dataset_dir / "sequences" / "waveform_sequence.npz")
 
     assert manifest["storage"] == "npz"
     assert manifest["shapes"]["slow"] == [5, 8, len(slow_channel_names)]
     assert waveform_spec["optical_absorption_backend"] == "empirical_v1"
-    assert waveform_spec["ultrasonic"]["model_name"] == "simplified_tof_proxy_v1"
-    assert waveform_spec["ultrasonic"]["system_delay_model"] == "not_implemented"
-    assert waveform_spec["ultrasonic"]["transducer_response_model"] == "ideal_burst_no_transducer_response"
-    assert waveform_spec["fiber_mic"]["model_name"] == "acoustic_proxy_v1"
-    assert waveform_spec["fiber_mic"]["acoustic_field_model"] == "direct_plus_wall_reflections_proxy_v1"
-    assert waveform_spec["fiber_mic"]["fiber_optical_demodulation_model"] == "not_implemented"
-    assert waveform_spec["fiber_mic_model"] == "acoustic_proxy_v1"
-    assert waveform_spec["fiber_optical_demodulation_model"] == "not_implemented"
-    assert waveform_spec["acoustic_attenuation_model"] == "semi_empirical_relaxation_proxy_v1"
+    assert waveform_spec["ultrasonic"]["model_name"] == "tof_observed_transducer_proxy_v1"
+    assert waveform_spec["ultrasonic"]["system_delay_model"] == "fixed_delay_plus_trigger_jitter_v1"
+    assert waveform_spec["ultrasonic"]["system_delay_s"] > 0.0
+    assert waveform_spec["ultrasonic"]["trigger_jitter_std_s"] > 0.0
+    assert waveform_spec["ultrasonic"]["transducer_response_model"] == "second_order_resonant_bandpass_proxy_v1"
+    assert waveform_spec["fiber_mic"]["model_name"] == "fiber_interferometric_proxy_v1"
+    assert waveform_spec["fiber_mic"]["acoustic_field_model"] == "probe_pressure_with_optional_reflections_v1"
+    assert waveform_spec["fiber_mic"]["fiber_optical_demodulation_model"] == "linear_phase_demodulation_proxy_v1"
+    assert waveform_spec["fiber_mic"]["probe"]["pressure_sensitivity_rad_per_pa"] > 0.0
+    assert waveform_spec["fiber_mic_model"] == "fiber_interferometric_proxy_v1"
+    assert waveform_spec["fiber_optical_demodulation_model"] == "linear_phase_demodulation_proxy_v1"
+    assert waveform_spec["acoustic_attenuation_model"] == "semi_empirical_multigas_relaxation_proxy_v2"
     assert validation["status"] == "pass"
     assert y.shape == (5, 4)
     assert slow.shape == (5, 8, len(slow_channel_names))
     assert ultrasonic.shape[:2] == (5, 8)
     assert ultrasonic_tof_s.shape == (5, 8)
+    assert ultrasonic_tof_observed_s.shape == (5, 8)
     assert ultrasonic_peak_index.shape == (5, 8)
     assert ultrasonic_sound_speed.shape == (5, 8)
+    assert ultrasonic_sound_speed_estimated.shape == (5, 8)
     assert ultrasonic_alpha.shape == (5, 8)
+    assert ultrasonic_tof_quality.shape == (5, 8)
+    assert ultrasonic_tof_accepted.shape == (5, 8)
     assert ultrasonic_peak_index.dtype == np.int32
+    assert ultrasonic_tof_accepted.dtype == np.int8
     assert np.isfinite(ultrasonic_tof_s).all()
+    assert np.isfinite(ultrasonic_tof_observed_s).all()
     assert np.isfinite(ultrasonic_sound_speed).all()
+    assert np.isfinite(ultrasonic_sound_speed_estimated).all()
     assert np.isfinite(ultrasonic_alpha).all()
+    assert np.isfinite(ultrasonic_tof_quality).all()
+    assert np.all(ultrasonic_tof_observed_s > ultrasonic_tof_s)
+    assert np.all((ultrasonic_tof_quality >= 0.0) & (ultrasonic_tof_quality <= 1.0))
     assert fiber_mic.shape[:2] == (5, 8)
     assert bundle["slow"].shape == slow.shape
     assert bundle["ultrasonic_tof_s"].shape == ultrasonic_tof_s.shape
+    assert bundle["ultrasonic_tof_observed_s"].shape == ultrasonic_tof_observed_s.shape
     assert bundle["ultrasonic_peak_index"].shape == ultrasonic_peak_index.shape
     assert list(sequence_ids.astype(str)) == [row["sequence_id"] for row in condition_rows]
     assert list(label_names.astype(str)) == ["x_H2", "x_CH4", "x_CO2", "x_N2"]
@@ -182,9 +201,13 @@ def test_generate_benchmark_dataset_writes_memmap_storage_arrays_without_npz(tmp
     assert (dataset_dir / "sequences" / "slow.npy").is_file()
     assert (dataset_dir / "sequences" / "ultrasonic_int16.npy").is_file()
     assert (dataset_dir / "sequences" / "ultrasonic_tof_s.npy").is_file()
+    assert (dataset_dir / "sequences" / "ultrasonic_tof_observed_s.npy").is_file()
     assert (dataset_dir / "sequences" / "ultrasonic_peak_index.npy").is_file()
     assert (dataset_dir / "sequences" / "ultrasonic_sound_speed_m_per_s.npy").is_file()
+    assert (dataset_dir / "sequences" / "ultrasonic_sound_speed_estimated_m_per_s.npy").is_file()
     assert (dataset_dir / "sequences" / "ultrasonic_alpha_true_npm.npy").is_file()
+    assert (dataset_dir / "sequences" / "ultrasonic_tof_quality.npy").is_file()
+    assert (dataset_dir / "sequences" / "ultrasonic_tof_accepted.npy").is_file()
     assert (dataset_dir / "sequences" / "fiber_mic_int16.npy").is_file()
     assert not (dataset_dir / "sequences" / "waveform_sequence.npz").exists()
 

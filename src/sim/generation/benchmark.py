@@ -191,7 +191,12 @@ def _acoustic_model_metadata(ultrasonic_spec: WaveformSpec, fiber_mic_spec: Fibe
     return {
         "ultrasonic_model": ultrasonic_spec.model_name,
         "ultrasonic_system_delay_model": ultrasonic_spec.system_delay_model,
+        "ultrasonic_system_delay_s": ultrasonic_spec.system_delay_s,
+        "ultrasonic_cable_delay_s": ultrasonic_spec.cable_delay_s,
+        "ultrasonic_delay_correction_s": ultrasonic_spec.delay_correction_s,
+        "ultrasonic_trigger_jitter_std_s": ultrasonic_spec.trigger_jitter_std_s,
         "ultrasonic_transducer_response_model": ultrasonic_spec.transducer_response_model,
+        "ultrasonic_transducer_bandwidth_hz": ultrasonic_spec.transducer_bandwidth_hz,
         "fiber_mic_model": fiber_mic_spec.model_name,
         "fiber_mic_acoustic_field_model": fiber_mic_spec.acoustic_field_model,
         "fiber_optical_demodulation_model": fiber_mic_spec.fiber_optical_demodulation_model,

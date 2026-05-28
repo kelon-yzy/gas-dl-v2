@@ -73,9 +73,13 @@ def _validate_array_shapes(conditions: list[dict[str, str]], arrays: dict[str, o
             raise ValueError(f"{name} sequence axis must match condition rows")
     for name in (
         "ultrasonic_tof_s",
+        "ultrasonic_tof_observed_s",
         "ultrasonic_peak_index",
         "ultrasonic_sound_speed_m_per_s",
+        "ultrasonic_sound_speed_estimated_m_per_s",
         "ultrasonic_alpha_true_npm",
+        "ultrasonic_tof_quality",
+        "ultrasonic_tof_accepted",
     ):
         if arrays[name].shape != slow.shape[:2]:
             raise ValueError(f"{name} shape must match slow sequence and timestep axes")

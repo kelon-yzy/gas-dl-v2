@@ -14,14 +14,14 @@
 | `src/pipeline`    | layout + generate_benchmark + HITRAN benchmark cache 预计算/对照 CLI + 外部谱表 sanity check CLI | 26% |
 | `configs/`        | 已新增 `configs/data/spectral-defaults.json`（运行时 spectral 默认值 source-of-truth，含 `filter_source` 行业参考占位元信息），其余配置未落地 | 8%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 全量 143 个测试通过，覆盖 sim + ml + dl + pipeline | 68% |
+| `tests/`          | 全量 145 个测试通过，覆盖 sim + ml + dl + pipeline | 70% |
 
 ## 环境与依赖基线
 
 - 依赖入口已版本化：`pyproject.toml` 声明运行依赖，`requirements.txt` 提供普通 pip 安装入口。
 - Python 版本范围固定为 `>=3.10,<3.14`；当前不使用 Python 3.14 作为主环境，避免科学计算和深度学习 wheel 暂未稳定覆盖时安装失败。
 - 新机器已验证 Python 3.12.10 虚拟环境可用，核心包版本为 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3`、`hitran-api 1.3.0.0`。
-- 当前验证命令：`.\.venv\Scripts\python -m pytest tests`，全量结果为 143 passed。
+- 当前验证命令：`.\.venv\Scripts\python -m pytest tests`，全量结果为 145 passed。
 
 ## PLAN 6 项问题对照
 
@@ -60,9 +60,9 @@
 ### 2.3a 声学链路契约澄清与 TOF 派生资产 ✅
 
 - **状态**：已完成短期修正。当前实现明确区分 `ultrasonic` 简化 TOF 代理和 `fiber_mic` 光纤声学传感简化代理。
-- **metadata/manifest**：`manifest.json` 与 `metadata/waveform_spec.json` 写入 `ultrasonic_model = "simplified_tof_proxy_v1"`、`fiber_mic_model = "acoustic_proxy_v1"`、`fiber_optical_demodulation_model = "not_implemented"`、`acoustic_attenuation_model = "semi_empirical_relaxation_proxy_v1"`。
-- **派生数组**：benchmark 额外写出 `sequences/ultrasonic_tof_s.npy`、`sequences/ultrasonic_peak_index.npy`、`sequences/ultrasonic_sound_speed_m_per_s.npy`、`sequences/ultrasonic_alpha_true_npm.npy`，并进入 `waveform_sequence.npz` 和完整性校验。
-- **剩余缺口**：尚未实现系统延迟、换能器响应、`tof_observed_s`、`tof_quality` 和完整光纤干涉解调链路。
+- **metadata/manifest**：`manifest.json` 与 `metadata/waveform_spec.json` 写入 `ultrasonic_model = "tof_observed_transducer_proxy_v1"`、`ultrasonic_system_delay_model = "fixed_delay_plus_trigger_jitter_v1"`、`ultrasonic_transducer_response_model = "second_order_resonant_bandpass_proxy_v1"`、`fiber_mic_model = "fiber_interferometric_proxy_v1"`、`fiber_optical_demodulation_model = "linear_phase_demodulation_proxy_v1"`、`acoustic_attenuation_model = "semi_empirical_multigas_relaxation_proxy_v2"`。
+- **派生数组**：benchmark 额外写出 `sequences/ultrasonic_tof_s.npy`、`sequences/ultrasonic_tof_observed_s.npy`、`sequences/ultrasonic_peak_index.npy`、`sequences/ultrasonic_sound_speed_m_per_s.npy`、`sequences/ultrasonic_sound_speed_estimated_m_per_s.npy`、`sequences/ultrasonic_alpha_true_npm.npy`、`sequences/ultrasonic_tof_quality.npy`、`sequences/ultrasonic_tof_accepted.npy`，并进入 `waveform_sequence.npz` 和完整性校验。
+- **剩余缺口**：当前完成的是可校准代理模型；正式实验前仍需替换为真实换能器、光纤探头、解调器和 DAQ 标定参数。
 
 ### 2.4 光谱交叉敏感度显式建模 ✅
 
@@ -158,7 +158,7 @@
   - numpy 版 MAE、RMSE、R2 和按组分指标。
   - `train_regressor_on_dataset(...)`：加载 train split、拟合模型，并评估 train/val/test/extrapolation split。
 - **测试**：新增 `tests/test_ml_baselines.py`，覆盖特征统计、benchmark split 加载、波形特征、mean/ridge regressor、指标和训练入口。
-- **当前验证状态**：`tests/test_ml_baselines.py` 已纳入全量测试；`python -m pytest tests` 当前为 143 passed。
+- **当前验证状态**：`tests/test_ml_baselines.py` 已纳入全量测试；`python -m pytest tests` 当前为 145 passed。
 
 ### 5.1 特征打包
 

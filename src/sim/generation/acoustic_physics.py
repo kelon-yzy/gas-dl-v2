@@ -26,6 +26,8 @@ PROCESSING_PARAMS_V2 = {
     "f_relax_ch4_base_per_atm": 30000.0,
     "f_relax_ch4_slope_per_atm": 120000.0,
     "k_diffusion_h2": 1.6e-3,
+    "alpha_lambda_max_n2": 0.004,
+    "f_relax_n2_per_atm": 65000.0,
     "alpha_lambda_max_h2o": 0.01,
     "f_relax_h2o_per_atm": 100000.0,
     "acoustic_excitation_frequency_hz": 40000.0,
@@ -115,6 +117,18 @@ def hidden_attenuation_v2(
         / max(c_mix**3, 1e6)
     )
 
+    x_n2_frac = max(0.0, x_n2) / 100.0
+    f_r_n2 = params["f_relax_n2_per_atm"] * p_atm
+    alpha_lambda_n2 = (
+        params["alpha_lambda_max_n2"]
+        * x_n2_frac
+        * 2.0
+        * f_hz
+        * f_r_n2
+        / (f_hz**2 + f_r_n2**2)
+    )
+    alpha_n2_npm = alpha_lambda_n2 * f_hz / c_mix
+
     h_w_frac = max(0.0, h_w_pct) / 100.0
     f_r_h2o = params["f_relax_h2o_per_atm"] * p_atm
     alpha_lambda_h2o = (
@@ -126,7 +140,7 @@ def hidden_attenuation_v2(
         / (f_hz**2 + f_r_h2o**2)
     )
     alpha_h2o_npm = alpha_lambda_h2o * f_hz / c_mix
-    alpha_true = max(0.0, alpha_classical_npm + alpha_co2_npm + alpha_ch4_npm + alpha_diff_npm + alpha_h2o_npm)
+    alpha_true = max(0.0, alpha_classical_npm + alpha_co2_npm + alpha_ch4_npm + alpha_diff_npm + alpha_n2_npm + alpha_h2o_npm)
 
     return {
         "alpha_true_v2": alpha_true,
@@ -134,9 +148,11 @@ def hidden_attenuation_v2(
         "alpha_co2_v2": alpha_co2_npm,
         "alpha_ch4_v2": alpha_ch4_npm,
         "alpha_h2_diffusion_v2": alpha_diff_npm,
+        "alpha_n2_background_v2": alpha_n2_npm,
         "alpha_h2o_v2": alpha_h2o_npm,
         "f_relax_co2_eff": f_r_co2,
         "f_relax_ch4_eff": f_r_ch4,
+        "f_relax_n2_eff": f_r_n2,
         "f_relax_h2o_eff": f_r_h2o,
         "h_w_pct_eff": h_w_pct,
         "c_mix_used": c_mix,
