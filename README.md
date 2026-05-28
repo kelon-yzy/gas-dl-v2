@@ -14,7 +14,7 @@
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口。
 - 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/precompute_hitran_benchmark_cache.py`、`src/pipeline/compare_optical_backends.py` 和 `src/pipeline/sanity_check_tabulated_spectra.py`：HITRAN 谱缓存预计算、benchmark 专用 cache 预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check 入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
-- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。历史 HITRAN 主线全量验证为 134 passed；新增 ML baseline 后已补充 `tests/test_ml_baselines.py`，需在完整 Python 3.10-3.13 虚拟环境中重新运行全量测试。
+- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。当前全量验证为 143 passed。
 
 ## 目标目录
 
@@ -47,7 +47,7 @@ py -3.12 -m venv .venv
 
 `data/hitran_cache*/` 与 `outputs/runs/*` 是本地缓存和实验产物，已被 `.gitignore` 排除，不会随远程仓库同步。新机器需要从旧机器复制这些目录，或按下面的 HITRAN 预计算命令重新生成缓存。
 
-当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 在 HITRAN 主线阶段已通过 134 个测试。新增 ML baseline 后建议重新运行 `python -m pytest tests/test_ml_baselines.py` 或全量 `python -m pytest tests`。
+当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 当前全量通过 143 个测试。
 
 ## 核心语义
 
@@ -69,7 +69,7 @@ python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke --s
 python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke-empirical --sequences 32 --seed 42 --storage npz --optical-absorption-backend empirical_v1
 ```
 
-当前生成主线已经落地条件表、索引表、标签表、split、manifest、validation summary、slow 张量、超声 waveform、光纤麦克风 waveform、metadata 和 scaler。默认使用 LHS 采样，默认声程候选为 `(0.20, 0.25, 0.30, 0.35, 0.40)`，短 phase 下会均匀覆盖声程候选端点。NDIR 光学通道默认使用 `hitran_hapi_v1`，按每条 condition 的温压、每个 timestep 的当前组分和 `L_m` 做滤光片积分；H2O 由 `T/P/RH` 换算。benchmark 生成只读 cache，cache 缺失会在写出 dataset 前失败；`empirical_v1` 仍可通过 CLI 显式选择。本地表格谱积分原型为 `tabulated_spectrum_v1`，HITRAN/PNNL 谱线积分路线见 `docs/SPECTRAL_INTEGRATION_PLAN.md`。正式 v4 只写 `splits/train.csv` 这类新命名，不写 V3 的 `train_sequence_ids.csv` 等旧命名。
+当前生成主线已经落地条件表、索引表、标签表、split、manifest、validation summary、slow 张量、超声 waveform、显式超声 TOF 派生数组、光纤麦克风 waveform、metadata 和 scaler。默认使用 LHS 采样，默认声程候选为 `(0.20, 0.25, 0.30, 0.35, 0.40)`，短 phase 下会均匀覆盖声程候选端点。NDIR 光学通道默认使用 `hitran_hapi_v1`，按每条 condition 的温压、每个 timestep 的当前组分和 `L_m` 做滤光片积分；H2O 由 `T/P/RH` 换算。benchmark 生成只读 cache，cache 缺失会在写出 dataset 前失败；`empirical_v1` 仍可通过 CLI 显式选择。本地表格谱积分原型为 `tabulated_spectrum_v1`，HITRAN/PNNL 谱线积分路线见 `docs/SPECTRAL_INTEGRATION_PLAN.md`。声学链路的当前模型名会写入 `manifest.json` 和 `metadata/waveform_spec.json`：`ultrasonic` 是简化 TOF 代理，`fiber_mic` 是 `acoustic_proxy_v1`，尚未实现光纤干涉解调链路。正式 v4 只写 `splits/train.csv` 这类新命名，不写 V3 的 `train_sequence_ids.csv` 等旧命名。
 
 ## 传统 ML baseline
 

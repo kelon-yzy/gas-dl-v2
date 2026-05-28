@@ -71,6 +71,7 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
     labels = _label_array(conditions)
     ultrasonic_spec = WaveformSpec()
     fiber_mic_spec = FiberMicSpec()
+    acoustic_metadata = _acoustic_model_metadata(ultrasonic_spec, fiber_mic_spec)
     arrays = build_sequence_arrays(
         conditions,
         timesteps=spec.timesteps,
@@ -101,6 +102,7 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
         slow_channels=SLOW_CHANNELS,
         labels=COMPONENT_FIELDS,
         optical_absorption_metadata=optical_metadata,
+        acoustic_model_metadata=acoustic_metadata,
     )
 
     write_csv(output_dir / "condition_grid_sequence.csv", CONDITION_GRID_FIELDS, conditions)
@@ -140,6 +142,7 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
             "dt_s": spec.dt_s,
             "path_lms": [float(path_l_m) for path_l_m in spec.path_lms],
             "optical_absorption_backend": spec.optical_absorption_backend,
+            **acoustic_metadata,
             **optical_metadata,
         },
     )
@@ -182,6 +185,18 @@ def _optical_absorption_metadata(spec: BenchmarkGenerationSpec) -> dict[str, obj
             "optical_crosstalk_policy": "empirical_matrix_v1",
         }
     raise ValueError(f"unsupported optical_absorption_backend: {spec.optical_absorption_backend!r}")
+
+
+def _acoustic_model_metadata(ultrasonic_spec: WaveformSpec, fiber_mic_spec: FiberMicSpec) -> dict[str, object]:
+    return {
+        "ultrasonic_model": ultrasonic_spec.model_name,
+        "ultrasonic_system_delay_model": ultrasonic_spec.system_delay_model,
+        "ultrasonic_transducer_response_model": ultrasonic_spec.transducer_response_model,
+        "fiber_mic_model": fiber_mic_spec.model_name,
+        "fiber_mic_acoustic_field_model": fiber_mic_spec.acoustic_field_model,
+        "fiber_optical_demodulation_model": fiber_mic_spec.fiber_optical_demodulation_model,
+        "acoustic_attenuation_model": ultrasonic_spec.acoustic_attenuation_model,
+    }
 
 
 def _label_array(conditions: list[dict[str, str]]) -> np.ndarray:

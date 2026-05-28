@@ -6,7 +6,7 @@
 
 | 子系统               | 状态                                                              | 完成度 |
 | ----------------- | --------------------------------------------------------------- | --- |
-| `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN benchmark 默认接入 + 外部谱表 sanity check 入口 + spectral 默认配置 source-of-truth） | 90% |
+| `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN benchmark 默认接入 + 声学模型契约标注 + 超声 TOF 派生数组 + 外部谱表 sanity check 入口 + spectral 默认配置 source-of-truth） | 92% |
 | `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers；lazy memmap 与 scaler 阈值契约已收敛 | 45% |
 | `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1DRegressor + TCNRegressor + registry | 25% |
 | `src/dl/training` | loss/metrics 基础完成，trainer/checkpoint 待实现                       | 20% |
@@ -14,14 +14,14 @@
 | `src/pipeline`    | layout + generate_benchmark + HITRAN benchmark cache 预计算/对照 CLI + 外部谱表 sanity check CLI | 26% |
 | `configs/`        | 已新增 `configs/data/spectral-defaults.json`（运行时 spectral 默认值 source-of-truth，含 `filter_source` 行业参考占位元信息），其余配置未落地 | 8%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | HITRAN 主线阶段为 134 个测试（sim + dl + pipeline）通过；新增 `tests/test_ml_baselines.py` 覆盖 ML baseline，待完整依赖环境重新运行 | 64% |
+| `tests/`          | 全量 143 个测试通过，覆盖 sim + ml + dl + pipeline | 68% |
 
 ## 环境与依赖基线
 
 - 依赖入口已版本化：`pyproject.toml` 声明运行依赖，`requirements.txt` 提供普通 pip 安装入口。
 - Python 版本范围固定为 `>=3.10,<3.14`；当前不使用 Python 3.14 作为主环境，避免科学计算和深度学习 wheel 暂未稳定覆盖时安装失败。
 - 新机器已验证 Python 3.12.10 虚拟环境可用，核心包版本为 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3`、`hitran-api 1.3.0.0`。
-- 当前验证命令：`.\.venv\Scripts\python -m pytest tests`，HITRAN 主线阶段结果为 134 passed；新增 ML baseline 后应重新运行 `.\.venv\Scripts\python -m pytest tests/test_ml_baselines.py` 或全量测试。
+- 当前验证命令：`.\.venv\Scripts\python -m pytest tests`，全量结果为 143 passed。
 
 ## PLAN 6 项问题对照
 
@@ -56,6 +56,13 @@
 
 - **状态**：已完成。`tests/test_acoustic_physics_regression.py` 覆盖 `hidden_sound_speed_v2`、`hidden_attenuation_v2`、`main_sensor_features`
 - **策略**：固定输入 → 固定输出，防止物理公式意外变更
+
+### 2.3a 声学链路契约澄清与 TOF 派生资产 ✅
+
+- **状态**：已完成短期修正。当前实现明确区分 `ultrasonic` 简化 TOF 代理和 `fiber_mic` 光纤声学传感简化代理。
+- **metadata/manifest**：`manifest.json` 与 `metadata/waveform_spec.json` 写入 `ultrasonic_model = "simplified_tof_proxy_v1"`、`fiber_mic_model = "acoustic_proxy_v1"`、`fiber_optical_demodulation_model = "not_implemented"`、`acoustic_attenuation_model = "semi_empirical_relaxation_proxy_v1"`。
+- **派生数组**：benchmark 额外写出 `sequences/ultrasonic_tof_s.npy`、`sequences/ultrasonic_peak_index.npy`、`sequences/ultrasonic_sound_speed_m_per_s.npy`、`sequences/ultrasonic_alpha_true_npm.npy`，并进入 `waveform_sequence.npz` 和完整性校验。
+- **剩余缺口**：尚未实现系统延迟、换能器响应、`tof_observed_s`、`tof_quality` 和完整光纤干涉解调链路。
 
 ### 2.4 光谱交叉敏感度显式建模 ✅
 
@@ -151,7 +158,7 @@
   - numpy 版 MAE、RMSE、R2 和按组分指标。
   - `train_regressor_on_dataset(...)`：加载 train split、拟合模型，并评估 train/val/test/extrapolation split。
 - **测试**：新增 `tests/test_ml_baselines.py`，覆盖特征统计、benchmark split 加载、波形特征、mean/ridge regressor、指标和训练入口。
-- **当前验证状态**：语法级校验已通过；由于当前会话可用解释器缺少 `numpy/pytest`，新增测试仍需在完整 Python 3.10-3.13 虚拟环境中运行。
+- **当前验证状态**：`tests/test_ml_baselines.py` 已纳入全量测试；`python -m pytest tests` 当前为 143 passed。
 
 ### 5.1 特征打包
 
@@ -195,11 +202,12 @@
 | **P0** ✅  | dl data + cnn1d 最小可用链路            | 10       | —   |
 | **P1** ✅  | LHS 采样完成                          | 1 (done) | P0  |
 | **P1** ✅  | 声程配置化 + acoustic 测试               | 3        | P0  |
+| **P1** ✅  | 声学链路契约澄清 + 超声 TOF 派生资产          | 5        | P0  |
 | **P2**    | TCN + LSTM/GRU + Transformer 模型   | 5        | P0  |
 | **P3**    | training 模块（loss/metrics/trainer） | 5        | P0  |
 | **P4** ✅  | 光谱交叉敏感建模                          | 2        | —   |
 | **P4** 🔜 | TraceGas-HC-NDIR datasheet 替换占位 + 按需扩 HITRAN grid + PNNL/NIST 外部对照 | 3        | P4  |
-| **P5** ⚠️ | ML 特征抽取 + Mean/Ridge 传统 baseline 已完成；特征包落盘、SVR/RandomForest 可选依赖待决策 | 4        | P0  |
+| **P5** ✅/⚠️ | ML 特征抽取 + Mean/Ridge 传统 baseline 已完成并通过测试；独立特征包落盘、SVR/RandomForest 可选依赖待决策 | 4        | P0  |
 | **P6**    | 配置落地 + 实验编排 + 报告                  | 5        | P3  |
 
 ## 文件规模预估

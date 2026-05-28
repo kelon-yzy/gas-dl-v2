@@ -17,16 +17,25 @@ FIBER_MIC_MEASUREMENT_WINDOW_S = 0.010
 ADC_MAX_INT16 = 32767
 DEFAULT_NOISE_STD_V = 1e-3
 CALIBRATION_STATUS = "pending"
+ACOUSTIC_ATTENUATION_MODEL = "semi_empirical_relaxation_proxy_v1"
+ULTRASONIC_MODEL_NAME = "simplified_tof_proxy_v1"
+FIBER_MIC_MODEL_NAME = "acoustic_proxy_v1"
+FIBER_MIC_ACOUSTIC_FIELD_MODEL = "direct_plus_wall_reflections_proxy_v1"
+FIBER_OPTICAL_DEMODULATION_MODEL = "not_implemented"
 
 
 @dataclass(frozen=True, slots=True)
 class WaveformSpec:
+    model_name: str = ULTRASONIC_MODEL_NAME
     sample_rate_hz: int = SAMPLE_RATE_HZ
     center_frequency_hz: float = CENTER_FREQUENCY_HZ
     burst_cycles: int = BURST_CYCLES
     measurement_window_s: float = ULTRASONIC_MEASUREMENT_WINDOW_S
     adc_max_int16: int = ADC_MAX_INT16
     noise_std_v: float = DEFAULT_NOISE_STD_V
+    acoustic_attenuation_model: str = ACOUSTIC_ATTENUATION_MODEL
+    system_delay_model: str = "not_implemented"
+    transducer_response_model: str = "ideal_burst_no_transducer_response"
     calibration_status: str = CALIBRATION_STATUS
 
     @property
@@ -41,12 +50,16 @@ class WaveformSpec:
 
 @dataclass(frozen=True, slots=True)
 class FiberMicSpec:
+    model_name: str = FIBER_MIC_MODEL_NAME
     sample_rate_hz: int = SAMPLE_RATE_HZ
     center_frequency_hz: float = CENTER_FREQUENCY_HZ
     burst_cycles: int = BURST_CYCLES
     measurement_window_s: float = FIBER_MIC_MEASUREMENT_WINDOW_S
     adc_max_int16: int = ADC_MAX_INT16
     noise_std_v: float = DEFAULT_NOISE_STD_V
+    acoustic_attenuation_model: str = ACOUSTIC_ATTENUATION_MODEL
+    acoustic_field_model: str = FIBER_MIC_ACOUSTIC_FIELD_MODEL
+    fiber_optical_demodulation_model: str = FIBER_OPTICAL_DEMODULATION_MODEL
     l_direct_factor: float = 0.5
     wall_reflection_coef: float = 0.5
     max_reflections: int = 15

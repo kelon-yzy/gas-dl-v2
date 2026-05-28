@@ -50,6 +50,10 @@ def build_sequence_arrays(
     slow = np.zeros((sequence_count, timesteps, len(SLOW_CHANNELS)), dtype=np.float32)
     ultrasonic = np.zeros((sequence_count, timesteps, ultrasonic_spec.waveform_samples), dtype=np.int16)
     ultrasonic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
+    ultrasonic_tof_s = np.zeros((sequence_count, timesteps), dtype=np.float32)
+    ultrasonic_peak_index = np.zeros((sequence_count, timesteps), dtype=np.int32)
+    ultrasonic_sound_speed = np.zeros((sequence_count, timesteps), dtype=np.float32)
+    ultrasonic_alpha = np.zeros((sequence_count, timesteps), dtype=np.float32)
     fiber_mic = np.zeros((sequence_count, timesteps, fiber_mic_spec.waveform_samples), dtype=np.int16)
     fiber_mic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
     slow_rows = []
@@ -154,6 +158,10 @@ def build_sequence_arrays(
             )
             ultrasonic[seq_index, timestep, :] = ultrasonic_result["waveform_int16"]
             ultrasonic_scale[seq_index, timestep] = ultrasonic_result["scale_factor"]
+            ultrasonic_tof_s[seq_index, timestep] = float(ultrasonic_result["tof_s"])
+            ultrasonic_peak_index[seq_index, timestep] = int(ultrasonic_result["peak_index"])
+            ultrasonic_sound_speed[seq_index, timestep] = float(ultrasonic_result["sound_speed_m_per_s"])
+            ultrasonic_alpha[seq_index, timestep] = float(ultrasonic_result["alpha_true_npm"])
             fiber_mic[seq_index, timestep, :] = fiber_result["waveform_int16"]
             fiber_mic_scale[seq_index, timestep] = fiber_result["scale_factor"]
             slow_rows.append(_slow_row(condition["sequence_id"], timestep, dt_s, phase_id, current))
@@ -161,6 +169,10 @@ def build_sequence_arrays(
         "slow": slow,
         "ultrasonic": ultrasonic,
         "ultrasonic_scale": ultrasonic_scale,
+        "ultrasonic_tof_s": ultrasonic_tof_s,
+        "ultrasonic_peak_index": ultrasonic_peak_index,
+        "ultrasonic_sound_speed_m_per_s": ultrasonic_sound_speed,
+        "ultrasonic_alpha_true_npm": ultrasonic_alpha,
         "fiber_mic": fiber_mic,
         "fiber_mic_scale": fiber_mic_scale,
         "slow_rows": slow_rows,

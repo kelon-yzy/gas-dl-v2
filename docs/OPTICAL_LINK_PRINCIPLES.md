@@ -2,7 +2,7 @@
 
 本文记录 v4 正式实验中 NDIR 光学通道（`V_NDIR_CH4`、`V_NDIR_CO2`）从配气方案到电压信号的完整物理仿真链路、默认 `hitran_hapi_v1` 光谱积分路径、显式兼容的 `empirical_v1` 经验路径，以及两条路径之间的契约关系。
 
-更新日期：2026-05-26。最新状态以 `manifest.json` 的 `optical_absorption_backend` 字段为准。
+更新日期：2026-05-28。最新状态以 `manifest.json` 的 `optical_absorption_backend` 字段为准。
 
 ## 1. 在系统里的位置
 
@@ -242,7 +242,7 @@ A_channel = −ln(T_channel)
 python -m pytest tests
 ```
 
-当前新机器 Python 3.12.10 虚拟环境下，`python -m pytest tests` 为 134 passed（2026-05-27 状态）。
+当前新机器 Python 3.12.10 虚拟环境下，`python -m pytest tests` 为 143 passed（2026-05-28 状态）。
 
 ## 6. 当前缺口
 

@@ -19,6 +19,7 @@ def build_manifest(
     slow_channels: tuple[str, ...],
     labels: tuple[str, ...],
     optical_absorption_metadata: dict[str, object] | None = None,
+    acoustic_model_metadata: dict[str, object] | None = None,
 ) -> dict[str, object]:
     manifest = {
         "schema_version": SCHEMA_VERSION,
@@ -41,4 +42,6 @@ def build_manifest(
     }
     if optical_absorption_metadata is not None:
         manifest.update(optical_absorption_metadata)
+    if acoustic_model_metadata is not None:
+        manifest.update(acoustic_model_metadata)
     return manifest
