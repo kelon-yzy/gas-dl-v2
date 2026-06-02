@@ -11,7 +11,7 @@ from ml.features import (
 )
 from ml.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
 from ml.models import MeanRegressor, RidgeRegressor, REGRESSOR_REGISTRY, build_regressor
-from ml.training import MLTrainingResult, SplitEvaluation, evaluate_regressor, train_regressor_on_dataset
+from ml.training import MLTrainingResult, Regressor, SplitEvaluation, evaluate_regressor, train_regressor_on_dataset
 
 __all__ = [
     "DEFAULT_SEQUENCE_STATISTICS",
@@ -28,6 +28,7 @@ __all__ = [
     "RegressionMetrics",
     "regression_metrics",
     "component_regression_metrics",
+    "Regressor",
     "SplitEvaluation",
     "MLTrainingResult",
     "evaluate_regressor",

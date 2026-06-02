@@ -122,6 +122,7 @@ def build_regressor(config: str | dict[str, Any] | None = None) -> MeanRegressor
 
 
 def _as_2d_features(x: np.ndarray) -> np.ndarray:
+    # float64 for numerical stability in closed-form ridge solve (ill-conditioned design matrices).
     arr = np.asarray(x, dtype=np.float64)
     if arr.ndim != 2:
         raise ValueError(f"features must be a 2D array shaped (N, F), got ndim={arr.ndim}")
@@ -131,6 +132,7 @@ def _as_2d_features(x: np.ndarray) -> np.ndarray:
 
 
 def _as_2d_targets(y: np.ndarray) -> np.ndarray:
+    # float64 to match feature dtype in closed-form solve.
     arr = np.asarray(y, dtype=np.float64)
     if arr.ndim == 1:
         arr = arr.reshape(-1, 1)

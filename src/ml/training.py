@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 
@@ -11,12 +11,8 @@ from ml.metrics import RegressionMetrics, component_regression_metrics, regressi
 from ml.models import MeanRegressor, RidgeRegressor, build_regressor
 
 
-class RegressorProtocol(Protocol):
-    def fit(self, x: np.ndarray, y: np.ndarray) -> object:
-        ...
-
-    def predict(self, x: np.ndarray) -> np.ndarray:
-        ...
+Regressor = MeanRegressor | RidgeRegressor
+"""Concrete regressor type alias. Use Protocol only when 5+ regressor types exist (KARPATHY_REVIEW 2.4)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +31,7 @@ class SplitEvaluation:
 class MLTrainingResult:
     """Result bundle for a fitted traditional ML baseline."""
 
-    model: RegressorProtocol
+    model: Regressor
     feature_config: MLFeatureConfig
     feature_names: tuple[str, ...]
     label_names: tuple[str, ...]
@@ -47,7 +43,7 @@ class MLTrainingResult:
         return self.evaluations[self.train_split].metrics
 
 
-def evaluate_regressor(model: RegressorProtocol, matrix: MLFeatureMatrix, *, split: str) -> SplitEvaluation:
+def evaluate_regressor(model: Regressor, matrix: MLFeatureMatrix, *, split: str) -> SplitEvaluation:
     """Evaluate a fitted regressor on one feature matrix."""
     predictions = model.predict(matrix.x)
     return SplitEvaluation(
@@ -108,7 +104,7 @@ def _validate_feature_contract(matrix: MLFeatureMatrix, reference: MLFeatureMatr
 __all__ = [
     "MeanRegressor",
     "RidgeRegressor",
-    "RegressorProtocol",
+    "Regressor",
     "SplitEvaluation",
     "MLTrainingResult",
     "evaluate_regressor",
