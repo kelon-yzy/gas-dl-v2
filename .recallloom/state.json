@@ -1,5 +1,5 @@
 {
-  "workspace_revision": 59,
+  "workspace_revision": 61,
   "update_protocol_revision": 1,
   "git_exclude_mode": "skipped",
   "bridged_entries": {},
@@ -11,10 +11,10 @@
       "base_workspace_revision": 2
     },
     "rolling_summary": {
-      "file_revision": 31,
-      "updated_at": "2026-05-29T09:40:12+08:00",
-      "writer_id": "Devin",
-      "base_workspace_revision": 59
+      "file_revision": 32,
+      "updated_at": "2026-06-02T10:35:26+08:00",
+      "writer_id": "Claude",
+      "base_workspace_revision": 61
     },
     "update_protocol": {
       "file_revision": 1,
@@ -24,7 +24,7 @@
     }
   },
   "daily_logs": {
-    "latest_file": "daily_logs/2026-05-29.md",
+    "latest_file": "daily_logs/2026-06-02.md",
     "latest_entry_id": "entry-1",
     "latest_entry_seq": 1,
     "entry_count": 1
