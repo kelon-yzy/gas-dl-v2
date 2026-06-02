@@ -1,0 +1,14 @@
+# Normalize line endings to LF for all text files.
+# Prevents CRLF churn when editing on WSL/Windows (repo had a 129-file CRLF incident, 2026-06-02).
+* text=auto eol=lf
+
+# Explicit binary assets — never normalize.
+*.npy binary
+*.npz binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.ckpt binary
+*.pt binary
+*.pth binary
