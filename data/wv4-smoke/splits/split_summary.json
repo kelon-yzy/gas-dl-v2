@@ -1,0 +1,22 @@
+{
+  "split_policy": "stratified_mixture_id_group_split_v4",
+  "group_field": "mixture_id",
+  "splits": {
+    "train": {
+      "sequence_count": 22,
+      "mixture_count": 22
+    },
+    "val": {
+      "sequence_count": 4,
+      "mixture_count": 4
+    },
+    "test": {
+      "sequence_count": 3,
+      "mixture_count": 3
+    },
+    "extrapolation": {
+      "sequence_count": 3,
+      "mixture_count": 3
+    }
+  }
+}

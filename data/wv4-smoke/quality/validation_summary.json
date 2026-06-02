@@ -1,0 +1,11 @@
+{
+  "status": "pass",
+  "sequence_count": 32,
+  "mixture_count": 32,
+  "split_counts": {
+    "train": 22,
+    "val": 4,
+    "test": 3,
+    "extrapolation": 3
+  }
+}

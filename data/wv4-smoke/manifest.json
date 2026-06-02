@@ -1,0 +1,116 @@
+{
+  "schema_version": "v4-benchmark-1",
+  "dataset_slug": "wv4-smoke",
+  "sequence_count": 32,
+  "seed": 42,
+  "timesteps": 128,
+  "dt_s": 0.5,
+  "storage": "npz",
+  "multi_path_phase": "steady",
+  "sampling_strategy": "lhs",
+  "path_lms": [
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4
+  ],
+  "optical_absorption_backend": "hitran_hapi_v1",
+  "primary_key": "mixture_id",
+  "instance_key": "sequence_id",
+  "split_group_field": "mixture_id",
+  "shapes": {
+    "slow": [
+      32,
+      128,
+      8
+    ],
+    "ultrasonic": [
+      32,
+      128,
+      1000
+    ],
+    "ultrasonic_scale": [
+      32,
+      128
+    ],
+    "ultrasonic_tof_s": [
+      32,
+      128
+    ],
+    "ultrasonic_tof_observed_s": [
+      32,
+      128
+    ],
+    "ultrasonic_peak_index": [
+      32,
+      128
+    ],
+    "ultrasonic_sound_speed_m_per_s": [
+      32,
+      128
+    ],
+    "ultrasonic_sound_speed_estimated_m_per_s": [
+      32,
+      128
+    ],
+    "ultrasonic_alpha_true_npm": [
+      32,
+      128
+    ],
+    "ultrasonic_tof_quality": [
+      32,
+      128
+    ],
+    "ultrasonic_tof_accepted": [
+      32,
+      128
+    ],
+    "fiber_mic": [
+      32,
+      128,
+      2000
+    ],
+    "fiber_mic_scale": [
+      32,
+      128
+    ],
+    "y": [
+      32,
+      4
+    ]
+  },
+  "slow_channels": [
+    "V_NDIR_CH4",
+    "V_NDIR_CO2",
+    "V_TCS",
+    "T_C",
+    "P_MPa",
+    "H_RH",
+    "L_m",
+    "piston_position_m"
+  ],
+  "labels": [
+    "x_H2",
+    "x_CH4",
+    "x_CO2",
+    "x_N2"
+  ],
+  "hitran_cache_root": "data\\hitran_cache",
+  "hitran_cache_policy": "cache_only_prechecked",
+  "hitran_temperature_pressure_mode": "per_condition",
+  "h2o_policy": "rh_to_mole_pct",
+  "optical_crosstalk_policy": "spectral_multigas_integral",
+  "ultrasonic_model": "tof_observed_transducer_proxy_v1",
+  "ultrasonic_system_delay_model": "fixed_delay_plus_trigger_jitter_v1",
+  "ultrasonic_system_delay_s": 8e-05,
+  "ultrasonic_cable_delay_s": 2e-06,
+  "ultrasonic_delay_correction_s": 8.2e-05,
+  "ultrasonic_trigger_jitter_std_s": 3e-06,
+  "ultrasonic_transducer_response_model": "second_order_resonant_bandpass_proxy_v1",
+  "ultrasonic_transducer_bandwidth_hz": 12000.0,
+  "fiber_mic_model": "fiber_interferometric_proxy_v1",
+  "fiber_mic_acoustic_field_model": "probe_pressure_with_optional_reflections_v1",
+  "fiber_optical_demodulation_model": "linear_phase_demodulation_proxy_v1",
+  "acoustic_attenuation_model": "semi_empirical_multigas_relaxation_proxy_v2"
+}
