@@ -1,22 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
 
+from common.metrics import R2_ZERO_VARIANCE_EPSILON, RegressionMetrics
 from sim.core.schema import COMPONENT_FIELDS
-
-
-R2_ZERO_VARIANCE_EPSILON = 1e-12
-
-
-@dataclass(frozen=True, slots=True)
-class RegressionMetrics:
-    """Aggregate metrics for multi-output composition regression."""
-
-    mae: float
-    rmse: float
-    r2: float
 
 
 def regression_metrics(y_pred: np.ndarray, y_true: np.ndarray) -> RegressionMetrics:

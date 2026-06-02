@@ -1,22 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
 
+from common.metrics import R2_ZERO_VARIANCE_EPSILON, RegressionMetrics
 from sim.core.schema import COMPONENT_FIELDS
-
-
-R2_ZERO_VARIANCE_EPSILON = 1e-12
-
-
-@dataclass(frozen=True)
-class RegressionMetrics:
-    """四组分浓度回归的整体指标。"""
-
-    mae: float
-    rmse: float
-    r2: float
 
 
 def regression_metrics(y_pred: torch.Tensor, y_true: torch.Tensor) -> RegressionMetrics:

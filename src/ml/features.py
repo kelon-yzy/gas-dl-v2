@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import csv
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
+from common.scalers import apply_scaler, load_scaler
+from common.splits import load_splits, resolve_split_indices
+
 
 DEFAULT_SEQUENCE_STATISTICS = ("mean", "std", "min", "max", "last", "delta", "slope")
 DEFAULT_WAVEFORM_FRAME_FEATURES = ("mean", "std", "mean_abs", "max_abs", "energy", "peak_index")
 MODALITY_OPTIONS = ("slow", "ultrasonic", "fiber_mic")
-_Z_SCORE_STD_EPSILON = 1e-12
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,9 +51,9 @@ def load_feature_matrix(
     config = config or MLFeatureConfig()
     _validate_modalities(config.modalities)
 
-    splits = _load_splits(dataset_dir / "splits")
+    splits = load_splits(dataset_dir / "splits")
     master_sequence_ids = _load_str_array(dataset_dir / "metadata" / "sequence_ids.npy")
-    split_indices = _resolve_split_indices(splits, master_sequence_ids)[split]
+    split_indices = resolve_split_indices(splits, master_sequence_ids)[split]
     labels = np.load(dataset_dir / "labels" / "y.npy").astype(np.float32)[split_indices]
     label_names = tuple(_load_str_array(dataset_dir / "metadata" / "label_names.npy"))
 
@@ -62,7 +62,7 @@ def load_feature_matrix(
     if "slow" in config.modalities:
         slow = np.load(dataset_dir / "sequences" / "slow.npy", mmap_mode="r")[split_indices].astype(np.float32)
         if config.slow_scaler_path is not None:
-            slow = _apply_scaler(slow, _load_scaler(config.slow_scaler_path)).astype(np.float32)
+            slow = apply_scaler(slow, load_scaler(config.slow_scaler_path)).astype(np.float32)
         slow_channel_names = tuple(_load_str_array(dataset_dir / "metadata" / "slow_channel_names.npy"))
         slow_features, slow_names = sequence_stat_features(
             slow,
@@ -217,68 +217,3 @@ def _validate_modalities(modalities: tuple[str, ...]) -> None:
 def _load_str_array(path: Path) -> list[str]:
     values = np.load(path, allow_pickle=True)
     return [str(value) for value in values.tolist()]
-
-
-def _load_splits(split_dir: Path) -> dict[str, list[dict[str, str]]]:
-    split_names = ("train", "val", "test", "extrapolation")
-    splits: dict[str, list[dict[str, str]]] = {}
-    for name in split_names:
-        path = split_dir / f"{name}.csv"
-        if not path.is_file():
-            raise FileNotFoundError(f"Missing split file: {path}")
-        with path.open("r", encoding="utf-8", newline="") as handle:
-            rows = list(csv.DictReader(handle))
-        _validate_split_rows(rows, name)
-        splits[name] = rows
-    return splits
-
-
-def _resolve_split_indices(
-    splits: dict[str, list[dict[str, str]]],
-    sequence_ids: list[str],
-) -> dict[str, list[int]]:
-    lookup = {sid: idx for idx, sid in enumerate(sequence_ids)}
-    indices: dict[str, list[int]] = {}
-    for name, rows in splits.items():
-        indices[name] = []
-        for row in rows:
-            sid = row["sequence_id"]
-            if sid not in lookup:
-                raise KeyError(f"sequence_id {sid} (split={name}) not found in master id list")
-            indices[name].append(lookup[sid])
-    return indices
-
-
-def _validate_split_rows(rows: list[dict[str, str]], split_name: str) -> None:
-    if not rows:
-        return
-    missing = {"sequence_id", "mixture_id"}.difference(rows[0])
-    if missing:
-        raise ValueError(f"Split {split_name} missing required columns: {sorted(missing)}")
-
-
-def _load_scaler(scaler_path: Path | str) -> dict[str, object]:
-    payload = json.loads(Path(scaler_path).read_text(encoding="utf-8"))
-    missing = {"method", "channel_names", "mean", "std"}.difference(payload)
-    if missing:
-        raise ValueError(f"Scaler payload missing keys: {sorted(missing)}")
-    if payload["method"] != "z_score":
-        raise ValueError(f"Unsupported scaler method: {payload['method']}")
-    return payload
-
-
-def _apply_scaler(x: np.ndarray, scaler: dict[str, object]) -> np.ndarray:
-    if x.ndim not in {2, 3}:
-        raise ValueError(f"apply_scaler expects a 2D or 3D array, got ndim={x.ndim}")
-    mean = np.array(scaler["mean"], dtype=np.float32)
-    std = np.array(scaler["std"], dtype=np.float32)
-    std = np.where(std > _Z_SCORE_STD_EPSILON, std, 1.0)
-    if x.shape[-1] != mean.shape[0]:
-        raise ValueError(f"last dimension must match scaler channels: {x.shape[-1]} != {mean.shape[0]}")
-    if x.ndim == 3:
-        mean = mean.reshape(1, 1, -1)
-        std = std.reshape(1, 1, -1)
-    else:
-        mean = mean.reshape(1, -1)
-        std = std.reshape(1, -1)
-    return (x - mean) / std

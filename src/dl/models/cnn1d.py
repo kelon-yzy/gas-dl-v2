@@ -4,6 +4,7 @@ import torch
 from torch import nn
 
 from dl.models.base import BaseRegressor
+from dl.models.heads import build_regression_head
 
 
 class CNN1DRegressor(BaseRegressor):
@@ -39,15 +40,7 @@ class CNN1DRegressor(BaseRegressor):
             current = hidden
         self.encoder = nn.Sequential(*layers)
         self.pool = nn.AdaptiveAvgPool1d(1)
-        self.head = nn.Sequential(
-            nn.Linear(current, 128),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(64, out_dim),
-        )
+        self.head = build_regression_head(current, out_dim, dropout)
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         encoded = self.encoder(x)
