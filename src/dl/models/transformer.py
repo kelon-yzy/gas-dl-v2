@@ -31,7 +31,7 @@ class TransformerRegressor(BaseRegressor):
             raise ValueError("pooling must be one of ['mean', 'last', 'attention']")
         self.pooling = pooling
         self.input_proj = nn.Linear(in_channels, d_model)
-        self.positional_encoding = nn.Parameter(_sinusoidal_positions(max_timesteps, d_model), requires_grad=False)
+        self.register_buffer("positional_encoding", _sinusoidal_positions(max_timesteps, d_model))
         layer = nn.TransformerEncoderLayer(
             d_model=d_model,
             nhead=nhead,
@@ -46,7 +46,7 @@ class TransformerRegressor(BaseRegressor):
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         if x.shape[1] > self.positional_encoding.shape[1]:
             raise ValueError(f"input timesteps {x.shape[1]} exceeds max_timesteps {self.positional_encoding.shape[1]}")
-        encoded = self.input_proj(x) + self.positional_encoding[:, : x.shape[1], :].to(x.device)
+        encoded = self.input_proj(x) + self.positional_encoding[:, : x.shape[1], :]
         encoded = self.encoder(encoded)
         if self.pooling == "last":
             feats = encoded[:, -1, :]

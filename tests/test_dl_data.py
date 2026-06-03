@@ -227,6 +227,8 @@ class TestV4BenchmarkDataset:
 
         assert x_ntc.shape == (32, 8)
         assert x_nct.shape == (8, 32)
+        # 相同 augment_seed、相同样本：NCT 应是 NTC 增强结果的转置（增强在 transpose 之前完成）。
+        assert torch.allclose(x_nct, x_ntc.transpose(0, 1))
 
 
 def test_augment_sequence_resamples_window_to_original_length():
@@ -235,3 +237,14 @@ def test_augment_sequence_resamples_window_to_original_length():
 
     assert augmented.shape == values.shape
     assert augmented.dtype == np.float32
+
+
+def test_augment_sequence_changes_values_with_window_and_jitter():
+    values = np.tile(np.arange(20, dtype=np.float32).reshape(20, 1), (1, 2))
+
+    windowed = augment_sequence(values, TimeSeriesAugmentConfig(window_fraction=0.5), np.random.default_rng(0))
+    jittered = augment_sequence(values, TimeSeriesAugmentConfig(jitter_std=0.5), np.random.default_rng(0))
+
+    assert windowed.shape == values.shape
+    assert not np.allclose(windowed, values)
+    assert not np.allclose(jittered, values)

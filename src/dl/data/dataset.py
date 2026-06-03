@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, get_worker_info
 
 from dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
 from dl.data.scalers import apply_scaler, load_scaler
@@ -55,7 +55,8 @@ class V4BenchmarkDataset(Dataset):
         self._input_format = input_format.upper()
         self._lazy = lazy
         self._augment_config = augment_config
-        self._augment_rng = np.random.default_rng(augment_seed)
+        self._augment_seed = augment_seed
+        self._augment_rng: np.random.Generator | None = None
 
         _validate_modalities(self._modalities)
         if self._input_format not in {"NTC", "NCT"}:
@@ -95,6 +96,7 @@ class V4BenchmarkDataset(Dataset):
         state["_ultrasonic"] = None
         state["_fiber_mic"] = None
         state["_labels"] = None
+        state["_augment_rng"] = None
         return state
 
     def _load_arrays(self) -> None:
@@ -107,6 +109,15 @@ class V4BenchmarkDataset(Dataset):
             self._ultrasonic = np.load(seq_dir / "ultrasonic_int16.npy", mmap_mode="r")
         if "fiber_mic" in self._modalities:
             self._fiber_mic = np.load(seq_dir / "fiber_mic_int16.npy", mmap_mode="r")
+
+    def _ensure_augment_rng(self) -> np.random.Generator:
+        # 多 worker DataLoader 下，每个 worker 进程按 worker_id 派生独立 RNG，
+        # 避免 fork 复制同一状态导致各 worker 产生重复的增强序列。
+        if self._augment_rng is None:
+            worker_info = get_worker_info()
+            worker_id = worker_info.id if worker_info is not None else 0
+            self._augment_rng = np.random.default_rng(self._augment_seed + worker_id)
+        return self._augment_rng
 
     def _build_input(self, src_idx: int) -> torch.Tensor:
         parts: list[np.ndarray] = []
@@ -122,7 +133,7 @@ class V4BenchmarkDataset(Dataset):
 
         x = np.concatenate(parts, axis=-1) if len(parts) > 1 else parts[0]
         if self._augment_config is not None:
-            x = augment_sequence(x, self._augment_config, self._augment_rng)
+            x = augment_sequence(x, self._augment_config, self._ensure_augment_rng())
         if self._input_format == "NCT":
             x = np.transpose(x, (1, 0))
         return torch.from_numpy(np.array(x, dtype=np.float32, copy=True))

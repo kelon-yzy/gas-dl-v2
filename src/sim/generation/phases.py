@@ -38,7 +38,16 @@ class PhaseSchedule:
             accumulated += segment.duration_frac
             boundary = int(timesteps * accumulated + 1e-9)
             boundaries.append(min(timesteps - 1, max(1, boundary)))
-        return tuple(boundaries)
+        result = tuple(boundaries)
+        previous = 0
+        for boundary in result:
+            if boundary <= previous:
+                raise ValueError(
+                    f"schedule {self.name!r} collapses to an empty phase at timesteps={timesteps}; "
+                    "increase timesteps or widen the shortest segment"
+                )
+            previous = boundary
+        return result
 
     def phase_for_timestep(self, timestep: int, timesteps: int) -> str:
         segment, _start, _end = self.segment_for_timestep(timestep, timesteps)
@@ -46,17 +55,7 @@ class PhaseSchedule:
 
     def blend_for_timestep(self, timestep: int, timesteps: int) -> float:
         segment, start, end = self.segment_for_timestep(timestep, timesteps)
-        local = timestep - start
-        length = max(1, end - start)
-        if segment.blend_shape == "hold0":
-            return 0.0
-        if segment.blend_shape == "ramp_up":
-            return min(1.0, (local + 1) / length)
-        if segment.blend_shape == "hold1":
-            return 1.0
-        if segment.blend_shape == "ramp_down":
-            return max(segment.blend_floor, segment.blend_floor + (1.0 - segment.blend_floor) * (1.0 - ((local + 1) / length)))
-        raise ValueError(f"unknown blend_shape: {segment.blend_shape!r}")
+        return _blend_at(segment, timestep - start, max(1, end - start))
 
     def segment_for_timestep(self, timestep: int, timesteps: int) -> tuple[PhaseSegment, int, int]:
         _validate_timestep(timestep, timesteps)
@@ -66,6 +65,24 @@ class PhaseSchedule:
             if start <= timestep < end:
                 return segment, start, end
         raise ValueError(f"timestep {timestep} is outside [0, {timesteps})")
+
+    def resolve_timeline(self, timesteps: int) -> tuple[tuple[str, ...], tuple[float, ...]]:
+        """逐时间步返回 ``(phase_id, blend)``，整段只计算一次阶段边界。
+
+        等价于对每个 timestep 调用 ``phase_for_timestep``/``blend_for_timestep``，
+        但避免长序列生成循环中重复计算 boundaries。
+        """
+        bounds = self.boundaries(timesteps)
+        starts = (0, *bounds)
+        ends = (*bounds, timesteps)
+        phase_ids: list[str] = []
+        blends: list[float] = []
+        for segment, start, end in zip(self.segments, starts, ends, strict=True):
+            length = max(1, end - start)
+            for timestep in range(start, end):
+                phase_ids.append(segment.name)
+                blends.append(_blend_at(segment, timestep - start, length))
+        return tuple(phase_ids), tuple(blends)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -197,3 +214,15 @@ def _validate_timestep(timestep: int, timesteps: int) -> None:
     _validate_timesteps(timesteps)
     if timestep < 0 or timestep >= timesteps:
         raise ValueError(f"timestep must be in [0, {timesteps}), got {timestep}")
+
+
+def _blend_at(segment: PhaseSegment, local: int, length: int) -> float:
+    if segment.blend_shape == "hold0":
+        return 0.0
+    if segment.blend_shape == "ramp_up":
+        return min(1.0, (local + 1) / length)
+    if segment.blend_shape == "hold1":
+        return 1.0
+    if segment.blend_shape == "ramp_down":
+        return segment.blend_floor + (1.0 - segment.blend_floor) * (1.0 - ((local + 1) / length))
+    raise ValueError(f"unknown blend_shape: {segment.blend_shape!r}")

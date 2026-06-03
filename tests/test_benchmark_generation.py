@@ -312,3 +312,19 @@ def test_multi_tau_channel_step_moves_toward_target_with_recovery_floor():
 
     assert 1.0 < rising < 2.0
     assert 1.0 < decaying < 2.0
+
+
+def test_multi_tau_channel_step_recovery_floor_slows_decay():
+    base = {
+        "tau_rise_system_s": 10.0,
+        "tau_decay_system_s": 10.0,
+        "fast_tau_fraction": 0.3,
+        "slow_tau_multiplier": 3.0,
+        "fast_response_weight": 0.7,
+    }
+    sticky = _multi_tau_channel_step(previous=2.0, target=1.0, params={**base, "recovery_floor_fraction": 0.3})
+    free = _multi_tau_channel_step(previous=2.0, target=1.0, params={**base, "recovery_floor_fraction": 0.0})
+
+    # recovery_floor 把衰减目标拉向当前值，单步衰减更慢（结果更接近起点 2.0）。
+    assert sticky > free
+    assert free > 1.0

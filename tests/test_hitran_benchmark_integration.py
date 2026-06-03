@@ -126,6 +126,32 @@ def test_hitran_environment_helpers_are_reproducible():
     assert h2o_mole_percent_from_rh(25.0, 0.101325, 50.0) == pytest.approx(1.5628100324257261, rel=1e-12)
 
 
+def test_hitran_sequence_generation_uses_equilibrium_dynamics_not_legacy(tmp_path: Path, monkeypatch):
+    cache_root = tmp_path / "hitran-cache"
+    conditions = generate_condition_rows(1, seed=37, sampling_strategy="lhs")
+    _write_synthetic_hitran_cache(cache_root, conditions)
+
+    def fail_legacy(*args, **kwargs):
+        raise AssertionError("HITRAN sequence generation must use equilibrium dynamics, not legacy _dynamic_slow_features")
+
+    monkeypatch.setattr("sim.generation.slow._dynamic_slow_features", fail_legacy)
+
+    # 即使 standard_exposure + jitter=0（empirical 的 legacy 条件），HITRAN 后端也不应回退到单时间常数动力学。
+    generate_benchmark_dataset(
+        tmp_path,
+        BenchmarkGenerationSpec(
+            dataset_slug="hitran-no-legacy",
+            sequence_count=1,
+            seed=37,
+            timesteps=8,
+            storage="npz",
+            stage_profile="standard_exposure",
+            stage_jitter=0.0,
+            hitran_cache_root=str(cache_root),
+        ),
+    )
+
+
 def _read_csv(path: Path) -> list[dict[str, str]]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))

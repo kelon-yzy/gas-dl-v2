@@ -1,6 +1,9 @@
 import random
 
+import pytest
+
 from sim.generation.phases import (
+    FAST_TRANSIENT,
     INCOMPLETE_RECOVERY,
     MULTI_PULSE,
     PHASE_SCHEDULES,
@@ -10,7 +13,7 @@ from sim.generation.phases import (
     phase_for_timestep,
     resolve_phase_schedule,
 )
-from sim.generation.slow import _path_l_m_for_timestep
+from sim.generation.slow import _path_l_m_for_schedule
 
 
 def test_phase_boundaries_split_sequence_into_four_ordered_regions():
@@ -81,8 +84,22 @@ def test_schedule_jitter_is_seed_reproducible_and_keeps_phase_order():
 
 def test_path_scan_maps_short_phase_to_scan_endpoints():
     path_lms = (0.2, 0.3, 0.4, 0.5, 0.6)
+    intervals = (("baseline", 0, 2), ("exposure", 2, 4), ("steady", 4, 6), ("recovery", 6, 8))
 
-    assert _path_l_m_for_timestep(1.0, 0, 2, 4, 6, True, False, path_lms) == 0.2
-    assert _path_l_m_for_timestep(1.0, 1, 2, 4, 6, True, False, path_lms) == 0.6
-    assert _path_l_m_for_timestep(1.0, 4, 2, 4, 6, False, True, path_lms) == 0.2
-    assert _path_l_m_for_timestep(1.0, 5, 2, 4, 6, False, True, path_lms) == 0.6
+    assert _path_l_m_for_schedule(1.0, 0, intervals, True, False, path_lms) == 0.2
+    assert _path_l_m_for_schedule(1.0, 1, intervals, True, False, path_lms) == 0.6
+    assert _path_l_m_for_schedule(1.0, 4, intervals, False, True, path_lms) == 0.2
+    assert _path_l_m_for_schedule(1.0, 5, intervals, False, True, path_lms) == 0.6
+
+
+def test_resolve_timeline_matches_per_timestep_phase_and_blend():
+    timesteps = 64
+    for schedule in PHASE_SCHEDULES.values():
+        phase_ids, blends = schedule.resolve_timeline(timesteps)
+        assert list(phase_ids) == [schedule.phase_for_timestep(t, timesteps) for t in range(timesteps)]
+        assert list(blends) == [schedule.blend_for_timestep(t, timesteps) for t in range(timesteps)]
+
+
+def test_boundaries_reject_timesteps_that_collapse_a_phase():
+    with pytest.raises(ValueError, match="collapses to an empty phase"):
+        FAST_TRANSIENT.boundaries(5)

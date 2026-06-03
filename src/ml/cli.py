@@ -8,7 +8,7 @@ from typing import Any
 from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
 from ml.features import MLFeatureConfig
 from ml.models import MeanRegressor, RidgeRegressor
-from ml.training import train_regressor_on_dataset
+from ml.training import MLTrainingResult, train_regressor_on_dataset
 
 MODALITY_CHOICES = ("slow", "ultrasonic", "fiber_mic")
 
@@ -136,16 +136,13 @@ def run(args: argparse.Namespace) -> None:
         _print_table(result)
 
 
-def _print_json(result: object) -> None:
+def _print_json(result: MLTrainingResult) -> None:
     print(json.dumps(_training_payload(result), indent=2))
 
 
-def _training_payload(result: object) -> dict[str, Any]:
+def _training_payload(result: MLTrainingResult) -> dict[str, Any]:
     from dataclasses import asdict
 
-    from ml.training import MLTrainingResult
-
-    assert isinstance(result, MLTrainingResult)
     payload: dict[str, Any] = {
         "feature_config": {
             "modalities": result.feature_config.modalities,
@@ -192,10 +189,7 @@ def _protocol_markdown(result: BaselineProtocolResult) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _metrics_markdown_table(result: object) -> str:
-    from ml.training import MLTrainingResult
-
-    assert isinstance(result, MLTrainingResult)
+def _metrics_markdown_table(result: MLTrainingResult) -> str:
     lines = [
         "| split | MAE | RMSE | R2 |",
         "|---|---:|---:|---:|",
@@ -206,11 +200,7 @@ def _metrics_markdown_table(result: object) -> str:
     return "\n".join(lines)
 
 
-def _print_table(result: object) -> None:
-    from ml.training import MLTrainingResult
-
-    assert isinstance(result, MLTrainingResult)
-
+def _print_table(result: MLTrainingResult) -> None:
     print(f"model          {'ridge' if isinstance(result.model, RidgeRegressor) else 'mean'}")
     print(f"modalities     {', '.join(result.feature_config.modalities)}")
     print(f"features       {len(result.feature_names)}")

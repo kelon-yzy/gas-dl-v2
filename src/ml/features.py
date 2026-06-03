@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 import csv
 
@@ -261,14 +262,15 @@ def _load_timestep_masks(dataset_dir: Path, sequence_ids: tuple[str, ...], confi
     return tuple(masks)
 
 
-def _load_phase_rows(path: Path) -> dict[str, list[tuple[int, str]]]:
+@lru_cache(maxsize=8)
+def _load_phase_rows(path: Path) -> dict[str, tuple[tuple[int, str], ...]]:
+    # 按文件路径缓存：同一数据集在 protocol 多次评估中复用，避免重复读取长 CSV。
+    # 假设数据集生成后该 CSV 内容不再变化（生产 CLI 为独立进程，天然满足）。
     rows: dict[str, list[tuple[int, str]]] = {}
     with path.open("r", encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
             rows.setdefault(row["sequence_id"], []).append((int(row["timestep"]), row["phase_id"]))
-    for sequence_rows in rows.values():
-        sequence_rows.sort(key=lambda item: item[0])
-    return rows
+    return {sequence_id: tuple(sorted(items, key=lambda item: item[0])) for sequence_id, items in rows.items()}
 
 
 def _load_str_array(path: Path) -> list[str]:

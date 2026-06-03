@@ -64,7 +64,10 @@ def build_sequence_arrays(
     fiber_mic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
     slow_rows = []
     base_schedule = resolve_phase_schedule(phase_schedule)
-    use_legacy_standard_dynamics = base_schedule.name == "standard_exposure" and stage_jitter == 0.0
+    # 仅 empirical 后端在 standard_exposure + 无 jitter 时复现旧 wv4-smoke 单时间常数动力学；
+    # HITRAN 后端的所有慢通道（含 V_TCS）始终走 equilibrium 多时间常数动力学。
+    is_empirical = optical_absorption_backend == EMPIRICAL_ABSORPTION_BACKEND
+    use_legacy_empirical_dynamics = is_empirical and base_schedule.name == "standard_exposure" and stage_jitter == 0.0
     is_baseline_scan = multi_path_phase == "baseline"
     is_steady_scan = multi_path_phase == "steady"
     spectra_cache: dict[tuple[str, HitranGridSpec], PreparedTabulatedSpectra] | None = (
@@ -94,11 +97,12 @@ def build_sequence_arrays(
         slow_walk = {channel: 0.0 for channel in SLOW_DYNAMIC_CHANNELS}
         schedule = base_schedule.jittered(sequence_rng, stage_jitter)
         phase_intervals = _phase_intervals(schedule, timesteps)
+        phase_ids, blends = schedule.resolve_timeline(timesteps)
         ndir_state: dict[str, float] = {}
         slow_state: dict[str, float] = {}
         for timestep in range(timesteps):
-            phase_id = schedule.phase_for_timestep(timestep, timesteps)
-            blend = schedule.blend_for_timestep(timestep, timesteps)
+            phase_id = phase_ids[timestep]
+            blend = blends[timestep]
             current_l_m = _path_l_m_for_schedule(
                 float(condition["L_m_base"]),
                 timestep,
@@ -108,8 +112,8 @@ def build_sequence_arrays(
                 path_lms,
             )
             composition = _blend_composition(condition, blend)
-            if optical_absorption_backend == EMPIRICAL_ABSORPTION_BACKEND:
-                if use_legacy_standard_dynamics:
+            if is_empirical:
+                if use_legacy_empirical_dynamics:
                     current = _dynamic_slow_features(baseline_main, target_main, timestep, timesteps, slow_params, slow_walk, sequence_rng)
                 else:
                     current = _dynamic_features_from_equilibrium(
@@ -122,27 +126,15 @@ def build_sequence_arrays(
                         channels=SLOW_DYNAMIC_CHANNELS,
                     )
             else:
-                if use_legacy_standard_dynamics:
-                    current = _dynamic_slow_features(
-                        baseline_main,
-                        target_main,
-                        timestep,
-                        timesteps,
-                        slow_params,
-                        slow_walk,
-                        sequence_rng,
-                        channels=("V_TCS",),
-                    )
-                else:
-                    current = _dynamic_features_from_equilibrium(
-                        _blend_equilibrium_features(baseline_main, target_main, blend, channels=("V_TCS",)),
-                        slow_state,
-                        timestep,
-                        slow_params,
-                        slow_walk,
-                        sequence_rng,
-                        channels=("V_TCS",),
-                    )
+                current = _dynamic_features_from_equilibrium(
+                    _blend_equilibrium_features(baseline_main, target_main, blend, channels=("V_TCS",)),
+                    slow_state,
+                    timestep,
+                    slow_params,
+                    slow_walk,
+                    sequence_rng,
+                    channels=("V_TCS",),
+                )
                 ndir_equilibrium = _hitran_ndir_equilibrium(
                     condition,
                     composition=composition,
@@ -388,25 +380,6 @@ def _channel_value(baseline: float, target: float, timestep: int, timesteps: int
     return baseline + (recovery_start - baseline) * recovery_progress
 
 
-def _path_l_m_for_timestep(
-    l_m_base: float,
-    timestep: int,
-    q1: int,
-    q2: int,
-    q3: int,
-    is_baseline_scan: bool,
-    is_steady_scan: bool,
-    path_lms: tuple[float, ...],
-) -> float:
-    if is_baseline_scan and timestep < q1:
-        return float(path_lms[_scan_path_index(timestep, q1, len(path_lms))])
-    if is_steady_scan and q2 <= timestep < q3:
-        local = timestep - q2
-        span = max(1, q3 - q2)
-        return float(path_lms[_scan_path_index(local, span, len(path_lms))])
-    return float(l_m_base)
-
-
 def _path_l_m_for_schedule(
     l_m_base: float,
     timestep: int,
@@ -426,8 +399,9 @@ def _path_l_m_for_schedule(
 
 
 def _phase_intervals(schedule: PhaseSchedule, timesteps: int) -> tuple[tuple[str, int, int], ...]:
-    starts = (0, *schedule.boundaries(timesteps))
-    ends = (*schedule.boundaries(timesteps), timesteps)
+    bounds = schedule.boundaries(timesteps)
+    starts = (0, *bounds)
+    ends = (*bounds, timesteps)
     return tuple(
         (segment.name, start, end)
         for segment, start, end in zip(schedule.segments, starts, ends, strict=True)
