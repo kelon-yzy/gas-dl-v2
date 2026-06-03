@@ -8,10 +8,10 @@ import numpy as np
 
 from ml.features import MLFeatureConfig, MLFeatureMatrix, load_feature_matrix
 from ml.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
-from ml.models import MeanRegressor, RidgeRegressor, build_regressor
+from ml.models import DynamicStackingSVRRegressor, MeanRegressor, RidgeRegressor, build_regressor
 
 
-Regressor = MeanRegressor | RidgeRegressor
+Regressor = MeanRegressor | RidgeRegressor | DynamicStackingSVRRegressor
 """Concrete regressor type alias. Use Protocol only when 5+ regressor types exist (KARPATHY_REVIEW 2.4)."""
 
 
@@ -72,7 +72,7 @@ def train_regressor_on_dataset(
     feature_config = feature_config or MLFeatureConfig()
     train_matrix = load_feature_matrix(dataset_dir, split=train_split, config=feature_config)
     model = build_regressor(model_config)
-    model.fit(train_matrix.x, train_matrix.y)
+    model.fit(train_matrix.x, train_matrix.y, feature_names=train_matrix.feature_names)
 
     evaluations: dict[str, SplitEvaluation] = {}
     matrices: dict[str, MLFeatureMatrix] = {train_split: train_matrix}
@@ -104,6 +104,7 @@ def _validate_feature_contract(matrix: MLFeatureMatrix, reference: MLFeatureMatr
 __all__ = [
     "MeanRegressor",
     "RidgeRegressor",
+    "DynamicStackingSVRRegressor",
     "Regressor",
     "SplitEvaluation",
     "MLTrainingResult",

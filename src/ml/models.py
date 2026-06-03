@@ -4,9 +4,17 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVR
 
 
 _SCALE_EPSILON = 1e-12
+_MODALITIES = ("acoustic", "optical", "thermal")
+_ACOUSTIC_PREFIXES = ("ultrasonic:", "fiber_mic:")
+_ENVIRONMENT_CHANNELS = {"T_C", "P_MPa", "H_RH", "L_m", "piston_position_m"}
+_OPTICAL_CHANNEL_PREFIXES = ("V_NDIR",)
+_THERMAL_CHANNELS = {"V_TCS"}
 
 
 @dataclass(slots=True)
@@ -15,7 +23,7 @@ class MeanRegressor:
 
     target_mean_: np.ndarray | None = None
 
-    def fit(self, x: np.ndarray, y: np.ndarray) -> MeanRegressor:
+    def fit(self, x: np.ndarray, y: np.ndarray, *, feature_names: tuple[str, ...] | None = None) -> MeanRegressor:
         x_arr = _as_2d_features(x)
         y_arr = _as_2d_targets(y)
         _validate_row_count(x_arr, y_arr)
@@ -45,7 +53,7 @@ class RidgeRegressor:
     x_mean_: np.ndarray | None = None
     x_scale_: np.ndarray | None = None
 
-    def fit(self, x: np.ndarray, y: np.ndarray) -> RidgeRegressor:
+    def fit(self, x: np.ndarray, y: np.ndarray, *, feature_names: tuple[str, ...] | None = None) -> RidgeRegressor:
         if self.alpha < 0.0:
             raise ValueError(f"alpha must be >= 0, got {self.alpha}")
         x_arr = _as_2d_features(x)
@@ -97,13 +105,127 @@ class RidgeRegressor:
         return (x - self.x_mean_) / self.x_scale_
 
 
-REGRESSOR_REGISTRY: dict[str, type[MeanRegressor] | type[RidgeRegressor]] = {
+@dataclass(slots=True)
+class DynamicStackingSVRRegressor:
+    """Patent-aligned multimodal stacking regressor.
+
+    Layer 0 trains independent RBF-SVR models for acoustic, optical, and thermal
+    feature views. Online inference estimates per-view drift MSE through
+    Monte-Carlo noise in each view's z-scored feature space, converts inverse
+    uncertainty into dynamic weights, and feeds weighted base predictions into
+    a ridge meta learner.
+    """
+
+    svr_c: float = 10.0
+    svr_epsilon: float = 0.01
+    svr_gamma: str | float = "scale"
+    ridge_alpha: float = 1.0
+    mc_samples: int = 16
+    mc_noise_std: float = 0.02
+    baseline_error_constant: float = 1e-6
+    random_seed: int = 123
+    meta_standardize: bool = True
+    groups_: dict[str, np.ndarray] | None = None
+    scalers_: dict[str, StandardScaler] | None = None
+    base_models_: dict[str, MultiOutputRegressor] | None = None
+    meta_model_: RidgeRegressor | None = None
+
+    def fit(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        *,
+        feature_names: tuple[str, ...] | None = None,
+    ) -> DynamicStackingSVRRegressor:
+        if feature_names is None:
+            raise ValueError("DynamicStackingSVRRegressor requires feature_names to split modality views")
+        if self.mc_samples <= 0:
+            raise ValueError(f"mc_samples must be > 0, got {self.mc_samples}")
+        if self.mc_noise_std < 0.0:
+            raise ValueError(f"mc_noise_std must be >= 0, got {self.mc_noise_std}")
+        if self.baseline_error_constant <= 0.0:
+            raise ValueError(f"baseline_error_constant must be > 0, got {self.baseline_error_constant}")
+
+        x_arr = _as_2d_features(x)
+        y_arr = _as_2d_targets(y)
+        _validate_row_count(x_arr, y_arr)
+        _validate_feature_name_count(x_arr, feature_names)
+        groups = _split_modality_columns(feature_names)
+
+        scalers: dict[str, StandardScaler] = {}
+        base_models: dict[str, MultiOutputRegressor] = {}
+        base_predictions: dict[str, np.ndarray] = {}
+        for modality in _MODALITIES:
+            view = x_arr[:, groups[modality]]
+            scaler = StandardScaler()
+            scaled = scaler.fit_transform(view)
+            model = MultiOutputRegressor(
+                SVR(kernel="rbf", C=self.svr_c, epsilon=self.svr_epsilon, gamma=self.svr_gamma),
+            )
+            model.fit(scaled, y_arr)
+            scalers[modality] = scaler
+            base_models[modality] = model
+            base_predictions[modality] = model.predict(scaled)
+
+        self.groups_ = groups
+        self.scalers_ = scalers
+        self.base_models_ = base_models
+        weights = self._dynamic_weights(x_arr, base_predictions)
+        meta_x = _weighted_meta_features(base_predictions, weights)
+        self.meta_model_ = RidgeRegressor(alpha=self.ridge_alpha, standardize=self.meta_standardize).fit(meta_x, y_arr)
+        return self
+
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        predictions, _weights = self.predict_with_diagnostics(x)
+        return predictions
+
+    def predict_with_diagnostics(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        x_arr = _as_2d_features(x)
+        base_predictions = self._base_predictions(x_arr)
+        weights = self._dynamic_weights(x_arr, base_predictions)
+        if self.meta_model_ is None:
+            raise ValueError("DynamicStackingSVRRegressor must be fitted before predict")
+        predictions = self.meta_model_.predict(_weighted_meta_features(base_predictions, weights))
+        return predictions.astype(np.float32, copy=False), weights.astype(np.float32, copy=False)
+
+    def _base_predictions(self, x: np.ndarray) -> dict[str, np.ndarray]:
+        if self.groups_ is None or self.scalers_ is None or self.base_models_ is None:
+            raise ValueError("DynamicStackingSVRRegressor must be fitted before predict")
+        predictions: dict[str, np.ndarray] = {}
+        for modality in _MODALITIES:
+            view = x[:, self.groups_[modality]]
+            scaled = self.scalers_[modality].transform(view)
+            predictions[modality] = self.base_models_[modality].predict(scaled)
+        return predictions
+
+    def _dynamic_weights(self, x: np.ndarray, base_predictions: dict[str, np.ndarray]) -> np.ndarray:
+        if self.groups_ is None or self.scalers_ is None or self.base_models_ is None:
+            raise ValueError("DynamicStackingSVRRegressor must be fitted before computing weights")
+        rng = np.random.default_rng(self.random_seed)
+        drift_columns: list[np.ndarray] = []
+        for modality in _MODALITIES:
+            view = x[:, self.groups_[modality]]
+            scaled = self.scalers_[modality].transform(view)
+            drift_sum = np.zeros(x.shape[0], dtype=np.float64)
+            for _sample in range(self.mc_samples):
+                noise = rng.normal(0.0, self.mc_noise_std, size=scaled.shape)
+                noisy_prediction = self.base_models_[modality].predict(scaled + noise)
+                delta = noisy_prediction - base_predictions[modality]
+                drift_sum += np.mean(delta * delta, axis=1)
+            drift_columns.append(drift_sum / float(self.mc_samples))
+        drift = np.stack(drift_columns, axis=1)
+        inverse_uncertainty = 1.0 / (drift + self.baseline_error_constant)
+        return inverse_uncertainty / inverse_uncertainty.sum(axis=1, keepdims=True)
+
+
+REGRESSOR_REGISTRY: dict[str, type[MeanRegressor] | type[RidgeRegressor] | type[DynamicStackingSVRRegressor]] = {
     "mean": MeanRegressor,
     "ridge": RidgeRegressor,
+    "dynamic_stacking_svr": DynamicStackingSVRRegressor,
 }
 
 
-def build_regressor(config: str | dict[str, Any] | None = None) -> MeanRegressor | RidgeRegressor:
+def build_regressor(config: str | dict[str, Any] | None = None) -> MeanRegressor | RidgeRegressor | DynamicStackingSVRRegressor:
     """Build a traditional ML regressor from a name or config dict."""
     if config is None:
         name = "ridge"
@@ -153,3 +275,43 @@ def _design_matrix(x: np.ndarray, *, fit_intercept: bool) -> np.ndarray:
         return x
     ones = np.ones((x.shape[0], 1), dtype=x.dtype)
     return np.concatenate([ones, x], axis=1)
+
+
+def _split_modality_columns(feature_names: tuple[str, ...]) -> dict[str, np.ndarray]:
+    groups: dict[str, list[int]] = {modality: [] for modality in _MODALITIES}
+    for index, name in enumerate(feature_names):
+        channel = _feature_channel(name)
+        if name.startswith(_ACOUSTIC_PREFIXES):
+            groups["acoustic"].append(index)
+        elif channel.startswith(_OPTICAL_CHANNEL_PREFIXES):
+            groups["optical"].append(index)
+        elif channel in _THERMAL_CHANNELS:
+            groups["thermal"].append(index)
+        elif channel in _ENVIRONMENT_CHANNELS:
+            for modality in _MODALITIES:
+                groups[modality].append(index)
+
+    missing = [modality for modality, indices in groups.items() if not indices]
+    if missing:
+        raise ValueError(f"dynamic_stacking_svr requires acoustic, optical, and thermal features; missing {missing}")
+    return {modality: np.array(indices, dtype=np.int64) for modality, indices in groups.items()}
+
+
+def _feature_channel(feature_name: str) -> str:
+    parts = feature_name.split(":")
+    if len(parts) < 3:
+        return feature_name
+    return parts[1]
+
+
+def _validate_feature_name_count(x: np.ndarray, feature_names: tuple[str, ...]) -> None:
+    if x.shape[1] != len(feature_names):
+        raise ValueError(f"feature_names length {len(feature_names)} does not match feature count {x.shape[1]}")
+
+
+def _weighted_meta_features(base_predictions: dict[str, np.ndarray], weights: np.ndarray) -> np.ndarray:
+    blocks = [
+        base_predictions[modality] * weights[:, index : index + 1]
+        for index, modality in enumerate(_MODALITIES)
+    ]
+    return np.concatenate(blocks, axis=1).astype(np.float64, copy=False)

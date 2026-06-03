@@ -7,6 +7,7 @@ import numpy as np
 
 from ml.cli import build_parser as build_ml_cli_parser, run as run_ml_cli
 from ml import (
+    DynamicStackingSVRRegressor,
     MLFeatureConfig,
     MeanRegressor,
     RegressionMetrics,
@@ -144,6 +145,55 @@ class TestMLModels:
         model = build_regressor({"name": "ridge", "alpha": 0.25})
         assert isinstance(model, RidgeRegressor)
         assert model.alpha == 0.25
+        dynamic = build_regressor({"name": "dynamic_stacking_svr", "mc_samples": 2})
+        assert isinstance(dynamic, DynamicStackingSVRRegressor)
+        assert dynamic.mc_samples == 2
+
+    def test_dynamic_stacking_svr_uses_modality_views_and_weights(self):
+        x = np.array(
+            [
+                [0.0, 0.1, 0.9, 20.0],
+                [0.2, 0.2, 0.8, 21.0],
+                [0.4, 0.3, 0.7, 22.0],
+                [0.6, 0.4, 0.6, 23.0],
+                [0.8, 0.5, 0.5, 24.0],
+                [1.0, 0.6, 0.4, 25.0],
+            ],
+            dtype=np.float32,
+        )
+        y = np.stack(
+            [
+                0.5 * x[:, 0] + x[:, 1],
+                x[:, 2],
+            ],
+            axis=1,
+        ).astype(np.float32)
+        feature_names = (
+            "ultrasonic:ultrasonic_max_abs:mean",
+            "slow:V_NDIR_CH4:mean",
+            "slow:V_TCS:mean",
+            "slow:T_C:mean",
+        )
+
+        model = DynamicStackingSVRRegressor(mc_samples=2, random_seed=7).fit(x, y, feature_names=feature_names)
+        predictions, weights = model.predict_with_diagnostics(x)
+
+        assert predictions.shape == y.shape
+        assert weights.shape == (x.shape[0], 3)
+        np.testing.assert_allclose(weights.sum(axis=1), np.ones(x.shape[0]), atol=1e-6)
+        assert np.isfinite(predictions).all()
+
+    def test_dynamic_stacking_svr_requires_feature_names(self):
+        x = np.ones((4, 3), dtype=np.float32)
+        y = np.ones((4, 1), dtype=np.float32)
+        model = DynamicStackingSVRRegressor()
+
+        try:
+            model.fit(x, y)
+        except ValueError as exc:
+            assert "feature_names" in str(exc)
+        else:
+            raise AssertionError("expected feature_names contract error")
 
 
 class TestMLMetrics:

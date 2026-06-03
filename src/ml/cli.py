@@ -7,7 +7,7 @@ from typing import Any
 
 from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
 from ml.features import MLFeatureConfig
-from ml.models import MeanRegressor, RidgeRegressor
+from ml.models import DynamicStackingSVRRegressor, MeanRegressor, RidgeRegressor
 from ml.training import MLTrainingResult, train_regressor_on_dataset
 
 MODALITY_CHOICES = ("slow", "ultrasonic", "fiber_mic")
@@ -20,11 +20,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset-dir", type=Path, required=True, help="v4 benchmark dataset root directory.")
     parser.add_argument(
         "--model",
-        choices=["ridge", "mean"],
+        choices=["ridge", "mean", "dynamic_stacking_svr"],
         default="ridge",
         help="Regressor type (default: ridge).",
     )
     parser.add_argument("--alpha", type=float, default=1.0, help="Ridge alpha (default: 1.0).")
+    parser.add_argument("--svr-c", type=float, default=10.0, help="SVR C for dynamic_stacking_svr.")
+    parser.add_argument("--svr-epsilon", type=float, default=0.01, help="SVR epsilon for dynamic_stacking_svr.")
+    parser.add_argument("--svr-gamma", type=str, default="scale", help="SVR gamma for dynamic_stacking_svr.")
+    parser.add_argument("--mc-samples", type=int, default=16, help="MC perturbation samples for dynamic_stacking_svr.")
+    parser.add_argument("--mc-noise-std", type=float, default=0.02, help="Z-score-space MC noise std for dynamic_stacking_svr.")
+    parser.add_argument(
+        "--baseline-error-constant",
+        type=float,
+        default=1e-6,
+        help="Positive inverse-uncertainty baseline constant for dynamic_stacking_svr.",
+    )
     parser.add_argument(
         "--modalities",
         type=str,
@@ -78,6 +89,12 @@ def _parse_float_comma(value: str) -> tuple[float, ...]:
     return values
 
 
+def _parse_svr_gamma(value: str) -> str | float:
+    if value in {"scale", "auto"}:
+        return value
+    return float(value)
+
+
 def run(args: argparse.Namespace) -> None:
     dataset_dir = args.dataset_dir
     if not dataset_dir.is_dir() or not (dataset_dir / "labels" / "y.npy").is_file():
@@ -100,6 +117,17 @@ def run(args: argparse.Namespace) -> None:
     model_config: str | dict[str, Any]
     if args.model == "mean":
         model_config = "mean"
+    elif args.model == "dynamic_stacking_svr":
+        model_config = {
+            "name": "dynamic_stacking_svr",
+            "svr_c": args.svr_c,
+            "svr_epsilon": args.svr_epsilon,
+            "svr_gamma": _parse_svr_gamma(args.svr_gamma),
+            "mc_samples": args.mc_samples,
+            "mc_noise_std": args.mc_noise_std,
+            "baseline_error_constant": args.baseline_error_constant,
+            "ridge_alpha": args.alpha,
+        }
     else:
         model_config = {"name": "ridge", "alpha": args.alpha}
 
@@ -201,7 +229,7 @@ def _metrics_markdown_table(result: MLTrainingResult) -> str:
 
 
 def _print_table(result: MLTrainingResult) -> None:
-    print(f"model          {'ridge' if isinstance(result.model, RidgeRegressor) else 'mean'}")
+    print(f"model          {_model_name(result.model)}")
     print(f"modalities     {', '.join(result.feature_config.modalities)}")
     print(f"features       {len(result.feature_names)}")
     print(f"train split    {result.train_split} ({len(result.evaluations)} evaluated)")
@@ -216,6 +244,14 @@ def _print_table(result: MLTrainingResult) -> None:
         comp_str = " ".join(f"{split_eval.component_metrics[c].mae:8.4f}" for c in result.label_names)
         print(f"{split_name:>14s} {m.mae:8.4f} {m.rmse:8.4f} {m.r2:8.4f} {comp_str}")
     print("-" * 72)
+
+
+def _model_name(model: MeanRegressor | RidgeRegressor | DynamicStackingSVRRegressor) -> str:
+    if isinstance(model, DynamicStackingSVRRegressor):
+        return "dynamic_stacking_svr"
+    if isinstance(model, RidgeRegressor):
+        return "ridge"
+    return "mean"
 
 
 def main() -> None:

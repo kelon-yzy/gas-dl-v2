@@ -11,7 +11,7 @@ from ml.features import (
 )
 from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
 from ml.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
-from ml.models import MeanRegressor, RidgeRegressor, REGRESSOR_REGISTRY, build_regressor
+from ml.models import DynamicStackingSVRRegressor, MeanRegressor, RidgeRegressor, REGRESSOR_REGISTRY, build_regressor
 from ml.training import MLTrainingResult, Regressor, SplitEvaluation, evaluate_regressor, train_regressor_on_dataset
 
 __all__ = [
@@ -26,6 +26,7 @@ __all__ = [
     "run_baseline_protocol",
     "MeanRegressor",
     "RidgeRegressor",
+    "DynamicStackingSVRRegressor",
     "REGRESSOR_REGISTRY",
     "build_regressor",
     "RegressionMetrics",
