@@ -1,6 +1,6 @@
 # 正式实验 v4
 
-本项目是 `V3_正式实验` 的目标架构重构版。第一阶段目标是先建立清晰主线：稳定主键语义、统一数据资产边界、统一 run 输出契约，再逐步迁移 `sim`、`ml`、`dl` 和 `pipeline` 能力。
+本项目是 `V3_正式实验` 的目标架构重构版。当前主线已经从第一阶段的核心契约固定，推进到可运行的 benchmark 生成、传统 ML baseline、DL 数据/模型/轻量训练闭环和长时序协议验证阶段。正式大规模实验、跨 run 汇总和真实硬件/谱表标定仍待完成。
 
 ## 当前状态
 
@@ -8,13 +8,15 @@
 - 已建立 `src/sim/generation`：提供正式 benchmark 生成的最小垂直切片，默认使用拉丁超立方采样（LHS），NDIR 默认走 `hitran_hapi_v1` cache-only 光谱积分；HITRAN 主线只计算 TCS 热导慢变量，不再顺带跑 empirical NDIR；`empirical_v1` 保留为显式兼容/对照路径。
 - 已建立 `src/sim/packaging`：定义 `condition_grid`、`sequence_index`、split rows、manifest、scaler 常量和正式 run 最小输出契约。
 - 已建立 `src/sim/validation`：校验旧字段、ID 唯一性、组分和 split 覆盖。
-- 已建立 `src/ml`：提供 dependency-light 的传统 ML baseline，包含 v4 benchmark 表格特征抽取、`MeanRegressor`、闭式解 `RidgeRegressor`、numpy 回归指标和 `train_regressor_on_dataset` 训练/评估入口，不依赖 scikit-learn。
-- 已建立 `src/dl/data`：`V4BenchmarkDataset` 消费 v4 benchmark，支持慢变量/超声/光纤三模态、NTC/NCT 格式、split 加载、真正 lazy memmap（取单条样本时才转 float32）、scaler 归一化。
-- 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor` 和 `TCNRegressor`。
+- 已建立 `src/ml`：提供 dependency-light 的传统 ML baseline，包含 v4 benchmark 表格特征抽取、`MeanRegressor`、闭式解 `RidgeRegressor`、numpy 回归指标、`train_regressor_on_dataset` 训练/评估入口，以及 full/per-phase/early baseline protocol report，不依赖 scikit-learn。
+- 已建立 `src/dl/data`：`V4BenchmarkDataset` 消费 v4 benchmark，支持慢变量/超声/光纤三模态、NTC/NCT 格式、split 加载、真正 lazy memmap（取单条样本时才转 float32）、scaler 归一化；训练期增强通过显式 `TimeSeriesAugmentConfig` 开启，默认关闭。
+- 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor`、`TCNRegressor`、`LSTMRegressor`、`TransformerRegressor` 和 `PatchTSTRegressor`。CNN/TCN 支持 `mean/last/attention` 聚合，TCN 支持按 `target_timesteps` 自动扩展感受野。
+- 已建立 `src/dl/training`：提供 loss、metrics、轻量 `Trainer`、optimizer 构造、evaluate/predict 和 checkpoint 保存/加载。当前仍没有 argparse 训练 CLI、LR scheduler、early stopping 或完整 run 报告输出。
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口。
 - 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/precompute_hitran_benchmark_cache.py`、`src/pipeline/compare_optical_backends.py` 和 `src/pipeline/sanity_check_tabulated_spectra.py`：HITRAN 谱缓存预计算、benchmark 专用 cache 预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check 入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
-- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。当前全量验证为 145 passed。
+- 已建立长时序协议：支持 `short/standard/long/xlong` 时间轴预设、显式 `timesteps/dt_s` 覆盖、动态 `PhaseSchedule`、`stage_jitter`、`standard_exposure/variable_onset/fast_transient/incomplete_recovery/multi_pulse` 阶段 profile，相关溯源写入 `manifest.json` 和 `metadata/waveform_spec.json`。
+- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。当前全量验证为 170 passed。
 
 ## 目标目录
 
@@ -47,7 +49,7 @@ py -3.12 -m venv .venv
 
 `data/hitran_cache*/` 与 `outputs/runs/*` 是本地缓存和实验产物，已被 `.gitignore` 排除，不会随远程仓库同步。新机器需要从旧机器复制这些目录，或按下面的 HITRAN 预计算命令重新生成缓存。
 
-当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 当前全量通过 145 个测试。
+当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 当前全量通过 170 个测试。
 
 ## 核心语义
 
@@ -65,11 +67,13 @@ python -m pipeline.precompute_hitran_benchmark_cache --cache-root data/hitran_ca
 python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke --sequences 32 --seed 42 --storage npz --sampling-strategy random
 # 或覆盖声程候选：
 python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke --sequences 32 --seed 42 --storage npz --path-lms 0.20,0.25,0.30,0.35,0.40
+# 或生成长时序 / 多脉冲协议数据：
+python -m pipeline.generate_benchmark --output-root data --dataset wv4-long --sequences 32 --seed 42 --storage npz --time-axis-preset long --stage-profile multi_pulse --stage-jitter 0.05
 # 或显式使用旧经验光学路径（不需要 HITRAN cache）：
 python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke-empirical --sequences 32 --seed 42 --storage npz --optical-absorption-backend empirical_v1
 ```
 
-当前生成主线已经落地条件表、索引表、标签表、split、manifest、validation summary、slow 张量、超声 waveform、显式超声 TOF/观测 TOF/质量派生数组、光纤麦克风 waveform、metadata 和 scaler。默认使用 LHS 采样，默认声程候选为 `(0.20, 0.25, 0.30, 0.35, 0.40)`，短 phase 下会均匀覆盖声程候选端点。NDIR 光学通道默认使用 `hitran_hapi_v1`，按每条 condition 的温压、每个 timestep 的当前组分和 `L_m` 做滤光片积分；H2O 由 `T/P/RH` 换算。benchmark 生成只读 cache，cache 缺失会在写出 dataset 前失败；`empirical_v1` 仍可通过 CLI 显式选择。本地表格谱积分原型为 `tabulated_spectrum_v1`，HITRAN/PNNL 谱线积分路线见 `docs/SPECTRAL_INTEGRATION_PLAN.md`。声学链路的当前模型名会写入 `manifest.json` 和 `metadata/waveform_spec.json`：`ultrasonic` 是 `tof_observed_transducer_proxy_v1`，包含系统延迟、触发抖动、延迟修正、二阶谐振换能器响应和 TOF 质量指标；`fiber_mic` 是 `fiber_interferometric_proxy_v1`，包含探头声压、光纤相位转导、线性解调、电噪声、饱和和 DAQ 量化代理。正式 v4 只写 `splits/train.csv` 这类新命名，不写 V3 的 `train_sequence_ids.csv` 等旧命名。
+当前生成主线已经落地条件表、索引表、标签表、split、manifest、validation summary、slow 张量、超声 waveform、显式超声 TOF/观测 TOF/质量派生数组、光纤麦克风 waveform、metadata 和 scaler。默认使用 LHS 采样，默认声程候选为 `(0.20, 0.25, 0.30, 0.35, 0.40)`，短 phase 下会均匀覆盖声程候选端点。长时序协议通过 `--time-axis-preset`、`--timesteps`、`--dt-s`、`--stage-profile` 和 `--stage-jitter` 控制，默认 `standard_exposure` 且 `stage_jitter=0` 时保持旧四阶段兼容语义。NDIR 光学通道默认使用 `hitran_hapi_v1`，按每条 condition 的温压、每个 timestep 的当前组分和 `L_m` 做滤光片积分；H2O 由 `T/P/RH` 换算。benchmark 生成只读 cache，cache 缺失会在写出 dataset 前失败；`empirical_v1` 仍可通过 CLI 显式选择。本地表格谱积分原型为 `tabulated_spectrum_v1`，HITRAN/PNNL 谱线积分路线见 `docs/SPECTRAL_INTEGRATION_PLAN.md`。声学链路的当前模型名会写入 `manifest.json` 和 `metadata/waveform_spec.json`：`ultrasonic` 是 `tof_observed_transducer_proxy_v1`，包含系统延迟、触发抖动、延迟修正、二阶谐振换能器响应和 TOF 质量指标；`fiber_mic` 是 `fiber_interferometric_proxy_v1`，包含探头声压、光纤相位转导、线性解调、电噪声、饱和和 DAQ 量化代理。正式 v4 只写 `splits/train.csv` 这类新命名，不写 V3 的 `train_sequence_ids.csv` 等旧命名。
 
 ## 传统 ML baseline
 
@@ -107,6 +111,25 @@ print(result.evaluations["val"].metrics)
 ```powershell
 python -m pytest tests/test_ml_baselines.py
 ```
+
+命令行 baseline protocol report：
+
+```powershell
+python -m ml.cli --dataset-dir data/wv4-smoke --protocol --report-path outputs/reports/wv4-smoke-baseline.md
+python -m ml.cli --dataset-dir data/wv4-smoke --protocol --json
+```
+
+该协议会输出 full-window、按实际 `phase_id` 切分的 per-phase 窗口，以及 early-window 指标，用于正式长时序实验前先检查顺序不敏感 baseline 的表现。
+
+## DL 数据、模型与训练
+
+`src/dl` 当前提供最小训练闭环：
+
+- `V4BenchmarkDataset`：读取 v4 benchmark，按 split 过滤，支持 NTC/NCT、lazy memmap、scaler 和显式时间序列增强。
+- `build_model(...)`：通过 `cnn1d`、`tcn`、`lstm`、`transformer`、`patchtst` 构造模型。
+- `Trainer`：支持 `fit`、`evaluate`、`predict`、checkpoint 保存/加载。
+
+当前边界：训练配置和 run 输出契约尚未整理成正式 CLI；`Trainer` 不含分布式训练、LR scheduler 或 early stopping。后续正式实验需要先补 `--dataset-dir/--model/--epochs/--output-dir` 训练入口，再跑长时序模型对比。
 
 ## HITRAN 光谱预计算
 

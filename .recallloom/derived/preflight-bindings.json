@@ -81,6 +81,26 @@
         "contract_version": "0.4.2-mvp.2"
       },
       "lease_digest": "sha256:713f4bf98e1a3307eba8c52a70757ed385e5228f3f0d099ab6a98513988f83fc"
+    },
+    {
+      "lease_type": "recallloom.preflight_write_binding_lease",
+      "lease_version": "0.1",
+      "issued_by": "recallloom.py",
+      "issued_at": "2026-06-03T10:47:41+08:00",
+      "binding_hash": "sha256:c11225b144dac0699d434599ee180e05d44296ee5baed32ecffaf036ed8ed674",
+      "preflight_payload_digest": "sha256:a0ea33100e33c865e4608b02d86a283173f16f6c4351dd61c5be6b6838010498",
+      "operation_class": "daily_log_append",
+      "file_key": "daily_log",
+      "write_type": "milestone_evidence",
+      "contract_type": null,
+      "expected_workspace_revision": 71,
+      "expected_file_revision": null,
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "lease_digest": "sha256:9afdff5fb9bce4271c605b5b081229f9dc0ffe40dbebe8d105cdddcdc405c206"
     }
   ]
 }

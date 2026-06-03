@@ -18,8 +18,9 @@
 - 声学模型契约：`manifest.json` 和 `metadata/waveform_spec.json` 会记录 `ultrasonic_model = "tof_observed_transducer_proxy_v1"`、`ultrasonic_system_delay_model = "fixed_delay_plus_trigger_jitter_v1"`、`ultrasonic_transducer_response_model = "second_order_resonant_bandpass_proxy_v1"`、`fiber_mic_model = "fiber_interferometric_proxy_v1"`、`fiber_optical_demodulation_model = "linear_phase_demodulation_proxy_v1"`、`acoustic_attenuation_model = "semi_empirical_multigas_relaxation_proxy_v2"`。当前 `fiber_mic` 已实现光纤干涉式代理链路，但参数仍是仿真占位，正式实验前需要用真实探头、解调器和 DAQ 标定值替换。
 - 光学 backend：benchmark 默认使用 `hitran_hapi_v1`，生成前按同一批 conditions 校验 HITRAN cache 完整性，生成中只读 cache、不联网、不写谱线缓存；`empirical_v1` 仍可显式选择，用于旧合成经验链路和回归对照。
 - HITRAN 光谱积分支撑：`src/sim/generation/spectral/` 已具备表格谱积分、HAPI 适配、缓存、单位换算和默认滤光片/网格配置；`src/pipeline/precompute_hitran_benchmark_cache.py` 按 benchmark 的 `sequence_count/seed/sampling_strategy` 预计算每条 condition 的 T/P cache，`src/pipeline/precompute_hitran_spectra.py` 保留通用通道预计算入口。默认滤光片当前使用 InfraTec NBP 行业参考占位（`filter_source.type=industry_reference_only`），待目标传感器 TraceGas-HC-NDIR 实际 datasheet 替换。
-- DL 数据加载：`V4BenchmarkDataset` 消费 v4 benchmark 目录，支持慢变量/超声/光纤麦克风三模态、NTC/NCT 格式切换、lazy memmap、按 split 消费；训练期可选 `TimeSeriesAugmentConfig` 做窗口切片/重采样抖动。
+- DL 数据加载：`V4BenchmarkDataset` 消费 v4 benchmark 目录，支持慢变量/超声/光纤麦克风三模态、NTC/NCT 格式切换、lazy memmap、按 split 消费；训练期可选 `TimeSeriesAugmentConfig` 做窗口切片/重采样抖动，默认关闭。
 - DL 模型注册：`MODEL_REGISTRY` + `build_model()` 工厂，已落地 `CNN1DRegressor`、`TCNRegressor`、`LSTMRegressor`、`TransformerRegressor` 和 `PatchTSTRegressor`。CNN/TCN 支持 `mean/last/attention` 时序聚合；`TCNRegressor.receptive_field` 记录模型时间感受野，并可按 `target_timesteps` 自动扩展通道层数。
+- DL 训练闭环：`src/dl/training` 已落地 `WeightedMSELoss`、`SumConstraintLoss`、回归指标、`build_optimizer`、轻量 `Trainer.fit/evaluate/predict` 和 checkpoint 保存/加载。当前定位为单卡最小闭环，不包含正式 argparse CLI、LR scheduler、early stopping 或完整 run report 写出。
 - v4 输出契约：正式 split 只使用 `splits/train.csv`、`splits/val.csv`、`splits/test.csv`、`splits/extrapolation.csv`；不写 V3 的 `*_sequence_ids.csv` 旧命名。
 - 传统 ML 与协议评估：`src/ml` 支持 Mean/Ridge baseline、full/per-phase/early-window 特征窗口，`python -m ml.cli --protocol` 可输出 JSON 或 Markdown baseline protocol report。
 - 验证基线：核心依赖为 `numpy/scipy/torch/pytest/hitran-api`；`python -m pytest` 当前为 170 passed。
@@ -29,5 +30,5 @@
 - 更复杂的环境串扰参数化。
 - 目标传感器 TraceGas-HC-NDIR 实际 datasheet 替换当前行业参考占位、真实 PNNL/NIST 或仪器外部谱表对照和更完整谱源版本管理；当前已具备 HITRAN benchmark 默认接入、通用 CSV sanity check、HAPI 适配层、谱线缓存和 InfraTec NBP 行业参考占位（含 `filter_source` 元信息）。
 - 独立 ML feature package 落盘导出尚未迁移；传统 ML baseline 与 baseline protocol report 入口已落地。
-- DL 训练编排（loss/metrics/trainer）、checkpoint 管理。
+- DL 正式训练 CLI、LR scheduler、early stopping、多 GPU/分布式训练、完整 run report 写出。
 - 跨 run 汇总、绘图和状态管理。

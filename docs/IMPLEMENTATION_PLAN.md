@@ -9,7 +9,7 @@
 | `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN benchmark 默认接入 + 声学模型契约标注 + 超声 TOF 派生数组 + 外部谱表 sanity check 入口 + spectral 默认配置 source-of-truth + 长时序阶段协议） | 94% |
 | `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers；lazy memmap、scaler 阈值契约、窗口切片/重采样抖动增强已收敛 | 55% |
 | `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1D/CNN pooling + TCN 大感受野配置 + LSTM/Transformer/PatchTST + registry | 55% |
-| `src/dl/training` | loss/metrics 基础完成，trainer/checkpoint 待实现                       | 20% |
+| `src/dl/training` | loss/metrics、optimizer 构造、轻量 Trainer、evaluate/predict、checkpoint 已完成；CLI、scheduler、early stopping、完整 run 输出待实现 | 45% |
 | `src/ml`          | 已落地 dependency-light 传统 ML baseline：v4 benchmark 表格特征抽取、Mean/Ridge 多输出回归、numpy 指标、split 训练/评估入口、full/per-phase/early protocol report | 38% |
 | `src/pipeline`    | layout + generate_benchmark + HITRAN benchmark cache 预计算/对照 CLI + 外部谱表 sanity check CLI | 26% |
 | `configs/`        | 已新增 `configs/data/spectral-defaults.json`（运行时 spectral 默认值 source-of-truth，含 `filter_source` 行业参考占位元信息），其余配置未落地 | 8%  |
@@ -131,6 +131,7 @@
 
 - 文件：`configs/train/adamw-cosine.yaml`（Hydra 结构）
 - 字段：`optimizer`、`scheduler`、`loss`、`batch_size`、`epochs`、`grad_clip`
+- **状态**：尚未落地正式配置文件和 argparse/Hydra 训练入口。
 
 ### 4.2 Loss 与 Metrics
 
@@ -139,18 +140,22 @@
   - `SumConstraintLoss`（总和=100% 约束）
 - 文件：`src/dl/training/metrics.py`
   - `macro_RMSE`、`macro_MAE`、`per_component_R2`、`sum_error`
+- **状态**：已落地基础 loss 和回归指标；当前指标实现服务轻量训练闭环，正式报告字段仍需与 run 输出契约对齐。
 
 ### 4.3 Trainer
 
 - 文件：`src/dl/training/trainer.py`
-- 标准训练循环：epoch → batch → forward → loss → backward → step
-- Early stopping + checkpoint 保存
-- 输出契约：`config.json`、`summary.json`、`component_metrics.csv`、`predictions.csv`、`train_log.csv`、`report.md`
+- **状态**：已落地轻量训练器。
+- 标准训练循环：epoch → batch → forward → loss → backward → step。
+- 支持 validation evaluate、predict、optimizer 构造、checkpoint 保存/加载。
+- 当前不含 early stopping、LR scheduler、多 GPU/分布式训练或正式 run 输出写出。
+- 待补 CLI 输出契约：`config.json`、`summary.json`、`component_metrics.csv`、`predictions.csv`、`train_log.csv`、`report.md`。
 
 ### 4.4 Seed 管理
 
 - 文件：`src/dl/training/seed.py`
 - `set_seed()` 统一入口
+- **状态**：尚未单独落地。
 
 ---
 
@@ -222,7 +227,7 @@
 | **P1** ✅  | 声程配置化 + acoustic 测试               | 3        | P0  |
 | **P1** ✅  | 声学链路契约澄清 + 超声 TOF 派生资产          | 5        | P0  |
 | **P2** ✅/⚠️ | TCN + LSTM + Transformer + PatchTST 模型已完成；GRU 未作为长时序提案必需项落地 | 5        | P0  |
-| **P3**    | training 模块（loss/metrics/trainer） | 5        | P0  |
+| **P3** ⚠️ | training 模块 loss/metrics/trainer/checkpoint 已完成；正式 CLI、scheduler、early stopping、run report 待实现 | 5        | P0  |
 | **P4** ✅  | 光谱交叉敏感建模                          | 2        | —   |
 | **P4** 🔜 | TraceGas-HC-NDIR datasheet 替换占位 + 按需扩 HITRAN grid + PNNL/NIST 外部对照 | 3        | P4  |
 | **P5** ✅/⚠️ | ML 特征抽取 + Mean/Ridge 传统 baseline + protocol report 已完成并通过测试；独立特征包落盘、SVR/RandomForest 可选依赖待决策 | 4        | P0  |
@@ -237,5 +242,5 @@
 ## 完成标准
 
 1. `python -m pytest tests/` 全部通过
-2. 端到端链路可运行：配置 → benchmark 生成 → DL 数据加载 → 训练 → 评估 → 报告
+2. 端到端链路可运行：配置 → benchmark 生成 → DL 数据加载 → 训练 → 评估 → 报告；当前已具备 DL 数据加载、模型和轻量训练闭环，正式 CLI 与报告输出仍未完成
 3. 所有 PLAN 6 项问题有明确对应实现或归档决策
