@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 from dl.models.base import BaseRegressor
-from dl.models.heads import build_regression_head
+from dl.models.heads import TemporalPooling, build_regression_head
 
 
 class CNN1DRegressor(BaseRegressor):
@@ -23,6 +23,7 @@ class CNN1DRegressor(BaseRegressor):
         hidden_channels: list[int] | None = None,
         kernel_size: int = 5,
         dropout: float = 0.1,
+        pooling: str = "mean",
     ):
         super().__init__(out_dim=out_dim)
         hidden_channels = hidden_channels or [32, 64, 64]
@@ -39,10 +40,10 @@ class CNN1DRegressor(BaseRegressor):
                 layers.append(nn.Dropout(dropout))
             current = hidden
         self.encoder = nn.Sequential(*layers)
-        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.pool = TemporalPooling(current, mode=pooling)
         self.head = build_regression_head(current, out_dim, dropout)
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         encoded = self.encoder(x)
-        feats = self.pool(encoded).flatten(1)
+        feats = self.pool(encoded)
         return self.head(feats)

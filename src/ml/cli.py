@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
 from ml.features import MLFeatureConfig
 from ml.models import MeanRegressor, RidgeRegressor
 from ml.training import train_regressor_on_dataset
@@ -37,12 +38,44 @@ def build_parser() -> argparse.ArgumentParser:
         default="mean,std,mean_abs,max_abs,energy,peak_index",
     )
     parser.add_argument("--scaler-path", type=Path, default=None, help="Path to z-score scaler JSON for slow channels.")
+    parser.add_argument(
+        "--protocol",
+        action="store_true",
+        default=False,
+        help="Run the full/per-phase/early baseline protocol instead of a single full-window baseline.",
+    )
+    parser.add_argument(
+        "--phases",
+        type=str,
+        default="baseline,exposure,steady,recovery",
+        help="Comma-separated phase windows for --protocol.",
+    )
+    parser.add_argument(
+        "--early-fractions",
+        type=str,
+        default="0.25,0.5,0.75,1.0",
+        help="Comma-separated early fractions for --protocol.",
+    )
+    parser.add_argument(
+        "--report-path",
+        type=Path,
+        default=None,
+        help="Write a Markdown protocol report to this path.",
+    )
     parser.add_argument("--json", action="store_true", default=False, help="Output results as JSON.")
     return parser
 
 
 def _parse_comma(value: str) -> tuple[str, ...]:
     return tuple(s.strip() for s in value.split(",") if s.strip())
+
+
+def _parse_float_comma(value: str) -> tuple[float, ...]:
+    values = tuple(float(s) for s in _parse_comma(value))
+    for fraction in values:
+        if not 0.0 < fraction <= 1.0:
+            raise ValueError(f"early fractions must be in (0, 1], got {fraction}")
+    return values
 
 
 def run(args: argparse.Namespace) -> None:
@@ -70,6 +103,31 @@ def run(args: argparse.Namespace) -> None:
     else:
         model_config = {"name": "ridge", "alpha": args.alpha}
 
+    if args.protocol:
+        try:
+            early_fractions = _parse_float_comma(args.early_fractions)
+        except ValueError as exc:
+            parser = build_parser()
+            parser.error(str(exc))
+
+        result = run_baseline_protocol(
+            dataset_dir,
+            model_config=model_config,
+            feature_config=feature_config,
+            phases=_parse_comma(args.phases),
+            early_fractions=early_fractions,
+        )
+        if args.report_path is not None:
+            args.report_path.parent.mkdir(parents=True, exist_ok=True)
+            args.report_path.write_text(_protocol_markdown(result), encoding="utf-8")
+        if args.json:
+            print(json.dumps(_protocol_payload(result), indent=2))
+        elif args.report_path is None:
+            print(_protocol_markdown(result))
+        else:
+            print(f"wrote protocol report: {args.report_path}")
+        return
+
     result = train_regressor_on_dataset(dataset_dir, model_config=model_config, feature_config=feature_config)
 
     if args.json:
@@ -79,6 +137,10 @@ def run(args: argparse.Namespace) -> None:
 
 
 def _print_json(result: object) -> None:
+    print(json.dumps(_training_payload(result), indent=2))
+
+
+def _training_payload(result: object) -> dict[str, Any]:
     from dataclasses import asdict
 
     from ml.training import MLTrainingResult
@@ -100,7 +162,48 @@ def _print_json(result: object) -> None:
             "metrics": asdict(split_eval.metrics),
             "component_metrics": {k: asdict(v) for k, v in split_eval.component_metrics.items()},
         }
-    print(json.dumps(payload, indent=2))
+    return payload
+
+
+def _protocol_payload(result: BaselineProtocolResult) -> dict[str, Any]:
+    return {
+        "full": _training_payload(result.full),
+        "per_phase": {phase: _training_payload(value) for phase, value in result.per_phase.items()},
+        "early": {str(fraction): _training_payload(value) for fraction, value in result.early.items()},
+    }
+
+
+def _protocol_markdown(result: BaselineProtocolResult) -> str:
+    lines = [
+        "# Baseline Evaluation Protocol",
+        "",
+        "## Full Window",
+        "",
+        _metrics_markdown_table(result.full),
+        "",
+        "## Per Phase",
+        "",
+    ]
+    for phase, phase_result in result.per_phase.items():
+        lines.extend([f"### {phase}", "", _metrics_markdown_table(phase_result), ""])
+    lines.extend(["## Early Windows", ""])
+    for fraction, early_result in result.early.items():
+        lines.extend([f"### first {fraction:g}", "", _metrics_markdown_table(early_result), ""])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _metrics_markdown_table(result: object) -> str:
+    from ml.training import MLTrainingResult
+
+    assert isinstance(result, MLTrainingResult)
+    lines = [
+        "| split | MAE | RMSE | R2 |",
+        "|---|---:|---:|---:|",
+    ]
+    for split_name, split_eval in result.evaluations.items():
+        m = split_eval.metrics
+        lines.append(f"| {split_name} | {m.mae:.6f} | {m.rmse:.6f} | {m.r2:.6f} |")
+    return "\n".join(lines)
 
 
 def _print_table(result: object) -> None:

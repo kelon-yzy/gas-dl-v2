@@ -6,30 +6,30 @@
 
 | 子系统               | 状态                                                              | 完成度 |
 | ----------------- | --------------------------------------------------------------- | --- |
-| `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN benchmark 默认接入 + 声学模型契约标注 + 超声 TOF 派生数组 + 外部谱表 sanity check 入口 + spectral 默认配置 source-of-truth） | 92% |
-| `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers；lazy memmap 与 scaler 阈值契约已收敛 | 45% |
-| `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1DRegressor + TCNRegressor + registry | 25% |
+| `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN benchmark 默认接入 + 声学模型契约标注 + 超声 TOF 派生数组 + 外部谱表 sanity check 入口 + spectral 默认配置 source-of-truth + 长时序阶段协议） | 94% |
+| `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers；lazy memmap、scaler 阈值契约、窗口切片/重采样抖动增强已收敛 | 55% |
+| `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1D/CNN pooling + TCN 大感受野配置 + LSTM/Transformer/PatchTST + registry | 55% |
 | `src/dl/training` | loss/metrics 基础完成，trainer/checkpoint 待实现                       | 20% |
-| `src/ml`          | 已落地 dependency-light 传统 ML baseline：v4 benchmark 表格特征抽取、Mean/Ridge 多输出回归、numpy 指标、split 训练/评估入口 | 25% |
+| `src/ml`          | 已落地 dependency-light 传统 ML baseline：v4 benchmark 表格特征抽取、Mean/Ridge 多输出回归、numpy 指标、split 训练/评估入口、full/per-phase/early protocol report | 38% |
 | `src/pipeline`    | layout + generate_benchmark + HITRAN benchmark cache 预计算/对照 CLI + 外部谱表 sanity check CLI | 26% |
 | `configs/`        | 已新增 `configs/data/spectral-defaults.json`（运行时 spectral 默认值 source-of-truth，含 `filter_source` 行业参考占位元信息），其余配置未落地 | 8%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 全量 145 个测试通过，覆盖 sim + ml + dl + pipeline | 70% |
+| `tests/`          | 全量 170 个测试通过，覆盖 sim + ml + dl + pipeline | 76% |
 
 ## 环境与依赖基线
 
 - 依赖入口已版本化：`pyproject.toml` 声明运行依赖，`requirements.txt` 提供普通 pip 安装入口。
 - Python 版本范围固定为 `>=3.10,<3.14`；当前不使用 Python 3.14 作为主环境，避免科学计算和深度学习 wheel 暂未稳定覆盖时安装失败。
 - 新机器已验证 Python 3.12.10 虚拟环境可用，核心包版本为 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3`、`hitran-api 1.3.0.0`。
-- 当前验证命令：`.\.venv\Scripts\python -m pytest tests`，全量结果为 145 passed。
+- 当前验证命令：`python -m pytest`，全量结果为 170 passed。
 
 ## PLAN 6 项问题对照
 
 | #   | 问题                                                 | 状态                                                 |
 | --- | -------------------------------------------------- | -------------------------------------------------- |
 | 1   | 删除 base_condition_id / noise_seed 旧列，mixture_id 唯一 | ✅ v4 sim 已落地                                       |
-| 2   | TCN 感受野较短                                          | ⚠️ TCNRegressor 已落地并记录 receptive_field，感受野调参待实验配置化 |
-| 3   | 时间步分布不合理                                           | ⚠️ phase 仍为固定四等分                                   |
+| 2   | TCN 感受野较短                                          | ✅ TCNRegressor 支持 `target_timesteps` 自动扩展层数并断言 `receptive_field >= target_timesteps` |
+| 3   | 时间步分布不合理                                           | ✅ 已支持 `short/standard/long/xlong` 时间轴预设、动态 `PhaseSchedule`、多 profile 与 `stage_jitter` |
 | 4   | LHS 采样 + Dropout 语义归位                              | ⚠️ LHS 已完成，Dropout 待 training                      |
 | 5   | 文件命名过长，结果混乱                                        | ✅ output 分区 + run 契约已定义                            |
 | 6   | 光学变量显式分层建模                                         | ✅ NDIR 默认走 HITRAN 多气体光谱积分，empirical 交叉敏感度保留为显式兼容路径 |
@@ -82,6 +82,14 @@
 - **真实下载验证**：本地已用 `hitran-api 1.3.0.0` 下载 CH4/CO2/H2O 在早期 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的 HITRAN 谱线；HAPI 原始表名已绑定波数窗口，避免不同通道缓存互相污染。当前默认窗口已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，需重新预计算生成新缓存
 - **后续实现**：当前默认滤光片已用行业参考占位（CH4 InfraTec LIM-262 3.3 μm/160 nm，对应 147 cm⁻¹ FWHM；CO2 InfraTec 4.26 μm/170 nm，对应 93 cm⁻¹ FWHM），默认 `hitran_grids` 已扩大到覆盖当前滤光片 `center ± FWHM`；仍需替换为目标传感器 TraceGas-HC-NDIR 实际 datasheet，并在 grid 变化后重下 HITRAN benchmark cache；获取真实 PNNL/NIST 或仪器定量谱表并运行 sanity check
 
+### 2.6 长时序阶段协议 ✅
+
+- **状态**：已按 `LONG_SEQUENCE_PROTOCOL_PROPOSAL_2026-06-02.md` 完成 S0-S3 的代码落地。
+- **时间轴**：`BenchmarkGenerationSpec` 支持 `short/standard/long/xlong` 预设，CLI 暴露 `--time-axis-preset`、`--timesteps`、`--dt-s`。
+- **阶段调度**：`src/sim/generation/phases.py` 新增 `PhaseSchedule`/`PhaseSegment`，保留 `standard_exposure` 兼容层，并新增 `variable_onset`、`fast_transient`、`incomplete_recovery`、`multi_pulse`。
+- **随机化与溯源**：`stage_jitter` 按序列 seed 可复现扰动阶段时长，`manifest.json` 和 `metadata/waveform_spec.json` 写入 `stage_profile`、`stage_jitter`、`phase_schedule`。
+- **瞬态动力学**：非标准阶段 profile 走 blend equilibrium + 多时间常数通道更新，支持不完全恢复和跨脉冲记忆效应。
+
 ---
 
 ## Phase 3: DL 模型扩充
@@ -91,13 +99,16 @@
 - **状态**：已完成。新增 `src/dl/models/tcn.py`
 - **实现**：从 V3 的因果卷积残差块思路迁移，适配 v4 `BaseRegressor`、`forward(x) -> Tensor[batch, out_dim]`、默认 `in_channels=8` / `out_dim=4`
 - **注册**：`MODEL_REGISTRY["tcn"]` + `build_model({"name": "tcn", ...})`
-- **感受野记录**：`TCNRegressor.dilations` 与 `TCNRegressor.receptive_field`
+- **感受野记录**：`TCNRegressor.dilations` 与 `TCNRegressor.receptive_field`；`target_timesteps` 会自动扩展层数并断言感受野覆盖目标长度
+- **聚合头**：支持 `mean`、`last`、`attention`，避免长时序实验只能走全局平均池化
 - **测试**：`tests/test_dl_models.py` 覆盖注册、参数透传、NCT forward、梯度、因果卷积长度保持和 dataset → TCN 前向
 
-### 3.2 LSTM / GRU 回归器
+### 3.2 LSTM 回归器 ✅
 
-- 文件：`src/dl/models/lstm.py`、`src/dl/models/gru.py`
+- 文件：`src/dl/models/lstm.py`
 - 统一接口：`forward(x) -> Tensor[batch, out_dim]`
+- 输入格式：NTC，支持 `last`/`mean` pooling
+- 说明：GRU 未作为本次长时序协议提案的必需项落地。
 
 ### 3.3 多模态融合模型
 
@@ -105,10 +116,12 @@
 - 慢变量 CNN1D encoder + 波形 encoder → concat → head
 - 适配 Dataset 多模态输出（slow + ultrasonic + fiber_mic 拼接后的通道维）
 
-### 3.4 Transformer encoder
+### 3.4 Transformer / PatchTST encoder ✅
 
-- 文件：`src/dl/models/transformer.py`
-- 标准 TransformerEncoder + pooling → head
+- 文件：`src/dl/models/transformer.py`、`src/dl/models/patchtst.py`
+- `TransformerRegressor`：标准 TransformerEncoder + sinusoidal position encoding + pooling → head
+- `PatchTSTRegressor`：按时间轴分块后编码，支持长回看窗口的 patch 表达
+- 注册：`MODEL_REGISTRY["transformer"]`、`MODEL_REGISTRY["patchtst"]`
 
 ---
 
@@ -149,6 +162,7 @@
 - **特征层**：新增 `src/ml/features.py`，支持按 split CSV 顺序读取 `slow`、`ultrasonic`、`fiber_mic`，并输出 `MLFeatureMatrix`。
   - slow 模态：对 `(N, T, C)` 序列计算 `mean/std/min/max/last/delta/slope` 等统计量。
   - waveform 模态：先提取帧级 `mean/std/mean_abs/max_abs/energy/peak_index`，再做序列统计，避免直接展开全波形采样点。
+  - 长时序协议：支持按真实 `phase_id` 做 phase window 特征，以及按前 `x%` 步做 early-window 特征。
   - 依赖边界：本地实现 split/scaler 读取，避免传统 ML 路径间接拉起 `torch` 或 `dl.data`。
 - **模型层**：新增 `src/ml/models.py`。
   - `MeanRegressor`：多输出均值 baseline。
@@ -157,8 +171,10 @@
 - **指标与训练入口**：新增 `src/ml/metrics.py` 和 `src/ml/training.py`。
   - numpy 版 MAE、RMSE、R2 和按组分指标。
   - `train_regressor_on_dataset(...)`：加载 train split、拟合模型，并评估 train/val/test/extrapolation split。
-- **测试**：新增 `tests/test_ml_baselines.py`，覆盖特征统计、benchmark split 加载、波形特征、mean/ridge regressor、指标和训练入口。
-- **当前验证状态**：`tests/test_ml_baselines.py` 已纳入全量测试；`python -m pytest tests` 当前为 145 passed。
+- **协议评估**：新增 `src/ml/evaluation_protocol.py`，`run_baseline_protocol(...)` 统一生成 full/per-phase/early baseline 结果。
+- **CLI 报告**：`python -m ml.cli --protocol --report-path <path>` 可写出 Markdown baseline protocol report；`--json` 可输出同结构 JSON。
+- **测试**：`tests/test_ml_baselines.py` 覆盖特征统计、benchmark split 加载、波形特征、mean/ridge regressor、指标、训练入口、protocol 入口和 CLI 报告。
+- **当前验证状态**：`tests/test_ml_baselines.py` 已纳入全量测试；`python -m pytest` 当前为 170 passed。
 
 ### 5.1 特征打包
 
@@ -187,11 +203,13 @@
 
 - 文件：`experiments/run_baseline.py`
 - 读实验配置 → 生成 benchmark（如需要）→ 训练 → 评估 → 写报告
+- **当前状态**：尚未落地批量实验脚本；传统 ML 的单数据集 protocol report 已由 `python -m ml.cli --protocol` 提供。
 
 ### 6.3 汇总与绘图
 
 - 文件：`src/pipeline/summary.py`
 - 跨 run 汇总表、model comparison 表
+- **当前状态**：跨 run 汇总与绘图未落地；S5 的单 run baseline protocol report 已落地。
 
 ---
 
@@ -203,12 +221,12 @@
 | **P1** ✅  | LHS 采样完成                          | 1 (done) | P0  |
 | **P1** ✅  | 声程配置化 + acoustic 测试               | 3        | P0  |
 | **P1** ✅  | 声学链路契约澄清 + 超声 TOF 派生资产          | 5        | P0  |
-| **P2**    | TCN + LSTM/GRU + Transformer 模型   | 5        | P0  |
+| **P2** ✅/⚠️ | TCN + LSTM + Transformer + PatchTST 模型已完成；GRU 未作为长时序提案必需项落地 | 5        | P0  |
 | **P3**    | training 模块（loss/metrics/trainer） | 5        | P0  |
 | **P4** ✅  | 光谱交叉敏感建模                          | 2        | —   |
 | **P4** 🔜 | TraceGas-HC-NDIR datasheet 替换占位 + 按需扩 HITRAN grid + PNNL/NIST 外部对照 | 3        | P4  |
-| **P5** ✅/⚠️ | ML 特征抽取 + Mean/Ridge 传统 baseline 已完成并通过测试；独立特征包落盘、SVR/RandomForest 可选依赖待决策 | 4        | P0  |
-| **P6**    | 配置落地 + 实验编排 + 报告                  | 5        | P3  |
+| **P5** ✅/⚠️ | ML 特征抽取 + Mean/Ridge 传统 baseline + protocol report 已完成并通过测试；独立特征包落盘、SVR/RandomForest 可选依赖待决策 | 4        | P0  |
+| **P6** ⚠️ | 传统 ML 单 run protocol report 已落地；批量实验配置、跨 run 汇总和绘图待实现 | 5        | P3  |
 
 ## 文件规模预估
 

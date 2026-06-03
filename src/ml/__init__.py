@@ -9,6 +9,7 @@ from ml.features import (
     sequence_stat_features,
     waveform_stat_features,
 )
+from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
 from ml.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
 from ml.models import MeanRegressor, RidgeRegressor, REGRESSOR_REGISTRY, build_regressor
 from ml.training import MLTrainingResult, Regressor, SplitEvaluation, evaluate_regressor, train_regressor_on_dataset
@@ -21,6 +22,8 @@ __all__ = [
     "load_feature_matrix",
     "sequence_stat_features",
     "waveform_stat_features",
+    "BaselineProtocolResult",
+    "run_baseline_protocol",
     "MeanRegressor",
     "RidgeRegressor",
     "REGRESSOR_REGISTRY",

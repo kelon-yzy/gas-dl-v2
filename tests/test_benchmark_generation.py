@@ -3,7 +3,8 @@ import json
 
 import numpy as np
 
-from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset, resolve_time_axis_preset
+from sim.generation.slow import _multi_tau_channel_step
 
 
 def _read_csv(path):
@@ -34,6 +35,9 @@ def test_generate_benchmark_dataset_writes_v4_assets(tmp_path):
     assert len(label_rows) == 16
     assert manifest["schema_version"] == "v4-benchmark-1"
     assert manifest["path_lms"] == [0.2, 0.25, 0.3, 0.35, 0.4]
+    assert manifest["stage_profile"] == "standard_exposure"
+    assert manifest["stage_jitter"] == 0.0
+    assert manifest["phase_schedule"]["name"] == "standard_exposure"
     assert manifest["optical_absorption_backend"] == "empirical_v1"
     assert manifest["ultrasonic_model"] == "tof_observed_transducer_proxy_v1"
     assert manifest["ultrasonic_system_delay_model"] == "fixed_delay_plus_trigger_jitter_v1"
@@ -109,6 +113,9 @@ def test_generate_benchmark_dataset_writes_npz_storage_arrays_and_metadata(tmp_p
     assert manifest["storage"] == "npz"
     assert manifest["shapes"]["slow"] == [5, 8, len(slow_channel_names)]
     assert waveform_spec["optical_absorption_backend"] == "empirical_v1"
+    assert waveform_spec["stage_profile"] == "standard_exposure"
+    assert waveform_spec["stage_jitter"] == 0.0
+    assert waveform_spec["phase_schedule"]["segments"][0]["name"] == "baseline"
     assert waveform_spec["ultrasonic"]["model_name"] == "tof_observed_transducer_proxy_v1"
     assert waveform_spec["ultrasonic"]["system_delay_model"] == "fixed_delay_plus_trigger_jitter_v1"
     assert waveform_spec["ultrasonic"]["system_delay_s"] > 0.0
@@ -183,6 +190,65 @@ def test_generate_benchmark_dataset_uses_configured_path_lms(tmp_path):
     assert first_sequence_rows[5]["L_m"] == "0.35000"
 
 
+def test_generate_benchmark_dataset_uses_nonstandard_stage_profile_and_jitter(tmp_path):
+    generate_benchmark_dataset(
+        tmp_path,
+        BenchmarkGenerationSpec(
+            dataset_slug="wv4-variable-onset",
+            sequence_count=4,
+            seed=41,
+            timesteps=32,
+            storage="npz",
+            multi_path_phase="off",
+            stage_profile="variable_onset",
+            stage_jitter=0.15,
+            optical_absorption_backend="empirical_v1",
+        ),
+    )
+
+    dataset_dir = tmp_path / "wv4-variable-onset"
+    slow_rows = _read_csv(dataset_dir / "sequences" / "slow_sequence_long.csv")
+    index_rows = _read_csv(dataset_dir / "sequence_index.csv")
+    manifest = json.loads((dataset_dir / "manifest.json").read_text(encoding="utf-8"))
+    waveform_spec = json.loads((dataset_dir / "metadata" / "waveform_spec.json").read_text(encoding="utf-8"))
+
+    first_sequence_rows = [row for row in slow_rows if row["sequence_id"] == "Q000001"]
+
+    assert {row["stage_profile"] for row in index_rows} == {"variable_onset"}
+    assert manifest["stage_profile"] == "variable_onset"
+    assert manifest["stage_jitter"] == 0.15
+    assert waveform_spec["stage_profile"] == "variable_onset"
+    assert waveform_spec["stage_jitter"] == 0.15
+    assert waveform_spec["phase_schedule"]["segments"][0]["duration_frac"] == 0.35
+    assert first_sequence_rows[0]["phase_id"] == "baseline"
+    assert first_sequence_rows[8]["phase_id"] == "baseline"
+    assert first_sequence_rows[12]["phase_id"] == "exposure"
+
+
+def test_generate_benchmark_dataset_supports_multi_pulse_profile(tmp_path):
+    generate_benchmark_dataset(
+        tmp_path,
+        BenchmarkGenerationSpec(
+            dataset_slug="wv4-multi-pulse",
+            sequence_count=4,
+            seed=43,
+            timesteps=24,
+            storage="npz",
+            multi_path_phase="off",
+            stage_profile="multi_pulse",
+            optical_absorption_backend="empirical_v1",
+        ),
+    )
+
+    rows = _read_csv(tmp_path / "wv4-multi-pulse" / "sequences" / "slow_sequence_long.csv")
+    first_sequence_phases = [row["phase_id"] for row in rows if row["sequence_id"] == "Q000001"]
+
+    assert first_sequence_phases.count("baseline") == 6
+    assert first_sequence_phases.count("exposure") == 6
+    assert first_sequence_phases.count("steady") == 6
+    assert first_sequence_phases.count("recovery") == 6
+
+
 def test_generate_benchmark_dataset_writes_memmap_storage_arrays_without_npz(tmp_path):
     generate_benchmark_dataset(
         tmp_path,
@@ -222,3 +288,27 @@ def test_generate_benchmark_dataset_rejects_invalid_storage(tmp_path):
         assert "storage must be one of" in str(exc)
     else:
         raise AssertionError("invalid storage was accepted")
+
+
+def test_time_axis_presets_define_long_sequence_tiers():
+    assert resolve_time_axis_preset("short").timesteps == 128
+    assert resolve_time_axis_preset("standard").timesteps == 512
+    assert resolve_time_axis_preset("long").timesteps == 1024
+    assert resolve_time_axis_preset("xlong").timesteps == 2048
+
+
+def test_multi_tau_channel_step_moves_toward_target_with_recovery_floor():
+    params = {
+        "tau_rise_system_s": 10.0,
+        "tau_decay_system_s": 10.0,
+        "fast_tau_fraction": 0.3,
+        "slow_tau_multiplier": 3.0,
+        "fast_response_weight": 0.7,
+        "recovery_floor_fraction": 0.05,
+    }
+
+    rising = _multi_tau_channel_step(previous=1.0, target=2.0, params=params)
+    decaying = _multi_tau_channel_step(previous=2.0, target=1.0, params=params)
+
+    assert 1.0 < rising < 2.0
+    assert 1.0 < decaying < 2.0

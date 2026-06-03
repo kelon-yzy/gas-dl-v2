@@ -27,6 +27,7 @@ from sim.generation.optical_backend import (
     hitran_manifest_metadata,
     validate_hitran_benchmark_cache,
 )
+from sim.generation.phases import PHASE_SCHEDULES, resolve_phase_schedule
 from sim.generation.slow import build_sequence_arrays
 from sim.generation.waveforms import FiberMicSpec, WaveformSpec
 from sim.packaging.arrays import write_arrays
@@ -43,6 +44,28 @@ DEFAULT_HITRAN_CACHE_ROOT = "data/hitran_cache"
 
 
 @dataclass(frozen=True, slots=True)
+class TimeAxisPreset:
+    name: str
+    timesteps: int
+    dt_s: float
+
+
+TIME_AXIS_PRESETS = {
+    "short": TimeAxisPreset("short", 128, 0.5),
+    "standard": TimeAxisPreset("standard", 512, 0.5),
+    "long": TimeAxisPreset("long", 1024, 0.5),
+    "xlong": TimeAxisPreset("xlong", 2048, 0.5),
+}
+
+
+def resolve_time_axis_preset(name: str) -> TimeAxisPreset:
+    try:
+        return TIME_AXIS_PRESETS[name]
+    except KeyError as exc:
+        raise ValueError(f"time_axis_preset must be one of {sorted(TIME_AXIS_PRESETS)}, got {name!r}") from exc
+
+
+@dataclass(frozen=True, slots=True)
 class BenchmarkGenerationSpec:
     dataset_slug: str
     sequence_count: int
@@ -52,6 +75,7 @@ class BenchmarkGenerationSpec:
     storage: str = "memmap"
     multi_path_phase: str = "steady"
     stage_profile: str = "standard_exposure"
+    stage_jitter: float = 0.0
     sampling_strategy: str = "lhs"
     path_lms: tuple[float, ...] = DEFAULT_WAVEFORM_PATH_LMS
     optical_absorption_backend: str = HITRAN_ABSORPTION_BACKEND
@@ -62,6 +86,8 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
     _validate_spec(spec)
     dataset_id = BenchmarkDatasetId(spec.dataset_slug)
     output_dir = Path(output_root) / str(dataset_id)
+    phase_schedule = resolve_phase_schedule(spec.stage_profile)
+    phase_schedule_metadata = phase_schedule.to_dict()
 
     conditions = generate_condition_rows(spec.sequence_count, seed=spec.seed, sampling_strategy=spec.sampling_strategy)
     optical_metadata = _optical_absorption_metadata(spec)
@@ -81,6 +107,8 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
         ultrasonic_spec=ultrasonic_spec,
         fiber_mic_spec=fiber_mic_spec,
         path_lms=spec.path_lms,
+        phase_schedule=phase_schedule,
+        stage_jitter=spec.stage_jitter,
         optical_absorption_backend=spec.optical_absorption_backend,
         hitran_cache_root=spec.hitran_cache_root,
     )
@@ -95,6 +123,9 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
         dt_s=spec.dt_s,
         storage=spec.storage,
         multi_path_phase=spec.multi_path_phase,
+        stage_profile=spec.stage_profile,
+        stage_jitter=spec.stage_jitter,
+        phase_schedule=phase_schedule_metadata,
         sampling_strategy=spec.sampling_strategy,
         path_lms=spec.path_lms,
         optical_absorption_backend=spec.optical_absorption_backend,
@@ -140,6 +171,9 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
             "labels": list(COMPONENT_FIELDS),
             "timesteps": spec.timesteps,
             "dt_s": spec.dt_s,
+            "stage_profile": spec.stage_profile,
+            "stage_jitter": spec.stage_jitter,
+            "phase_schedule": phase_schedule_metadata,
             "path_lms": [float(path_l_m) for path_l_m in spec.path_lms],
             "optical_absorption_backend": spec.optical_absorption_backend,
             **acoustic_metadata,
@@ -165,6 +199,10 @@ def _validate_spec(spec: BenchmarkGenerationSpec) -> None:
         raise ValueError(f"storage must be one of {list(VALID_STORAGE_FORMATS)}, got {spec.storage}")
     if spec.multi_path_phase not in MULTI_PATH_PHASES:
         raise ValueError(f"multi_path_phase must be one of {list(MULTI_PATH_PHASES)}, got {spec.multi_path_phase}")
+    if spec.stage_profile not in PHASE_SCHEDULES:
+        raise ValueError(f"stage_profile must be one of {sorted(PHASE_SCHEDULES)}, got {spec.stage_profile!r}")
+    if spec.stage_jitter < 0.0 or spec.stage_jitter >= 1.0:
+        raise ValueError("stage_jitter must be in [0, 1)")
     if len(spec.path_lms) == 0:
         raise ValueError("path_lms must contain at least one value")
     if any(path_l_m <= 0.0 for path_l_m in spec.path_lms):

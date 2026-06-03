@@ -13,7 +13,7 @@ from sim.generation.optical_backend import (
     VALID_OPTICAL_ABSORPTION_BACKENDS,
     compute_hitran_optical_absorption,
 )
-from sim.generation.phases import blend_for_timestep, phase_boundaries, phase_for_timestep
+from sim.generation.phases import PhaseSchedule, phase_boundaries, resolve_phase_schedule
 from sim.generation.spectral import HitranGridSpec, PreparedTabulatedSpectra
 from sim.generation.waveforms import FiberMicSpec, WaveformSpec, simulate_fiber_mic_measurement, simulate_waveform_measurement
 
@@ -41,6 +41,8 @@ def build_sequence_arrays(
     ultrasonic_spec: WaveformSpec,
     fiber_mic_spec: FiberMicSpec,
     path_lms: tuple[float, ...],
+    phase_schedule: str | PhaseSchedule = "standard_exposure",
+    stage_jitter: float = 0.0,
     optical_absorption_backend: str = EMPIRICAL_ABSORPTION_BACKEND,
     hitran_cache_root: str = "data/hitran_cache",
 ) -> dict[str, object]:
@@ -61,7 +63,8 @@ def build_sequence_arrays(
     fiber_mic = np.zeros((sequence_count, timesteps, fiber_mic_spec.waveform_samples), dtype=np.int16)
     fiber_mic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
     slow_rows = []
-    q1, q2, q3 = phase_boundaries(timesteps)
+    base_schedule = resolve_phase_schedule(phase_schedule)
+    use_legacy_standard_dynamics = base_schedule.name == "standard_exposure" and stage_jitter == 0.0
     is_baseline_scan = multi_path_phase == "baseline"
     is_steady_scan = multi_path_phase == "steady"
     spectra_cache: dict[tuple[str, HitranGridSpec], PreparedTabulatedSpectra] | None = (
@@ -89,34 +92,57 @@ def build_sequence_arrays(
             target_main = thermal_conductivity_sensor_feature(target_condition, condition_rng)
         slow_params = _channel_dynamic_params(sequence_rng)
         slow_walk = {channel: 0.0 for channel in SLOW_DYNAMIC_CHANNELS}
+        schedule = base_schedule.jittered(sequence_rng, stage_jitter)
+        phase_intervals = _phase_intervals(schedule, timesteps)
         ndir_state: dict[str, float] = {}
+        slow_state: dict[str, float] = {}
         for timestep in range(timesteps):
-            phase_id = phase_for_timestep(timestep, timesteps)
-            blend = blend_for_timestep(timestep, timesteps)
-            current_l_m = _path_l_m_for_timestep(
+            phase_id = schedule.phase_for_timestep(timestep, timesteps)
+            blend = schedule.blend_for_timestep(timestep, timesteps)
+            current_l_m = _path_l_m_for_schedule(
                 float(condition["L_m_base"]),
                 timestep,
-                q1,
-                q2,
-                q3,
+                phase_intervals,
                 is_baseline_scan,
                 is_steady_scan,
                 path_lms,
             )
             composition = _blend_composition(condition, blend)
             if optical_absorption_backend == EMPIRICAL_ABSORPTION_BACKEND:
-                current = _dynamic_slow_features(baseline_main, target_main, timestep, timesteps, slow_params, slow_walk, sequence_rng)
+                if use_legacy_standard_dynamics:
+                    current = _dynamic_slow_features(baseline_main, target_main, timestep, timesteps, slow_params, slow_walk, sequence_rng)
+                else:
+                    current = _dynamic_features_from_equilibrium(
+                        _blend_equilibrium_features(baseline_main, target_main, blend, channels=SLOW_DYNAMIC_CHANNELS),
+                        slow_state,
+                        timestep,
+                        slow_params,
+                        slow_walk,
+                        sequence_rng,
+                        channels=SLOW_DYNAMIC_CHANNELS,
+                    )
             else:
-                current = _dynamic_slow_features(
-                    baseline_main,
-                    target_main,
-                    timestep,
-                    timesteps,
-                    slow_params,
-                    slow_walk,
-                    sequence_rng,
-                    channels=("V_TCS",),
-                )
+                if use_legacy_standard_dynamics:
+                    current = _dynamic_slow_features(
+                        baseline_main,
+                        target_main,
+                        timestep,
+                        timesteps,
+                        slow_params,
+                        slow_walk,
+                        sequence_rng,
+                        channels=("V_TCS",),
+                    )
+                else:
+                    current = _dynamic_features_from_equilibrium(
+                        _blend_equilibrium_features(baseline_main, target_main, blend, channels=("V_TCS",)),
+                        slow_state,
+                        timestep,
+                        slow_params,
+                        slow_walk,
+                        sequence_rng,
+                        channels=("V_TCS",),
+                    )
                 ndir_equilibrium = _hitran_ndir_equilibrium(
                     condition,
                     composition=composition,
@@ -213,6 +239,19 @@ def _blend_composition(condition: dict[str, str], blend: float) -> dict[str, flo
     }
 
 
+def _blend_equilibrium_features(
+    baseline_main: dict[str, float],
+    target_main: dict[str, float],
+    blend: float,
+    *,
+    channels: tuple[str, ...],
+) -> dict[str, float]:
+    return {
+        channel: float(baseline_main[channel]) + (float(target_main[channel]) - float(baseline_main[channel])) * blend
+        for channel in channels
+    }
+
+
 def _dynamic_slow_features(
     baseline_main: dict[str, float],
     target_main: dict[str, float],
@@ -287,9 +326,11 @@ def _dynamic_features_from_equilibrium(
     for channel in channels:
         target = float(equilibrium[channel])
         previous = state.get(channel, target)
-        tau_key = "tau_rise_system_s" if target >= previous else "tau_decay_system_s"
-        response = 1.0 - math.exp(-1.0 / slow_params[channel][tau_key])
-        value = previous + (target - previous) * response
+        value = _multi_tau_channel_step(
+            previous=previous,
+            target=target,
+            params=slow_params[channel],
+        )
         slow_walk[channel] += sequence_rng.gauss(0.0, slow_params[channel]["random_walk_sigma"])
         value += slow_params[channel]["drift_slope"] * timestep
         value += slow_walk[channel]
@@ -309,11 +350,29 @@ def _channel_dynamic_params(rng: random.Random) -> dict[str, dict[str, float]]:
         params[channel] = {
             "tau_rise_system_s": rng.uniform(rise_min, rise_max),
             "tau_decay_system_s": rng.uniform(decay_min, decay_max),
+            "fast_tau_fraction": rng.uniform(0.25, 0.45),
+            "slow_tau_multiplier": rng.uniform(2.5, 4.5),
+            "fast_response_weight": rng.uniform(0.55, 0.75),
+            "recovery_floor_fraction": rng.uniform(0.02, 0.08),
             "noise_sigma": base_scale * NOISE_FRACTION[channel],
             "random_walk_sigma": base_scale * NOISE_FRACTION[channel] * 0.08,
             "drift_slope": rng.uniform(-1.0, 1.0) * base_scale * NOISE_FRACTION[channel] * 0.015,
         }
     return params
+
+
+def _multi_tau_channel_step(previous: float, target: float, params: dict[str, float]) -> float:
+    tau_key = "tau_rise_system_s" if target >= previous else "tau_decay_system_s"
+    base_tau = params[tau_key]
+    fast_tau = max(1e-6, base_tau * params["fast_tau_fraction"])
+    slow_tau = max(1e-6, base_tau * params["slow_tau_multiplier"])
+    fast_alpha = 1.0 - math.exp(-1.0 / fast_tau)
+    slow_alpha = 1.0 - math.exp(-1.0 / slow_tau)
+    weight = params["fast_response_weight"]
+    alpha = weight * fast_alpha + (1.0 - weight) * slow_alpha
+    if target < previous:
+        target = target + (previous - target) * params["recovery_floor_fraction"]
+    return previous + (target - previous) * alpha
 
 
 def _channel_value(baseline: float, target: float, timestep: int, timesteps: int, tau_rise_system_s: float, tau_decay_system_s: float) -> float:
@@ -346,6 +405,33 @@ def _path_l_m_for_timestep(
         span = max(1, q3 - q2)
         return float(path_lms[_scan_path_index(local, span, len(path_lms))])
     return float(l_m_base)
+
+
+def _path_l_m_for_schedule(
+    l_m_base: float,
+    timestep: int,
+    phase_intervals: tuple[tuple[str, int, int], ...],
+    is_baseline_scan: bool,
+    is_steady_scan: bool,
+    path_lms: tuple[float, ...],
+) -> float:
+    for phase_id, start, end in phase_intervals:
+        if start <= timestep < end:
+            if is_baseline_scan and phase_id == "baseline":
+                return float(path_lms[_scan_path_index(timestep - start, end - start, len(path_lms))])
+            if is_steady_scan and phase_id == "steady":
+                return float(path_lms[_scan_path_index(timestep - start, end - start, len(path_lms))])
+            return float(l_m_base)
+    raise ValueError(f"timestep {timestep} is outside phase schedule")
+
+
+def _phase_intervals(schedule: PhaseSchedule, timesteps: int) -> tuple[tuple[str, int, int], ...]:
+    starts = (0, *schedule.boundaries(timesteps))
+    ends = (*schedule.boundaries(timesteps), timesteps)
+    return tuple(
+        (segment.name, start, end)
+        for segment, start, end in zip(schedule.segments, starts, ends, strict=True)
+    )
 
 
 def _scan_path_index(local_timestep: int, span: int, option_count: int) -> int:

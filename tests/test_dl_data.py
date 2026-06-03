@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 import torch
 
+from dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.data.scalers import apply_scaler, load_scaler
 from dl.data.splits import SPLIT_NAMES, load_splits, resolve_split_indices, split_sequence_ids
@@ -199,3 +200,38 @@ class TestV4BenchmarkDataset:
 
     def test_modality_options_constant(self):
         assert MODALITY_OPTIONS == ("slow", "ultrasonic", "fiber_mic")
+
+    def test_augmentation_preserves_shape_for_ntc_and_nct(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-aug")
+        ntc = V4BenchmarkDataset(
+            dataset_dir,
+            split="train",
+            modalities=("slow",),
+            input_format="NTC",
+            lazy=False,
+            augment_config=TimeSeriesAugmentConfig(jitter_std=0.01, window_fraction=0.75),
+            augment_seed=1,
+        )
+        nct = V4BenchmarkDataset(
+            dataset_dir,
+            split="train",
+            modalities=("slow",),
+            input_format="NCT",
+            lazy=False,
+            augment_config=TimeSeriesAugmentConfig(jitter_std=0.01, window_fraction=0.75),
+            augment_seed=1,
+        )
+
+        x_ntc, _ = ntc[0]
+        x_nct, _ = nct[0]
+
+        assert x_ntc.shape == (32, 8)
+        assert x_nct.shape == (8, 32)
+
+
+def test_augment_sequence_resamples_window_to_original_length():
+    values = np.arange(20, dtype=np.float32).reshape(10, 2)
+    augmented = augment_sequence(values, TimeSeriesAugmentConfig(window_fraction=0.5), np.random.default_rng(3))
+
+    assert augmented.shape == values.shape
+    assert augmented.dtype == np.float32

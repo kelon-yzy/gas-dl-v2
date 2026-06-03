@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
 
+from ml.cli import build_parser as build_ml_cli_parser, run as run_ml_cli
 from ml import (
     MLFeatureConfig,
     MeanRegressor,
@@ -13,6 +15,7 @@ from ml import (
     component_regression_metrics,
     load_feature_matrix,
     regression_metrics,
+    run_baseline_protocol,
     sequence_stat_features,
     train_regressor_on_dataset,
 )
@@ -94,6 +97,28 @@ class TestMLFeatures:
         assert "ultrasonic:ultrasonic_peak_index:mean" in matrix.feature_names
         assert np.isfinite(matrix.x).all()
 
+    def test_load_feature_matrix_can_filter_phase_and_early_window(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-feature-window", sequences=8)
+        full = load_feature_matrix(
+            dataset_dir,
+            split="train",
+            config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean",)),
+        )
+        exposure = load_feature_matrix(
+            dataset_dir,
+            split="train",
+            config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean",), phase_filter="exposure"),
+        )
+        early = load_feature_matrix(
+            dataset_dir,
+            split="train",
+            config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean",), early_fraction=0.5),
+        )
+
+        assert full.x.shape == exposure.x.shape == early.x.shape
+        assert not np.allclose(full.x, exposure.x)
+        assert not np.allclose(full.x, early.x)
+
 
 class TestMLModels:
     def test_mean_regressor_predicts_training_target_mean(self):
@@ -154,3 +179,72 @@ class TestMLTraining:
             assert split_eval.predictions.shape[1] == 4
             assert np.isfinite(split_eval.predictions).all()
             assert isinstance(split_eval.metrics, RegressionMetrics)
+
+    def test_run_baseline_protocol_returns_phase_and_early_results(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-protocol", sequences=16)
+        result = run_baseline_protocol(
+            dataset_dir,
+            model_config="mean",
+            feature_config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean",)),
+            phases=("baseline", "exposure"),
+            early_fractions=(0.5, 1.0),
+            eval_splits=("train", "val"),
+        )
+
+        assert set(result.per_phase) == {"baseline", "exposure"}
+        assert set(result.early) == {0.5, 1.0}
+        assert set(result.full.evaluations) == {"train", "val"}
+
+    def test_ml_cli_protocol_outputs_json(self, tmp_path: Path, capsys):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-cli-protocol-json", sequences=16)
+        parser = build_ml_cli_parser()
+        args = parser.parse_args(
+            [
+                "--dataset-dir",
+                str(dataset_dir),
+                "--model",
+                "mean",
+                "--protocol",
+                "--phases",
+                "baseline,exposure",
+                "--early-fractions",
+                "0.5,1.0",
+                "--json",
+            ]
+        )
+
+        run_ml_cli(args)
+
+        payload = json.loads(capsys.readouterr().out)
+        assert set(payload) == {"full", "per_phase", "early"}
+        assert set(payload["per_phase"]) == {"baseline", "exposure"}
+        assert set(payload["early"]) == {"0.5", "1.0"}
+
+    def test_ml_cli_protocol_writes_markdown_report(self, tmp_path: Path, capsys):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-cli-protocol-report", sequences=16)
+        report_path = tmp_path / "reports" / "baseline_protocol.md"
+        parser = build_ml_cli_parser()
+        args = parser.parse_args(
+            [
+                "--dataset-dir",
+                str(dataset_dir),
+                "--model",
+                "mean",
+                "--protocol",
+                "--phases",
+                "baseline",
+                "--early-fractions",
+                "0.5",
+                "--report-path",
+                str(report_path),
+            ]
+        )
+
+        run_ml_cli(args)
+
+        assert "wrote protocol report" in capsys.readouterr().out
+        report = report_path.read_text(encoding="utf-8")
+        assert "# Baseline Evaluation Protocol" in report
+        assert "## Per Phase" in report
+        assert "### baseline" in report
+        assert "## Early Windows" in report

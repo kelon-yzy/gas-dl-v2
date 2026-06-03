@@ -5,11 +5,17 @@ from typing import Callable
 from torch import nn
 
 from dl.models.cnn1d import CNN1DRegressor
+from dl.models.lstm import LSTMRegressor
+from dl.models.patchtst import PatchTSTRegressor
 from dl.models.tcn import TCNRegressor
+from dl.models.transformer import TransformerRegressor
 
 MODEL_REGISTRY: dict[str, type[nn.Module] | Callable[..., nn.Module]] = {
     "cnn1d": CNN1DRegressor,
+    "lstm": LSTMRegressor,
+    "patchtst": PatchTSTRegressor,
     "tcn": TCNRegressor,
+    "transformer": TransformerRegressor,
 }
 
 

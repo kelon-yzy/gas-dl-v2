@@ -6,8 +6,11 @@ import torch
 
 from dl.models.base import BaseRegressor
 from dl.models.cnn1d import CNN1DRegressor
+from dl.models.lstm import LSTMRegressor
+from dl.models.patchtst import PatchTSTRegressor
 from dl.models.registry import MODEL_REGISTRY, build_model
-from dl.models.tcn import CausalConv1d, TCNRegressor
+from dl.models.tcn import CausalConv1d, TCNRegressor, tcn_channels_for_timesteps
+from dl.models.transformer import TransformerRegressor
 from dl.data.dataset import V4BenchmarkDataset
 from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
 
@@ -34,6 +37,9 @@ class TestModelRegistry:
     def test_registry_contains_tcn(self):
         assert "tcn" in MODEL_REGISTRY
 
+    def test_registry_contains_sequence_models(self):
+        assert {"lstm", "transformer", "patchtst"}.issubset(MODEL_REGISTRY)
+
     def test_build_model_from_config(self):
         model = build_model({"name": "cnn1d", "in_channels": 8, "out_dim": 4})
         assert isinstance(model, CNN1DRegressor)
@@ -41,6 +47,11 @@ class TestModelRegistry:
     def test_build_tcn_from_config(self):
         model = build_model({"name": "tcn", "in_channels": 8, "out_dim": 4})
         assert isinstance(model, TCNRegressor)
+
+    def test_build_sequence_models_from_config(self):
+        assert isinstance(build_model({"name": "lstm", "in_channels": 8, "out_dim": 4}), LSTMRegressor)
+        assert isinstance(build_model({"name": "transformer", "in_channels": 8, "out_dim": 4}), TransformerRegressor)
+        assert isinstance(build_model({"name": "patchtst", "in_channels": 8, "out_dim": 4}), PatchTSTRegressor)
 
     def test_build_model_unknown_name_raises(self):
         try:
@@ -133,11 +144,57 @@ class TestTCNRegressor:
         assert model.dilations == (1, 2, 4)
         assert model.receptive_field == 29
 
+    def test_target_timesteps_expands_default_receptive_field(self):
+        model = TCNRegressor(in_channels=8, out_dim=4, target_timesteps=512)
+        assert len(model.dilations) == 8
+        assert model.receptive_field >= 512
+        assert tcn_channels_for_timesteps(1024) == [32, 64, 64, 64, 64, 64, 64, 64, 64]
+
+    def test_target_timesteps_rejects_manual_short_receptive_field(self):
+        try:
+            TCNRegressor(channels=[16, 32, 64], kernel_size=3, target_timesteps=512)
+        except ValueError as exc:
+            assert "receptive_field=29" in str(exc)
+        else:
+            raise AssertionError("short manual TCN receptive field was accepted")
+
+    def test_rejects_empty_channels(self):
+        try:
+            TCNRegressor(channels=[])
+        except ValueError as exc:
+            assert "channels must contain at least one block" in str(exc)
+        else:
+            raise AssertionError("empty TCN channels were accepted")
+
     def test_causal_conv_preserves_timesteps(self):
         conv = CausalConv1d(in_channels=3, out_channels=5, kernel_size=3, dilation=2)
         x = torch.randn(2, 3, 11)
         out = conv(x)
         assert out.shape == (2, 5, 11)
+
+
+class TestLongSequenceRegressors:
+    def test_lstm_forward_shape_ntc(self):
+        model = LSTMRegressor(in_channels=8, out_dim=4, hidden_size=16)
+        out = model(torch.randn(2, 32, 8))
+        assert out.shape == (2, 4)
+
+    def test_transformer_forward_shape_ntc(self):
+        model = TransformerRegressor(in_channels=8, out_dim=4, d_model=16, nhead=4, num_layers=1, dim_feedforward=32)
+        out = model(torch.randn(2, 32, 8))
+        assert out.shape == (2, 4)
+
+    def test_patchtst_forward_shape_ntc(self):
+        model = PatchTSTRegressor(in_channels=8, out_dim=4, patch_len=8, stride=4, d_model=16, nhead=4, num_layers=1)
+        out = model(torch.randn(2, 32, 8))
+        assert out.shape == (2, 4)
+
+    def test_attention_pooling_keeps_cnn_tcn_shapes(self):
+        cnn = CNN1DRegressor(in_channels=8, out_dim=4, pooling="attention")
+        tcn = TCNRegressor(in_channels=8, out_dim=4, pooling="last")
+        x = torch.randn(2, 8, 32)
+        assert cnn(x).shape == (2, 4)
+        assert tcn(x).shape == (2, 4)
 
 
 class TestBaseRegressor:

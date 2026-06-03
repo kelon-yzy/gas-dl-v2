@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import torch
 from torch import nn
 
 
@@ -19,3 +20,25 @@ def build_regression_head(in_features: int, out_dim: int, dropout: float) -> nn.
         nn.Dropout(dropout),
         nn.Linear(64, out_dim),
     )
+
+
+class TemporalPooling(nn.Module):
+    """Time aggregation head for encoded NCT sequences."""
+
+    def __init__(self, in_channels: int, mode: str = "mean"):
+        super().__init__()
+        if mode not in {"mean", "last", "attention"}:
+            raise ValueError("pooling mode must be one of ['mean', 'last', 'attention']")
+        self.mode = mode
+        self.attention = nn.Conv1d(in_channels, 1, kernel_size=1) if mode == "attention" else None
+
+    def forward(self, encoded: torch.Tensor) -> torch.Tensor:
+        if encoded.ndim != 3:
+            raise ValueError(f"encoded must be NCT, got ndim={encoded.ndim}")
+        if self.mode == "mean":
+            return encoded.mean(dim=-1)
+        if self.mode == "last":
+            return encoded[:, :, -1]
+        assert self.attention is not None
+        weights = torch.softmax(self.attention(encoded), dim=-1)
+        return torch.sum(encoded * weights, dim=-1)

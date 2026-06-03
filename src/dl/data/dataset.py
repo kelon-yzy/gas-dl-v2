@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
 from dl.data.scalers import apply_scaler, load_scaler
 from dl.data.splits import load_splits, resolve_split_indices
 
@@ -45,12 +46,16 @@ class V4BenchmarkDataset(Dataset):
         input_format: str = "NTC",
         scaler_path: Path | str | None = None,
         lazy: bool = True,
+        augment_config: TimeSeriesAugmentConfig | None = None,
+        augment_seed: int = 0,
     ):
         dataset_dir = Path(dataset_dir)
         self._dataset_dir = dataset_dir
         self._modalities = tuple(modalities)
         self._input_format = input_format.upper()
         self._lazy = lazy
+        self._augment_config = augment_config
+        self._augment_rng = np.random.default_rng(augment_seed)
 
         _validate_modalities(self._modalities)
         if self._input_format not in {"NTC", "NCT"}:
@@ -116,6 +121,8 @@ class V4BenchmarkDataset(Dataset):
             parts.append(self._fiber_mic[src_idx])
 
         x = np.concatenate(parts, axis=-1) if len(parts) > 1 else parts[0]
+        if self._augment_config is not None:
+            x = augment_sequence(x, self._augment_config, self._augment_rng)
         if self._input_format == "NCT":
             x = np.transpose(x, (1, 0))
         return torch.from_numpy(np.array(x, dtype=np.float32, copy=True))

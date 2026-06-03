@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import csv
 
 import numpy as np
 
@@ -22,6 +23,8 @@ class MLFeatureConfig:
     sequence_statistics: tuple[str, ...] = DEFAULT_SEQUENCE_STATISTICS
     waveform_frame_features: tuple[str, ...] = DEFAULT_WAVEFORM_FRAME_FEATURES
     slow_scaler_path: Path | str | None = None
+    phase_filter: str | None = None
+    early_fraction: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,10 +53,13 @@ def load_feature_matrix(
     dataset_dir = Path(dataset_dir)
     config = config or MLFeatureConfig()
     _validate_modalities(config.modalities)
+    _validate_window_config(config)
 
     splits = load_splits(dataset_dir / "splits")
     master_sequence_ids = _load_str_array(dataset_dir / "metadata" / "sequence_ids.npy")
     split_indices = resolve_split_indices(splits, master_sequence_ids)[split]
+    split_sequence_ids = tuple(master_sequence_ids[index] for index in split_indices)
+    masks = _load_timestep_masks(dataset_dir, split_sequence_ids, config)
     labels = np.load(dataset_dir / "labels" / "y.npy").astype(np.float32)[split_indices]
     label_names = tuple(_load_str_array(dataset_dir / "metadata" / "label_names.npy"))
 
@@ -69,6 +75,7 @@ def load_feature_matrix(
             channel_names=slow_channel_names,
             statistics=config.sequence_statistics,
             prefix="slow",
+            masks=masks,
         )
         parts.append(slow_features)
         names.extend(slow_names)
@@ -79,6 +86,7 @@ def load_feature_matrix(
             modality="ultrasonic",
             frame_features=config.waveform_frame_features,
             sequence_statistics=config.sequence_statistics,
+            masks=masks,
         )
         parts.append(ultrasonic_features)
         names.extend(ultrasonic_names)
@@ -89,6 +97,7 @@ def load_feature_matrix(
             modality="fiber_mic",
             frame_features=config.waveform_frame_features,
             sequence_statistics=config.sequence_statistics,
+            masks=masks,
         )
         parts.append(fiber_features)
         names.extend(fiber_names)
@@ -96,8 +105,7 @@ def load_feature_matrix(
     if not parts:
         raise ValueError("At least one modality must be selected")
     x = np.concatenate(parts, axis=1).astype(np.float32, copy=False)
-    sequence_ids = tuple(master_sequence_ids[index] for index in split_indices)
-    return MLFeatureMatrix(x=x, y=labels, feature_names=tuple(names), label_names=label_names, sequence_ids=sequence_ids)
+    return MLFeatureMatrix(x=x, y=labels, feature_names=tuple(names), label_names=label_names, sequence_ids=split_sequence_ids)
 
 
 def sequence_stat_features(
@@ -106,6 +114,7 @@ def sequence_stat_features(
     channel_names: tuple[str, ...],
     statistics: tuple[str, ...] = DEFAULT_SEQUENCE_STATISTICS,
     prefix: str,
+    masks: tuple[np.ndarray, ...] | None = None,
 ) -> tuple[np.ndarray, tuple[str, ...]]:
     """Summarize an ``(N, T, C)`` sequence tensor into tabular statistics."""
     values = np.asarray(values, dtype=np.float32)
@@ -117,7 +126,7 @@ def sequence_stat_features(
     feature_blocks: list[np.ndarray] = []
     feature_names: list[str] = []
     for stat in statistics:
-        block = _sequence_stat(values, stat)
+        block = _masked_sequence_stat(values, masks, stat) if masks is not None else _sequence_stat(values, stat)
         feature_blocks.append(block)
         feature_names.extend(f"{prefix}:{channel}:{stat}" for channel in channel_names)
     return np.concatenate(feature_blocks, axis=1).astype(np.float32, copy=False), tuple(feature_names)
@@ -130,6 +139,7 @@ def waveform_stat_features(
     modality: str,
     frame_features: tuple[str, ...] = DEFAULT_WAVEFORM_FRAME_FEATURES,
     sequence_statistics: tuple[str, ...] = DEFAULT_SEQUENCE_STATISTICS,
+    masks: tuple[np.ndarray, ...] | None = None,
 ) -> tuple[np.ndarray, tuple[str, ...]]:
     """Extract compact waveform descriptors for one waveform modality."""
     if modality not in {"ultrasonic", "fiber_mic"}:
@@ -138,7 +148,7 @@ def waveform_stat_features(
     waveform = np.load(dataset_dir / "sequences" / f"{modality}_int16.npy", mmap_mode="r")[split_indices]
     scale = np.load(dataset_dir / "sequences" / f"{modality}_scale.npy", mmap_mode="r")[split_indices]
     frames, frame_names = _waveform_frame_descriptors(waveform, scale, frame_features, prefix=modality)
-    return sequence_stat_features(frames, channel_names=frame_names, statistics=sequence_statistics, prefix=modality)
+    return sequence_stat_features(frames, channel_names=frame_names, statistics=sequence_statistics, prefix=modality, masks=masks)
 
 
 def _sequence_stat(values: np.ndarray, stat: str) -> np.ndarray:
@@ -172,6 +182,16 @@ def _least_squares_slope(values: np.ndarray) -> np.ndarray:
     denom = float(np.sum(t * t))
     centered = values - values.mean(axis=1, keepdims=True)
     return np.sum(centered * t.reshape(1, -1, 1), axis=1) / denom
+
+
+def _masked_sequence_stat(values: np.ndarray, masks: tuple[np.ndarray, ...], stat: str) -> np.ndarray:
+    rows = []
+    for row, mask in zip(values, masks, strict=True):
+        selected = row[mask]
+        if selected.shape[0] == 0:
+            raise ValueError("timestep window selected no frames")
+        rows.append(_sequence_stat(selected[np.newaxis, :, :], stat)[0])
+    return np.stack(rows, axis=0).astype(np.float32, copy=False)
 
 
 def _waveform_frame_descriptors(
@@ -212,6 +232,43 @@ def _validate_modalities(modalities: tuple[str, ...]) -> None:
     for modality in modalities:
         if modality not in MODALITY_OPTIONS:
             raise ValueError(f"Unknown modality: {modality!r}. Available: {MODALITY_OPTIONS}")
+
+
+def _validate_window_config(config: MLFeatureConfig) -> None:
+    if config.early_fraction is not None and (config.early_fraction <= 0.0 or config.early_fraction > 1.0):
+        raise ValueError("early_fraction must be in (0, 1]")
+
+
+def _load_timestep_masks(dataset_dir: Path, sequence_ids: tuple[str, ...], config: MLFeatureConfig) -> tuple[np.ndarray, ...] | None:
+    if config.phase_filter is None and config.early_fraction is None:
+        return None
+    phase_rows = _load_phase_rows(dataset_dir / "sequences" / "slow_sequence_long.csv")
+    masks = []
+    for sequence_id in sequence_ids:
+        rows = phase_rows[sequence_id]
+        timesteps = len(rows)
+        mask = np.ones(timesteps, dtype=bool)
+        if config.phase_filter is not None:
+            mask &= np.array([phase_id == config.phase_filter for _timestep, phase_id in rows], dtype=bool)
+        if config.early_fraction is not None:
+            cutoff = max(1, int(np.ceil(timesteps * config.early_fraction)))
+            early_mask = np.zeros(timesteps, dtype=bool)
+            early_mask[:cutoff] = True
+            mask &= early_mask
+        if not mask.any():
+            raise ValueError(f"empty timestep window for sequence_id={sequence_id!r}")
+        masks.append(mask)
+    return tuple(masks)
+
+
+def _load_phase_rows(path: Path) -> dict[str, list[tuple[int, str]]]:
+    rows: dict[str, list[tuple[int, str]]] = {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        for row in csv.DictReader(handle):
+            rows.setdefault(row["sequence_id"], []).append((int(row["timestep"]), row["phase_id"]))
+    for sequence_rows in rows.values():
+        sequence_rows.sort(key=lambda item: item[0])
+    return rows
 
 
 def _load_str_array(path: Path) -> list[str]:
