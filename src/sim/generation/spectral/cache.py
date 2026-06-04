@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
 import re
+import uuid
 
 import numpy as np
 
@@ -47,12 +48,19 @@ def write_cached_spectrum(
     root = Path(cache_root)
     root.mkdir(parents=True, exist_ok=True)
     path = cache_path(root, key)
-    np.savez_compressed(
-        path,
-        wavenumber_cm1=wavenumber_cm1.astype(np.float64),
-        absorption_coeff_cm1=absorption_coeff_cm1.astype(np.float64),
-        metadata=json.dumps(asdict(key), ensure_ascii=True, sort_keys=True),
-    )
+    tmp_path = path.with_name(f"{path.name}.tmp-{uuid.uuid4().hex}")
+    try:
+        with tmp_path.open("wb") as handle:
+            np.savez_compressed(
+                handle,
+                wavenumber_cm1=wavenumber_cm1.astype(np.float64),
+                absorption_coeff_cm1=absorption_coeff_cm1.astype(np.float64),
+                metadata=json.dumps(asdict(key), ensure_ascii=True, sort_keys=True),
+            )
+        tmp_path.replace(path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
     return path
 
 

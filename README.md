@@ -13,10 +13,10 @@
 - 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor`、`TCNRegressor`、`LSTMRegressor`、`TransformerRegressor` 和 `PatchTSTRegressor`。CNN/TCN 支持 `mean/last/attention` 聚合，TCN 支持按 `target_timesteps` 自动扩展感受野。
 - 已建立 `src/dl/training`：提供 loss、metrics、轻量 `Trainer`、optimizer 构造、evaluate/predict 和 checkpoint 保存/加载。当前仍没有 argparse 训练 CLI、LR scheduler、early stopping 或完整 run 报告输出。
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
-- 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口。
-- 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/precompute_hitran_benchmark_cache.py`、`src/pipeline/compare_optical_backends.py` 和 `src/pipeline/sanity_check_tabulated_spectra.py`：HITRAN 谱缓存预计算、benchmark 专用 cache 预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check 入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
+- 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口，CLI 默认按 CPU 自动启用 sequence chunk 多进程生成。
+- 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/precompute_hitran_benchmark_cache.py`、`src/pipeline/compare_optical_backends.py`、`src/pipeline/sanity_check_tabulated_spectra.py` 和 `src/pipeline/bundle_waveform_sequence.py`：HITRAN 谱缓存预计算、benchmark 专用 cache 预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check、生成后 waveform 压缩包打包入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
 - 已建立长时序协议：支持 `short/standard/long/xlong` 时间轴预设、显式 `timesteps/dt_s` 覆盖、动态 `PhaseSchedule`、`stage_jitter`、`standard_exposure/variable_onset/fast_transient/incomplete_recovery/multi_pulse` 阶段 profile，相关溯源写入 `manifest.json` 和 `metadata/waveform_spec.json`。
-- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。当前全量验证为 170 passed。
+- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。当前全量验证为 182 passed。
 
 ## 目标目录
 
@@ -49,7 +49,7 @@ py -3.12 -m venv .venv
 
 `data/hitran_cache*/` 与 `outputs/runs/*` 是本地缓存和实验产物，已被 `.gitignore` 排除，不会随远程仓库同步。新机器需要从旧机器复制这些目录，或按下面的 HITRAN 预计算命令重新生成缓存。
 
-当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 当前全量通过 170 个测试。
+当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 当前全量通过 182 个测试。
 
 ## 核心语义
 
@@ -74,6 +74,8 @@ python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke-emp
 ```
 
 当前生成主线已经落地条件表、索引表、标签表、split、manifest、validation summary、slow 张量、超声 waveform、显式超声 TOF/观测 TOF/质量派生数组、光纤麦克风 waveform、metadata 和 scaler。默认使用 LHS 采样，默认声程候选为 `(0.20, 0.25, 0.30, 0.35, 0.40)`，短 phase 下会均匀覆盖声程候选端点。长时序协议通过 `--time-axis-preset`、`--timesteps`、`--dt-s`、`--stage-profile` 和 `--stage-jitter` 控制，默认 `standard_exposure` 且 `stage_jitter=0` 时保持旧四阶段兼容语义。NDIR 光学通道默认使用 `hitran_hapi_v1`，按每条 condition 的温压、每个 timestep 的当前组分和 `L_m` 做滤光片积分；H2O 由 `T/P/RH` 换算。benchmark 生成只读 cache，cache 缺失会在写出 dataset 前失败；`empirical_v1` 仍可通过 CLI 显式选择。本地表格谱积分原型为 `tabulated_spectrum_v1`，HITRAN/PNNL 谱线积分路线见 `docs/SPECTRAL_INTEGRATION_PLAN.md`。声学链路的当前模型名会写入 `manifest.json` 和 `metadata/waveform_spec.json`：`ultrasonic` 是 `tof_observed_transducer_proxy_v1`，包含系统延迟、触发抖动、延迟修正、二阶谐振换能器响应和 TOF 质量指标；`fiber_mic` 是 `fiber_interferometric_proxy_v1`，包含探头声压、光纤相位转导、线性解调、电噪声、饱和和 DAQ 量化代理。正式 v4 只写 `splits/train.csv` 这类新命名，不写 V3 的 `train_sequence_ids.csv` 等旧命名。
+
+性能参数需要区分 CLI 与 Python API：`python -m pipeline.generate_benchmark` 未传 `--workers` 时会使用 `default_worker_count(sequence_count)`，即默认保留 2 个逻辑线程给系统并最多使用 24 个 worker；`python -m pipeline.precompute_hitran_benchmark_cache` 也采用同样的 CLI 默认。程序化调用 `BenchmarkGenerationSpec(...)` 时，`workers` 仍默认是 `1`，目的是保留既有 Python API 的串行语义；如果在脚本里也要并行，必须显式设置 `workers=default_worker_count(sequence_count)` 或具体整数。可选参数 `--chunk-size` 控制每个 chunk 的 sequence 数，默认按 `ceil(sequences / workers)`；`--temp-dir` 指定 chunk 临时目录；`--keep-chunks` 仅用于调试。大规模正式数据集推荐 `--storage memmap`，需要 `sequences/waveform_sequence.npz` 时在生成后单独运行 `python -m pipeline.bundle_waveform_sequence --dataset-dir data/<dataset>`，避免压缩打包阻塞主生成路径。
 
 ## 传统 ML baseline
 
@@ -139,7 +141,7 @@ python -m pipeline.precompute_hitran_benchmark_cache --cache-root data/hitran_ca
 python -m pipeline.compare_optical_backends --cache-root data/hitran_cache
 ```
 
-从仓库根目录运行时，根层 `pipeline` launcher 包会把 `src` 加入 Python import path，并把子模块解析转发到 `src/pipeline`，因此 README 中的 `python -m pipeline...` 命令可直接执行。预计算入口需要真实 HAPI 环境；缺少 HAPI 时会直接报错，不会生成 fake 谱线。benchmark 专用预计算必须与后续生成使用相同的 `--sequences`、`--seed` 和 `--sampling-strategy`，因为 `hitran_hapi_v1` cache key 按每条 condition 的 `T_C_base/P_MPa_base` 派生。若对应窗口的 HAPI 原始 `.data/.header` 表已在本地，预计算会复用本地真实谱线表并直接通过 `absorptionCoefficient_Voigt` 生成当前温压的 `.npz` cache；只有原始表缺失时才调用 `hapi.fetch` 下载。当前本地环境已验证 `hitran-api 1.3.0.0` 可用，早期已成功下载 CH4/CO2/H2O 在 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.npz` 预计算缓存；当前默认 HITRAN grid 已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，以覆盖行业参考滤光片 `center ± FWHM`。运行时默认滤光片、气体和 grid 以 `configs/data/spectral-defaults.json` 为 source-of-truth，`src/sim/generation/spectral/defaults.py` 只负责读取并构造 dataclass 常量。`data/hitran_cache*/` 是本地运行缓存，已加入 `.gitignore`，不纳入版本库。
+从仓库根目录运行时，根层 `pipeline` launcher 包会把 `src` 加入 Python import path，并把子模块解析转发到 `src/pipeline`，因此 README 中的 `python -m pipeline...` 命令可直接执行。预计算入口需要真实 HAPI 环境；缺少 HAPI 时会直接报错，不会生成 fake 谱线。benchmark 专用预计算必须与后续生成使用相同的 `--sequences`、`--seed` 和 `--sampling-strategy`，因为 `hitran_hapi_v1` cache key 按每条 condition 的 `T_C_base/P_MPa_base` 派生。若对应窗口的 HAPI 原始 `.data/.header` 表已在本地，预计算会复用本地真实谱线表并直接通过 `absorptionCoefficient_Voigt` 生成当前温压的 `.npz` cache；只有原始表缺失时才调用 `hapi.fetch` 下载。benchmark 专用预计算 CLI 未传 `--workers` 时默认自动并行；实现会先串行确保 HAPI 原始表存在，再并行补齐缺失 `.npz` cache，已有 cache 会直接跳过。当前本地环境已验证 `hitran-api 1.3.0.0` 可用，早期已成功下载 CH4/CO2/H2O 在 `2960-3100 cm-1` 与 `2280-2410 cm-1` 两个窗口的谱线，并生成 `.npz` 预计算缓存；当前默认 HITRAN grid 已扩大为 CH4 `2880-3180 cm-1`、CO2 `2250-2445 cm-1`，以覆盖行业参考滤光片 `center ± FWHM`。运行时默认滤光片、气体和 grid 以 `configs/data/spectral-defaults.json` 为 source-of-truth，`src/sim/generation/spectral/defaults.py` 只负责读取并构造 dataclass 常量。`data/hitran_cache*/` 是本地运行缓存，已加入 `.gitignore`，不纳入版本库。
 
 ## 外部定量谱表 sanity check
 

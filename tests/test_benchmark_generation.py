@@ -3,6 +3,7 @@ import json
 
 import numpy as np
 
+from pipeline.bundle_waveform_sequence import bundle_waveform_sequence
 from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset, resolve_time_axis_preset
 from sim.generation.slow import _multi_tau_channel_step
 
@@ -276,6 +277,118 @@ def test_generate_benchmark_dataset_writes_memmap_storage_arrays_without_npz(tmp
     assert (dataset_dir / "sequences" / "ultrasonic_tof_accepted.npy").is_file()
     assert (dataset_dir / "sequences" / "fiber_mic_int16.npy").is_file()
     assert not (dataset_dir / "sequences" / "waveform_sequence.npz").exists()
+
+
+def test_parallel_generation_preserves_schema_shape_split_manifest_and_quality(tmp_path):
+    serial_summary = generate_benchmark_dataset(
+        tmp_path,
+        BenchmarkGenerationSpec(
+            dataset_slug="wv4-serial-contract",
+            sequence_count=6,
+            seed=53,
+            timesteps=8,
+            storage="memmap",
+            optical_absorption_backend="empirical_v1",
+            workers=1,
+        ),
+    )
+    parallel_summary = generate_benchmark_dataset(
+        tmp_path,
+        BenchmarkGenerationSpec(
+            dataset_slug="wv4-parallel-contract",
+            sequence_count=6,
+            seed=53,
+            timesteps=8,
+            storage="memmap",
+            optical_absorption_backend="empirical_v1",
+            workers=2,
+            chunk_size=2,
+        ),
+    )
+
+    serial_dir = tmp_path / "wv4-serial-contract"
+    parallel_dir = tmp_path / "wv4-parallel-contract"
+    serial_manifest = json.loads((serial_dir / "manifest.json").read_text(encoding="utf-8"))
+    parallel_manifest = json.loads((parallel_dir / "manifest.json").read_text(encoding="utf-8"))
+    serial_quality = json.loads((serial_dir / "quality" / "validation_summary.json").read_text(encoding="utf-8"))
+    parallel_quality = json.loads((parallel_dir / "quality" / "validation_summary.json").read_text(encoding="utf-8"))
+
+    assert serial_summary["sequence_count"] == parallel_summary["sequence_count"] == 6
+    assert serial_manifest["shapes"] == parallel_manifest["shapes"]
+    assert serial_manifest["storage"] == parallel_manifest["storage"] == "memmap"
+    assert serial_manifest["slow_channels"] == parallel_manifest["slow_channels"]
+    assert serial_manifest["labels"] == parallel_manifest["labels"]
+    assert serial_quality["status"] == parallel_quality["status"] == "pass"
+    assert _read_csv(serial_dir / "condition_grid_sequence.csv") == _read_csv(parallel_dir / "condition_grid_sequence.csv")
+    assert _read_csv(serial_dir / "splits" / "train.csv") == _read_csv(parallel_dir / "splits" / "train.csv")
+    assert _read_csv(serial_dir / "splits" / "val.csv") == _read_csv(parallel_dir / "splits" / "val.csv")
+    assert _read_csv(serial_dir / "splits" / "test.csv") == _read_csv(parallel_dir / "splits" / "test.csv")
+    assert _read_csv(serial_dir / "splits" / "extrapolation.csv") == _read_csv(parallel_dir / "splits" / "extrapolation.csv")
+    assert np.load(serial_dir / "metadata" / "sequence_ids.npy", allow_pickle=True).tolist() == np.load(
+        parallel_dir / "metadata" / "sequence_ids.npy",
+        allow_pickle=True,
+    ).tolist()
+
+
+def test_parallel_generation_is_stable_across_chunk_sizes(tmp_path):
+    for slug, chunk_size in (("wv4-chunk-1", 1), ("wv4-chunk-3", 3)):
+        generate_benchmark_dataset(
+            tmp_path,
+            BenchmarkGenerationSpec(
+                dataset_slug=slug,
+                sequence_count=6,
+                seed=59,
+                timesteps=8,
+                storage="memmap",
+                multi_path_phase="off",
+                optical_absorption_backend="empirical_v1",
+                workers=2,
+                chunk_size=chunk_size,
+            ),
+        )
+
+    chunk_1_dir = tmp_path / "wv4-chunk-1"
+    chunk_3_dir = tmp_path / "wv4-chunk-3"
+
+    assert _read_csv(chunk_1_dir / "condition_grid_sequence.csv") == _read_csv(chunk_3_dir / "condition_grid_sequence.csv")
+    assert _read_csv(chunk_1_dir / "sequences" / "slow_sequence_long.csv") == _read_csv(chunk_3_dir / "sequences" / "slow_sequence_long.csv")
+    np.testing.assert_allclose(np.load(chunk_1_dir / "sequences" / "slow.npy"), np.load(chunk_3_dir / "sequences" / "slow.npy"))
+    np.testing.assert_array_equal(
+        np.load(chunk_1_dir / "sequences" / "ultrasonic_int16.npy"),
+        np.load(chunk_3_dir / "sequences" / "ultrasonic_int16.npy"),
+    )
+    np.testing.assert_array_equal(
+        np.load(chunk_1_dir / "sequences" / "fiber_mic_int16.npy"),
+        np.load(chunk_3_dir / "sequences" / "fiber_mic_int16.npy"),
+    )
+    np.testing.assert_allclose(np.load(chunk_1_dir / "labels" / "y.npy"), np.load(chunk_3_dir / "labels" / "y.npy"))
+
+
+def test_bundle_waveform_sequence_builds_npz_after_memmap_generation(tmp_path):
+    generate_benchmark_dataset(
+        tmp_path,
+        BenchmarkGenerationSpec(
+            dataset_slug="wv4-memmap-bundle",
+            sequence_count=4,
+            seed=61,
+            timesteps=8,
+            storage="memmap",
+            optical_absorption_backend="empirical_v1",
+            workers=2,
+            chunk_size=2,
+        ),
+    )
+
+    dataset_dir = tmp_path / "wv4-memmap-bundle"
+    assert not (dataset_dir / "sequences" / "waveform_sequence.npz").exists()
+
+    summary = bundle_waveform_sequence(dataset_dir)
+    bundle = np.load(dataset_dir / "sequences" / "waveform_sequence.npz")
+
+    assert summary["dataset_dir"] == str(dataset_dir)
+    assert bundle["slow"].shape == np.load(dataset_dir / "sequences" / "slow.npy").shape
+    assert bundle["ultrasonic"].shape == np.load(dataset_dir / "sequences" / "ultrasonic_int16.npy").shape
+    assert bundle["y"].shape == np.load(dataset_dir / "labels" / "y.npy").shape
 
 
 def test_generate_benchmark_dataset_rejects_invalid_storage(tmp_path):

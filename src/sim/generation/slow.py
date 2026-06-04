@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import math
 import random
 
@@ -45,6 +46,7 @@ def build_sequence_arrays(
     stage_jitter: float = 0.0,
     optical_absorption_backend: str = EMPIRICAL_ABSORPTION_BACKEND,
     hitran_cache_root: str = "data/hitran_cache",
+    start_sequence_index: int = 0,
 ) -> dict[str, object]:
     if optical_absorption_backend not in VALID_OPTICAL_ABSORPTION_BACKENDS:
         raise ValueError(f"optical_absorption_backend must be one of {list(VALID_OPTICAL_ABSORPTION_BACKENDS)}, got {optical_absorption_backend!r}")
@@ -74,10 +76,10 @@ def build_sequence_arrays(
         {} if optical_absorption_backend == HITRAN_ABSORPTION_BACKEND else None
     )
 
-    root_rng = random.Random(seed)
     for seq_index, condition in enumerate(conditions):
-        condition_rng = random.Random(root_rng.randrange(0, 2**32))
-        sequence_rng = random.Random(root_rng.randrange(0, 2**32))
+        global_sequence_index = start_sequence_index + seq_index
+        condition_rng = random.Random(_stable_uint32(seed, global_sequence_index, "condition"))
+        sequence_rng = random.Random(_stable_uint32(seed, global_sequence_index, "sequence"))
         baseline_condition = _main_feature_condition(condition, 0.0, 0.0, 0.0, 100.0, float(condition["L_m_base"]))
         target_condition = _main_feature_condition(
             condition,
@@ -207,6 +209,39 @@ def build_sequence_arrays(
         "fiber_mic_scale": fiber_mic_scale,
         "slow_rows": slow_rows,
     }
+
+
+def build_sequence_arrays_chunk(
+    conditions: list[dict[str, str]],
+    *,
+    timesteps: int,
+    dt_s: float,
+    seed: int,
+    multi_path_phase: str,
+    ultrasonic_spec: WaveformSpec,
+    fiber_mic_spec: FiberMicSpec,
+    path_lms: tuple[float, ...],
+    phase_schedule: str | PhaseSchedule = "standard_exposure",
+    stage_jitter: float = 0.0,
+    optical_absorption_backend: str = EMPIRICAL_ABSORPTION_BACKEND,
+    hitran_cache_root: str = "data/hitran_cache",
+    start_sequence_index: int = 0,
+) -> dict[str, object]:
+    return build_sequence_arrays(
+        conditions,
+        timesteps=timesteps,
+        dt_s=dt_s,
+        seed=seed,
+        multi_path_phase=multi_path_phase,
+        ultrasonic_spec=ultrasonic_spec,
+        fiber_mic_spec=fiber_mic_spec,
+        path_lms=path_lms,
+        phase_schedule=phase_schedule,
+        stage_jitter=stage_jitter,
+        optical_absorption_backend=optical_absorption_backend,
+        hitran_cache_root=hitran_cache_root,
+        start_sequence_index=start_sequence_index,
+    )
 
 
 def _main_feature_condition(condition: dict[str, str], x_h2: float, x_ch4: float, x_co2: float, x_n2: float, l_m: float) -> dict[str, str]:
@@ -434,3 +469,9 @@ def _slow_row(sequence_id: str, timestep: int, dt_s: float, phase_id: str, curre
 
 def _fmt(value: float, digits: int) -> str:
     return f"{value:.{digits}f}"
+
+
+def _stable_uint32(seed: int, sequence_index: int, stream_name: str) -> int:
+    payload = f"{seed}:{sequence_index}:{stream_name}".encode("utf-8")
+    digest = hashlib.blake2b(payload, digest_size=8).digest()
+    return int.from_bytes(digest, byteorder="big") % (2**32)

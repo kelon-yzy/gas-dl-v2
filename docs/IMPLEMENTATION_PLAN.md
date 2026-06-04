@@ -11,17 +11,17 @@
 | `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1D/CNN pooling + TCN 大感受野配置 + LSTM/Transformer/PatchTST + registry | 55% |
 | `src/dl/training` | loss/metrics、optimizer 构造、轻量 Trainer、evaluate/predict、checkpoint 已完成；CLI、scheduler、early stopping、完整 run 输出待实现 | 45% |
 | `src/ml`          | 已落地 dependency-light 传统 ML baseline：v4 benchmark 表格特征抽取、Mean/Ridge 多输出回归、numpy 指标、split 训练/评估入口、full/per-phase/early protocol report | 38% |
-| `src/pipeline`    | layout + generate_benchmark + HITRAN benchmark cache 预计算/对照 CLI + 外部谱表 sanity check CLI | 26% |
+| `src/pipeline`    | layout + generate_benchmark 并行生成 + HITRAN benchmark cache 并行预计算/对照 CLI + 外部谱表 sanity check CLI + waveform bundle CLI | 32% |
 | `configs/`        | 已新增 `configs/data/spectral-defaults.json`（运行时 spectral 默认值 source-of-truth，含 `filter_source` 行业参考占位元信息），其余配置未落地 | 8%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 全量 170 个测试通过，覆盖 sim + ml + dl + pipeline | 76% |
+| `tests/`          | 全量 182 个测试通过，覆盖 sim + ml + dl + pipeline | 78% |
 
 ## 环境与依赖基线
 
 - 依赖入口已版本化：`pyproject.toml` 声明运行依赖，`requirements.txt` 提供普通 pip 安装入口。
 - Python 版本范围固定为 `>=3.10,<3.14`；当前不使用 Python 3.14 作为主环境，避免科学计算和深度学习 wheel 暂未稳定覆盖时安装失败。
 - 新机器已验证 Python 3.12.10 虚拟环境可用，核心包版本为 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3`、`hitran-api 1.3.0.0`。
-- 当前验证命令：`python -m pytest`，全量结果为 170 passed。
+- 当前验证命令：`python -m pytest`，全量结果为 182 passed。
 
 ## PLAN 6 项问题对照
 
@@ -89,6 +89,17 @@
 - **阶段调度**：`src/sim/generation/phases.py` 新增 `PhaseSchedule`/`PhaseSegment`，保留 `standard_exposure` 兼容层，并新增 `variable_onset`、`fast_transient`、`incomplete_recovery`、`multi_pulse`。
 - **随机化与溯源**：`stage_jitter` 按序列 seed 可复现扰动阶段时长，`manifest.json` 和 `metadata/waveform_spec.json` 写入 `stage_profile`、`stage_jitter`、`phase_schedule`。
 - **瞬态动力学**：非标准阶段 profile 走 blend equilibrium + 多时间常数通道更新，支持不完全恢复和跨脉冲记忆效应。
+
+### 2.7 仿真数据生成性能利用率 ✅
+
+- **状态**：已完成第一版。`src/sim/generation/benchmark.py` 支持按 sequence chunk 多进程生成，worker 只写临时 chunk，最终 `.npy`、CSV、metadata、manifest、quality 仍由主进程顺序合并写出。
+- **CLI 默认**：`python -m pipeline.generate_benchmark` 未传 `--workers` 时使用 `default_worker_count(sequence_count)`，默认保留 2 个逻辑线程给系统并最多使用 24 个 worker；`--chunk-size` 默认按 `ceil(sequences / workers)`。
+- **Python API 默认**：`BenchmarkGenerationSpec.workers` 仍默认是 `1`，用于保留既有程序化调用的串行语义。脚本内如果希望并行，必须显式传 `workers=default_worker_count(sequence_count)` 或具体整数。
+- **可复现性**：序列随机源按 `(global_seed, sequence_index, stream_name)` 稳定派生，同一 seed 下不依赖 worker 数和 chunk 切分。
+- **输出安全**：生成过程先写 `<dataset>.tmp-*` staging 目录，验证和写出完成后再发布到最终 dataset 目录；并行中间文件默认位于 staging 下 `.chunks`，`--keep-chunks` 仅用于调试。
+- **HITRAN cache**：`pipeline.precompute_hitran_benchmark_cache` 也支持 `--workers`，CLI 默认同样自动并行。实现先串行确保 HAPI 原始 `.data/.header` 表存在，再并行运行 `absorptionCoefficient_Voigt` 生成缺失 `.npz` cache；cache 已存在时跳过。谱 cache 写入采用临时文件加 `replace` 的原子写入。
+- **存储策略**：大规模正式运行推荐 `storage=memmap`；如需 `waveform_sequence.npz`，生成后运行 `python -m pipeline.bundle_waveform_sequence --dataset-dir <dataset>` 单独打包，避免压缩阻塞主生成路径。
+- **测试**：新增并行生成契约、不同 chunk-size 稳定性、HITRAN cache 跳过、bundle 入口测试；已纳入全量 182 passed。
 
 ---
 
@@ -179,7 +190,7 @@
 - **协议评估**：新增 `src/ml/evaluation_protocol.py`，`run_baseline_protocol(...)` 统一生成 full/per-phase/early baseline 结果。
 - **CLI 报告**：`python -m ml.cli --protocol --report-path <path>` 可写出 Markdown baseline protocol report；`--json` 可输出同结构 JSON。
 - **测试**：`tests/test_ml_baselines.py` 覆盖特征统计、benchmark split 加载、波形特征、mean/ridge regressor、指标、训练入口、protocol 入口和 CLI 报告。
-- **当前验证状态**：`tests/test_ml_baselines.py` 已纳入全量测试；`python -m pytest` 当前为 170 passed。
+- **当前验证状态**：`tests/test_ml_baselines.py` 已纳入全量测试；`python -m pytest` 当前为 182 passed。
 
 ### 5.1 特征打包
 

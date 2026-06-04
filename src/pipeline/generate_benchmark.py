@@ -10,6 +10,7 @@ from sim.generation.benchmark import (
     DEFAULT_WAVEFORM_PATH_LMS,
     TIME_AXIS_PRESETS,
     BenchmarkGenerationSpec,
+    default_worker_count,
     generate_benchmark_dataset,
     resolve_time_axis_preset,
 )
@@ -43,6 +44,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--path-lms", type=parse_path_lms, default=DEFAULT_WAVEFORM_PATH_LMS)
     parser.add_argument("--optical-absorption-backend", choices=VALID_OPTICAL_ABSORPTION_BACKENDS, default="hitran_hapi_v1")
     parser.add_argument("--hitran-cache-root", default=DEFAULT_HITRAN_CACHE_ROOT)
+    parser.add_argument("--workers", type=int, default=None, help="Worker processes for sequence generation (default: CPU count - 2, capped at 24).")
+    parser.add_argument("--chunk-size", type=int, default=None, help="Sequences per worker chunk (default: ceil(sequences / workers)).")
+    parser.add_argument("--temp-dir", type=str, default=None, help="Chunk temp directory (default: <dataset staging dir>/.chunks).")
+    parser.add_argument("--keep-chunks", action="store_true", default=False, help="Keep chunk temp files for debugging.")
     return parser
 
 
@@ -51,6 +56,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     time_axis = resolve_time_axis_preset(args.time_axis_preset)
     timesteps = args.timesteps if args.timesteps is not None else time_axis.timesteps
     dt_s = args.dt_s if args.dt_s is not None else time_axis.dt_s
+    workers = args.workers if args.workers is not None else default_worker_count(args.sequences)
     summary = generate_benchmark_dataset(
         Path(args.output_root),
         BenchmarkGenerationSpec(
@@ -67,6 +73,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             path_lms=args.path_lms,
             optical_absorption_backend=args.optical_absorption_backend,
             hitran_cache_root=args.hitran_cache_root,
+            workers=workers,
+            chunk_size=args.chunk_size,
+            temp_dir=args.temp_dir,
+            keep_chunks=args.keep_chunks,
         ),
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2))

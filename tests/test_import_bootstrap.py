@@ -22,3 +22,21 @@ def test_pipeline_modules_are_importable_from_repo_root_without_pythonpath():
 
     assert result.returncode == 0
     assert "Generate a v4 benchmark dataset" in result.stdout
+
+
+def test_waveform_bundle_module_is_importable_from_repo_root_without_pythonpath():
+    project_root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pipeline.bundle_waveform_sequence", "--help"],
+        cwd=project_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "Bundle generated waveform arrays" in result.stdout

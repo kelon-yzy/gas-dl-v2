@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import math
+import os
+import shutil
+import uuid
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,7 +33,7 @@ from sim.generation.optical_backend import (
     validate_hitran_benchmark_cache,
 )
 from sim.generation.phases import PHASE_SCHEDULES, resolve_phase_schedule
-from sim.generation.slow import build_sequence_arrays
+from sim.generation.slow import build_sequence_arrays, build_sequence_arrays_chunk
 from sim.generation.waveforms import FiberMicSpec, WaveformSpec
 from sim.packaging.arrays import write_arrays
 from sim.packaging.index import build_sequence_index_rows
@@ -41,6 +46,22 @@ from sim.validation.integrity import validate_benchmark_assets
 
 DEFAULT_WAVEFORM_PATH_LMS = (0.20, 0.25, 0.30, 0.35, 0.40)
 DEFAULT_HITRAN_CACHE_ROOT = "data/hitran_cache"
+DEFAULT_MAX_WORKERS = 24
+ARRAY_KEYS = (
+    "slow",
+    "ultrasonic",
+    "ultrasonic_scale",
+    "ultrasonic_tof_s",
+    "ultrasonic_tof_observed_s",
+    "ultrasonic_peak_index",
+    "ultrasonic_sound_speed_m_per_s",
+    "ultrasonic_sound_speed_estimated_m_per_s",
+    "ultrasonic_alpha_true_npm",
+    "ultrasonic_tof_quality",
+    "ultrasonic_tof_accepted",
+    "fiber_mic",
+    "fiber_mic_scale",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,108 +101,115 @@ class BenchmarkGenerationSpec:
     path_lms: tuple[float, ...] = DEFAULT_WAVEFORM_PATH_LMS
     optical_absorption_backend: str = HITRAN_ABSORPTION_BACKEND
     hitran_cache_root: str = DEFAULT_HITRAN_CACHE_ROOT
+    workers: int = 1
+    chunk_size: int | None = None
+    temp_dir: str | None = None
+    keep_chunks: bool = False
 
 
 def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGenerationSpec) -> dict[str, object]:
     _validate_spec(spec)
     dataset_id = BenchmarkDatasetId(spec.dataset_slug)
-    output_dir = Path(output_root) / str(dataset_id)
+    output_root = Path(output_root)
+    output_dir = output_root / str(dataset_id)
+    staging_dir = output_root / f"{dataset_id}.tmp-{uuid.uuid4().hex[:12]}"
     phase_schedule = resolve_phase_schedule(spec.stage_profile)
     phase_schedule_metadata = phase_schedule.to_dict()
 
-    conditions = generate_condition_rows(spec.sequence_count, seed=spec.seed, sampling_strategy=spec.sampling_strategy)
-    optical_metadata = _optical_absorption_metadata(spec)
-    if spec.optical_absorption_backend == HITRAN_ABSORPTION_BACKEND:
-        validate_hitran_benchmark_cache(conditions, cache_root=spec.hitran_cache_root)
-    split_rows = build_default_split_rows(conditions, seed=spec.seed)
-    labels = _label_array(conditions)
-    ultrasonic_spec = WaveformSpec()
-    fiber_mic_spec = FiberMicSpec()
-    acoustic_metadata = _acoustic_model_metadata(ultrasonic_spec, fiber_mic_spec)
-    arrays = build_sequence_arrays(
-        conditions,
-        timesteps=spec.timesteps,
-        dt_s=spec.dt_s,
-        seed=spec.seed,
-        multi_path_phase=spec.multi_path_phase,
-        ultrasonic_spec=ultrasonic_spec,
-        fiber_mic_spec=fiber_mic_spec,
-        path_lms=spec.path_lms,
-        phase_schedule=phase_schedule,
-        stage_jitter=spec.stage_jitter,
-        optical_absorption_backend=spec.optical_absorption_backend,
-        hitran_cache_root=spec.hitran_cache_root,
-    )
-    validation_summary = validate_benchmark_assets(conditions, split_rows, arrays, labels)
-    sequence_ids = [row["sequence_id"] for row in conditions]
-    shapes = write_arrays(output_dir, arrays, labels, sequence_ids, SLOW_CHANNELS, COMPONENT_FIELDS, spec.storage)
-    manifest = build_manifest(
-        dataset_slug=str(dataset_id),
-        sequence_count=spec.sequence_count,
-        seed=spec.seed,
-        timesteps=spec.timesteps,
-        dt_s=spec.dt_s,
-        storage=spec.storage,
-        multi_path_phase=spec.multi_path_phase,
-        stage_profile=spec.stage_profile,
-        stage_jitter=spec.stage_jitter,
-        phase_schedule=phase_schedule_metadata,
-        sampling_strategy=spec.sampling_strategy,
-        path_lms=spec.path_lms,
-        optical_absorption_backend=spec.optical_absorption_backend,
-        shapes=shapes,
-        slow_channels=SLOW_CHANNELS,
-        labels=COMPONENT_FIELDS,
-        optical_absorption_metadata=optical_metadata,
-        acoustic_model_metadata=acoustic_metadata,
-    )
-
-    write_csv(output_dir / "condition_grid_sequence.csv", CONDITION_GRID_FIELDS, conditions)
-    write_csv(
-        output_dir / "sequence_index.csv",
-        SEQUENCE_INDEX_FIELDS,
-        build_sequence_index_rows(
-            conditions,
-            stage_profile=spec.stage_profile,
+    try:
+        conditions = generate_condition_rows(spec.sequence_count, seed=spec.seed, sampling_strategy=spec.sampling_strategy)
+        optical_metadata = _optical_absorption_metadata(spec)
+        if spec.optical_absorption_backend == HITRAN_ABSORPTION_BACKEND:
+            validate_hitran_benchmark_cache(conditions, cache_root=spec.hitran_cache_root)
+        split_rows = build_default_split_rows(conditions, seed=spec.seed)
+        labels = _label_array(conditions)
+        ultrasonic_spec = WaveformSpec()
+        fiber_mic_spec = FiberMicSpec()
+        acoustic_metadata = _acoustic_model_metadata(ultrasonic_spec, fiber_mic_spec)
+        arrays = _build_sequence_arrays_for_spec(
+            conditions=conditions,
+            spec=spec,
+            phase_schedule=phase_schedule,
+            ultrasonic_spec=ultrasonic_spec,
+            fiber_mic_spec=fiber_mic_spec,
+            staging_dir=staging_dir,
+        )
+        validation_summary = validate_benchmark_assets(conditions, split_rows, arrays, labels)
+        sequence_ids = [row["sequence_id"] for row in conditions]
+        shapes = write_arrays(staging_dir, arrays, labels, sequence_ids, SLOW_CHANNELS, COMPONENT_FIELDS, spec.storage)
+        manifest = build_manifest(
+            dataset_slug=str(dataset_id),
+            sequence_count=spec.sequence_count,
+            seed=spec.seed,
             timesteps=spec.timesteps,
             dt_s=spec.dt_s,
-        ),
-    )
-    write_csv(output_dir / "sequence_labels.csv", SEQUENCE_LABEL_FIELDS, build_label_rows(conditions))
-    write_csv(output_dir / "sequences" / "slow_sequence_long.csv", SLOW_SEQUENCE_FIELDS, arrays["slow_rows"])
-    for split_name in SPLIT_NAMES:
-        write_csv(output_dir / "splits" / f"{split_name}.csv", SPLIT_FIELDS, split_rows[split_name])
-    write_json(output_dir / "splits" / "split_summary.json", _split_summary(split_rows))
-    train_sequence_ids = {row["sequence_id"] for row in split_rows["train"]}
-    train_indexes = [index for index, sequence_id in enumerate(sequence_ids) if sequence_id in train_sequence_ids]
-    slow_scaler, slow_modal_scaler = fit_z_score_scalers(
-        arrays["slow"],
-        train_indexes,
-        channel_names=SLOW_CHANNELS,
-        modal_groups=SLOW_MODAL_GROUPS,
-    )
-    write_json(output_dir / "scalers" / "scaler_slow_sequence.json", slow_scaler)
-    write_json(output_dir / "scalers" / "scaler_slow_sequence_modal.json", slow_modal_scaler)
-    write_json(
-        output_dir / "metadata" / "waveform_spec.json",
-        {
-            "ultrasonic": ultrasonic_spec.to_dict(),
-            "fiber_mic": fiber_mic_spec.to_dict(),
-            "slow_channels": list(SLOW_CHANNELS),
-            "labels": list(COMPONENT_FIELDS),
-            "timesteps": spec.timesteps,
-            "dt_s": spec.dt_s,
-            "stage_profile": spec.stage_profile,
-            "stage_jitter": spec.stage_jitter,
-            "phase_schedule": phase_schedule_metadata,
-            "path_lms": [float(path_l_m) for path_l_m in spec.path_lms],
-            "optical_absorption_backend": spec.optical_absorption_backend,
-            **acoustic_metadata,
-            **optical_metadata,
-        },
-    )
-    write_json(output_dir / "manifest.json", manifest)
-    write_json(output_dir / "quality" / "validation_summary.json", validation_summary)
+            storage=spec.storage,
+            multi_path_phase=spec.multi_path_phase,
+            stage_profile=spec.stage_profile,
+            stage_jitter=spec.stage_jitter,
+            phase_schedule=phase_schedule_metadata,
+            sampling_strategy=spec.sampling_strategy,
+            path_lms=spec.path_lms,
+            optical_absorption_backend=spec.optical_absorption_backend,
+            shapes=shapes,
+            slow_channels=SLOW_CHANNELS,
+            labels=COMPONENT_FIELDS,
+            optical_absorption_metadata=optical_metadata,
+            acoustic_model_metadata=acoustic_metadata,
+        )
+
+        write_csv(staging_dir / "condition_grid_sequence.csv", CONDITION_GRID_FIELDS, conditions)
+        write_csv(
+            staging_dir / "sequence_index.csv",
+            SEQUENCE_INDEX_FIELDS,
+            build_sequence_index_rows(
+                conditions,
+                stage_profile=spec.stage_profile,
+                timesteps=spec.timesteps,
+                dt_s=spec.dt_s,
+            ),
+        )
+        write_csv(staging_dir / "sequence_labels.csv", SEQUENCE_LABEL_FIELDS, build_label_rows(conditions))
+        write_csv(staging_dir / "sequences" / "slow_sequence_long.csv", SLOW_SEQUENCE_FIELDS, arrays["slow_rows"])
+        for split_name in SPLIT_NAMES:
+            write_csv(staging_dir / "splits" / f"{split_name}.csv", SPLIT_FIELDS, split_rows[split_name])
+        write_json(staging_dir / "splits" / "split_summary.json", _split_summary(split_rows))
+        train_sequence_ids = {row["sequence_id"] for row in split_rows["train"]}
+        train_indexes = [index for index, sequence_id in enumerate(sequence_ids) if sequence_id in train_sequence_ids]
+        slow_scaler, slow_modal_scaler = fit_z_score_scalers(
+            arrays["slow"],
+            train_indexes,
+            channel_names=SLOW_CHANNELS,
+            modal_groups=SLOW_MODAL_GROUPS,
+        )
+        write_json(staging_dir / "scalers" / "scaler_slow_sequence.json", slow_scaler)
+        write_json(staging_dir / "scalers" / "scaler_slow_sequence_modal.json", slow_modal_scaler)
+        write_json(
+            staging_dir / "metadata" / "waveform_spec.json",
+            {
+                "ultrasonic": ultrasonic_spec.to_dict(),
+                "fiber_mic": fiber_mic_spec.to_dict(),
+                "slow_channels": list(SLOW_CHANNELS),
+                "labels": list(COMPONENT_FIELDS),
+                "timesteps": spec.timesteps,
+                "dt_s": spec.dt_s,
+                "stage_profile": spec.stage_profile,
+                "stage_jitter": spec.stage_jitter,
+                "phase_schedule": phase_schedule_metadata,
+                "path_lms": [float(path_l_m) for path_l_m in spec.path_lms],
+                "optical_absorption_backend": spec.optical_absorption_backend,
+                **acoustic_metadata,
+                **optical_metadata,
+            },
+        )
+        write_json(staging_dir / "manifest.json", manifest)
+        write_json(staging_dir / "quality" / "validation_summary.json", validation_summary)
+        _cleanup_parallel_temp_arrays(arrays)
+        _publish_staging_dir(staging_dir, output_dir)
+    except Exception:
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir)
+        raise
 
     return {
         "dataset_slug": str(dataset_id),
@@ -213,6 +241,10 @@ def _validate_spec(spec: BenchmarkGenerationSpec) -> None:
         )
     if spec.optical_absorption_backend == HITRAN_ABSORPTION_BACKEND and not str(spec.hitran_cache_root).strip():
         raise ValueError("hitran_cache_root must be non-empty when optical_absorption_backend is hitran_hapi_v1")
+    if spec.workers <= 0:
+        raise ValueError("workers must be positive")
+    if spec.chunk_size is not None and spec.chunk_size <= 0:
+        raise ValueError("chunk_size must be positive when provided")
 
 
 def _optical_absorption_metadata(spec: BenchmarkGenerationSpec) -> dict[str, object]:
@@ -258,3 +290,165 @@ def _split_summary(split_rows: dict[str, list[dict[str, str]]]) -> dict[str, obj
             for name, rows in split_rows.items()
         },
     }
+
+
+def default_worker_count(sequence_count: int | None = None) -> int:
+    cpu_count = os.cpu_count() or 1
+    workers = max(1, min(DEFAULT_MAX_WORKERS, cpu_count - 2))
+    if sequence_count is not None:
+        workers = min(workers, max(1, int(sequence_count)))
+    return workers
+
+
+def default_chunk_size(sequence_count: int, workers: int) -> int:
+    return max(1, int(math.ceil(float(sequence_count) / float(max(1, workers)))))
+
+
+def _build_sequence_arrays_for_spec(
+    *,
+    conditions: list[dict[str, str]],
+    spec: BenchmarkGenerationSpec,
+    phase_schedule,
+    ultrasonic_spec: WaveformSpec,
+    fiber_mic_spec: FiberMicSpec,
+    staging_dir: Path,
+) -> dict[str, object]:
+    if spec.workers == 1 or len(conditions) <= 1:
+        return build_sequence_arrays(
+            conditions,
+            timesteps=spec.timesteps,
+            dt_s=spec.dt_s,
+            seed=spec.seed,
+            multi_path_phase=spec.multi_path_phase,
+            ultrasonic_spec=ultrasonic_spec,
+            fiber_mic_spec=fiber_mic_spec,
+            path_lms=spec.path_lms,
+            phase_schedule=phase_schedule,
+            stage_jitter=spec.stage_jitter,
+            optical_absorption_backend=spec.optical_absorption_backend,
+            hitran_cache_root=spec.hitran_cache_root,
+        )
+    chunk_size = spec.chunk_size or default_chunk_size(len(conditions), spec.workers)
+    temp_dir = Path(spec.temp_dir) if spec.temp_dir is not None else staging_dir / ".chunks"
+    chunk_specs = _condition_chunks(conditions, chunk_size)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    results = []
+    with ProcessPoolExecutor(max_workers=min(spec.workers, len(chunk_specs))) as executor:
+        futures = [
+            executor.submit(
+                _generate_chunk_file,
+                chunk_index,
+                chunk_conditions,
+                start_index,
+                temp_dir,
+                spec,
+                phase_schedule,
+                ultrasonic_spec,
+                fiber_mic_spec,
+            )
+            for chunk_index, start_index, chunk_conditions in chunk_specs
+        ]
+        for future in as_completed(futures):
+            results.append(future.result())
+    arrays = _merge_chunk_files(results, sequence_count=len(conditions), temp_dir=temp_dir)
+    if not spec.keep_chunks and spec.temp_dir is None:
+        arrays["_temp_dir_to_cleanup"] = str(temp_dir)
+    return arrays
+
+
+def _condition_chunks(conditions: list[dict[str, str]], chunk_size: int) -> list[tuple[int, int, list[dict[str, str]]]]:
+    chunks = []
+    for chunk_index, start in enumerate(range(0, len(conditions), chunk_size)):
+        chunks.append((chunk_index, start, conditions[start : start + chunk_size]))
+    return chunks
+
+
+def _generate_chunk_file(
+    chunk_index: int,
+    conditions: list[dict[str, str]],
+    start_sequence_index: int,
+    temp_dir: Path,
+    spec: BenchmarkGenerationSpec,
+    phase_schedule,
+    ultrasonic_spec: WaveformSpec,
+    fiber_mic_spec: FiberMicSpec,
+) -> dict[str, object]:
+    arrays = build_sequence_arrays_chunk(
+        conditions,
+        timesteps=spec.timesteps,
+        dt_s=spec.dt_s,
+        seed=spec.seed,
+        multi_path_phase=spec.multi_path_phase,
+        ultrasonic_spec=ultrasonic_spec,
+        fiber_mic_spec=fiber_mic_spec,
+        path_lms=spec.path_lms,
+        phase_schedule=phase_schedule,
+        stage_jitter=spec.stage_jitter,
+        optical_absorption_backend=spec.optical_absorption_backend,
+        hitran_cache_root=spec.hitran_cache_root,
+        start_sequence_index=start_sequence_index,
+    )
+    chunk_path = temp_dir / f"chunk-{chunk_index:05d}.npz"
+    np.savez(
+        chunk_path,
+        **{key: arrays[key] for key in ARRAY_KEYS},
+        slow_rows=np.array(arrays["slow_rows"], dtype=object),
+    )
+    return {
+        "chunk_index": chunk_index,
+        "start_sequence_index": start_sequence_index,
+        "sequence_count": len(conditions),
+        "path": str(chunk_path),
+    }
+
+
+def _merge_chunk_files(results: list[dict[str, object]], *, sequence_count: int, temp_dir: Path) -> dict[str, object]:
+    ordered = sorted(results, key=lambda item: int(item["chunk_index"]))
+    if not ordered:
+        raise ValueError("no chunk files were generated")
+    arrays: dict[str, object] = {}
+    with np.load(str(ordered[0]["path"]), allow_pickle=True) as first_payload:
+        for key in ARRAY_KEYS:
+            sample = first_payload[key]
+            target = np.lib.format.open_memmap(
+                temp_dir / f"merged_{key}.npy",
+                mode="w+",
+                dtype=sample.dtype,
+                shape=(sequence_count, *sample.shape[1:]),
+            )
+            arrays[key] = target
+
+    slow_rows: list[dict[str, str]] = []
+    for result in ordered:
+        start = int(result["start_sequence_index"])
+        count = int(result["sequence_count"])
+        with np.load(str(result["path"]), allow_pickle=True) as payload:
+            end = start + count
+            for key in ARRAY_KEYS:
+                arrays[key][start:end] = payload[key]
+            slow_rows.extend(dict(row) for row in payload["slow_rows"].tolist())
+    for key in ARRAY_KEYS:
+        arrays[key].flush()
+    arrays["slow_rows"] = slow_rows
+    return arrays
+
+
+def _publish_staging_dir(staging_dir: Path, output_dir: Path) -> None:
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    shutil.move(str(staging_dir), str(output_dir))
+
+
+def _cleanup_parallel_temp_arrays(arrays: dict[str, object]) -> None:
+    temp_dir_value = arrays.pop("_temp_dir_to_cleanup", None)
+    if temp_dir_value is None:
+        return
+    for key in ARRAY_KEYS:
+        array = arrays.get(key)
+        mmap = getattr(array, "_mmap", None)
+        if mmap is not None:
+            mmap.close()
+    temp_dir = Path(str(temp_dir_value))
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)

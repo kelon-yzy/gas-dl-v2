@@ -131,9 +131,35 @@ def test_precompute_hitran_benchmark_cache_matches_condition_spec(tmp_path):
     requirements = collect_hitran_cache_requirements(conditions, cache_root=tmp_path)
 
     assert summary["required_cache_entries"] == len(requirements)
+    assert summary["computed_cache_entries"] == len(requirements)
+    assert summary["skipped_cache_entries"] == 0
     assert summary["conditions"] == 2
+    assert summary["workers"] == 1
     assert len(fake_hapi.fetch_calls) == len(requirements)
     assert all(requirement.path.is_file() for requirement in requirements)
+
+
+def test_precompute_hitran_benchmark_cache_skips_existing_entries(tmp_path):
+    fake_hapi = FakeHapi()
+    first_summary = precompute_hitran_benchmark_cache(
+        cache_root=tmp_path,
+        sequence_count=2,
+        seed=37,
+        sampling_strategy="lhs",
+        hapi_module=fake_hapi,
+    )
+    second_summary = precompute_hitran_benchmark_cache(
+        cache_root=tmp_path,
+        sequence_count=2,
+        seed=37,
+        sampling_strategy="lhs",
+        hapi_module=fake_hapi,
+    )
+
+    assert first_summary["computed_cache_entries"] == first_summary["required_cache_entries"]
+    assert second_summary["computed_cache_entries"] == 0
+    assert second_summary["skipped_cache_entries"] == second_summary["required_cache_entries"]
+    assert len(fake_hapi.fetch_calls) == first_summary["required_cache_entries"]
 
 
 def test_precompute_hitran_benchmark_cache_cli_prints_summary(tmp_path, capsys, monkeypatch):
@@ -151,6 +177,8 @@ def test_precompute_hitran_benchmark_cache_cli_prints_summary(tmp_path, capsys, 
         "1",
         "--seed",
         "31",
+        "--workers",
+        "1",
     ])
     payload = json.loads(capsys.readouterr().out)
 
