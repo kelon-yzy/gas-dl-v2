@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
+from concurrent.futures.process import BrokenProcessPool
 import json
 from pathlib import Path
 from typing import Sequence
 
 from sim.generation.benchmark import DEFAULT_HITRAN_CACHE_ROOT, default_worker_count
 from sim.generation.conditions import generate_condition_rows
-from sim.generation.optical_backend import collect_hitran_cache_requirements
+from sim.generation.optical_backend import HitranCacheRequirement, collect_hitran_cache_requirements
 from sim.generation.spectral import compute_hitran_ndir_absorbance, get_default_ndir_filter, read_cached_spectrum
 from sim.generation.spectral.hitran_backend import _ensure_hapi_table, _load_hapi
+
+
+DEFAULT_MAX_HITRAN_PRECOMPUTE_WORKERS = 4
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -19,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sequences", type=int, required=True)
     parser.add_argument("--seed", type=int, default=20260524)
     parser.add_argument("--sampling-strategy", choices=("lhs", "random"), default="lhs")
-    parser.add_argument("--workers", type=int, default=None, help="Worker processes for cache precompute (default: CPU count - 2, capped at 24).")
+    parser.add_argument("--workers", type=int, default=None, help="Worker processes for memory-heavy HAPI cache precompute (default: CPU count - 2, capped at 4).")
     return parser
 
 
@@ -40,11 +44,7 @@ def precompute_hitran_benchmark_cache(
         results = [_precompute_requirement(requirement, cache_root=cache_root, hapi_module=hapi_module, allow_fetch=True) for requirement in requirements]
     else:
         _ensure_required_hapi_tables(requirements, cache_root=cache_root)
-        results = []
-        with ProcessPoolExecutor(max_workers=min(workers, len(requirements))) as executor:
-            futures = [executor.submit(_precompute_requirement, requirement, cache_root, None, False) for requirement in requirements]
-            for future in as_completed(futures):
-                results.append(future.result())
+        results = _precompute_requirements_parallel(requirements, cache_root=cache_root, workers=workers)
     return {
         "cache_root": str(Path(cache_root)),
         "sequence_count": sequence_count,
@@ -60,7 +60,7 @@ def precompute_hitran_benchmark_cache(
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    workers = args.workers if args.workers is not None else default_worker_count(args.sequences)
+    workers = args.workers if args.workers is not None else default_hitran_precompute_worker_count(args.sequences)
     summary = precompute_hitran_benchmark_cache(
         cache_root=Path(args.cache_root),
         sequence_count=args.sequences,
@@ -72,7 +72,59 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def _precompute_requirement(requirement, cache_root: Path | str, hapi_module: object | None, allow_fetch: bool) -> str:
+def default_hitran_precompute_worker_count(sequence_count: int | None = None) -> int:
+    return min(DEFAULT_MAX_HITRAN_PRECOMPUTE_WORKERS, default_worker_count(sequence_count))
+
+
+def _precompute_requirements_parallel(
+    requirements: Sequence[HitranCacheRequirement],
+    *,
+    cache_root: Path | str,
+    workers: int,
+) -> list[str]:
+    max_workers = min(workers, len(requirements))
+    max_pending = max_workers * 2
+    requirement_iter = iter(requirements)
+    results: list[str] = []
+    pending: dict[Future[str], HitranCacheRequirement] = {}
+
+    try:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            for requirement in requirement_iter:
+                pending[executor.submit(_precompute_requirement, requirement, cache_root, None, False)] = requirement
+                if len(pending) >= max_pending:
+                    _collect_completed_requirements(pending, results)
+            while pending:
+                _collect_completed_requirements(pending, results)
+    except BrokenProcessPool as exc:
+        raise _broken_process_pool_error() from exc
+    return results
+
+
+def _collect_completed_requirements(pending: dict[Future[str], HitranCacheRequirement], results: list[str]) -> None:
+    done, _ = wait(pending, return_when=FIRST_COMPLETED)
+    for future in done:
+        pending.pop(future)
+        try:
+            results.append(future.result())
+        except BrokenProcessPool as exc:
+            raise _broken_process_pool_error() from exc
+
+
+def _broken_process_pool_error() -> RuntimeError:
+    return RuntimeError(
+        "A HITRAN cache worker terminated abruptly. This usually indicates host memory exhaustion "
+        "or a native-library crash. Existing .npz cache entries are safe to keep; rerun the same "
+        "command with fewer workers, for example --workers 2 or --workers 1."
+    )
+
+
+def _precompute_requirement(
+    requirement: HitranCacheRequirement,
+    cache_root: Path | str,
+    hapi_module: object | None,
+    allow_fetch: bool,
+) -> str:
     if read_cached_spectrum(cache_root, requirement.key) is not None:
         return "skipped"
     compute_hitran_ndir_absorbance(
@@ -88,7 +140,7 @@ def _precompute_requirement(requirement, cache_root: Path | str, hapi_module: ob
     return "computed"
 
 
-def _ensure_required_hapi_tables(requirements, *, cache_root: Path | str) -> None:
+def _ensure_required_hapi_tables(requirements: Sequence[HitranCacheRequirement], *, cache_root: Path | str) -> None:
     hapi = _load_hapi()
     seen = set()
     for requirement in requirements:

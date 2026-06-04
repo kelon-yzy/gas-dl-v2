@@ -15,7 +15,7 @@
 - 存储：`memmap`，正式大规模生成优先走 `.npy`/memmap，避免压缩包阻塞主生成路径；如需 `waveform_sequence.npz`，生成完成后单独打包
 - 容量：主要数组预计约 `17.4 GiB`；并行 chunk、合并数组、staging 和 HITRAN cache 会额外占用空间，生成前至少预留 `50 GiB` 可用磁盘
 - 随机种子：`20260603`
-- 性能：CLI 未传 `--workers` 时默认自动并行；在当前 `16 核 / 32 线程` 机器上等价于默认最多 24 个 worker。注意 Python API 的 `BenchmarkGenerationSpec.workers` 仍默认是 `1`，只有 CLI 默认并行，脚本调用必须显式传 `workers`
+- 性能：数据集生成 CLI 未传 `--workers` 时默认最多使用 24 个 worker；HITRAN 预计算会让每个进程独立加载 HAPI 谱表，默认最多使用 4 个 worker，并使用有界 pending 队列。注意 Python API 的 `BenchmarkGenerationSpec.workers` 仍默认是 `1`
 
 ## Key Changes / Commands
 
@@ -27,7 +27,7 @@ python -m pipeline.precompute_hitran_benchmark_cache `
   --sequences 6000 `
   --seed 20260603 `
   --sampling-strategy lhs `
-  --workers 24
+  --workers 4
 ```
 
 再生成完整数据集：
@@ -57,7 +57,7 @@ python -m pipeline.bundle_waveform_sequence `
   --dataset-dir data/wv4-formal-hitran-standard-6000
 ```
 
-说明：上面显式写 `--workers 24` 是为了固定当前 32 线程机器的性能配置；也可以省略，CLI 会按 `default_worker_count(sequence_count)` 自动选择。程序化 API 不会自动并行，`BenchmarkGenerationSpec.workers` 默认保持 `1`。
+说明：HITRAN 预计算是内存密集型任务，固定使用 `--workers 4`；若 Linux 出现 `BrokenProcessPool` 或 OOM，应保留已有 `.npz` cache，并以 `--workers 2` 或 `--workers 1` 重跑，已有 cache 会自动跳过。数据集生成固定使用 `--workers 24`。程序化 API 不会自动并行，`BenchmarkGenerationSpec.workers` 默认保持 `1`。
 
 采用当前代码内置的合理特征范围：
 

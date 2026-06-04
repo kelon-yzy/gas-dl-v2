@@ -1,3 +1,4 @@
+import importlib
 import json
 from pathlib import Path
 
@@ -6,7 +7,7 @@ import pytest
 
 from pipeline.compare_optical_backends import compare_optical_backends
 from pipeline.precompute_hitran_benchmark_cache import main as precompute_benchmark_main
-from pipeline.precompute_hitran_benchmark_cache import precompute_hitran_benchmark_cache
+from pipeline.precompute_hitran_benchmark_cache import default_hitran_precompute_worker_count, precompute_hitran_benchmark_cache
 from pipeline.precompute_hitran_spectra import main as precompute_main
 from pipeline.precompute_hitran_spectra import parse_channels, precompute_hitran_spectra
 from sim.generation.conditions import generate_condition_rows
@@ -186,6 +187,49 @@ def test_precompute_hitran_benchmark_cache_cli_prints_summary(tmp_path, capsys, 
     assert payload["sequence_count"] == 1
     assert payload["required_cache_entries"] > 0
     assert len(fake_hapi.fetch_calls) == payload["required_cache_entries"]
+
+
+def test_default_hitran_precompute_worker_count_is_memory_conservative(monkeypatch):
+    module = importlib.import_module("pipeline.precompute_hitran_benchmark_cache")
+    monkeypatch.setattr(module, "default_worker_count", lambda sequence_count: 24)
+
+    assert default_hitran_precompute_worker_count(6000) == 4
+
+
+def test_parallel_hitran_precompute_bounds_pending_futures(monkeypatch, tmp_path):
+    module = importlib.import_module("pipeline.precompute_hitran_benchmark_cache")
+    max_pending_seen = 0
+
+    class ImmediateFuture:
+        def result(self):
+            return "computed"
+
+    class FakeExecutor:
+        def __init__(self, max_workers):
+            self.max_workers = max_workers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def submit(self, *args):
+            return ImmediateFuture()
+
+    def fake_wait(pending, *, return_when):
+        nonlocal max_pending_seen
+        futures = list(pending)
+        max_pending_seen = max(max_pending_seen, len(futures))
+        return {futures[0]}, set(futures[1:])
+
+    monkeypatch.setattr(module, "ProcessPoolExecutor", FakeExecutor)
+    monkeypatch.setattr(module, "wait", fake_wait)
+
+    results = module._precompute_requirements_parallel(tuple(range(20)), cache_root=tmp_path, workers=4)
+
+    assert results == ["computed"] * 20
+    assert max_pending_seen <= 8
 
 
 def test_compare_optical_backends_reports_delta(tmp_path):
