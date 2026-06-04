@@ -481,6 +481,46 @@
         "contract_version": "0.4.2-mvp.2"
       },
       "lease_digest": "sha256:d913a8eaf607f1f81b06eabcd2388c8b5a7949f277e9c028a6148160e2efd3b0"
+    },
+    {
+      "lease_type": "recallloom.preflight_write_binding_lease",
+      "lease_version": "0.1",
+      "issued_by": "recallloom.py",
+      "issued_at": "2026-06-04T09:14:20+08:00",
+      "binding_hash": "sha256:2de23fb07022080d952c77aaf1e14bd44c2fad9c706305e74c6633001c76aad4",
+      "preflight_payload_digest": "sha256:415fb5b3e70aae2bf8d450f02fe25feff0d5add1d11c6837d1ecdfd25679c600",
+      "operation_class": "daily_log_append",
+      "file_key": "daily_log",
+      "write_type": "milestone_evidence",
+      "contract_type": null,
+      "expected_workspace_revision": 79,
+      "expected_file_revision": null,
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "lease_digest": "sha256:cd542e1e7666da530feade25f4f7a370991e97490a19bc05dec646372371c388"
+    },
+    {
+      "lease_type": "recallloom.preflight_write_binding_lease",
+      "lease_version": "0.1",
+      "issued_by": "recallloom.py",
+      "issued_at": "2026-06-04T09:14:50+08:00",
+      "binding_hash": "sha256:a73349987ac5843ac2c62f0f53892978a3687102b7498fd924353095353a1275",
+      "preflight_payload_digest": "sha256:05af3d3e0b2ad55e4aeac21dcf04525ee55cbadcf07eeb421e4b55b5d2e49afd",
+      "operation_class": "post_append_summary_sync",
+      "file_key": "rolling_summary",
+      "write_type": "current-state",
+      "contract_type": "post_append_summary_sync",
+      "expected_workspace_revision": 80,
+      "expected_file_revision": 40,
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "lease_digest": "sha256:f48ae935565520cabbf01e69af180fdc48fa26f8f9c5fd8b1596934b72421be7"
     }
   ]
 }

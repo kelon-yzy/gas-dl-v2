@@ -6,13 +6,14 @@
 
 固定参数：
 
-- 输出目录：`data/wv4-formal-hitran-standard-512`
-- 样本数：`512 sequences`
+- 输出目录：`data/wv4-formal-hitran-standard-6000`
+- 样本数：`6000 sequences`
 - 时间轴：`standard`，即 `512 timesteps × 0.5s`
 - 光学后端：`hitran_hapi_v1`
 - 采样：`lhs`
 - 阶段：`standard_exposure`
 - 存储：`memmap`，正式大规模生成优先走 `.npy`/memmap，避免压缩包阻塞主生成路径；如需 `waveform_sequence.npz`，生成完成后单独打包
+- 容量：主要数组预计约 `17.4 GiB`；并行 chunk、合并数组、staging 和 HITRAN cache 会额外占用空间，生成前至少预留 `50 GiB` 可用磁盘
 - 随机种子：`20260603`
 - 性能：CLI 未传 `--workers` 时默认自动并行；在当前 `16 核 / 32 线程` 机器上等价于默认最多 24 个 worker。注意 Python API 的 `BenchmarkGenerationSpec.workers` 仍默认是 `1`，只有 CLI 默认并行，脚本调用必须显式传 `workers`
 
@@ -23,7 +24,7 @@
 ```powershell
 python -m pipeline.precompute_hitran_benchmark_cache `
   --cache-root data/hitran_cache `
-  --sequences 512 `
+  --sequences 6000 `
   --seed 20260603 `
   --sampling-strategy lhs `
   --workers 24
@@ -34,8 +35,8 @@ python -m pipeline.precompute_hitran_benchmark_cache `
 ```powershell
 python -m pipeline.generate_benchmark `
   --output-root data `
-  --dataset wv4-formal-hitran-standard-512 `
-  --sequences 512 `
+  --dataset wv4-formal-hitran-standard-6000 `
+  --sequences 6000 `
   --seed 20260603 `
   --time-axis-preset standard `
   --storage memmap `
@@ -53,7 +54,7 @@ python -m pipeline.generate_benchmark `
 
 ```powershell
 python -m pipeline.bundle_waveform_sequence `
-  --dataset-dir data/wv4-formal-hitran-standard-512
+  --dataset-dir data/wv4-formal-hitran-standard-6000
 ```
 
 说明：上面显式写 `--workers 24` 是为了固定当前 32 线程机器的性能配置；也可以省略，CLI 会按 `default_worker_count(sequence_count)` 自动选择。程序化 API 不会自动并行，`BenchmarkGenerationSpec.workers` 默认保持 `1`。
@@ -82,11 +83,11 @@ python -m pytest tests/test_benchmark_generation.py tests/test_generate_benchmar
 
 验收形状：
 
-- `slow`: `[512, 512, 8]`
-- `ultrasonic`: `[512, 512, 1000]`
-- `fiber_mic`: `[512, 512, 2000]`
-- `y`: `[512, 4]`
-- splits 预期：train `358`、val `76`、test `51`、extrapolation `27`
+- `slow`: `[6000, 512, 8]`
+- `ultrasonic`: `[6000, 512, 1000]`
+- `fiber_mic`: `[6000, 512, 2000]`
+- `y`: `[6000, 4]`
+- splits 预期：train `4200`、val `900`、test `600`、extrapolation `300`
 - `quality/validation_summary.json.status == "pass"`
 
 再做下游读取冒烟：
