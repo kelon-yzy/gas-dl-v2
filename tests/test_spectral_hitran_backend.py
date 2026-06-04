@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 import pytest
 
@@ -8,6 +10,8 @@ from sim.generation.spectral import (
     SpectralCacheKey,
     HitranGasSpec,
     HitranGridSpec,
+    MissingHitranCacheError,
+    MissingHitranTableError,
     compute_hitran_ndir_absorbance,
     convert_hitran_coeff_to_per_percent_m,
     read_cached_spectrum,
@@ -123,6 +127,82 @@ def test_hitran_backend_reuses_local_hapi_table_before_fetch(tmp_path):
     assert result["backend"] == "hitran_hapi_v1"
     assert fake_hapi.fetch_calls == []
     assert fake_hapi.coefficient_calls[0][0] == "CO2_2300p0000_2400p0000"
+
+
+def test_hitran_backend_computes_cache_from_local_table_without_fetch(tmp_path):
+    fake_hapi = FakeHapi()
+    grid = HitranGridSpec(
+        wavenumber_min_cm1=2300.0,
+        wavenumber_max_cm1=2400.0,
+        wavenumber_step_cm1=1.0,
+        temperature_k=296.0,
+        pressure_atm=1.0,
+    )
+    (tmp_path / "CO2_2300p0000_2400p0000.data").write_text("local table\n", encoding="utf-8")
+    (tmp_path / "CO2_2300p0000_2400p0000.header").write_text("local header\n", encoding="utf-8")
+
+    result = compute_hitran_ndir_absorbance(
+        gas_specs=(HitranGasSpec("CO2", "CO2", 2, 1),),
+        concentrations_pct={"CO2": 8.0},
+        path_length_m=0.3,
+        filter_spec=NDIRFilter(channel="co2", center_cm1=2340.0, fwhm_cm1=24.0),
+        grid_spec=grid,
+        cache_root=tmp_path,
+        hapi_module=fake_hapi,
+        allow_fetch=False,
+    )
+
+    assert result["backend"] == "hitran_hapi_v1"
+    assert fake_hapi.fetch_calls == []
+    assert len(fake_hapi.coefficient_calls) == 1
+
+
+def test_hitran_backend_rejects_missing_local_table_when_fetch_is_disabled(tmp_path):
+    fake_hapi = FakeHapi()
+    grid = HitranGridSpec(
+        wavenumber_min_cm1=2300.0,
+        wavenumber_max_cm1=2400.0,
+        wavenumber_step_cm1=1.0,
+        temperature_k=296.0,
+        pressure_atm=1.0,
+    )
+
+    with pytest.raises(MissingHitranTableError, match="CO2_2300p0000_2400p0000"):
+        compute_hitran_ndir_absorbance(
+            gas_specs=(HitranGasSpec("CO2", "CO2", 2, 1),),
+            concentrations_pct={"CO2": 8.0},
+            path_length_m=0.3,
+            filter_spec=NDIRFilter(channel="co2", center_cm1=2340.0, fwhm_cm1=24.0),
+            grid_spec=grid,
+            cache_root=tmp_path,
+            hapi_module=fake_hapi,
+            allow_fetch=False,
+        )
+
+    assert fake_hapi.fetch_calls == []
+    assert fake_hapi.coefficient_calls == []
+
+
+def test_hitran_errors_are_pickle_safe_for_process_workers(tmp_path):
+    key = SpectralCacheKey(
+        backend="hitran_hapi_v1",
+        gas="CO2",
+        source_version="hitran_hapi_v1",
+        wavenumber_min_cm1=2300.0,
+        wavenumber_max_cm1=2400.0,
+        wavenumber_step_cm1=1.0,
+        temperature_k=296.0,
+        pressure_atm=1.0,
+    )
+    errors = (
+        MissingHitranCacheError(key, tmp_path / "missing.npz"),
+        MissingHitranTableError("CO2_2300p0000_2400p0000", tmp_path),
+    )
+
+    for error in errors:
+        restored = pickle.loads(pickle.dumps(error))
+        assert type(restored) is type(error)
+        assert str(restored) == str(error)
 
 
 def test_spectral_cache_roundtrip(tmp_path):

@@ -25,7 +25,7 @@
 - v4 输出契约：正式 split 只使用 `splits/train.csv`、`splits/val.csv`、`splits/test.csv`、`splits/extrapolation.csv`；不写 V3 的 `*_sequence_ids.csv` 旧命名。
 - 传统 ML 与协议评估：`src/ml` 支持 Mean/Ridge baseline、full/per-phase/early-window 特征窗口，`python -m ml.cli --protocol` 可输出 JSON 或 Markdown baseline protocol report。
 - 存储策略：正式大规模数据集默认推荐 `storage=memmap`，下游 ML/DL 已能直接读取 `.npy`/memmap。若需要兼容压缩包，生成后用 `python -m pipeline.bundle_waveform_sequence --dataset-dir <dataset>` 单独打包 `sequences/waveform_sequence.npz`；`storage=npz/both` 保留兼容，但不作为大规模主路径。
-- 验证基线：核心依赖为 `numpy/scipy/torch/pytest/hitran-api`；`python -m pytest` 当前为 184 passed。
+- 验证基线：核心依赖为 `numpy/scipy/torch/pytest/hitran-api`；`python -m pytest` 当前为 187 passed。
 
 ## 未迁移
 

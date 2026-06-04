@@ -14,14 +14,14 @@
 | `src/pipeline`    | layout + generate_benchmark 并行生成 + HITRAN benchmark cache 并行预计算/对照 CLI + 外部谱表 sanity check CLI + waveform bundle CLI | 32% |
 | `configs/`        | 已新增 `configs/data/spectral-defaults.json`（运行时 spectral 默认值 source-of-truth，含 `filter_source` 行业参考占位元信息），其余配置未落地 | 8%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 全量 184 个测试通过，覆盖 sim + ml + dl + pipeline | 78% |
+| `tests/`          | 全量 187 个测试通过，覆盖 sim + ml + dl + pipeline | 78% |
 
 ## 环境与依赖基线
 
 - 依赖入口已版本化：`pyproject.toml` 声明运行依赖，`requirements.txt` 提供普通 pip 安装入口。
 - Python 版本范围固定为 `>=3.10,<3.14`；当前不使用 Python 3.14 作为主环境，避免科学计算和深度学习 wheel 暂未稳定覆盖时安装失败。
 - 新机器已验证 Python 3.12.10 虚拟环境可用，核心包版本为 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3`、`hitran-api 1.3.0.0`。
-- 当前验证命令：`python -m pytest`，全量结果为 184 passed。
+- 当前验证命令：`python -m pytest`，全量结果为 187 passed。
 
 ## PLAN 6 项问题对照
 
@@ -99,7 +99,7 @@
 - **输出安全**：生成过程先写 `<dataset>.tmp-*` staging 目录，验证和写出完成后再发布到最终 dataset 目录；并行中间文件默认位于 staging 下 `.chunks`，`--keep-chunks` 仅用于调试。
 - **HITRAN cache**：`pipeline.precompute_hitran_benchmark_cache` 支持 `--workers`，但 HAPI 进程会独立加载谱表，因此 CLI 默认最多使用 4 个 worker。实现先串行确保 HAPI 原始 `.data/.header` 表存在，再通过有界 pending 队列并行运行 `absorptionCoefficient_Voigt` 生成缺失 `.npz` cache；cache 已存在时跳过。谱 cache 写入采用临时文件加 `replace` 的原子写入。
 - **存储策略**：大规模正式运行推荐 `storage=memmap`；如需 `waveform_sequence.npz`，生成后运行 `python -m pipeline.bundle_waveform_sequence --dataset-dir <dataset>` 单独打包，避免压缩阻塞主生成路径。
-- **测试**：新增并行生成契约、不同 chunk-size 稳定性、HITRAN cache 跳过、HITRAN pending 队列上限、bundle 入口测试；已纳入全量 184 passed。
+- **测试**：新增并行生成契约、不同 chunk-size 稳定性、HITRAN cache 跳过、HITRAN pending 队列上限、bundle 入口测试；已纳入全量 187 passed。
 
 ---
 
@@ -190,7 +190,7 @@
 - **协议评估**：新增 `src/ml/evaluation_protocol.py`，`run_baseline_protocol(...)` 统一生成 full/per-phase/early baseline 结果。
 - **CLI 报告**：`python -m ml.cli --protocol --report-path <path>` 可写出 Markdown baseline protocol report；`--json` 可输出同结构 JSON。
 - **测试**：`tests/test_ml_baselines.py` 覆盖特征统计、benchmark split 加载、波形特征、mean/ridge regressor、指标、训练入口、protocol 入口和 CLI 报告。
-- **当前验证状态**：`tests/test_ml_baselines.py` 已纳入全量测试；`python -m pytest` 当前为 184 passed。
+- **当前验证状态**：`tests/test_ml_baselines.py` 已纳入全量测试；`python -m pytest` 当前为 187 passed。
 
 ### 5.1 特征打包
 

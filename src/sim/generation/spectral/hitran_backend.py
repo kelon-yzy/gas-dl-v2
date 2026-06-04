@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from sim.generation.spectral.cache import SpectralCacheKey, cache_path, read_cached_spectrum, write_cached_spectrum
+from sim.generation.spectral.cache import SpectralCacheKey, read_cached_spectrum, write_cached_spectrum
 from sim.generation.spectral.filters import NDIRFilter
 from sim.generation.spectral.tabulated_backend import TabulatedSpectrum, compute_tabulated_ndir_absorbance
 
@@ -39,6 +39,19 @@ class MissingHitranCacheError(RuntimeError):
         self.key = key
         self.path = path
         super().__init__(f"Missing HITRAN cache for {key.gas} at T={key.temperature_k:.3f} K, P={key.pressure_atm:.6f} atm: {path}")
+
+    def __reduce__(self) -> tuple[object, tuple[SpectralCacheKey, Path]]:
+        return type(self), (self.key, self.path)
+
+
+class MissingHitranTableError(RuntimeError):
+    def __init__(self, table_name: str, cache_root: Path):
+        self.table_name = table_name
+        self.cache_root = cache_root
+        super().__init__(f"Missing local HITRAN HAPI table {table_name} in {cache_root}; rerun with allow_fetch=True to download it.")
+
+    def __reduce__(self) -> tuple[object, tuple[str, Path]]:
+        return type(self), (self.table_name, self.cache_root)
 
 
 def compute_hitran_ndir_absorbance(
@@ -82,10 +95,8 @@ def _spectrum_for_gas(
     key = _cache_key(gas_spec, grid_spec)
     cached = read_cached_spectrum(cache_root, key)
     if cached is None:
-        if not allow_fetch:
-            raise MissingHitranCacheError(key, cache_path(cache_root, key))
         hapi = hapi_module if hapi_module is not None else _load_hapi()
-        _ensure_hapi_table(hapi, gas_spec, grid_spec, cache_root)
+        _ensure_hapi_table(hapi, gas_spec, grid_spec, cache_root, allow_fetch=allow_fetch)
         wavenumber_cm1, absorption_coeff_cm1 = _absorption_coefficient(hapi, gas_spec, grid_spec)
         write_cached_spectrum(
             cache_root,
@@ -98,12 +109,21 @@ def _spectrum_for_gas(
     return _tabulated_spectrum_from_hitran_coefficients(gas_spec, wavenumber_cm1, absorption_coeff_cm1, grid_spec)
 
 
-def _ensure_hapi_table(hapi: object, gas_spec: HitranGasSpec, grid_spec: HitranGridSpec, cache_root: Path | str) -> None:
+def _ensure_hapi_table(
+    hapi: object,
+    gas_spec: HitranGasSpec,
+    grid_spec: HitranGridSpec,
+    cache_root: Path | str,
+    *,
+    allow_fetch: bool = True,
+) -> None:
     table_name = _hapi_table_name(gas_spec, grid_spec)
     cache_dir = Path(cache_root)
     hapi.db_begin(str(cache_dir))
     if _hapi_table_exists(cache_dir, table_name):
         return
+    if not allow_fetch:
+        raise MissingHitranTableError(table_name, cache_dir)
     hapi.fetch(
         table_name,
         gas_spec.molecule_id,

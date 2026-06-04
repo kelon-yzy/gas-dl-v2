@@ -16,7 +16,7 @@
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口，CLI 默认按 CPU 自动启用 sequence chunk 多进程生成。
 - 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/precompute_hitran_benchmark_cache.py`、`src/pipeline/compare_optical_backends.py`、`src/pipeline/sanity_check_tabulated_spectra.py` 和 `src/pipeline/bundle_waveform_sequence.py`：HITRAN 谱缓存预计算、benchmark 专用 cache 预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check、生成后 waveform 压缩包打包入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
 - 已建立长时序协议：支持 `short/standard/long/xlong` 时间轴预设、显式 `timesteps/dt_s` 覆盖、动态 `PhaseSchedule`、`stage_jitter`、`standard_exposure/variable_onset/fast_transient/incomplete_recovery/multi_pulse` 阶段 profile，相关溯源写入 `manifest.json` 和 `metadata/waveform_spec.json`。
-- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。当前全量验证为 184 passed。
+- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。当前全量验证为 187 passed。
 
 ## 目标目录
 
@@ -49,7 +49,7 @@ py -3.12 -m venv .venv
 
 `data/hitran_cache*/` 与 `outputs/runs/*` 是本地缓存和实验产物，已被 `.gitignore` 排除，不会随远程仓库同步。新机器需要从旧机器复制这些目录，或按下面的 HITRAN 预计算命令重新生成缓存。
 
-当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 当前全量通过 184 个测试。
+当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 当前全量通过 187 个测试。
 
 ## 核心语义
 
