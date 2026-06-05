@@ -435,9 +435,20 @@ def _merge_chunk_files(results: list[dict[str, object]], *, sequence_count: int,
 
 def _publish_staging_dir(staging_dir: Path, output_dir: Path) -> None:
     output_dir.parent.mkdir(parents=True, exist_ok=True)
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
-    shutil.move(str(staging_dir), str(output_dir))
+    if not output_dir.exists():
+        shutil.move(str(staging_dir), str(output_dir))
+        return
+
+    backup_dir = output_dir.parent / f"{output_dir.name}.bak-{uuid.uuid4().hex[:12]}"
+    output_dir.rename(backup_dir)
+    try:
+        shutil.move(str(staging_dir), str(output_dir))
+    except Exception:
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+        backup_dir.rename(output_dir)
+        raise
+    shutil.rmtree(backup_dir)
 
 
 def _cleanup_parallel_temp_arrays(arrays: dict[str, object]) -> None:

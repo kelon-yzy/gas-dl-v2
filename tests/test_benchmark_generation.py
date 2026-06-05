@@ -2,8 +2,10 @@ import csv
 import json
 
 import numpy as np
+import pytest
 
 from pipeline.bundle_waveform_sequence import bundle_waveform_sequence
+from sim.generation import benchmark as benchmark_module
 from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset, resolve_time_axis_preset
 from sim.generation.slow import _multi_tau_channel_step
 
@@ -277,6 +279,42 @@ def test_generate_benchmark_dataset_writes_memmap_storage_arrays_without_npz(tmp
     assert (dataset_dir / "sequences" / "ultrasonic_tof_accepted.npy").is_file()
     assert (dataset_dir / "sequences" / "fiber_mic_int16.npy").is_file()
     assert not (dataset_dir / "sequences" / "waveform_sequence.npz").exists()
+
+
+def test_publish_staging_restores_existing_output_when_move_fails(tmp_path, monkeypatch):
+    output_dir = tmp_path / "wv4-existing"
+    staging_dir = tmp_path / "wv4-existing.tmp-new"
+    output_dir.mkdir()
+    staging_dir.mkdir()
+    (output_dir / "manifest.json").write_text("old", encoding="utf-8")
+    (staging_dir / "manifest.json").write_text("new", encoding="utf-8")
+
+    def fail_move(src, dst):
+        raise RuntimeError("publish failed")
+
+    monkeypatch.setattr(benchmark_module.shutil, "move", fail_move)
+
+    with pytest.raises(RuntimeError, match="publish failed"):
+        benchmark_module._publish_staging_dir(staging_dir, output_dir)
+
+    assert (output_dir / "manifest.json").read_text(encoding="utf-8") == "old"
+    assert (staging_dir / "manifest.json").read_text(encoding="utf-8") == "new"
+    assert not list(tmp_path.glob("wv4-existing.bak-*"))
+
+
+def test_publish_staging_replaces_existing_output_after_success(tmp_path):
+    output_dir = tmp_path / "wv4-existing"
+    staging_dir = tmp_path / "wv4-existing.tmp-new"
+    output_dir.mkdir()
+    staging_dir.mkdir()
+    (output_dir / "manifest.json").write_text("old", encoding="utf-8")
+    (staging_dir / "manifest.json").write_text("new", encoding="utf-8")
+
+    benchmark_module._publish_staging_dir(staging_dir, output_dir)
+
+    assert (output_dir / "manifest.json").read_text(encoding="utf-8") == "new"
+    assert not staging_dir.exists()
+    assert not list(tmp_path.glob("wv4-existing.bak-*"))
 
 
 def test_parallel_generation_preserves_schema_shape_split_manifest_and_quality(tmp_path):

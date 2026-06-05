@@ -34,18 +34,8 @@ python -m pipeline.precompute_hitran_benchmark_cache `
 
 ```powershell
 python -m pipeline.generate_benchmark `
+  --experiment-preset formal-hitran-standard-6000 `
   --output-root data `
-  --dataset wv4-formal-hitran-standard-6000 `
-  --sequences 6000 `
-  --seed 20260603 `
-  --time-axis-preset standard `
-  --storage memmap `
-  --multi-path-phase steady `
-  --stage-profile standard_exposure `
-  --stage-jitter 0 `
-  --sampling-strategy lhs `
-  --path-lms 0.20,0.25,0.30,0.35,0.40 `
-  --optical-absorption-backend hitran_hapi_v1 `
   --hitran-cache-root data/hitran_cache `
   --workers 24
 ```

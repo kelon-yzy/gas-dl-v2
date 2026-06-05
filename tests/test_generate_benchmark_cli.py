@@ -71,6 +71,37 @@ def test_generate_benchmark_cli_applies_time_axis_preset(tmp_path, capsys):
     assert manifest["dt_s"] == 0.5
 
 
+def test_generate_benchmark_cli_formal_preset_sets_standard_defaults(tmp_path, capsys):
+    exit_code = main(
+        [
+            "--experiment-preset",
+            "formal-hitran-standard-6000",
+            "--output-root",
+            str(tmp_path),
+            "--dataset",
+            "wv4-cli-formal-small",
+            "--sequences",
+            "4",
+            "--storage",
+            "npz",
+            "--workers",
+            "1",
+            "--optical-absorption-backend",
+            "empirical_v1",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    manifest = json.loads((tmp_path / "wv4-cli-formal-small" / "manifest.json").read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert payload["dataset_slug"] == "wv4-cli-formal-small"
+    assert manifest["timesteps"] == 512
+    assert manifest["dt_s"] == 0.5
+    assert manifest["seed"] == 20260603
+
+
 def test_generate_benchmark_cli_applies_stage_profile_and_jitter(tmp_path, capsys):
     exit_code = main(
         [

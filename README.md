@@ -77,6 +77,8 @@ python -m pipeline.generate_benchmark --output-root data --dataset wv4-smoke-emp
 
 性能参数需要区分 CLI 与 Python API：`python -m pipeline.generate_benchmark` 未传 `--workers` 时会使用 `default_worker_count(sequence_count)`，即默认保留 2 个逻辑线程给系统并最多使用 24 个 worker；`python -m pipeline.precompute_hitran_benchmark_cache` 是内存密集型 HAPI 任务，CLI 默认最多使用 4 个 worker，并通过有界 pending 队列避免一次性提交全部 cache requirement。程序化调用 `BenchmarkGenerationSpec(...)` 时，`workers` 仍默认是 `1`，目的是保留既有 Python API 的串行语义。可选参数 `--chunk-size` 控制每个数据生成 chunk 的 sequence 数，默认按 `ceil(sequences / workers)`；`--temp-dir` 指定 chunk 临时目录；`--keep-chunks` 仅用于调试。大规模正式数据集推荐 `--storage memmap`，需要 `sequences/waveform_sequence.npz` 时在生成后单独运行 `python -m pipeline.bundle_waveform_sequence --dataset-dir data/<dataset>`，避免压缩打包阻塞主生成路径。
 
+正式 HITRAN 标准数据集可用 `--experiment-preset formal-hitran-standard-6000` 固定 `dataset=wv4-formal-hitran-standard-6000`、`sequences=6000`、`seed=20260603` 和 `time-axis-preset=standard`；仍可通过显式 CLI 参数覆盖其中某项。
+
 ## 传统 ML baseline
 
 `src/ml` 提供不依赖 scikit-learn 的传统机器学习最小闭环，用于快速评估 v4 benchmark 生成质量和作为 DL 模型对照基线。

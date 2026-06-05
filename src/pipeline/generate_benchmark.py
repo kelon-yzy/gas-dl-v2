@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
@@ -17,6 +18,18 @@ from sim.generation.benchmark import (
 from sim.generation.optical_backend import VALID_OPTICAL_ABSORPTION_BACKENDS
 from sim.generation.phases import PHASE_SCHEDULES
 
+FORMAL_HITRAN_STANDARD_PRESET = "formal-hitran-standard-6000"
+GENERAL_DEFAULT_SEED = 20260524
+GENERAL_DEFAULT_TIME_AXIS_PRESET = "short"
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedCliDefaults:
+    dataset: str
+    sequences: int
+    seed: int
+    time_axis_preset: str
+
 
 def parse_path_lms(value: str) -> tuple[float, ...]:
     path_lms = tuple(float(item.strip()) for item in value.split(",") if item.strip())
@@ -29,11 +42,17 @@ def parse_path_lms(value: str) -> tuple[float, ...]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate a v4 benchmark dataset.")
+    parser.add_argument(
+        "--experiment-preset",
+        choices=(FORMAL_HITRAN_STANDARD_PRESET,),
+        default=None,
+        help="Apply a named experiment preset before explicit CLI overrides.",
+    )
     parser.add_argument("--output-root", required=True)
-    parser.add_argument("--dataset", required=True)
-    parser.add_argument("--sequences", type=int, required=True)
-    parser.add_argument("--seed", type=int, default=20260524)
-    parser.add_argument("--time-axis-preset", choices=tuple(TIME_AXIS_PRESETS), default="short")
+    parser.add_argument("--dataset")
+    parser.add_argument("--sequences", type=int)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--time-axis-preset", choices=tuple(TIME_AXIS_PRESETS), default=None)
     parser.add_argument("--timesteps", type=int)
     parser.add_argument("--dt-s", type=float)
     parser.add_argument("--storage", choices=("memmap", "npz", "both"), default="memmap")
@@ -52,17 +71,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    time_axis = resolve_time_axis_preset(args.time_axis_preset)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    resolved = _resolve_cli_defaults(args, parser)
+    time_axis = resolve_time_axis_preset(resolved.time_axis_preset)
     timesteps = args.timesteps if args.timesteps is not None else time_axis.timesteps
     dt_s = args.dt_s if args.dt_s is not None else time_axis.dt_s
-    workers = args.workers if args.workers is not None else default_worker_count(args.sequences)
+    workers = args.workers if args.workers is not None else default_worker_count(resolved.sequences)
     summary = generate_benchmark_dataset(
         Path(args.output_root),
         BenchmarkGenerationSpec(
-            dataset_slug=args.dataset,
-            sequence_count=args.sequences,
-            seed=args.seed,
+            dataset_slug=resolved.dataset,
+            sequence_count=resolved.sequences,
+            seed=resolved.seed,
             timesteps=timesteps,
             dt_s=dt_s,
             storage=args.storage,
@@ -81,6 +102,30 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
+
+
+def _resolve_cli_defaults(args: argparse.Namespace, parser: argparse.ArgumentParser) -> ResolvedCliDefaults:
+    if args.experiment_preset == FORMAL_HITRAN_STANDARD_PRESET:
+        dataset = args.dataset or "wv4-formal-hitran-standard-6000"
+        sequences = args.sequences if args.sequences is not None else 6000
+        seed = args.seed if args.seed is not None else 20260603
+        time_axis_preset = args.time_axis_preset or "standard"
+    else:
+        if args.dataset is None:
+            parser.error("--dataset is required unless --experiment-preset is provided")
+        if args.sequences is None:
+            parser.error("--sequences is required unless --experiment-preset is provided")
+        dataset = args.dataset
+        sequences = args.sequences
+        seed = args.seed if args.seed is not None else GENERAL_DEFAULT_SEED
+        time_axis_preset = args.time_axis_preset or GENERAL_DEFAULT_TIME_AXIS_PRESET
+
+    return ResolvedCliDefaults(
+        dataset=dataset,
+        sequences=sequences,
+        seed=seed,
+        time_axis_preset=time_axis_preset,
+    )
 
 
 if __name__ == "__main__":
