@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.experiment_config import load_experiment_config
+from pipeline.experiment_config import ALL_MODALITIES, load_experiment_config
 from pipeline.run_experiment import run
 from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
 
@@ -94,6 +94,29 @@ def test_load_experiment_config_rejects_unknown_model(tmp_path: Path):
 
     with pytest.raises(ValueError, match="Unknown DL model"):
         load_experiment_config(config_path)
+
+
+def test_default_dl_runs_use_all_modalities(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["ml_runs"] = []
+    payload["dl_runs"] = []
+    config_path = _write_config(tmp_path / "defaults_config.json", payload)
+
+    config = load_experiment_config(config_path)
+
+    assert [run["name"] for run in config.dl_runs] == [
+        "cnn1d",
+        "tcn",
+        "lstm",
+        "transformer",
+        "patchtst",
+        "cnn1d_tcn_fusion",
+    ]
+    assert len(config.dl_runs) == 6
+    for run in config.dl_runs:
+        assert tuple(run["modalities"]) == ALL_MODALITIES
+    dynamic_run = [run for run in config.ml_runs if run["name"] == "dynamic_stacking_svr_all_modalities"][0]
+    assert dynamic_run["model"]["n_jobs"] == 4
 
 
 def test_run_experiment_dry_run_does_not_write_outputs(tmp_path: Path):

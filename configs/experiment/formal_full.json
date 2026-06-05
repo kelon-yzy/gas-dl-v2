@@ -8,7 +8,10 @@
   "training": {
     "epochs": 300,
     "batch_size": 16,
-    "num_workers": 4,
+    "num_workers": 8,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "prefetch_factor": 2,
     "optimizer": "adamw",
     "lr": 0.001,
     "weight_decay": 0.0,
@@ -25,6 +28,10 @@
       "factor": 0.5,
       "patience": 8,
       "min_lr": 0.000001
+    },
+    "amp": {
+      "enabled": true,
+      "dtype": "float16"
     },
     "progress": {
       "enabled": true,

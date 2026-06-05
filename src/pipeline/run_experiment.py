@@ -133,6 +133,9 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         epochs=training["epochs"],
         batch_size=training["batch_size"],
         num_workers=training["num_workers"],
+        pin_memory=training.get("pin_memory"),
+        persistent_workers=training.get("persistent_workers"),
+        prefetch_factor=training.get("prefetch_factor"),
         seed=config.seed,
         device=config.device,
         loss=training["loss"],
@@ -143,6 +146,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         checkpoint_name="checkpoint.pt",
         early_stopping=training["early_stopping"],
         scheduler=training["scheduler"],
+        amp=training.get("amp"),
         progress=training.get("progress"),
         json=False,
     )

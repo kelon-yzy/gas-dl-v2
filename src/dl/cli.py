@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.models.registry import MODEL_REGISTRY, build_model
 from dl.training.losses import LOSS_REGISTRY, build_loss
-from dl.training.trainer import EarlyStoppingConfig, OPTIMIZER_REGISTRY, Trainer, build_optimizer
+from dl.training.trainer import AmpConfig, EarlyStoppingConfig, OPTIMIZER_REGISTRY, Trainer, build_optimizer
 
 DEFAULT_EVAL_SPLITS = ("val", "test", "extrapolation")
 DEFAULT_DL_CONFIG: dict[str, Any] = {
@@ -25,6 +25,9 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "epochs": 50,
     "batch_size": 32,
     "num_workers": 0,
+    "pin_memory": False,
+    "persistent_workers": False,
+    "prefetch_factor": None,
     "seed": 42,
     "device": "cpu",
     "loss": "mse",
@@ -35,6 +38,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "checkpoint_name": "checkpoint.pt",
     "early_stopping": {"enabled": False, "monitor": "val_loss", "patience": 20, "min_delta": 0.0, "mode": "min"},
     "scheduler": {"name": "none"},
+    "amp": {"enabled": False, "dtype": "float16"},
     "progress": {"enabled": True, "stdout": True, "jsonl": True, "jsonl_name": "metrics_live.jsonl"},
     "json": False,
 }
@@ -116,7 +120,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn, device=args.device)
 
-    train_loader = _build_loader(train_dataset, args.batch_size, args.num_workers, shuffle=True, seed=args.seed)
+    train_loader = _build_loader(
+        train_dataset,
+        args.batch_size,
+        args.num_workers,
+        shuffle=True,
+        seed=args.seed,
+        pin_memory=args.pin_memory,
+        persistent_workers=args.persistent_workers,
+        prefetch_factor=args.prefetch_factor,
+    )
     val_loader = _optional_loader(
         args.dataset_dir,
         "val",
@@ -125,12 +138,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.scaler_path,
         args.batch_size,
         args.num_workers,
+        args.pin_memory,
+        args.persistent_workers,
+        args.prefetch_factor,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = args.output_dir / args.checkpoint_name
     best_checkpoint_path = args.output_dir / "best_checkpoint.pt"
     scheduler = _build_scheduler(optimizer, args.scheduler)
     progress = _progress_config(args.progress)
+    amp = _amp_config(args.amp)
     progress_log_path = args.output_dir / progress["jsonl_name"] if progress["enabled"] and progress["jsonl"] else None
     if progress_log_path is not None:
         progress_log_path.write_text("", encoding="utf-8")
@@ -148,6 +165,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         scheduler=scheduler,
         best_checkpoint_path=best_checkpoint_path,
         epoch_callback=epoch_callback,
+        amp=amp,
+        non_blocking=bool(args.pin_memory and torch.device(args.device).type == "cuda"),
     )
     _write_training_progress_event(args.model, history, progress_log_path)
     if best_checkpoint_path.is_file():
@@ -164,9 +183,18 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.scaler_path,
             args.batch_size,
             args.num_workers,
+            args.pin_memory,
+            args.persistent_workers,
+            args.prefetch_factor,
         )
         if loader is not None:
-            evaluations[split] = _evaluation_payload(trainer.evaluate(loader))
+            evaluations[split] = _evaluation_payload(
+                trainer.evaluate(
+                    loader,
+                    non_blocking=bool(args.pin_memory and torch.device(args.device).type == "cuda"),
+                    amp=amp,
+                )
+            )
 
     trainer.save_checkpoint(checkpoint_path)
 
@@ -179,6 +207,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "modalities": modalities,
         "epochs": args.epochs,
         "batch_size": args.batch_size,
+        "num_workers": args.num_workers,
+        "pin_memory": args.pin_memory,
+        "persistent_workers": args.persistent_workers,
+        "prefetch_factor": args.prefetch_factor,
+        "amp": args.amp,
         "loss": args.loss,
         "optimizer": {
             "name": args.optimizer,
@@ -220,6 +253,8 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
     config["output_dir"] = Path(config["output_dir"]) if config.get("output_dir") is not None else None
     if config.get("scaler_path") is not None:
         config["scaler_path"] = Path(config["scaler_path"])
+    if config.get("prefetch_factor") is not None:
+        config["prefetch_factor"] = int(config["prefetch_factor"])
     if isinstance(config.get("eval_splits"), list):
         config["eval_splits"] = ",".join(str(item) for item in config["eval_splits"])
     if isinstance(config.get("modalities"), list):
@@ -255,6 +290,8 @@ def _validate_run_args(args: argparse.Namespace) -> None:
         parser.error(f"batch-size must be >= 1, got {args.batch_size}")
     if args.num_workers < 0:
         parser.error(f"num-workers must be >= 0, got {args.num_workers}")
+    if args.prefetch_factor is not None and args.prefetch_factor < 1:
+        parser.error(f"prefetch-factor must be >= 1, got {args.prefetch_factor}")
     if args.lr <= 0.0:
         parser.error(f"lr must be > 0, got {args.lr}")
     if args.weight_decay < 0.0:
@@ -335,6 +372,16 @@ def _early_stopping_config(value: dict[str, Any]) -> EarlyStoppingConfig:
     )
 
 
+def _amp_config(value: dict[str, Any]) -> AmpConfig:
+    if not isinstance(value, dict):
+        raise ValueError("amp must be a JSON object")
+    enabled = bool(value.get("enabled", False))
+    dtype = str(value.get("dtype", "float16"))
+    if dtype not in {"float16", "bfloat16"}:
+        raise ValueError("amp.dtype must be one of ['bfloat16', 'float16']")
+    return AmpConfig(enabled=enabled, dtype=dtype)
+
+
 def _progress_config(value: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("progress must be a JSON object")
@@ -371,6 +418,12 @@ def _build_epoch_progress_callback(
             "train_loss": epoch.train_loss,
             "val_loss": epoch.val_loss,
             "learning_rate": epoch.learning_rate,
+            "epoch_seconds": epoch.epoch_seconds,
+            "train_seconds": epoch.train_seconds,
+            "val_seconds": epoch.val_seconds,
+            "train_samples_per_second": epoch.train_samples_per_second,
+            "gpu_memory_allocated_mb": epoch.gpu_memory_allocated_mb,
+            "gpu_memory_reserved_mb": epoch.gpu_memory_reserved_mb,
             "best_epoch": best_epoch,
             "stopped_early": history.stopped_early,
             "stop_reason": history.stop_reason,
@@ -404,10 +457,18 @@ def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
 
 def _print_epoch_progress(event: dict[str, Any]) -> None:
     val_loss = "none" if event["val_loss"] is None else f"{float(event['val_loss']):.6f}"
+    seconds = "none" if event["epoch_seconds"] is None else f"{float(event['epoch_seconds']):.2f}"
+    samples_per_second = (
+        "none" if event["train_samples_per_second"] is None else f"{float(event['train_samples_per_second']):.1f}"
+    )
+    gpu_memory = (
+        "none" if event["gpu_memory_allocated_mb"] is None else f"{float(event['gpu_memory_allocated_mb']):.0f}MB"
+    )
     print(
         f"[epoch] model={event['model']} epoch={event['epoch']}/{event['epochs']} "
         f"train_loss={float(event['train_loss']):.6f} val_loss={val_loss} "
-        f"lr={float(event['learning_rate']):.6g} best_epoch={event['best_epoch']}",
+        f"lr={float(event['learning_rate']):.6g} best_epoch={event['best_epoch']} "
+        f"sec={seconds} samples/s={samples_per_second} gpu_mem={gpu_memory}",
         flush=True,
     )
 
@@ -434,16 +495,24 @@ def _build_loader(
     *,
     shuffle: bool,
     seed: int,
+    pin_memory: bool,
+    persistent_workers: bool,
+    prefetch_factor: int | None,
 ) -> DataLoader:
     generator = torch.Generator()
     generator.manual_seed(seed)
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        generator=generator if shuffle else None,
-    )
+    kwargs: dict[str, Any] = {
+        "batch_size": batch_size,
+        "shuffle": shuffle,
+        "num_workers": num_workers,
+        "generator": generator if shuffle else None,
+        "pin_memory": pin_memory,
+    }
+    if num_workers > 0:
+        kwargs["persistent_workers"] = persistent_workers
+        if prefetch_factor is not None:
+            kwargs["prefetch_factor"] = prefetch_factor
+    return DataLoader(dataset, **kwargs)
 
 
 def _optional_loader(
@@ -454,6 +523,9 @@ def _optional_loader(
     scaler_path: Path | None,
     batch_size: int,
     num_workers: int,
+    pin_memory: bool,
+    persistent_workers: bool,
+    prefetch_factor: int | None,
 ) -> DataLoader | None:
     dataset = V4BenchmarkDataset(
         dataset_dir,
@@ -465,7 +537,16 @@ def _optional_loader(
     )
     if len(dataset) == 0:
         return None
-    return _build_loader(dataset, batch_size, num_workers, shuffle=False, seed=0)
+    return _build_loader(
+        dataset,
+        batch_size,
+        num_workers,
+        shuffle=False,
+        seed=0,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
+    )
 
 
 def _evaluation_payload(result: dict[str, Any]) -> dict[str, Any]:
@@ -482,6 +563,12 @@ def _epoch_payload(epoch: Any) -> dict[str, Any]:
         "train_loss": epoch.train_loss,
         "learning_rate": epoch.learning_rate,
         "val_loss": epoch.val_loss,
+        "epoch_seconds": epoch.epoch_seconds,
+        "train_seconds": epoch.train_seconds,
+        "val_seconds": epoch.val_seconds,
+        "train_samples_per_second": epoch.train_samples_per_second,
+        "gpu_memory_allocated_mb": epoch.gpu_memory_allocated_mb,
+        "gpu_memory_reserved_mb": epoch.gpu_memory_reserved_mb,
         "train_metrics": asdict(epoch.train_metrics) if epoch.train_metrics is not None else None,
         "val_metrics": asdict(epoch.val_metrics) if epoch.val_metrics is not None else None,
         "val_component_metrics": (
@@ -509,6 +596,9 @@ def _run_config_payload(
         "epochs": args.epochs,
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,
+        "pin_memory": args.pin_memory,
+        "persistent_workers": args.persistent_workers,
+        "prefetch_factor": args.prefetch_factor,
         "seed": args.seed,
         "device": args.device,
         "loss": args.loss,
@@ -519,6 +609,7 @@ def _run_config_payload(
         },
         "early_stopping": args.early_stopping,
         "scheduler": args.scheduler,
+        "amp": args.amp,
         "progress": args.progress,
         "eval_splits": _parse_comma(args.eval_splits),
     }

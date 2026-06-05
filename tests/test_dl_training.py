@@ -3,14 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from dl import cli as dl_cli
 from dl.cli import build_parser as build_dl_cli_parser, run as run_dl_cli
 from dl.training.losses import LOSS_REGISTRY, build_loss
 from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
-from dl.training.trainer import EarlyStoppingConfig, Trainer, build_optimizer
+from dl.training.trainer import AmpConfig, EarlyStoppingConfig, Trainer, build_optimizer
 from sim.core.schema import COMPONENT_FIELDS
 from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
 
@@ -249,8 +251,64 @@ class TestDLCli:
         assert "train_loss" in events[0]
         assert "val_loss" in events[0]
         assert "learning_rate" in events[0]
+        assert "epoch_seconds" in events[0]
+        assert "train_seconds" in events[0]
+        assert "val_seconds" in events[0]
+        assert "train_samples_per_second" in events[0]
+        assert "gpu_memory_allocated_mb" in events[0]
+        assert "gpu_memory_reserved_mb" in events[0]
         assert "best_epoch" in events[0]
         assert events[-1]["event"] == "training_completed"
+
+    def test_build_loader_omits_worker_only_kwargs_when_num_workers_zero(self, monkeypatch):
+        captured = {}
+
+        def fake_loader(dataset, **kwargs):
+            captured.update(kwargs)
+            return object()
+
+        monkeypatch.setattr(dl_cli, "DataLoader", fake_loader)
+        dataset = TensorDataset(torch.ones(2, 1), torch.ones(2, 4))
+
+        dl_cli._build_loader(
+            dataset,
+            batch_size=1,
+            num_workers=0,
+            shuffle=False,
+            seed=1,
+            pin_memory=True,
+            persistent_workers=True,
+            prefetch_factor=2,
+        )
+
+        assert captured["pin_memory"] is True
+        assert "persistent_workers" not in captured
+        assert "prefetch_factor" not in captured
+
+    def test_build_loader_passes_worker_kwargs_when_num_workers_positive(self, monkeypatch):
+        captured = {}
+
+        def fake_loader(dataset, **kwargs):
+            captured.update(kwargs)
+            return object()
+
+        monkeypatch.setattr(dl_cli, "DataLoader", fake_loader)
+        dataset = TensorDataset(torch.ones(2, 1), torch.ones(2, 4))
+
+        dl_cli._build_loader(
+            dataset,
+            batch_size=1,
+            num_workers=2,
+            shuffle=False,
+            seed=1,
+            pin_memory=True,
+            persistent_workers=True,
+            prefetch_factor=2,
+        )
+
+        assert captured["pin_memory"] is True
+        assert captured["persistent_workers"] is True
+        assert captured["prefetch_factor"] == 2
 
 
 class TestTrainerControl:
@@ -319,4 +377,27 @@ class TestTrainerControl:
         assert events[0]["epochs"] == 2
         assert events[0]["val_loss"] is not None
         assert events[0]["learning_rate"] == 0.01
+        assert events[0]["train_loss"] >= 0.0
         assert events[0]["best_epoch"] in {1, 2}
+
+    def test_amp_enabled_requires_cuda_device(self):
+        model = nn.Linear(1, 4)
+        loss_fn = nn.MSELoss()
+        optimizer = build_optimizer(model, {"name": "sgd", "lr": 0.01})
+        trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn, device="cpu")
+        loader = DataLoader(TensorDataset(torch.ones(4, 1), torch.ones(4, 4)), batch_size=2)
+
+        with pytest.raises(ValueError, match="requires a CUDA device"):
+            trainer.fit(loader, epochs=1, amp=AmpConfig(enabled=True))
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+    def test_amp_cuda_smoke_train_one_epoch(self):
+        model = nn.Linear(1, 4)
+        loss_fn = nn.MSELoss()
+        optimizer = build_optimizer(model, {"name": "sgd", "lr": 0.01})
+        trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn, device="cuda")
+        loader = DataLoader(TensorDataset(torch.ones(4, 1), torch.ones(4, 4)), batch_size=2)
+
+        history = trainer.fit(loader, epochs=1, amp=AmpConfig(enabled=True))
+
+        assert len(history.epochs) == 1

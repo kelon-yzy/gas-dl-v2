@@ -145,9 +145,10 @@ class TestMLModels:
         model = build_regressor({"name": "ridge", "alpha": 0.25})
         assert isinstance(model, RidgeRegressor)
         assert model.alpha == 0.25
-        dynamic = build_regressor({"name": "dynamic_stacking_svr", "mc_samples": 2})
+        dynamic = build_regressor({"name": "dynamic_stacking_svr", "mc_samples": 2, "n_jobs": 2})
         assert isinstance(dynamic, DynamicStackingSVRRegressor)
         assert dynamic.mc_samples == 2
+        assert dynamic.n_jobs == 2
 
     def test_dynamic_stacking_svr_uses_modality_views_and_weights(self):
         x = np.array(
@@ -175,13 +176,31 @@ class TestMLModels:
             "slow:T_C:mean",
         )
 
-        model = DynamicStackingSVRRegressor(mc_samples=2, random_seed=7).fit(x, y, feature_names=feature_names)
+        model = DynamicStackingSVRRegressor(mc_samples=2, random_seed=7, n_jobs=2).fit(x, y, feature_names=feature_names)
         predictions, weights = model.predict_with_diagnostics(x)
 
         assert predictions.shape == y.shape
         assert weights.shape == (x.shape[0], 3)
         np.testing.assert_allclose(weights.sum(axis=1), np.ones(x.shape[0]), atol=1e-6)
         assert np.isfinite(predictions).all()
+
+    def test_dynamic_stacking_svr_rejects_invalid_n_jobs(self):
+        x = np.ones((4, 4), dtype=np.float32)
+        y = np.ones((4, 2), dtype=np.float32)
+        feature_names = (
+            "ultrasonic:ultrasonic_max_abs:mean",
+            "slow:V_NDIR_CH4:mean",
+            "slow:V_TCS:mean",
+            "slow:T_C:mean",
+        )
+        model = DynamicStackingSVRRegressor(mc_samples=2, n_jobs=0)
+
+        try:
+            model.fit(x, y, feature_names=feature_names)
+        except ValueError as exc:
+            assert "n_jobs" in str(exc)
+        else:
+            raise AssertionError("expected n_jobs contract error")
 
     def test_dynamic_stacking_svr_requires_feature_names(self):
         x = np.ones((4, 3), dtype=np.float32)

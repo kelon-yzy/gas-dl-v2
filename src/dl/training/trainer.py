@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import time
 from typing import Any, Callable
 
 import torch
@@ -26,6 +27,12 @@ class EarlyStoppingConfig:
     mode: str = "min"
 
 
+@dataclass(frozen=True, slots=True)
+class AmpConfig:
+    enabled: bool = False
+    dtype: str = "float16"
+
+
 def build_optimizer(model: nn.Module, config: str | dict[str, object]) -> optim.Optimizer:
     if isinstance(config, str):
         name = config
@@ -46,6 +53,12 @@ class EpochMetrics:
     train_loss: float
     learning_rate: float
     val_loss: float | None = None
+    epoch_seconds: float | None = None
+    train_seconds: float | None = None
+    val_seconds: float | None = None
+    train_samples_per_second: float | None = None
+    gpu_memory_allocated_mb: float | None = None
+    gpu_memory_reserved_mb: float | None = None
     train_metrics: RegressionMetrics | None = None
     val_metrics: RegressionMetrics | None = None
     val_component_metrics: dict[str, RegressionMetrics] | None = None
@@ -99,9 +112,14 @@ class Trainer:
         scheduler: optim.lr_scheduler.LRScheduler | optim.lr_scheduler.ReduceLROnPlateau | None = None,
         best_checkpoint_path: Path | str | None = None,
         epoch_callback: Callable[[EpochMetrics, TrainHistory, int], None] | None = None,
+        amp: AmpConfig | None = None,
+        non_blocking: bool = False,
     ) -> TrainHistory:
         early_stopping = early_stopping or EarlyStoppingConfig(enabled=False)
+        amp = amp or AmpConfig(enabled=False)
         _validate_early_stopping(early_stopping, val_loader=val_loader)
+        amp_dtype = _validate_amp(amp, device=self.device)
+        scaler = torch.amp.GradScaler("cuda", enabled=amp.enabled)
         best_score: float | None = None
         unimproved_epochs = 0
         best_path = Path(best_checkpoint_path) if best_checkpoint_path is not None else None
@@ -110,24 +128,49 @@ class Trainer:
 
         self.model.train()
         for epoch in range(1, epochs + 1):
+            _cuda_synchronize(self.device)
+            epoch_start = time.perf_counter()
+            train_start = epoch_start
             total_loss = 0.0
             n_batches = 0
+            n_samples = 0
             for xb, yb in train_loader:
-                xb = xb.to(self.device)
-                yb = yb.to(self.device)
+                xb = xb.to(self.device, non_blocking=non_blocking)
+                yb = yb.to(self.device, non_blocking=non_blocking)
                 self.optimizer.zero_grad()
-                pred = self.model(xb)
-                loss = self.loss_fn(pred, yb)
-                loss.backward()
-                self.optimizer.step()
+                if amp.enabled:
+                    with torch.autocast(device_type="cuda", dtype=amp_dtype):
+                        pred = self.model(xb)
+                        loss = self.loss_fn(pred, yb)
+                    scaler.scale(loss).backward()
+                    scaler.step(self.optimizer)
+                    scaler.update()
+                else:
+                    pred = self.model(xb)
+                    loss = self.loss_fn(pred, yb)
+                    loss.backward()
+                    self.optimizer.step()
                 total_loss += loss.item()
                 n_batches += 1
+                n_samples += int(xb.shape[0])
 
+            _cuda_synchronize(self.device)
+            train_seconds = time.perf_counter() - train_start
             avg_train_loss = total_loss / max(n_batches, 1)
 
-            entry = EpochMetrics(epoch=epoch, train_loss=avg_train_loss, learning_rate=_current_learning_rate(self.optimizer))
+            entry = EpochMetrics(
+                epoch=epoch,
+                train_loss=avg_train_loss,
+                learning_rate=_current_learning_rate(self.optimizer),
+                train_seconds=train_seconds,
+                train_samples_per_second=n_samples / train_seconds if train_seconds > 0.0 else None,
+            )
             if val_loader is not None:
-                val_result = self.evaluate(val_loader)
+                _cuda_synchronize(self.device)
+                val_start = time.perf_counter()
+                val_result = self.evaluate(val_loader, non_blocking=non_blocking, amp=amp)
+                _cuda_synchronize(self.device)
+                entry.val_seconds = time.perf_counter() - val_start
                 entry.val_loss = val_result["loss"]
                 entry.val_metrics = val_result["metrics"]
                 entry.val_component_metrics = val_result["component_metrics"]
@@ -150,6 +193,11 @@ class Trainer:
                             f"{early_stopping.monitor} did not improve for "
                             f"{early_stopping.patience} epoch(s)"
                         )
+            _cuda_synchronize(self.device)
+            entry.epoch_seconds = time.perf_counter() - epoch_start
+            memory = _gpu_memory_mb(self.device)
+            entry.gpu_memory_allocated_mb = memory["allocated"]
+            entry.gpu_memory_reserved_mb = memory["reserved"]
             if epoch_callback is not None:
                 epoch_callback(entry, self.history, epochs)
             if self.history.stopped_early:
@@ -158,7 +206,15 @@ class Trainer:
         return self.history
 
     @torch.no_grad()
-    def evaluate(self, data_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]]) -> dict[str, Any]:
+    def evaluate(
+        self,
+        data_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
+        *,
+        non_blocking: bool = False,
+        amp: AmpConfig | None = None,
+    ) -> dict[str, Any]:
+        amp = amp or AmpConfig(enabled=False)
+        amp_dtype = _validate_amp(amp, device=self.device)
         self.model.eval()
         total_loss = 0.0
         all_preds: list[torch.Tensor] = []
@@ -166,10 +222,16 @@ class Trainer:
         n_batches = 0
 
         for xb, yb in data_loader:
-            xb = xb.to(self.device)
-            yb = yb.to(self.device)
-            pred = self.model(xb)
-            total_loss += self.loss_fn(pred, yb).item()
+            xb = xb.to(self.device, non_blocking=non_blocking)
+            yb = yb.to(self.device, non_blocking=non_blocking)
+            if amp.enabled:
+                with torch.autocast(device_type="cuda", dtype=amp_dtype):
+                    pred = self.model(xb)
+                    loss = self.loss_fn(pred, yb)
+            else:
+                pred = self.model(xb)
+                loss = self.loss_fn(pred, yb)
+            total_loss += loss.item()
             all_preds.append(pred.cpu())
             all_targets.append(yb.cpu())
             n_batches += 1
@@ -187,13 +249,26 @@ class Trainer:
         }
 
     @torch.no_grad()
-    def predict(self, data_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
+    def predict(
+        self,
+        data_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
+        *,
+        non_blocking: bool = False,
+        amp: AmpConfig | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        amp = amp or AmpConfig(enabled=False)
+        amp_dtype = _validate_amp(amp, device=self.device)
         self.model.eval()
         preds: list[torch.Tensor] = []
         targets: list[torch.Tensor] = []
         for xb, yb in data_loader:
-            xb = xb.to(self.device)
-            preds.append(self.model(xb).cpu())
+            xb = xb.to(self.device, non_blocking=non_blocking)
+            if amp.enabled:
+                with torch.autocast(device_type="cuda", dtype=amp_dtype):
+                    pred = self.model(xb)
+            else:
+                pred = self.model(xb)
+            preds.append(pred.cpu())
             targets.append(yb.cpu())
         self.model.train()
         return torch.cat(preds), torch.cat(targets)
@@ -234,6 +309,30 @@ def _validate_early_stopping(
         raise ValueError("early stopping min_delta must be >= 0")
     if val_loader is None:
         raise ValueError("early stopping requires a non-empty val split")
+
+
+def _validate_amp(config: AmpConfig, *, device: torch.device) -> torch.dtype:
+    dtypes = {"float16": torch.float16, "bfloat16": torch.bfloat16}
+    if config.dtype not in dtypes:
+        raise ValueError(f"amp.dtype must be one of {sorted(dtypes)}, got {config.dtype!r}")
+    if config.enabled and device.type != "cuda":
+        raise ValueError("amp.enabled=true requires a CUDA device")
+    return dtypes[config.dtype]
+
+
+def _cuda_synchronize(device: torch.device) -> None:
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+
+
+def _gpu_memory_mb(device: torch.device) -> dict[str, float | None]:
+    if device.type != "cuda":
+        return {"allocated": None, "reserved": None}
+    scale = 1024.0 * 1024.0
+    return {
+        "allocated": torch.cuda.memory_allocated(device) / scale,
+        "reserved": torch.cuda.memory_reserved(device) / scale,
+    }
 
 
 def _monitored_value(epoch: EpochMetrics, monitor: str) -> float:

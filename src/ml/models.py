@@ -125,6 +125,7 @@ class DynamicStackingSVRRegressor:
     baseline_error_constant: float = 1e-6
     random_seed: int = 123
     meta_standardize: bool = True
+    n_jobs: int = 1
     groups_: dict[str, np.ndarray] | None = None
     scalers_: dict[str, StandardScaler] | None = None
     base_models_: dict[str, MultiOutputRegressor] | None = None
@@ -145,6 +146,8 @@ class DynamicStackingSVRRegressor:
             raise ValueError(f"mc_noise_std must be >= 0, got {self.mc_noise_std}")
         if self.baseline_error_constant <= 0.0:
             raise ValueError(f"baseline_error_constant must be > 0, got {self.baseline_error_constant}")
+        if self.n_jobs != -1 and self.n_jobs <= 0:
+            raise ValueError(f"n_jobs must be -1 or > 0, got {self.n_jobs}")
 
         x_arr = _as_2d_features(x)
         y_arr = _as_2d_targets(y)
@@ -161,6 +164,7 @@ class DynamicStackingSVRRegressor:
             scaled = scaler.fit_transform(view)
             model = MultiOutputRegressor(
                 SVR(kernel="rbf", C=self.svr_c, epsilon=self.svr_epsilon, gamma=self.svr_gamma),
+                n_jobs=self.n_jobs,
             )
             model.fit(scaled, y_arr)
             scalers[modality] = scaler

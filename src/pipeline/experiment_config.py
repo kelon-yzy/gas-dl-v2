@@ -9,6 +9,9 @@ from ml.models import REGRESSOR_REGISTRY
 from sim.core.schema import SPLIT_NAMES
 
 
+ALL_MODALITIES = ("slow", "ultrasonic", "fiber_mic")
+
+
 DEFAULT_ML_RUNS: tuple[dict[str, Any], ...] = (
     {
         "name": "ridge_slow",
@@ -19,27 +22,27 @@ DEFAULT_ML_RUNS: tuple[dict[str, Any], ...] = (
     {
         "name": "ridge_all_modalities",
         "model": {"name": "ridge", "alpha": 1.0},
-        "modalities": ["slow", "ultrasonic", "fiber_mic"],
+        "modalities": list(ALL_MODALITIES),
         "protocol": True,
     },
     {
         "name": "dynamic_stacking_svr_all_modalities",
-        "model": {"name": "dynamic_stacking_svr"},
-        "modalities": ["slow", "ultrasonic", "fiber_mic"],
+        "model": {"name": "dynamic_stacking_svr", "n_jobs": 4},
+        "modalities": list(ALL_MODALITIES),
         "protocol": False,
     },
 )
 
 DEFAULT_DL_RUNS: tuple[dict[str, Any], ...] = (
-    {"name": "cnn1d", "model": "cnn1d", "modalities": ["slow"], "model_kwargs": {}},
-    {"name": "tcn", "model": "tcn", "modalities": ["slow"], "model_kwargs": {}},
-    {"name": "lstm", "model": "lstm", "modalities": ["slow"], "model_kwargs": {}},
-    {"name": "transformer", "model": "transformer", "modalities": ["slow"], "model_kwargs": {}},
-    {"name": "patchtst", "model": "patchtst", "modalities": ["slow"], "model_kwargs": {}},
+    {"name": "cnn1d", "model": "cnn1d", "modalities": list(ALL_MODALITIES), "model_kwargs": {}},
+    {"name": "tcn", "model": "tcn", "modalities": list(ALL_MODALITIES), "model_kwargs": {}},
+    {"name": "lstm", "model": "lstm", "modalities": list(ALL_MODALITIES), "model_kwargs": {}},
+    {"name": "transformer", "model": "transformer", "modalities": list(ALL_MODALITIES), "model_kwargs": {}},
+    {"name": "patchtst", "model": "patchtst", "modalities": list(ALL_MODALITIES), "model_kwargs": {}},
     {
         "name": "cnn1d_tcn_fusion",
         "model": "cnn1d_tcn_fusion",
-        "modalities": ["slow", "ultrasonic", "fiber_mic"],
+        "modalities": list(ALL_MODALITIES),
         "model_kwargs": {},
     },
 )
