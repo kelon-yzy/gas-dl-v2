@@ -108,7 +108,7 @@ def test_run_experiment_dry_run_does_not_write_outputs(tmp_path: Path):
     assert not output_root.exists()
 
 
-def test_run_experiment_writes_runs_summary_and_report(tmp_path: Path):
+def test_run_experiment_writes_runs_summary_report_and_progress_logs(tmp_path: Path, capsys):
     dataset_dir = _make_smoke_dataset(tmp_path)
     output_root = tmp_path / "outputs"
     config_path = _write_config(tmp_path / "config.json", _base_config(dataset_dir, output_root))
@@ -116,10 +116,17 @@ def test_run_experiment_writes_runs_summary_and_report(tmp_path: Path):
 
     result = run(config)
 
+    output = capsys.readouterr().out
     assert Path(result["summary_path"]).is_file()
     assert Path(result["report_path"]).is_file()
     assert (output_root / "runs" / "smoke_suite" / "mean_slow" / "metrics.json").is_file()
     assert (output_root / "runs" / "smoke_suite" / "cnn1d_smoke" / "metrics.json").is_file()
+    assert (output_root / "runs" / "smoke_suite" / "cnn1d_smoke" / "metrics_live.jsonl").is_file()
+    assert "[run start] kind=ml name=mean_slow" in output
+    assert "[run done] kind=ml name=mean_slow" in output
+    assert "[run start] kind=dl name=cnn1d_smoke" in output
+    assert "[run done] kind=dl name=cnn1d_smoke" in output
+    assert "[epoch] model=cnn1d epoch=1/1" in output
     summary = Path(result["summary_path"]).read_text(encoding="utf-8")
     report = Path(result["report_path"]).read_text(encoding="utf-8")
     assert "mean_slow" in summary

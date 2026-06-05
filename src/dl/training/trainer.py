@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import torch
 from torch import nn, optim
@@ -98,6 +98,7 @@ class Trainer:
         early_stopping: EarlyStoppingConfig | None = None,
         scheduler: optim.lr_scheduler.LRScheduler | optim.lr_scheduler.ReduceLROnPlateau | None = None,
         best_checkpoint_path: Path | str | None = None,
+        epoch_callback: Callable[[EpochMetrics, TrainHistory, int], None] | None = None,
     ) -> TrainHistory:
         early_stopping = early_stopping or EarlyStoppingConfig(enabled=False)
         _validate_early_stopping(early_stopping, val_loader=val_loader)
@@ -133,6 +134,7 @@ class Trainer:
 
             self.history.epochs.append(entry)
             _step_scheduler(scheduler, entry)
+            entry.learning_rate = _current_learning_rate(self.optimizer)
             if best_path is not None and _is_best_epoch(entry, self.history.best_epoch):
                 self.save_checkpoint(best_path)
             if early_stopping.enabled:
@@ -148,7 +150,10 @@ class Trainer:
                             f"{early_stopping.monitor} did not improve for "
                             f"{early_stopping.patience} epoch(s)"
                         )
-                        break
+            if epoch_callback is not None:
+                epoch_callback(entry, self.history, epochs)
+            if self.history.stopped_early:
+                break
 
         return self.history
 

@@ -206,6 +206,52 @@ class TestDLCli:
         assert (output_dir / "best_checkpoint.pt").is_file()
         assert payload["learning_rates"] == [0.001]
 
+    def test_cli_writes_live_progress_jsonl_without_polluting_json_stdout(self, tmp_path: Path, capsys):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-progress")
+        output_dir = tmp_path / "runs" / "progress-cnn1d"
+        parser = build_dl_cli_parser()
+        args = parser.parse_args(
+            [
+                "--dataset-dir",
+                str(dataset_dir),
+                "--output-dir",
+                str(output_dir),
+                "--model",
+                "cnn1d",
+                "--model-kwargs",
+                '{"hidden_channels":[4],"kernel_size":3,"dropout":0.0}',
+                "--epochs",
+                "1",
+                "--batch-size",
+                "4",
+                "--eval-splits",
+                "val",
+                "--json",
+            ]
+        )
+
+        payload = run_dl_cli(args)
+
+        captured = capsys.readouterr().out
+        assert "[epoch]" not in captured
+        stdout_payload = json.loads(captured)
+        progress_path = output_dir / "metrics_live.jsonl"
+        metrics_payload = json.loads((output_dir / "metrics.json").read_text(encoding="utf-8"))
+        events = [json.loads(line) for line in progress_path.read_text(encoding="utf-8").splitlines()]
+        assert progress_path.is_file()
+        assert payload["progress_log_path"] == str(progress_path)
+        assert stdout_payload["progress_log_path"] == str(progress_path)
+        assert metrics_payload["progress_log_path"] == str(progress_path)
+        assert events[0]["event"] == "epoch_end"
+        assert events[0]["model"] == "cnn1d"
+        assert events[0]["epoch"] == 1
+        assert events[0]["epochs"] == 1
+        assert "train_loss" in events[0]
+        assert "val_loss" in events[0]
+        assert "learning_rate" in events[0]
+        assert "best_epoch" in events[0]
+        assert events[-1]["event"] == "training_completed"
+
 
 class TestTrainerControl:
     def test_early_stopping_stops_when_val_loss_does_not_improve(self, tmp_path: Path):
@@ -245,3 +291,32 @@ class TestTrainerControl:
         trainer.fit(loader, val_loader=loader, epochs=3, scheduler=scheduler)
 
         assert optimizer.param_groups[0]["lr"] < 0.1
+
+    def test_fit_calls_epoch_callback_with_progress_fields(self):
+        model = nn.Linear(1, 4)
+        loss_fn = nn.MSELoss()
+        optimizer = build_optimizer(model, {"name": "sgd", "lr": 0.01})
+        trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn)
+        loader = DataLoader(TensorDataset(torch.ones(4, 1), torch.ones(4, 4)), batch_size=2)
+        events = []
+
+        def callback(epoch, history, total_epochs):
+            events.append(
+                {
+                    "epoch": epoch.epoch,
+                    "epochs": total_epochs,
+                    "train_loss": epoch.train_loss,
+                    "val_loss": epoch.val_loss,
+                    "learning_rate": epoch.learning_rate,
+                    "best_epoch": history.best_epoch.epoch,
+                }
+            )
+
+        trainer.fit(loader, val_loader=loader, epochs=2, epoch_callback=callback)
+
+        assert len(events) == 2
+        assert events[0]["epoch"] == 1
+        assert events[0]["epochs"] == 2
+        assert events[0]["val_loss"] is not None
+        assert events[0]["learning_rate"] == 0.01
+        assert events[0]["best_epoch"] in {1, 2}

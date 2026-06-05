@@ -25,6 +25,12 @@
       "factor": 0.5,
       "patience": 8,
       "min_lr": 0.000001
+    },
+    "progress": {
+      "enabled": true,
+      "stdout": true,
+      "jsonl": true,
+      "jsonl_name": "metrics_live.jsonl"
     }
   },
   "ml_runs": [],

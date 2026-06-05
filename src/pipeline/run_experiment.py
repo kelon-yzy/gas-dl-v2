@@ -46,9 +46,9 @@ def run(config: ExperimentConfig, *, dry_run: bool = False) -> dict[str, Any]:
 
     rows: list[dict[str, object]] = []
     for run_config in config.ml_runs:
-        rows.extend(_run_ml(config, run_config, run_root / str(run_config["name"])))
+        rows.extend(_run_with_progress("ml", config, run_config, run_root / str(run_config["name"])))
     for run_config in config.dl_runs:
-        rows.extend(_run_dl(config, run_config, run_root / str(run_config["name"])))
+        rows.extend(_run_with_progress("dl", config, run_config, run_root / str(run_config["name"])))
 
     summary_path = summary_dir / f"{config.experiment_name}_summary.csv"
     report_path = report_dir / f"{config.experiment_name}.md"
@@ -60,6 +60,29 @@ def run(config: ExperimentConfig, *, dry_run: bool = False) -> dict[str, Any]:
         "report_path": str(report_path),
         "rows": rows,
     }
+
+
+def _run_with_progress(
+    kind: str,
+    config: ExperimentConfig,
+    run_config: dict[str, Any],
+    output_dir: Path,
+) -> list[dict[str, object]]:
+    run_name = str(run_config["name"])
+    model_name = str(_model_name(run_config["model"]))
+    print(f"[run start] kind={kind} name={run_name} model={model_name} output_dir={output_dir}", flush=True)
+    try:
+        if kind == "ml":
+            rows = _run_ml(config, run_config, output_dir)
+        elif kind == "dl":
+            rows = _run_dl(config, run_config, output_dir)
+        else:
+            raise ValueError(f"Unknown run kind: {kind!r}")
+    except Exception as exc:
+        print(f"[run fail] kind={kind} name={run_name} model={model_name} error={exc}", flush=True)
+        raise
+    print(f"[run done] kind={kind} name={run_name} model={model_name}", flush=True)
+    return rows
 
 
 def _run_ml(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Path) -> list[dict[str, object]]:
@@ -120,6 +143,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         checkpoint_name="checkpoint.pt",
         early_stopping=training["early_stopping"],
         scheduler=training["scheduler"],
+        progress=training.get("progress"),
         json=False,
     )
     payload = run_dl_cli(args)

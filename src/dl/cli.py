@@ -35,6 +35,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "checkpoint_name": "checkpoint.pt",
     "early_stopping": {"enabled": False, "monitor": "val_loss", "patience": 20, "min_delta": 0.0, "mode": "min"},
     "scheduler": {"name": "none"},
+    "progress": {"enabled": True, "stdout": True, "jsonl": True, "jsonl_name": "metrics_live.jsonl"},
     "json": False,
 }
 
@@ -129,6 +130,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     checkpoint_path = args.output_dir / args.checkpoint_name
     best_checkpoint_path = args.output_dir / "best_checkpoint.pt"
     scheduler = _build_scheduler(optimizer, args.scheduler)
+    progress = _progress_config(args.progress)
+    progress_log_path = args.output_dir / progress["jsonl_name"] if progress["enabled"] and progress["jsonl"] else None
+    if progress_log_path is not None:
+        progress_log_path.write_text("", encoding="utf-8")
+    epoch_callback = _build_epoch_progress_callback(
+        model_name=args.model,
+        progress=progress,
+        progress_log_path=progress_log_path,
+        stdout_enabled=not args.json,
+    )
     history = trainer.fit(
         train_loader,
         val_loader=val_loader,
@@ -136,7 +147,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         early_stopping=_early_stopping_config(args.early_stopping),
         scheduler=scheduler,
         best_checkpoint_path=best_checkpoint_path,
+        epoch_callback=epoch_callback,
     )
+    _write_training_progress_event(args.model, history, progress_log_path)
     if best_checkpoint_path.is_file():
         trainer.load_checkpoint(best_checkpoint_path)
         trainer.history = history
@@ -178,6 +191,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "stop_reason": history.stop_reason,
         "best_checkpoint_path": str(best_checkpoint_path) if best_checkpoint_path.is_file() else None,
         "learning_rates": [epoch.learning_rate for epoch in history.epochs],
+        "progress_log_path": str(progress_log_path) if progress_log_path is not None else None,
         "evaluations": evaluations,
     }
     (args.output_dir / "metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -321,6 +335,83 @@ def _early_stopping_config(value: dict[str, Any]) -> EarlyStoppingConfig:
     )
 
 
+def _progress_config(value: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("progress must be a JSON object")
+    config = dict(DEFAULT_DL_CONFIG["progress"])
+    config.update(value)
+    jsonl_name = str(config["jsonl_name"])
+    if not jsonl_name or Path(jsonl_name).name != jsonl_name:
+        raise ValueError("progress.jsonl_name must be a filename")
+    return {
+        "enabled": bool(config["enabled"]),
+        "stdout": bool(config["stdout"]),
+        "jsonl": bool(config["jsonl"]),
+        "jsonl_name": jsonl_name,
+    }
+
+
+def _build_epoch_progress_callback(
+    *,
+    model_name: str,
+    progress: dict[str, Any],
+    progress_log_path: Path | None,
+    stdout_enabled: bool,
+):
+    if not progress["enabled"]:
+        return None
+
+    def callback(epoch: Any, history: Any, epochs: int) -> None:
+        best_epoch = history.best_epoch.epoch if history.best_epoch is not None else None
+        event = {
+            "event": "epoch_end",
+            "model": model_name,
+            "epoch": epoch.epoch,
+            "epochs": epochs,
+            "train_loss": epoch.train_loss,
+            "val_loss": epoch.val_loss,
+            "learning_rate": epoch.learning_rate,
+            "best_epoch": best_epoch,
+            "stopped_early": history.stopped_early,
+            "stop_reason": history.stop_reason,
+        }
+        if progress["jsonl"] and progress_log_path is not None:
+            _append_jsonl(progress_log_path, event)
+        if progress["stdout"] and stdout_enabled:
+            _print_epoch_progress(event)
+
+    return callback
+
+
+def _write_training_progress_event(model_name: str, history: Any, progress_log_path: Path | None) -> None:
+    if progress_log_path is None:
+        return
+    event = {
+        "event": "training_stopped" if history.stopped_early else "training_completed",
+        "model": model_name,
+        "epochs_ran": len(history.epochs),
+        "best_epoch": history.best_epoch.epoch if history.best_epoch is not None else None,
+        "stopped_early": history.stopped_early,
+        "stop_reason": history.stop_reason,
+    }
+    _append_jsonl(progress_log_path, event)
+
+
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def _print_epoch_progress(event: dict[str, Any]) -> None:
+    val_loss = "none" if event["val_loss"] is None else f"{float(event['val_loss']):.6f}"
+    print(
+        f"[epoch] model={event['model']} epoch={event['epoch']}/{event['epochs']} "
+        f"train_loss={float(event['train_loss']):.6f} val_loss={val_loss} "
+        f"lr={float(event['learning_rate']):.6g} best_epoch={event['best_epoch']}",
+        flush=True,
+    )
+
+
 def _build_scheduler(optimizer: torch.optim.Optimizer, config: dict[str, Any]):
     name = str(config.get("name", "none"))
     if name == "none":
@@ -389,6 +480,7 @@ def _epoch_payload(epoch: Any) -> dict[str, Any]:
     payload = {
         "epoch": epoch.epoch,
         "train_loss": epoch.train_loss,
+        "learning_rate": epoch.learning_rate,
         "val_loss": epoch.val_loss,
         "train_metrics": asdict(epoch.train_metrics) if epoch.train_metrics is not None else None,
         "val_metrics": asdict(epoch.val_metrics) if epoch.val_metrics is not None else None,
@@ -427,6 +519,7 @@ def _run_config_payload(
         },
         "early_stopping": args.early_stopping,
         "scheduler": args.scheduler,
+        "progress": args.progress,
         "eval_splits": _parse_comma(args.eval_splits),
     }
 
