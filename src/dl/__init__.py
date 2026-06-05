@@ -7,6 +7,7 @@ from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.models.registry import MODEL_REGISTRY, build_model
 from dl.training.losses import LOSS_REGISTRY, build_loss
 from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
+from dl.training.trainer import OPTIMIZER_REGISTRY, Trainer, build_optimizer
 
 __all__ = [
     "V4BenchmarkDataset",
@@ -22,7 +23,10 @@ __all__ = [
     "MODEL_REGISTRY",
     "build_model",
     "LOSS_REGISTRY",
+    "OPTIMIZER_REGISTRY",
+    "Trainer",
     "build_loss",
+    "build_optimizer",
     "RegressionMetrics",
     "regression_metrics",
     "component_regression_metrics",

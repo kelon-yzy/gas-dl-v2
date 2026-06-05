@@ -6,6 +6,7 @@ import torch
 
 from dl.models.base import BaseRegressor
 from dl.models.cnn1d import CNN1DRegressor
+from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor, GasHeadNormalize
 from dl.models.lstm import LSTMRegressor
 from dl.models.patchtst import PatchTSTRegressor
 from dl.models.registry import MODEL_REGISTRY, build_model
@@ -37,6 +38,9 @@ class TestModelRegistry:
     def test_registry_contains_tcn(self):
         assert "tcn" in MODEL_REGISTRY
 
+    def test_registry_contains_cnn1d_tcn_fusion(self):
+        assert "cnn1d_tcn_fusion" in MODEL_REGISTRY
+
     def test_registry_contains_sequence_models(self):
         assert {"lstm", "transformer", "patchtst"}.issubset(MODEL_REGISTRY)
 
@@ -47,6 +51,24 @@ class TestModelRegistry:
     def test_build_tcn_from_config(self):
         model = build_model({"name": "tcn", "in_channels": 8, "out_dim": 4})
         assert isinstance(model, TCNRegressor)
+
+    def test_build_cnn1d_tcn_fusion_from_config(self):
+        model = build_model(
+            {
+                "name": "cnn1d_tcn_fusion",
+                "in_channels": 14,
+                "slow_channels": 2,
+                "ultrasonic_channels": 5,
+                "fiber_mic_channels": 7,
+                "waveform_embedding_dim": 4,
+                "acoustic_channels": [2, 4],
+                "slow_hidden_dim": 4,
+                "slow_embedding_dim": 4,
+                "tcn_channels": [4],
+                "shared_hidden_dims": [8, 4],
+            }
+        )
+        assert isinstance(model, CNN1DTCNFusionRegressor)
 
     def test_build_sequence_models_from_config(self):
         assert isinstance(build_model({"name": "lstm", "in_channels": 8, "out_dim": 4}), LSTMRegressor)
@@ -173,6 +195,67 @@ class TestTCNRegressor:
         assert out.shape == (2, 5, 11)
 
 
+class TestCNN1DTCNFusionRegressor:
+    def test_forward_shape_and_simplex_constraint(self):
+        model = CNN1DTCNFusionRegressor(
+            in_channels=14,
+            slow_channels=2,
+            ultrasonic_channels=5,
+            fiber_mic_channels=7,
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+        )
+
+        out = model(torch.randn(3, 6, 14))
+
+        assert out.shape == (3, 4)
+        assert torch.all(out >= 0.0)
+        assert torch.allclose(out.sum(dim=-1), torch.full((3,), 100.0), atol=1e-5)
+        assert model.input_format == "NTC"
+        assert model.receptive_field == 5
+
+    def test_gradient_flows(self):
+        model = CNN1DTCNFusionRegressor(
+            in_channels=14,
+            slow_channels=2,
+            ultrasonic_channels=5,
+            fiber_mic_channels=7,
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+        )
+        x = torch.randn(2, 4, 14, requires_grad=True)
+
+        loss = model(x).sum()
+        loss.backward()
+
+        for name, param in model.named_parameters():
+            assert param.grad is not None, f"{name} has no gradient"
+
+    def test_rejects_channel_mismatch(self):
+        try:
+            CNN1DTCNFusionRegressor(in_channels=13, slow_channels=2, ultrasonic_channels=5, fiber_mic_channels=7)
+        except ValueError as exc:
+            assert "does not match" in str(exc)
+        else:
+            raise AssertionError("channel mismatch should be rejected")
+
+    def test_gas_head_uses_output_prior_and_keeps_sum(self):
+        head = GasHeadNormalize(3, output_prior=(10.0, 70.0, 5.0, 15.0))
+
+        out = head(torch.zeros(1, 3))
+
+        assert torch.allclose(out.sum(dim=-1), torch.tensor([100.0]), atol=1e-5)
+        assert torch.allclose(out[0], torch.tensor([10.0, 70.0, 5.0, 15.0]), atol=1e-5)
+
+
 class TestLongSequenceRegressors:
     def test_lstm_forward_shape_ntc(self):
         model = LSTMRegressor(in_channels=8, out_dim=4, hidden_size=16)
@@ -263,3 +346,28 @@ class TestEndToEndWithDataset:
             out = model(batch_x)
         assert out.shape[0] == min(4, len(ds))
         assert out.shape[1] == 4
+
+    def test_dataset_to_cnn1d_tcn_fusion_forward(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path)
+        ds = V4BenchmarkDataset(
+            dataset_dir,
+            split="train",
+            modalities=("slow", "ultrasonic", "fiber_mic"),
+            input_format="NTC",
+            lazy=False,
+        )
+        model = CNN1DTCNFusionRegressor(
+            in_channels=3008,
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+        )
+        model.eval()
+        x, _y = ds[0]
+        with torch.no_grad():
+            out = model(x.unsqueeze(0))
+        assert out.shape == (1, 4)
+        assert torch.allclose(out.sum(dim=-1), torch.tensor([100.0]), atol=1e-4)

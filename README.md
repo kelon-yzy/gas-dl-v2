@@ -10,8 +10,8 @@
 - 已建立 `src/sim/validation`：校验旧字段、ID 唯一性、组分和 split 覆盖。
 - 已建立 `src/ml`：提供 dependency-light 的传统 ML baseline，包含 v4 benchmark 表格特征抽取、`MeanRegressor`、闭式解 `RidgeRegressor`、numpy 回归指标、`train_regressor_on_dataset` 训练/评估入口，以及 full/per-phase/early baseline protocol report，不依赖 scikit-learn。
 - 已建立 `src/dl/data`：`V4BenchmarkDataset` 消费 v4 benchmark，支持慢变量/超声/光纤三模态、NTC/NCT 格式、split 加载、真正 lazy memmap（取单条样本时才转 float32）、scaler 归一化；训练期增强通过显式 `TimeSeriesAugmentConfig` 开启，默认关闭。
-- 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor`、`TCNRegressor`、`LSTMRegressor`、`TransformerRegressor` 和 `PatchTSTRegressor`。CNN/TCN 支持 `mean/last/attention` 聚合，TCN 支持按 `target_timesteps` 自动扩展感受野。
-- 已建立 `src/dl/training`：提供 loss、metrics、轻量 `Trainer`、optimizer 构造、evaluate/predict 和 checkpoint 保存/加载。当前仍没有 argparse 训练 CLI、LR scheduler、early stopping 或完整 run 报告输出。
+- 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor`、`TCNRegressor`、`CNN1DTCNFusionRegressor`、`LSTMRegressor`、`TransformerRegressor` 和 `PatchTSTRegressor`。CNN/TCN 支持 `mean/last/attention` 聚合，TCN 支持按 `target_timesteps` 自动扩展感受野；`cnn1d_tcn_fusion` 支持 slow/ultrasonic/fiber_mic 三路编码、TCN 融合与 bounded simplex 输出约束。
+- 已建立 `src/dl/training`：提供 loss、metrics、轻量 `Trainer`、optimizer 构造、evaluate/predict 和 checkpoint 保存/加载；`python -m dl.cli` 已支持单数据集训练、checkpoint、run_config 与 metrics JSON 输出。当前仍没有 LR scheduler 或 early stopping。
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口，CLI 默认按 CPU 自动启用 sequence chunk 多进程生成。
 - 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/precompute_hitran_benchmark_cache.py`、`src/pipeline/compare_optical_backends.py`、`src/pipeline/sanity_check_tabulated_spectra.py` 和 `src/pipeline/bundle_waveform_sequence.py`：HITRAN 谱缓存预计算、benchmark 专用 cache 预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check、生成后 waveform 压缩包打包入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
@@ -128,10 +128,19 @@ python -m ml.cli --dataset-dir data/wv4-smoke --protocol --json
 `src/dl` 当前提供最小训练闭环：
 
 - `V4BenchmarkDataset`：读取 v4 benchmark，按 split 过滤，支持 NTC/NCT、lazy memmap、scaler 和显式时间序列增强。
-- `build_model(...)`：通过 `cnn1d`、`tcn`、`lstm`、`transformer`、`patchtst` 构造模型。
+- `build_model(...)`：通过 `cnn1d`、`tcn`、`cnn1d_tcn_fusion`、`lstm`、`transformer`、`patchtst` 构造模型。
 - `Trainer`：支持 `fit`、`evaluate`、`predict`、checkpoint 保存/加载。
+- `python -m dl.cli`：命令行训练入口，会按模型 `input_format` 自动选择 NTC/NCT 数据布局，并从样本推断 `in_channels`、`out_dim`；TCN 在未手工传 `channels` 时会按样本长度补 `target_timesteps`。
 
-当前边界：训练配置和 run 输出契约尚未整理成正式 CLI；`Trainer` 不含分布式训练、LR scheduler 或 early stopping。后续正式实验需要先补 `--dataset-dir/--model/--epochs/--output-dir` 训练入口，再跑长时序模型对比。
+示例：
+
+```powershell
+python -m dl.cli --dataset-dir data/wv4-smoke --output-dir outputs/runs/wv4-smoke-cnn1d --model cnn1d --epochs 10 --batch-size 32
+python -m dl.cli --dataset-dir data/wv4-smoke --output-dir outputs/runs/wv4-smoke-tcn --model tcn --epochs 10 --model-kwargs '{\"pooling\":\"last\"}'
+python -m dl.cli --dataset-dir data/wv4-smoke --output-dir outputs/runs/wv4-smoke-fusion --model cnn1d_tcn_fusion --modalities slow,ultrasonic,fiber_mic --epochs 10 --batch-size 16
+```
+
+当前边界：`Trainer` 不含分布式训练、LR scheduler 或 early stopping；正式实验还需要在数据集就绪后跑 CNN/TCN/LSTM/Transformer/PatchTST 对比。
 
 ## HITRAN 光谱预计算
 

@@ -1,10 +1,30 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import torch
 
+from dl.cli import build_parser as build_dl_cli_parser, run as run_dl_cli
 from dl.training.losses import LOSS_REGISTRY, build_loss
 from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
 from sim.core.schema import COMPONENT_FIELDS
+from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+
+
+def _make_smoke_dataset(tmp_path: Path, slug: str = "dl-train-smoke", sequences: int = 16) -> Path:
+    generate_benchmark_dataset(
+        tmp_path,
+        BenchmarkGenerationSpec(
+            dataset_slug=slug,
+            sequence_count=sequences,
+            seed=7,
+            timesteps=16,
+            storage="npz",
+            optical_absorption_backend="empirical_v1",
+        ),
+    )
+    return tmp_path / slug
 
 
 class TestLosses:
@@ -78,3 +98,77 @@ class TestRegressionMetrics:
             assert "component_names length" in str(exc)
         else:
             raise AssertionError("component_regression_metrics should reject name mismatch")
+
+
+class TestDLCli:
+    def test_cli_trains_and_writes_run_artifacts(self, tmp_path: Path, capsys):
+        dataset_dir = _make_smoke_dataset(tmp_path)
+        output_dir = tmp_path / "runs" / "cnn1d"
+        parser = build_dl_cli_parser()
+        args = parser.parse_args(
+            [
+                "--dataset-dir",
+                str(dataset_dir),
+                "--output-dir",
+                str(output_dir),
+                "--model",
+                "cnn1d",
+                "--model-kwargs",
+                '{"hidden_channels":[4],"kernel_size":3,"dropout":0.0}',
+                "--epochs",
+                "1",
+                "--batch-size",
+                "4",
+                "--lr",
+                "0.001",
+                "--eval-splits",
+                "val,test",
+                "--json",
+            ]
+        )
+
+        payload = run_dl_cli(args)
+
+        stdout_payload = json.loads(capsys.readouterr().out)
+        metrics_path = output_dir / "metrics.json"
+        config_path = output_dir / "run_config.json"
+        checkpoint_path = output_dir / "checkpoint.pt"
+        assert metrics_path.is_file()
+        assert config_path.is_file()
+        assert checkpoint_path.is_file()
+        assert stdout_payload["checkpoint_path"] == str(checkpoint_path)
+        assert payload["model_config"]["name"] == "cnn1d"
+        assert payload["model_config"]["in_channels"] == 8
+        assert payload["model_config"]["out_dim"] == 4
+        assert set(payload["evaluations"]) == {"val", "test"}
+        assert len(payload["history"]) == 1
+        assert set(payload["evaluations"]["val"]["component_metrics"]) == set(COMPONENT_FIELDS)
+
+    def test_cli_tcn_config_infers_target_timesteps(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-tcn-config")
+        output_dir = tmp_path / "runs" / "tcn"
+        parser = build_dl_cli_parser()
+        args = parser.parse_args(
+            [
+                "--dataset-dir",
+                str(dataset_dir),
+                "--output-dir",
+                str(output_dir),
+                "--model",
+                "tcn",
+                "--model-kwargs",
+                '{"channels":[4,4],"dropout":0.0}',
+                "--epochs",
+                "1",
+                "--batch-size",
+                "4",
+                "--eval-splits",
+                "val",
+            ]
+        )
+
+        payload = run_dl_cli(args)
+
+        assert "target_timesteps" not in payload["model_config"]
+        assert payload["input_format"] == "NCT"
+        assert set(payload["evaluations"]) == {"val"}

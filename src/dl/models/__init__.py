@@ -2,6 +2,7 @@
 
 from dl.models.base import BaseRegressor
 from dl.models.cnn1d import CNN1DRegressor
+from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor, DeepAcousticEncoder1D, GasHeadNormalize, SlowFeatureEncoder
 from dl.models.lstm import LSTMRegressor
 from dl.models.patchtst import PatchTSTRegressor
 from dl.models.registry import MODEL_REGISTRY, build_model
@@ -12,9 +13,13 @@ __all__ = [
     "BaseRegressor",
     "CausalConv1d",
     "CNN1DRegressor",
+    "CNN1DTCNFusionRegressor",
+    "DeepAcousticEncoder1D",
+    "GasHeadNormalize",
     "LSTMRegressor",
     "MODEL_REGISTRY",
     "PatchTSTRegressor",
+    "SlowFeatureEncoder",
     "TCNRegressor",
     "TemporalBlock",
     "TransformerRegressor",
