@@ -13,26 +13,48 @@ from torch.utils.data import DataLoader
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.models.registry import MODEL_REGISTRY, build_model
 from dl.training.losses import LOSS_REGISTRY, build_loss
-from dl.training.trainer import OPTIMIZER_REGISTRY, Trainer, build_optimizer
+from dl.training.trainer import EarlyStoppingConfig, OPTIMIZER_REGISTRY, Trainer, build_optimizer
 
 DEFAULT_EVAL_SPLITS = ("val", "test", "extrapolation")
+DEFAULT_DL_CONFIG: dict[str, Any] = {
+    "model": "cnn1d",
+    "model_kwargs": {},
+    "modalities": "slow",
+    "input_format": None,
+    "scaler_path": None,
+    "epochs": 50,
+    "batch_size": 32,
+    "num_workers": 0,
+    "seed": 42,
+    "device": "cpu",
+    "loss": "mse",
+    "optimizer": "adamw",
+    "lr": 1e-3,
+    "weight_decay": 0.0,
+    "eval_splits": ",".join(DEFAULT_EVAL_SPLITS),
+    "checkpoint_name": "checkpoint.pt",
+    "early_stopping": {"enabled": False, "monitor": "val_loss", "patience": 20, "min_delta": 0.0, "mode": "min"},
+    "scheduler": {"name": "none"},
+    "json": False,
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train a DL regressor on a v4 benchmark dataset.")
-    parser.add_argument("--dataset-dir", type=Path, required=True, help="v4 benchmark dataset root directory.")
-    parser.add_argument("--output-dir", type=Path, required=True, help="Directory for checkpoint and run metrics.")
-    parser.add_argument("--model", choices=sorted(MODEL_REGISTRY), default="cnn1d", help="Model registry name.")
+    parser.add_argument("--config", type=Path, default=None, help="JSON config file. Explicit CLI args override it.")
+    parser.add_argument("--dataset-dir", type=Path, default=None, help="v4 benchmark dataset root directory.")
+    parser.add_argument("--output-dir", type=Path, default=None, help="Directory for checkpoint and run metrics.")
+    parser.add_argument("--model", choices=sorted(MODEL_REGISTRY), default=None, help="Model registry name.")
     parser.add_argument(
         "--model-kwargs",
         type=str,
-        default="{}",
+        default=None,
         help="JSON object merged into the inferred model config.",
     )
     parser.add_argument(
         "--modalities",
         type=str,
-        default="slow",
+        default=None,
         help="Comma-separated modalities: slow,ultrasonic,fiber_mic (default: slow).",
     )
     parser.add_argument(
@@ -42,27 +64,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override model input format; by default the model class contract is used.",
     )
     parser.add_argument("--scaler-path", type=Path, default=None, help="Optional z-score scaler JSON for slow channels.")
-    parser.add_argument("--epochs", type=int, default=50, help="Training epochs.")
-    parser.add_argument("--batch-size", type=int, default=32, help="Batch size.")
-    parser.add_argument("--num-workers", type=int, default=0, help="DataLoader worker count.")
-    parser.add_argument("--seed", type=int, default=42, help="Torch and DataLoader shuffle seed.")
-    parser.add_argument("--device", type=str, default="cpu", help="Torch device string, e.g. cpu or cuda.")
-    parser.add_argument("--loss", choices=sorted(LOSS_REGISTRY), default="mse", help="Loss function.")
-    parser.add_argument("--optimizer", choices=sorted(OPTIMIZER_REGISTRY), default="adamw", help="Optimizer.")
-    parser.add_argument("--lr", type=float, default=1e-3, help="Optimizer learning rate.")
-    parser.add_argument("--weight-decay", type=float, default=0.0, help="Optimizer weight decay.")
+    parser.add_argument("--epochs", type=int, default=None, help="Training epochs.")
+    parser.add_argument("--batch-size", type=int, default=None, help="Batch size.")
+    parser.add_argument("--num-workers", type=int, default=None, help="DataLoader worker count.")
+    parser.add_argument("--seed", type=int, default=None, help="Torch and DataLoader shuffle seed.")
+    parser.add_argument("--device", type=str, default=None, help="Torch device string, e.g. cpu or cuda.")
+    parser.add_argument("--loss", choices=sorted(LOSS_REGISTRY), default=None, help="Loss function.")
+    parser.add_argument("--optimizer", choices=sorted(OPTIMIZER_REGISTRY), default=None, help="Optimizer.")
+    parser.add_argument("--lr", type=float, default=None, help="Optimizer learning rate.")
+    parser.add_argument("--weight-decay", type=float, default=None, help="Optimizer weight decay.")
     parser.add_argument(
         "--eval-splits",
         type=str,
-        default=",".join(DEFAULT_EVAL_SPLITS),
+        default=None,
         help="Comma-separated splits evaluated after training.",
     )
-    parser.add_argument("--checkpoint-name", type=str, default="checkpoint.pt", help="Checkpoint filename.")
+    parser.add_argument("--checkpoint-name", type=str, default=None, help="Checkpoint filename.")
     parser.add_argument("--json", action="store_true", default=False, help="Print run metrics JSON to stdout.")
     return parser
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
+    args = _resolve_args(args)
     _validate_run_args(args)
     torch.manual_seed(args.seed)
 
@@ -102,7 +125,21 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.batch_size,
         args.num_workers,
     )
-    history = trainer.fit(train_loader, val_loader=val_loader, epochs=args.epochs)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = args.output_dir / args.checkpoint_name
+    best_checkpoint_path = args.output_dir / "best_checkpoint.pt"
+    scheduler = _build_scheduler(optimizer, args.scheduler)
+    history = trainer.fit(
+        train_loader,
+        val_loader=val_loader,
+        epochs=args.epochs,
+        early_stopping=_early_stopping_config(args.early_stopping),
+        scheduler=scheduler,
+        best_checkpoint_path=best_checkpoint_path,
+    )
+    if best_checkpoint_path.is_file():
+        trainer.load_checkpoint(best_checkpoint_path)
+        trainer.history = history
 
     evaluations: dict[str, Any] = {}
     for split in _parse_comma(args.eval_splits):
@@ -118,8 +155,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if loader is not None:
             evaluations[split] = _evaluation_payload(trainer.evaluate(loader))
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = args.output_dir / args.checkpoint_name
     trainer.save_checkpoint(checkpoint_path)
 
     payload = {
@@ -139,6 +174,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         },
         "history": [_epoch_payload(epoch) for epoch in history.epochs],
         "best_epoch": _epoch_payload(history.best_epoch) if history.best_epoch is not None else None,
+        "stopped_early": history.stopped_early,
+        "stop_reason": history.stop_reason,
+        "best_checkpoint_path": str(best_checkpoint_path) if best_checkpoint_path.is_file() else None,
+        "learning_rates": [epoch.learning_rate for epoch in history.epochs],
         "evaluations": evaluations,
     }
     (args.output_dir / "metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -154,8 +193,46 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     return payload
 
 
+def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
+    config = dict(DEFAULT_DL_CONFIG)
+    if args.config is not None:
+        config.update(_load_config(args.config))
+    for key, value in vars(args).items():
+        if key == "config":
+            continue
+        if value is not None and value is not False:
+            config[key] = value
+    config["dataset_dir"] = Path(config["dataset_dir"]) if config.get("dataset_dir") is not None else None
+    config["output_dir"] = Path(config["output_dir"]) if config.get("output_dir") is not None else None
+    if config.get("scaler_path") is not None:
+        config["scaler_path"] = Path(config["scaler_path"])
+    if isinstance(config.get("eval_splits"), list):
+        config["eval_splits"] = ",".join(str(item) for item in config["eval_splits"])
+    if isinstance(config.get("modalities"), list):
+        config["modalities"] = ",".join(str(item) for item in config["modalities"])
+    return argparse.Namespace(**config)
+
+
+def _load_config(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"DL config must be valid JSON: {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("DL config must be a JSON object")
+    allowed = set(DEFAULT_DL_CONFIG) | {"dataset_dir", "output_dir"}
+    unknown = set(payload) - allowed
+    if unknown:
+        raise ValueError(f"Unknown DL config keys: {sorted(unknown)}")
+    return payload
+
+
 def _validate_run_args(args: argparse.Namespace) -> None:
     parser = build_parser()
+    if args.dataset_dir is None:
+        parser.error("dataset-dir is required")
+    if args.output_dir is None:
+        parser.error("output-dir is required")
     if not args.dataset_dir.is_dir() or not (args.dataset_dir / "labels" / "y.npy").is_file():
         parser.error(f"dataset-dir must be a v4 benchmark root: {args.dataset_dir}")
     if args.epochs < 1:
@@ -168,6 +245,8 @@ def _validate_run_args(args: argparse.Namespace) -> None:
         parser.error(f"lr must be > 0, got {args.lr}")
     if args.weight_decay < 0.0:
         parser.error(f"weight-decay must be >= 0, got {args.weight_decay}")
+    if args.scheduler["name"] not in {"none", "reduce_on_plateau"}:
+        parser.error("scheduler.name must be one of ['none', 'reduce_on_plateau']")
 
 
 def _parse_modalities(value: str) -> tuple[str, ...]:
@@ -206,15 +285,18 @@ def _infer_input_shape(sample_x: torch.Tensor, input_format: str) -> tuple[int, 
 
 def _build_model_config(
     model_name: str,
-    model_kwargs_json: str,
+    model_kwargs_json: str | dict[str, Any],
     in_channels: int,
     out_dim: int,
     timesteps: int,
 ) -> dict[str, Any]:
-    try:
-        model_kwargs = json.loads(model_kwargs_json)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"model-kwargs must be a JSON object: {exc}") from exc
+    if isinstance(model_kwargs_json, str):
+        try:
+            model_kwargs = json.loads(model_kwargs_json)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"model-kwargs must be a JSON object: {exc}") from exc
+    else:
+        model_kwargs = dict(model_kwargs_json)
     if not isinstance(model_kwargs, dict):
         raise ValueError("model-kwargs must be a JSON object")
 
@@ -227,6 +309,31 @@ def _build_model_config(
         config["target_timesteps"] = timesteps
     config.update(model_kwargs)
     return config
+
+
+def _early_stopping_config(value: dict[str, Any]) -> EarlyStoppingConfig:
+    return EarlyStoppingConfig(
+        enabled=bool(value.get("enabled", False)),
+        monitor=str(value.get("monitor", "val_loss")),
+        patience=int(value.get("patience", 20)),
+        min_delta=float(value.get("min_delta", 0.0)),
+        mode=str(value.get("mode", "min")),
+    )
+
+
+def _build_scheduler(optimizer: torch.optim.Optimizer, config: dict[str, Any]):
+    name = str(config.get("name", "none"))
+    if name == "none":
+        return None
+    if name == "reduce_on_plateau":
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="min",
+            factor=float(config.get("factor", 0.5)),
+            patience=int(config.get("patience", 8)),
+            min_lr=float(config.get("min_lr", 1e-6)),
+        )
+    raise ValueError(f"Unknown scheduler: {name!r}")
 
 
 def _build_loader(
@@ -318,6 +425,8 @@ def _run_config_payload(
             "lr": args.lr,
             "weight_decay": args.weight_decay,
         },
+        "early_stopping": args.early_stopping,
+        "scheduler": args.scheduler,
         "eval_splits": _parse_comma(args.eval_splits),
     }
 

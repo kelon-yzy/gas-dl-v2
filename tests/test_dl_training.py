@@ -4,10 +4,13 @@ import json
 from pathlib import Path
 
 import torch
+from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
 
 from dl.cli import build_parser as build_dl_cli_parser, run as run_dl_cli
 from dl.training.losses import LOSS_REGISTRY, build_loss
 from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
+from dl.training.trainer import EarlyStoppingConfig, Trainer, build_optimizer
 from sim.core.schema import COMPONENT_FIELDS
 from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
 
@@ -172,3 +175,73 @@ class TestDLCli:
         assert "target_timesteps" not in payload["model_config"]
         assert payload["input_format"] == "NCT"
         assert set(payload["evaluations"]) == {"val"}
+
+    def test_cli_reads_json_config_and_writes_best_checkpoint(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-config")
+        output_dir = tmp_path / "runs" / "config-cnn1d"
+        config_path = tmp_path / "dl_config.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "dataset_dir": str(dataset_dir),
+                    "output_dir": str(output_dir),
+                    "model": "cnn1d",
+                    "model_kwargs": {"hidden_channels": [4], "kernel_size": 3, "dropout": 0.0},
+                    "epochs": 1,
+                    "batch_size": 4,
+                    "eval_splits": ["val"],
+                    "early_stopping": {"enabled": False},
+                    "scheduler": {"name": "none"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        parser = build_dl_cli_parser()
+        args = parser.parse_args(["--config", str(config_path)])
+
+        payload = run_dl_cli(args)
+
+        assert payload["model_config"]["name"] == "cnn1d"
+        assert payload["best_checkpoint_path"] == str(output_dir / "best_checkpoint.pt")
+        assert (output_dir / "best_checkpoint.pt").is_file()
+        assert payload["learning_rates"] == [0.001]
+
+
+class TestTrainerControl:
+    def test_early_stopping_stops_when_val_loss_does_not_improve(self, tmp_path: Path):
+        model = nn.Linear(1, 4)
+        with torch.no_grad():
+            model.weight.zero_()
+            model.bias.fill_(1.0)
+        loss_fn = nn.MSELoss()
+        optimizer = build_optimizer(model, {"name": "sgd", "lr": 0.0})
+        trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn)
+        loader = DataLoader(TensorDataset(torch.ones(4, 1), torch.ones(4, 4)), batch_size=2)
+
+        history = trainer.fit(
+            loader,
+            val_loader=loader,
+            epochs=5,
+            early_stopping=EarlyStoppingConfig(enabled=True, patience=1),
+            best_checkpoint_path=tmp_path / "best.pt",
+        )
+
+        assert history.stopped_early is True
+        assert len(history.epochs) == 2
+        assert "did not improve" in str(history.stop_reason)
+        assert (tmp_path / "best.pt").is_file()
+
+    def test_reduce_on_plateau_scheduler_reduces_lr(self):
+        model = nn.Linear(1, 4)
+        with torch.no_grad():
+            model.weight.zero_()
+            model.bias.fill_(1.0)
+        loss_fn = nn.MSELoss()
+        optimizer = build_optimizer(model, {"name": "sgd", "lr": 0.1})
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=0)
+        trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn)
+        loader = DataLoader(TensorDataset(torch.ones(4, 1), torch.ones(4, 4)), batch_size=2)
+
+        trainer.fit(loader, val_loader=loader, epochs=3, scheduler=scheduler)
+
+        assert optimizer.param_groups[0]["lr"] < 0.1

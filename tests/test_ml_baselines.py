@@ -298,3 +298,30 @@ class TestMLTraining:
         assert "## Per Phase" in report
         assert "### baseline" in report
         assert "## Early Windows" in report
+
+    def test_ml_cli_reads_json_config(self, tmp_path: Path, capsys):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-cli-config", sequences=16)
+        config_path = tmp_path / "ml_config.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "dataset_dir": str(dataset_dir),
+                    "model": "mean",
+                    "modalities": ["slow"],
+                    "sequence_statistics": ["mean"],
+                    "protocol": True,
+                    "phases": ["baseline"],
+                    "early_fractions": [0.5],
+                    "json": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        parser = build_ml_cli_parser()
+        args = parser.parse_args(["--config", str(config_path)])
+
+        run_ml_cli(args)
+
+        payload = json.loads(capsys.readouterr().out)
+        assert set(payload["per_phase"]) == {"baseline"}
+        assert set(payload["early"]) == {"0.5"}

@@ -11,42 +11,62 @@ from ml.models import DynamicStackingSVRRegressor, MeanRegressor, RidgeRegressor
 from ml.training import MLTrainingResult, train_regressor_on_dataset
 
 MODALITY_CHOICES = ("slow", "ultrasonic", "fiber_mic")
+DEFAULT_ML_CONFIG: dict[str, Any] = {
+    "model": "ridge",
+    "alpha": 1.0,
+    "svr_c": 10.0,
+    "svr_epsilon": 0.01,
+    "svr_gamma": "scale",
+    "mc_samples": 16,
+    "mc_noise_std": 0.02,
+    "baseline_error_constant": 1e-6,
+    "modalities": "slow",
+    "sequence_statistics": "mean,std,min,max,last,delta,slope",
+    "waveform_frame_features": "mean,std,mean_abs,max_abs,energy,peak_index",
+    "scaler_path": None,
+    "protocol": False,
+    "phases": "baseline,exposure,steady,recovery",
+    "early_fractions": "0.25,0.5,0.75,1.0",
+    "report_path": None,
+    "json": False,
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Train a traditional ML regressor on a v4 benchmark dataset.",
     )
-    parser.add_argument("--dataset-dir", type=Path, required=True, help="v4 benchmark dataset root directory.")
+    parser.add_argument("--config", type=Path, default=None, help="JSON config file. Explicit CLI args override it.")
+    parser.add_argument("--dataset-dir", type=Path, default=None, help="v4 benchmark dataset root directory.")
     parser.add_argument(
         "--model",
         choices=["ridge", "mean", "dynamic_stacking_svr"],
-        default="ridge",
+        default=None,
         help="Regressor type (default: ridge).",
     )
-    parser.add_argument("--alpha", type=float, default=1.0, help="Ridge alpha (default: 1.0).")
-    parser.add_argument("--svr-c", type=float, default=10.0, help="SVR C for dynamic_stacking_svr.")
-    parser.add_argument("--svr-epsilon", type=float, default=0.01, help="SVR epsilon for dynamic_stacking_svr.")
-    parser.add_argument("--svr-gamma", type=str, default="scale", help="SVR gamma for dynamic_stacking_svr.")
-    parser.add_argument("--mc-samples", type=int, default=16, help="MC perturbation samples for dynamic_stacking_svr.")
-    parser.add_argument("--mc-noise-std", type=float, default=0.02, help="Z-score-space MC noise std for dynamic_stacking_svr.")
+    parser.add_argument("--alpha", type=float, default=None, help="Ridge alpha (default: 1.0).")
+    parser.add_argument("--svr-c", type=float, default=None, help="SVR C for dynamic_stacking_svr.")
+    parser.add_argument("--svr-epsilon", type=float, default=None, help="SVR epsilon for dynamic_stacking_svr.")
+    parser.add_argument("--svr-gamma", type=str, default=None, help="SVR gamma for dynamic_stacking_svr.")
+    parser.add_argument("--mc-samples", type=int, default=None, help="MC perturbation samples for dynamic_stacking_svr.")
+    parser.add_argument("--mc-noise-std", type=float, default=None, help="Z-score-space MC noise std for dynamic_stacking_svr.")
     parser.add_argument(
         "--baseline-error-constant",
         type=float,
-        default=1e-6,
+        default=None,
         help="Positive inverse-uncertainty baseline constant for dynamic_stacking_svr.",
     )
     parser.add_argument(
         "--modalities",
         type=str,
-        default="slow",
+        default=None,
         help="Comma-separated modalities: slow,ultrasonic,fiber_mic (default: slow).",
     )
-    parser.add_argument("--sequence-statistics", type=str, default="mean,std,min,max,last,delta,slope")
+    parser.add_argument("--sequence-statistics", type=str, default=None)
     parser.add_argument(
         "--waveform-frame-features",
         type=str,
-        default="mean,std,mean_abs,max_abs,energy,peak_index",
+        default=None,
     )
     parser.add_argument("--scaler-path", type=Path, default=None, help="Path to z-score scaler JSON for slow channels.")
     parser.add_argument(
@@ -58,13 +78,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--phases",
         type=str,
-        default="baseline,exposure,steady,recovery",
+        default=None,
         help="Comma-separated phase windows for --protocol.",
     )
     parser.add_argument(
         "--early-fractions",
         type=str,
-        default="0.25,0.5,0.75,1.0",
+        default=None,
         help="Comma-separated early fractions for --protocol.",
     )
     parser.add_argument(
@@ -96,7 +116,11 @@ def _parse_svr_gamma(value: str) -> str | float:
 
 
 def run(args: argparse.Namespace) -> None:
+    args = _resolve_args(args)
     dataset_dir = args.dataset_dir
+    if dataset_dir is None:
+        parser = build_parser()
+        parser.error("dataset-dir is required")
     if not dataset_dir.is_dir() or not (dataset_dir / "labels" / "y.npy").is_file():
         parser = build_parser()
         parser.error(f"dataset-dir must be a v4 benchmark root: {dataset_dir}")
@@ -162,6 +186,47 @@ def run(args: argparse.Namespace) -> None:
         _print_json(result)
     else:
         _print_table(result)
+
+
+def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
+    config = dict(DEFAULT_ML_CONFIG)
+    if args.config is not None:
+        config.update(_load_config(args.config))
+    for key, value in vars(args).items():
+        if key == "config":
+            continue
+        if value is not None and value is not False:
+            config[key] = value
+    config["dataset_dir"] = Path(config["dataset_dir"]) if config.get("dataset_dir") is not None else None
+    if config.get("scaler_path") is not None:
+        config["scaler_path"] = Path(config["scaler_path"])
+    if config.get("report_path") is not None:
+        config["report_path"] = Path(config["report_path"])
+    if isinstance(config.get("modalities"), list):
+        config["modalities"] = ",".join(str(item) for item in config["modalities"])
+    if isinstance(config.get("sequence_statistics"), list):
+        config["sequence_statistics"] = ",".join(str(item) for item in config["sequence_statistics"])
+    if isinstance(config.get("waveform_frame_features"), list):
+        config["waveform_frame_features"] = ",".join(str(item) for item in config["waveform_frame_features"])
+    if isinstance(config.get("phases"), list):
+        config["phases"] = ",".join(str(item) for item in config["phases"])
+    if isinstance(config.get("early_fractions"), list):
+        config["early_fractions"] = ",".join(str(item) for item in config["early_fractions"])
+    return argparse.Namespace(**config)
+
+
+def _load_config(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"ML config must be valid JSON: {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("ML config must be a JSON object")
+    allowed = set(DEFAULT_ML_CONFIG) | {"dataset_dir"}
+    unknown = set(payload) - allowed
+    if unknown:
+        raise ValueError(f"Unknown ML config keys: {sorted(unknown)}")
+    return payload
 
 
 def _print_json(result: MLTrainingResult) -> None:

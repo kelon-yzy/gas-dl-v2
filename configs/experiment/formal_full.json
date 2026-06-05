@@ -1,0 +1,32 @@
+{
+  "experiment_name": "formal_full",
+  "dataset_dir": "data/wv4-formal-hitran-standard-6000",
+  "output_root": "outputs",
+  "seed": 20260603,
+  "device": "cuda",
+  "eval_splits": ["val", "test", "extrapolation"],
+  "training": {
+    "epochs": 300,
+    "batch_size": 16,
+    "num_workers": 4,
+    "optimizer": "adamw",
+    "lr": 0.001,
+    "weight_decay": 0.0,
+    "loss": "mse",
+    "early_stopping": {
+      "enabled": true,
+      "monitor": "val_loss",
+      "patience": 20,
+      "min_delta": 0.0,
+      "mode": "min"
+    },
+    "scheduler": {
+      "name": "reduce_on_plateau",
+      "factor": 0.5,
+      "patience": 8,
+      "min_lr": 0.000001
+    }
+  },
+  "ml_runs": [],
+  "dl_runs": []
+}
