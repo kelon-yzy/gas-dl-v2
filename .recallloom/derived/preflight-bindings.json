@@ -721,6 +721,86 @@
         "contract_version": "0.4.2-mvp.2"
       },
       "lease_digest": "sha256:d0b8d61df9155d81b7da351a7a98740e4f63d6aaa40f3674f7875a9213ba01f7"
+    },
+    {
+      "lease_type": "recallloom.preflight_write_binding_lease",
+      "lease_version": "0.1",
+      "issued_by": "recallloom.py",
+      "issued_at": "2026-06-08T10:26:46+08:00",
+      "binding_hash": "sha256:496bc1396f3ed844ccb83e22e25965b65f8f79290d38544f4c503570f7b5cc15",
+      "preflight_payload_digest": "sha256:d78d208a60fcfe9ec36d95e456643b0624da7b153f09aa02ce3ec0d74754ea8e",
+      "operation_class": "daily_log_append",
+      "file_key": "daily_log",
+      "write_type": "milestone_evidence",
+      "contract_type": null,
+      "expected_workspace_revision": 89,
+      "expected_file_revision": null,
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "lease_digest": "sha256:3782d5f7022e2c1af9d8424380f3cb1ea9f115ee255c0ef6a571c72dd21b96d2"
+    },
+    {
+      "lease_type": "recallloom.preflight_write_binding_lease",
+      "lease_version": "0.1",
+      "issued_by": "recallloom.py",
+      "issued_at": "2026-06-08T10:28:00+08:00",
+      "binding_hash": "sha256:496bc1396f3ed844ccb83e22e25965b65f8f79290d38544f4c503570f7b5cc15",
+      "preflight_payload_digest": "sha256:d78d208a60fcfe9ec36d95e456643b0624da7b153f09aa02ce3ec0d74754ea8e",
+      "operation_class": "daily_log_append",
+      "file_key": "daily_log",
+      "write_type": "milestone_evidence",
+      "contract_type": null,
+      "expected_workspace_revision": 89,
+      "expected_file_revision": null,
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "lease_digest": "sha256:2468715cc287b88fab3964c325c4205893d700664a0de187906775ae3a097d0d"
+    },
+    {
+      "lease_type": "recallloom.preflight_write_binding_lease",
+      "lease_version": "0.1",
+      "issued_by": "recallloom.py",
+      "issued_at": "2026-06-08T10:28:32+08:00",
+      "binding_hash": "sha256:496bc1396f3ed844ccb83e22e25965b65f8f79290d38544f4c503570f7b5cc15",
+      "preflight_payload_digest": "sha256:d78d208a60fcfe9ec36d95e456643b0624da7b153f09aa02ce3ec0d74754ea8e",
+      "operation_class": "daily_log_append",
+      "file_key": "daily_log",
+      "write_type": "milestone_evidence",
+      "contract_type": null,
+      "expected_workspace_revision": 89,
+      "expected_file_revision": null,
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "lease_digest": "sha256:fb4e6dccf10bb055cd37e2bbcf8f21a2404c5317c31b82393f258305471a63d5"
+    },
+    {
+      "lease_type": "recallloom.preflight_write_binding_lease",
+      "lease_version": "0.1",
+      "issued_by": "recallloom.py",
+      "issued_at": "2026-06-08T10:29:13+08:00",
+      "binding_hash": "sha256:8252e088eef53b0c122e1ad325b3990f126cda748d0d65c1fa0090dfc7d61b37",
+      "preflight_payload_digest": "sha256:75056fdada9a0fe052d18064c14368607ef980a44fa8ad2197343eee5d324621",
+      "operation_class": "post_append_summary_sync",
+      "file_key": "rolling_summary",
+      "write_type": "current-state",
+      "contract_type": "post_append_summary_sync",
+      "expected_workspace_revision": 90,
+      "expected_file_revision": 45,
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "lease_digest": "sha256:f6d6dec33dc3b344aba1e5eac8bc82e75ace36b7cb7e7f1f709fe6fc3a01d7a5"
     }
   ]
 }

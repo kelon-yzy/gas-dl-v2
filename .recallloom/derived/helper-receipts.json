@@ -1,7 +1,7 @@
 {
   "schema_version": "0.1",
   "store_type": "recallloom.helper_receipt_store",
-  "store_revision": 21,
+  "store_revision": 23,
   "contract_identity": {
     "contract_name": "recallloom.helper_receipt_store",
     "contract_version": "0.1",
@@ -952,6 +952,96 @@
         }
       },
       "created_at": "2026-06-05"
+    },
+    {
+      "schema_version": "0.2",
+      "receipt_type": "helper_write",
+      "helper_name": "append_daily_log_entry.py",
+      "helper_version": "0.4.3",
+      "operation": "milestone_evidence",
+      "operation_class": "daily_log_append",
+      "side_effect": "target_and_state_written",
+      "result": "ok",
+      "finalization_status": "finalized",
+      "redaction_policy_version": "0.2",
+      "state_label_before": "structurally_valid",
+      "state_label_after": "helper_evidenced",
+      "revision": 22,
+      "digest": "sha256:46bad4df43c6216c679c21eac18dd6ded56d8e53b521b3f39cdea18f9187c91f",
+      "target_file_key": "daily_log",
+      "target_digest": "sha256:4e421c2cbaabf4f0d4fa868c9d0c92c12e2acbe6ec3f290888d322cb96746ae1",
+      "state_digest": "sha256:dcc0ab28eaeb960f91db29298009912a9b5284847f4f845585f1ab77f01a1336",
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "expected_workspace_revision": 89,
+      "result_workspace_revision": 90,
+      "expected_file_revision": 0,
+      "result_file_revision": 1,
+      "contract_identity": {
+        "contract_name": "recallloom.minimal_receipt",
+        "contract_version": "0.2",
+        "contract_hash": "sha256:1c2c198c5bbeea0f09ee8d16f1a2db82bd95c465b8d54221d6a9222e20b490f3"
+      },
+      "store_binding": {
+        "store_file": "derived/helper-receipts.json",
+        "store_revision": 22,
+        "index_key": "sha256:46bad4df43c6216c679c21eac18dd6ded56d8e53b521b3f39cdea18f9187c91f",
+        "receipt_digest": "sha256:46bad4df43c6216c679c21eac18dd6ded56d8e53b521b3f39cdea18f9187c91f",
+        "store_contract_identity": {
+          "contract_name": "recallloom.helper_receipt_store",
+          "contract_version": "0.1",
+          "contract_hash": "sha256:89c983c4968716a6d9d9200cf882366de7b5dbeb0fb87363cdece86c2e5187df"
+        }
+      },
+      "created_at": "2026-06-08"
+    },
+    {
+      "schema_version": "0.2",
+      "receipt_type": "helper_write",
+      "helper_name": "commit_context_file.py",
+      "helper_version": "0.4.3",
+      "operation": "post_append_summary_sync",
+      "operation_class": "post_append_summary_sync",
+      "side_effect": "target_and_state_written",
+      "result": "ok",
+      "finalization_status": "finalized",
+      "redaction_policy_version": "0.2",
+      "state_label_before": "structurally_valid",
+      "state_label_after": "helper_evidenced",
+      "revision": 23,
+      "digest": "sha256:169c77299d4f2c7a4fc2581d45762cfdd9b2670f6258c119e6f9749ee99c00e1",
+      "target_file_key": "rolling_summary",
+      "target_digest": "sha256:1bb1195568597503c666a2f955014d111ac156da73869fbecc51cddecd30bea0",
+      "state_digest": "sha256:413d6b0a3406f2c60a43cfe503f6f003e2af1f0aba254c511af92d071fb94306",
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "expected_workspace_revision": 90,
+      "result_workspace_revision": 91,
+      "expected_file_revision": 45,
+      "result_file_revision": 46,
+      "contract_identity": {
+        "contract_name": "recallloom.minimal_receipt",
+        "contract_version": "0.2",
+        "contract_hash": "sha256:1c2c198c5bbeea0f09ee8d16f1a2db82bd95c465b8d54221d6a9222e20b490f3"
+      },
+      "store_binding": {
+        "store_file": "derived/helper-receipts.json",
+        "store_revision": 23,
+        "index_key": "sha256:169c77299d4f2c7a4fc2581d45762cfdd9b2670f6258c119e6f9749ee99c00e1",
+        "receipt_digest": "sha256:169c77299d4f2c7a4fc2581d45762cfdd9b2670f6258c119e6f9749ee99c00e1",
+        "store_contract_identity": {
+          "contract_name": "recallloom.helper_receipt_store",
+          "contract_version": "0.1",
+          "contract_hash": "sha256:89c983c4968716a6d9d9200cf882366de7b5dbeb0fb87363cdece86c2e5187df"
+        }
+      },
+      "created_at": "2026-06-08"
     }
   ],
   "index": {
@@ -1143,6 +1233,24 @@
       "result_workspace_revision": 89,
       "result_file_revision": 45,
       "created_at": "2026-06-05"
+    },
+    "sha256:46bad4df43c6216c679c21eac18dd6ded56d8e53b521b3f39cdea18f9187c91f": {
+      "receipt_digest": "sha256:46bad4df43c6216c679c21eac18dd6ded56d8e53b521b3f39cdea18f9187c91f",
+      "store_revision": 22,
+      "receipt_offset": 21,
+      "target_file_key": "daily_log",
+      "result_workspace_revision": 90,
+      "result_file_revision": 1,
+      "created_at": "2026-06-08"
+    },
+    "sha256:169c77299d4f2c7a4fc2581d45762cfdd9b2670f6258c119e6f9749ee99c00e1": {
+      "receipt_digest": "sha256:169c77299d4f2c7a4fc2581d45762cfdd9b2670f6258c119e6f9749ee99c00e1",
+      "store_revision": 23,
+      "receipt_offset": 22,
+      "target_file_key": "rolling_summary",
+      "result_workspace_revision": 91,
+      "result_file_revision": 46,
+      "created_at": "2026-06-08"
     }
   }
 }
