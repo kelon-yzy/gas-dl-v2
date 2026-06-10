@@ -173,6 +173,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = args.output_dir / args.checkpoint_name
     best_checkpoint_path = args.output_dir / "best_checkpoint.pt"
+    _remove_stale_best_checkpoint(best_checkpoint_path)
     scheduler = _build_scheduler(optimizer, args.scheduler)
     progress = _progress_config(args.progress)
     amp = _amp_config(args.amp)
@@ -437,6 +438,11 @@ def _build_model_config(
         config["target_timesteps"] = timesteps
     config.update(model_kwargs)
     return config
+
+
+def _remove_stale_best_checkpoint(path: Path) -> None:
+    if path.is_file():
+        path.unlink()
 
 
 def _early_stopping_config(value: dict[str, Any]) -> EarlyStoppingConfig:

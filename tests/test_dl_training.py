@@ -404,6 +404,14 @@ class TestDLCli:
         assert captured["persistent_workers"] is True
         assert captured["prefetch_factor"] == 2
 
+    def test_cli_removes_stale_best_checkpoint_before_training(self, tmp_path: Path):
+        path = tmp_path / "best_checkpoint.pt"
+        path.write_bytes(b"stale checkpoint")
+
+        dl_cli._remove_stale_best_checkpoint(path)
+
+        assert not path.exists()
+
 
 class TestTrainerControl:
     def test_loss_targets_match_common_alr_transform(self):
