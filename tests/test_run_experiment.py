@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
 from pipeline.experiment_config import ALL_MODALITIES, load_experiment_config
 from pipeline.run_experiment import run
 from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
@@ -51,6 +52,7 @@ def _base_config(dataset_dir: Path, output_root: Path) -> dict[str, object]:
                 "modalities": ["slow"],
                 "protocol": False,
                 "sequence_statistics": ["mean"],
+                "target_transform": {"name": "alr_ch4", "epsilon": TRAIN_MIN_POSITIVE_HALF_EPSILON},
             }
         ],
         "dl_runs": [
@@ -111,12 +113,62 @@ def test_default_dl_runs_use_all_modalities(tmp_path: Path):
         "transformer",
         "patchtst",
         "cnn1d_tcn_fusion",
+        "cnn1d_tcn_fusion_ilr",
     ]
-    assert len(config.dl_runs) == 6
+    assert len(config.dl_runs) == 7
     for run in config.dl_runs:
         assert tuple(run["modalities"]) == ALL_MODALITIES
     dynamic_run = [run for run in config.ml_runs if run["name"] == "dynamic_stacking_svr_all_modalities"][0]
+    alr_run = [run for run in config.ml_runs if run["name"] == "ridge_alr_ch4_all_modalities"][0]
+    ilr_run = [run for run in config.ml_runs if run["name"] == "ridge_ilr_n2_first_all_modalities"][0]
+    fusion_ilr_run = [run for run in config.dl_runs if run["name"] == "cnn1d_tcn_fusion_ilr"][0]
     assert dynamic_run["model"]["n_jobs"] == 4
+    assert alr_run["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
+    assert ilr_run["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
+    assert fusion_ilr_run["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
+    assert fusion_ilr_run["loss"] == "ilr_mse"
+
+
+def test_experiment_config_accepts_target_transform_object(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["ml_runs"] = [
+        {
+            "name": "ridge_alr_custom_eps",
+            "model": {"name": "ridge", "alpha": 1.0},
+            "modalities": ["slow"],
+            "target_transform": {"name": "alr_ch4", "epsilon": 0.0002},
+        }
+    ]
+    payload["dl_runs"] = [
+        {
+            "name": "fusion_ilr_custom_eps",
+            "model": "cnn1d_tcn_fusion",
+            "modalities": list(ALL_MODALITIES),
+            "target_transform": {"name": "ilr_n2_first", "epsilon": TRAIN_MIN_POSITIVE_HALF_EPSILON},
+        }
+    ]
+    config_path = _write_config(tmp_path / "target_transform_config.json", payload)
+
+    config = load_experiment_config(config_path)
+
+    assert config.ml_runs[0]["target_transform"]["epsilon"] == 0.0002
+    assert config.dl_runs[0]["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
+
+
+def test_experiment_config_rejects_ilr_loss_without_target_transform(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["dl_runs"] = [
+        {
+            "name": "bad_ilr_loss",
+            "model": "cnn1d",
+            "modalities": ["slow"],
+            "loss": "ilr_mse",
+        }
+    ]
+    config_path = _write_config(tmp_path / "bad_loss_config.json", payload)
+
+    with pytest.raises(ValueError, match="ilr_mse requires target_transform"):
+        load_experiment_config(config_path)
 
 
 def test_run_experiment_dry_run_does_not_write_outputs(tmp_path: Path):
@@ -128,6 +180,11 @@ def test_run_experiment_dry_run_does_not_write_outputs(tmp_path: Path):
     result = run(config, dry_run=True)
 
     assert result["dry_run"] is True
+    ml_detail = result["plan"]["ml_run_details"][0]
+    assert ml_detail["name"] == "mean_slow"
+    assert ml_detail["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
+    assert result["plan"]["dl_run_details"][0]["target_transform"] is None
+    assert result["plan"]["dl_run_details"][0]["loss"] == "mse"
     assert not output_root.exists()
 
 
@@ -143,6 +200,9 @@ def test_run_experiment_writes_runs_summary_report_and_progress_logs(tmp_path: P
     assert Path(result["summary_path"]).is_file()
     assert Path(result["report_path"]).is_file()
     assert (output_root / "runs" / "smoke_suite" / "mean_slow" / "metrics.json").is_file()
+    ml_run_config = json.loads(
+        (output_root / "runs" / "smoke_suite" / "mean_slow" / "run_config.json").read_text(encoding="utf-8")
+    )
     assert (output_root / "runs" / "smoke_suite" / "cnn1d_smoke" / "metrics.json").is_file()
     assert (output_root / "runs" / "smoke_suite" / "cnn1d_smoke" / "metrics_live.jsonl").is_file()
     assert "[run start] kind=ml name=mean_slow" in output
@@ -154,7 +214,13 @@ def test_run_experiment_writes_runs_summary_report_and_progress_logs(tmp_path: P
     report = Path(result["report_path"]).read_text(encoding="utf-8")
     assert "mean_slow" in summary
     assert "cnn1d_smoke" in summary
+    assert "x_n2_r2" in summary
+    assert "aitchison_mean" in summary
+    assert ml_run_config["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
+    assert isinstance(ml_run_config["resolved_target_transform"]["epsilon"], float)
     assert "# Experiment Report: smoke_suite" in report
+    assert "x_N2 R2" in report
+    assert "Aitchison mean" in report
 
 
 def test_run_experiment_stops_on_failed_run(tmp_path: Path):

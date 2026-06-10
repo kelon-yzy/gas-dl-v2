@@ -218,6 +218,25 @@ class TestCNN1DTCNFusionRegressor:
         assert model.input_format == "NTC"
         assert model.receptive_field == 5
 
+    def test_forward_shape_for_transformed_coordinate_head(self):
+        model = CNN1DTCNFusionRegressor(
+            in_channels=14,
+            out_dim=3,
+            slow_channels=2,
+            ultrasonic_channels=5,
+            fiber_mic_channels=7,
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+        )
+
+        out = model(torch.randn(3, 6, 14))
+
+        assert out.shape == (3, 3)
+
     def test_gradient_flows(self):
         model = CNN1DTCNFusionRegressor(
             in_channels=14,

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
+from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
 from ml.cli import build_parser as build_ml_cli_parser, run as run_ml_cli
 from ml import (
     DynamicStackingSVRRegressor,
@@ -249,6 +250,47 @@ class TestMLTraining:
             assert np.isfinite(split_eval.predictions).all()
             assert isinstance(split_eval.metrics, RegressionMetrics)
 
+    def test_train_regressor_can_use_alr_ch4_target_transform(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-train-alr", sequences=16)
+        result = train_regressor_on_dataset(
+            dataset_dir,
+            model_config={"name": "ridge", "alpha": 1.0},
+            feature_config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean", "last")),
+            eval_splits=("train", "val"),
+            target_transform={"name": "alr_ch4", "epsilon": TRAIN_MIN_POSITIVE_HALF_EPSILON},
+        )
+
+        assert result.target_transform is not None
+        assert result.target_transform.name == "alr_ch4"
+        assert isinstance(result.target_transform.epsilon, float)
+        assert result.target_transform_audits is not None
+        assert set(result.target_transform_audits) == {"train", "val"}
+        assert result.target_transform_audits["train"].epsilon == result.target_transform.epsilon
+        for split_eval in result.evaluations.values():
+            assert split_eval.predictions.shape == split_eval.targets.shape
+            assert split_eval.predictions.shape[1] == 4
+            assert split_eval.compositional_metrics is not None
+            assert split_eval.compositional_metrics.aitchison_mean >= 0.0
+            assert set(split_eval.conditional_metrics) == {"n2_bins", "ch4_bins"}
+            np.testing.assert_allclose(split_eval.predictions.sum(axis=1), np.full(split_eval.predictions.shape[0], 100.0), atol=1e-4)
+
+    def test_run_baseline_protocol_passes_target_transform_to_windows(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-protocol-ilr", sequences=16)
+        result = run_baseline_protocol(
+            dataset_dir,
+            model_config={"name": "ridge", "alpha": 1.0},
+            feature_config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean",)),
+            phases=("baseline",),
+            early_fractions=(0.5,),
+            eval_splits=("train", "val"),
+            target_transform="ilr_n2_first",
+        )
+
+        assert result.full.target_transform is not None
+        assert result.full.target_transform.name == "ilr_n2_first"
+        assert result.per_phase["baseline"].target_transform.name == "ilr_n2_first"
+        assert result.early[0.5].target_transform.name == "ilr_n2_first"
+
     def test_run_baseline_protocol_returns_phase_and_early_results(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-protocol", sequences=16)
         result = run_baseline_protocol(
@@ -344,3 +386,32 @@ class TestMLTraining:
         payload = json.loads(capsys.readouterr().out)
         assert set(payload["per_phase"]) == {"baseline"}
         assert set(payload["early"]) == {"0.5"}
+
+    def test_ml_cli_json_config_preserves_target_transform_metadata(self, tmp_path: Path, capsys):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-cli-config-alr", sequences=16)
+        config_path = tmp_path / "ml_config_alr.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "dataset_dir": str(dataset_dir),
+                    "model": "ridge",
+                    "modalities": ["slow"],
+                    "sequence_statistics": ["mean", "last"],
+                    "target_transform": {"name": "alr_ch4", "epsilon": TRAIN_MIN_POSITIVE_HALF_EPSILON},
+                    "json": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        parser = build_ml_cli_parser()
+        args = parser.parse_args(["--config", str(config_path)])
+
+        run_ml_cli(args)
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["target_transform"]["name"] == "alr_ch4"
+        assert isinstance(payload["target_transform"]["epsilon"], float)
+        assert set(payload["target_transform_audits"]) == {"train", "val", "test", "extrapolation"}
+        assert payload["target_transform_audits"]["train"]["epsilon"] == payload["target_transform"]["epsilon"]
+        assert payload["evaluations"]["val"]["compositional_metrics"]["aitchison_mean"] >= 0.0
+        assert set(payload["evaluations"]["val"]["conditional_metrics"]) == {"n2_bins", "ch4_bins"}

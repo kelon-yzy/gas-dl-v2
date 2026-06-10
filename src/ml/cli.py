@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from common.composition import TARGET_TRANSFORM_OPTIONS
+from common.metrics import conditional_metrics_to_payload
 from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
 from ml.features import MLFeatureConfig
 from ml.models import DynamicStackingSVRRegressor, MeanRegressor, RidgeRegressor
@@ -24,6 +27,7 @@ DEFAULT_ML_CONFIG: dict[str, Any] = {
     "sequence_statistics": "mean,std,min,max,last,delta,slope",
     "waveform_frame_features": "mean,std,mean_abs,max_abs,energy,peak_index",
     "scaler_path": None,
+    "target_transform": None,
     "protocol": False,
     "phases": "baseline,exposure,steady,recovery",
     "early_fractions": "0.25,0.5,0.75,1.0",
@@ -69,6 +73,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
     )
     parser.add_argument("--scaler-path", type=Path, default=None, help="Path to z-score scaler JSON for slow channels.")
+    parser.add_argument(
+        "--target-transform",
+        choices=("none", *TARGET_TRANSFORM_OPTIONS),
+        default=None,
+        help="Optional compositional target transform for ML baselines.",
+    )
     parser.add_argument(
         "--protocol",
         action="store_true",
@@ -166,6 +176,7 @@ def run(args: argparse.Namespace) -> None:
             dataset_dir,
             model_config=model_config,
             feature_config=feature_config,
+            target_transform=args.target_transform,
             phases=_parse_comma(args.phases),
             early_fractions=early_fractions,
         )
@@ -180,7 +191,12 @@ def run(args: argparse.Namespace) -> None:
             print(f"wrote protocol report: {args.report_path}")
         return
 
-    result = train_regressor_on_dataset(dataset_dir, model_config=model_config, feature_config=feature_config)
+    result = train_regressor_on_dataset(
+        dataset_dir,
+        model_config=model_config,
+        feature_config=feature_config,
+        target_transform=args.target_transform,
+    )
 
     if args.json:
         _print_json(result)
@@ -234,8 +250,6 @@ def _print_json(result: MLTrainingResult) -> None:
 
 
 def _training_payload(result: MLTrainingResult) -> dict[str, Any]:
-    from dataclasses import asdict
-
     payload: dict[str, Any] = {
         "feature_config": {
             "modalities": result.feature_config.modalities,
@@ -245,12 +259,24 @@ def _training_payload(result: MLTrainingResult) -> dict[str, Any]:
         "feature_names": result.feature_names,
         "label_names": result.label_names,
         "train_split": result.train_split,
+        "target_transform": asdict(result.target_transform) if result.target_transform is not None else None,
+        "target_transform_audits": (
+            {split: asdict(audit) for split, audit in result.target_transform_audits.items()}
+            if result.target_transform_audits is not None
+            else None
+        ),
         "evaluations": {},
     }
     for split_name, split_eval in result.evaluations.items():
         payload["evaluations"][split_name] = {
             "metrics": asdict(split_eval.metrics),
             "component_metrics": {k: asdict(v) for k, v in split_eval.component_metrics.items()},
+            "compositional_metrics": (
+                asdict(split_eval.compositional_metrics)
+                if split_eval.compositional_metrics is not None
+                else None
+            ),
+            "conditional_metrics": conditional_metrics_to_payload(split_eval.conditional_metrics),
         }
     return payload
 

@@ -6,13 +6,22 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
 
+import numpy as np
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
+from common.composition import (
+    TARGET_TRANSFORM_OPTIONS,
+    replace_zeros_multiplicative,
+    resolve_target_transform_spec,
+    resolve_target_transform_for_training,
+)
+from common.metrics import conditional_metrics_to_payload
+from common.splits import load_splits, resolve_split_indices
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.models.registry import MODEL_REGISTRY, build_model
-from dl.training.losses import LOSS_REGISTRY, build_loss
+from dl.training.losses import LOSS_REGISTRY, build_loss, validate_loss_target_transform
 from dl.training.trainer import AmpConfig, EarlyStoppingConfig, OPTIMIZER_REGISTRY, Trainer, build_optimizer
 
 DEFAULT_EVAL_SPLITS = ("val", "test", "extrapolation")
@@ -22,6 +31,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "modalities": "slow",
     "input_format": None,
     "scaler_path": None,
+    "target_transform": None,
     "epochs": 50,
     "batch_size": 32,
     "num_workers": 0,
@@ -69,6 +79,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override model input format; by default the model class contract is used.",
     )
     parser.add_argument("--scaler-path", type=Path, default=None, help="Optional z-score scaler JSON for slow channels.")
+    parser.add_argument(
+        "--target-transform",
+        choices=("none", *TARGET_TRANSFORM_OPTIONS),
+        default=None,
+        help="Optional compositional target transform for DL training.",
+    )
     parser.add_argument("--epochs", type=int, default=None, help="Training epochs.")
     parser.add_argument("--batch-size", type=int, default=None, help="Batch size.")
     parser.add_argument("--num-workers", type=int, default=None, help="DataLoader worker count.")
@@ -106,8 +122,20 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     sample_x, sample_y = train_dataset[0]
     in_channels, timesteps = _infer_input_shape(sample_x, input_format)
+    target_transform = resolve_target_transform_for_training(
+        args.target_transform,
+        _split_labels(args.dataset_dir, "train"),
+    )
+    out_dim = 3 if target_transform is not None else int(sample_y.shape[-1])
+    target_transform_audits = _target_transform_audits(
+        args.dataset_dir,
+        target_transform,
+        splits=("train", *_parse_comma(args.eval_splits)),
+    )
 
-    model_config = _build_model_config(args.model, args.model_kwargs, in_channels, sample_y.shape[-1], timesteps)
+    model_config = _build_model_config(args.model, args.model_kwargs, in_channels, out_dim, timesteps)
+    if target_transform is not None and int(model_config["out_dim"]) != 3:
+        raise ValueError("DL target_transform requires model out_dim=3")
     model = build_model(model_config)
     loss_fn = build_loss(args.loss)
     optimizer = build_optimizer(
@@ -118,7 +146,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "weight_decay": args.weight_decay,
         },
     )
-    trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn, device=args.device)
+    trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn, device=args.device, target_transform=target_transform)
 
     train_loader = _build_loader(
         train_dataset,
@@ -205,6 +233,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "model_config": model_config,
         "input_format": input_format,
         "modalities": modalities,
+        "target_transform": asdict(target_transform) if target_transform is not None else None,
+        "target_transform_audits": (
+            {split: asdict(audit) for split, audit in target_transform_audits.items()}
+            if target_transform_audits is not None
+            else None
+        ),
         "epochs": args.epochs,
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,
@@ -229,7 +263,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     }
     (args.output_dir / "metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     (args.output_dir / "run_config.json").write_text(
-        json.dumps(_run_config_payload(args, model_config, input_format, modalities), indent=2),
+        json.dumps(_run_config_payload(args, model_config, input_format, modalities, target_transform), indent=2),
         encoding="utf-8",
     )
 
@@ -298,6 +332,11 @@ def _validate_run_args(args: argparse.Namespace) -> None:
         parser.error(f"weight-decay must be >= 0, got {args.weight_decay}")
     if args.scheduler["name"] not in {"none", "reduce_on_plateau"}:
         parser.error("scheduler.name must be one of ['none', 'reduce_on_plateau']")
+    try:
+        target_transform = resolve_target_transform_spec(args.target_transform)
+        validate_loss_target_transform(args.loss, None if target_transform is None else target_transform.name)
+    except ValueError as exc:
+        parser.error(str(exc))
 
 
 def _parse_modalities(value: str) -> tuple[str, ...]:
@@ -332,6 +371,44 @@ def _infer_input_shape(sample_x: torch.Tensor, input_format: str) -> tuple[int, 
     if input_format == "NCT":
         return int(sample_x.shape[0]), int(sample_x.shape[1])
     raise ValueError(f"input_format must be NTC or NCT, got {input_format!r}")
+
+
+def _target_transform_audits(
+    dataset_dir: Path,
+    target_transform: object | None,
+    *,
+    splits: tuple[str, ...],
+):
+    if target_transform is None:
+        return None
+    split_rows = load_splits(dataset_dir / "splits")
+    sequence_ids = _load_str_array(dataset_dir / "metadata" / "sequence_ids.npy")
+    label_names = tuple(_load_str_array(dataset_dir / "metadata" / "label_names.npy"))
+    labels = np.load(dataset_dir / "labels" / "y.npy").astype(np.float32)
+    split_indices = resolve_split_indices(split_rows, sequence_ids)
+
+    audits = {}
+    for split in dict.fromkeys(splits):
+        _unused_values, audit = replace_zeros_multiplicative(
+            labels[split_indices[split]],
+            epsilon=target_transform.epsilon,
+            component_names=label_names,
+        )
+        audits[split] = audit
+    return audits
+
+
+def _split_labels(dataset_dir: Path, split: str) -> np.ndarray:
+    split_rows = load_splits(dataset_dir / "splits")
+    sequence_ids = _load_str_array(dataset_dir / "metadata" / "sequence_ids.npy")
+    labels = np.load(dataset_dir / "labels" / "y.npy").astype(np.float32)
+    split_indices = resolve_split_indices(split_rows, sequence_ids)
+    return labels[split_indices[split]]
+
+
+def _load_str_array(path: Path) -> list[str]:
+    values = np.load(path, allow_pickle=True)
+    return [str(value) for value in values.tolist()]
 
 
 def _build_model_config(
@@ -554,6 +631,11 @@ def _evaluation_payload(result: dict[str, Any]) -> dict[str, Any]:
         "loss": result["loss"],
         "metrics": asdict(result["metrics"]),
         "component_metrics": {key: asdict(value) for key, value in result["component_metrics"].items()},
+        "compositional_metrics": (
+            asdict(result["compositional_metrics"]) if result["compositional_metrics"] is not None else None
+        ),
+        "conditional_metrics": conditional_metrics_to_payload(result["conditional_metrics"]),
+        "sum_abs_error": result["sum_abs_error"],
     }
 
 
@@ -576,6 +658,10 @@ def _epoch_payload(epoch: Any) -> dict[str, Any]:
             if epoch.val_component_metrics is not None
             else None
         ),
+        "val_compositional_metrics": (
+            asdict(epoch.val_compositional_metrics) if epoch.val_compositional_metrics is not None else None
+        ),
+        "val_sum_abs_error": epoch.val_sum_abs_error,
     }
     return payload
 
@@ -585,6 +671,7 @@ def _run_config_payload(
     model_config: dict[str, Any],
     input_format: str,
     modalities: tuple[str, ...],
+    target_transform: object | None,
 ) -> dict[str, Any]:
     return {
         "dataset_dir": str(args.dataset_dir),
@@ -593,6 +680,8 @@ def _run_config_payload(
         "input_format": input_format,
         "modalities": modalities,
         "scaler_path": str(args.scaler_path) if args.scaler_path is not None else None,
+        "target_transform": args.target_transform,
+        "resolved_target_transform": asdict(target_transform) if target_transform is not None else None,
         "epochs": args.epochs,
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,

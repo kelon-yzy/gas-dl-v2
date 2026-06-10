@@ -94,3 +94,21 @@ def test_run_experiment_is_importable_from_repo_root_without_pythonpath():
 
     assert result.returncode == 0
     assert "Run a configured v4 formal experiment suite" in result.stdout
+
+
+def test_n2_improvement_workflow_is_importable_from_repo_root_without_pythonpath():
+    project_root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pipeline.run_n2_improvement_workflow", "--help"],
+        cwd=project_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "Run the formal N2 ALR/ILR improvement workflow" in result.stdout

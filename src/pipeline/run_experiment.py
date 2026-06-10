@@ -7,6 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
 
+from common.metrics import conditional_metrics_to_payload
 from dl.cli import run as run_dl_cli
 from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
 from ml.features import MLFeatureConfig
@@ -31,6 +32,11 @@ def run(config: ExperimentConfig, *, dry_run: bool = False) -> dict[str, Any]:
         "output_root": str(config.output_root),
         "ml_runs": [run_config["name"] for run_config in config.ml_runs],
         "dl_runs": [run_config["name"] for run_config in config.dl_runs],
+        "ml_run_details": [_planned_run_detail("ml", run_config) for run_config in config.ml_runs],
+        "dl_run_details": [
+            _planned_run_detail("dl", run_config, default_loss=config.training["loss"])
+            for run_config in config.dl_runs
+        ],
     }
     if dry_run:
         return {"dry_run": True, "plan": plan}
@@ -100,20 +106,27 @@ def _run_ml(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
             model_config=model_config,
             feature_config=feature_config,
             eval_splits=("train", *config.eval_splits),
+            target_transform=run_config.get("target_transform"),
         )
         payload = _protocol_payload(result)
         rows = _ml_rows(str(run_config["name"]), str(_model_name(model_config)), result.full)
+        resolved_target_transform = asdict(result.full.target_transform) if result.full.target_transform is not None else None
     else:
         result = train_regressor_on_dataset(
             config.dataset_dir,
             model_config=model_config,
             feature_config=feature_config,
             eval_splits=("train", *config.eval_splits),
+            target_transform=run_config.get("target_transform"),
         )
         payload = _training_payload(result)
         rows = _ml_rows(str(run_config["name"]), str(_model_name(model_config)), result)
+        resolved_target_transform = asdict(result.target_transform) if result.target_transform is not None else None
     (output_dir / "metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    (output_dir / "run_config.json").write_text(json.dumps(run_config, indent=2), encoding="utf-8")
+    (output_dir / "run_config.json").write_text(
+        json.dumps(_run_config_payload(run_config, resolved_target_transform), indent=2),
+        encoding="utf-8",
+    )
     return rows
 
 
@@ -130,6 +143,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         modalities=",".join(run_config["modalities"]),
         input_format=run_config.get("input_format"),
         scaler_path=run_config.get("scaler_path"),
+        target_transform=run_config.get("target_transform"),
         epochs=training["epochs"],
         batch_size=training["batch_size"],
         num_workers=training["num_workers"],
@@ -138,7 +152,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         prefetch_factor=training.get("prefetch_factor"),
         seed=config.seed,
         device=config.device,
-        loss=training["loss"],
+        loss=run_config.get("loss", training["loss"]),
         optimizer=training["optimizer"],
         lr=training["lr"],
         weight_decay=training["weight_decay"],
@@ -160,6 +174,26 @@ def _model_name(model_config: str | dict[str, Any]) -> str:
     return str(model_config["name"])
 
 
+def _planned_run_detail(kind: str, run_config: dict[str, Any], *, default_loss: object | None = None) -> dict[str, Any]:
+    detail = {
+        "kind": kind,
+        "name": run_config["name"],
+        "model": _model_name(run_config["model"]),
+        "modalities": run_config["modalities"],
+        "target_transform": run_config.get("target_transform"),
+        "protocol": bool(run_config.get("protocol", False)),
+    }
+    if default_loss is not None:
+        detail["loss"] = run_config.get("loss", default_loss)
+    return detail
+
+
+def _run_config_payload(run_config: dict[str, Any], resolved_target_transform: dict[str, object] | None) -> dict[str, Any]:
+    payload = dict(run_config)
+    payload["resolved_target_transform"] = resolved_target_transform
+    return payload
+
+
 def _training_payload(result: MLTrainingResult) -> dict[str, Any]:
     return {
         "feature_config": {
@@ -170,10 +204,22 @@ def _training_payload(result: MLTrainingResult) -> dict[str, Any]:
         "feature_names": result.feature_names,
         "label_names": result.label_names,
         "train_split": result.train_split,
+        "target_transform": asdict(result.target_transform) if result.target_transform is not None else None,
+        "target_transform_audits": (
+            {split_name: asdict(audit) for split_name, audit in result.target_transform_audits.items()}
+            if result.target_transform_audits is not None
+            else None
+        ),
         "evaluations": {
             split_name: {
                 "metrics": asdict(split_eval.metrics),
                 "component_metrics": {key: asdict(value) for key, value in split_eval.component_metrics.items()},
+                "compositional_metrics": (
+                    asdict(split_eval.compositional_metrics)
+                    if split_eval.compositional_metrics is not None
+                    else None
+                ),
+                "conditional_metrics": conditional_metrics_to_payload(split_eval.conditional_metrics),
             }
             for split_name, split_eval in result.evaluations.items()
         },
@@ -201,6 +247,11 @@ def _ml_rows(run_name: str, model_name: str, result: MLTrainingResult) -> list[d
                 "mae": split_eval.metrics.mae,
                 "rmse": split_eval.metrics.rmse,
                 "r2": split_eval.metrics.r2,
+                "x_n2_r2": split_eval.component_metrics["x_N2"].r2,
+                "aitchison_mean": (
+                    "" if split_eval.compositional_metrics is None else split_eval.compositional_metrics.aitchison_mean
+                ),
+                "sum_abs_error": "",
                 "checkpoint_path": "",
             }
         )
@@ -221,6 +272,11 @@ def _dl_rows(run_name: str, model_name: str, payload: dict[str, Any]) -> list[di
                 "mae": metrics["mae"],
                 "rmse": metrics["rmse"],
                 "r2": metrics["r2"],
+                "x_n2_r2": split_eval["component_metrics"]["x_N2"]["r2"],
+                "aitchison_mean": (
+                    "" if split_eval["compositional_metrics"] is None else split_eval["compositional_metrics"]["aitchison_mean"]
+                ),
+                "sum_abs_error": split_eval["sum_abs_error"],
                 "checkpoint_path": payload["checkpoint_path"],
             }
         )
@@ -228,7 +284,20 @@ def _dl_rows(run_name: str, model_name: str, payload: dict[str, Any]) -> list[di
 
 
 def _write_summary(path: Path, rows: list[dict[str, object]]) -> None:
-    fieldnames = ("kind", "run_name", "model", "split", "loss", "mae", "rmse", "r2", "checkpoint_path")
+    fieldnames = (
+        "kind",
+        "run_name",
+        "model",
+        "split",
+        "loss",
+        "mae",
+        "rmse",
+        "r2",
+        "x_n2_r2",
+        "aitchison_mean",
+        "sum_abs_error",
+        "checkpoint_path",
+    )
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -242,14 +311,17 @@ def _write_report(path: Path, config: ExperimentConfig, rows: list[dict[str, obj
         f"- dataset: `{config.dataset_dir}`",
         f"- device: `{config.device}`",
         "",
-        "| kind | run | model | split | loss | MAE | RMSE | R2 |",
-        "|---|---|---|---|---:|---:|---:|---:|",
+        "| kind | run | model | split | loss | MAE | RMSE | R2 | x_N2 R2 | Aitchison mean | sum abs error |",
+        "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         loss = "" if row["loss"] == "" else f"{float(row['loss']):.6f}"
+        aitchison = "" if row["aitchison_mean"] == "" else f"{float(row['aitchison_mean']):.6f}"
+        sum_abs_error = "" if row["sum_abs_error"] == "" else f"{float(row['sum_abs_error']):.6f}"
         lines.append(
             f"| {row['kind']} | {row['run_name']} | {row['model']} | {row['split']} | "
-            f"{loss} | {float(row['mae']):.6f} | {float(row['rmse']):.6f} | {float(row['r2']):.6f} |"
+            f"{loss} | {float(row['mae']):.6f} | {float(row['rmse']):.6f} | {float(row['r2']):.6f} | "
+            f"{float(row['x_n2_r2']):.6f} | {aitchison} | {sum_abs_error} |"
         )
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 

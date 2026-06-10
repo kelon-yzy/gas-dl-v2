@@ -9,6 +9,13 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from dl import cli as dl_cli
+from common.composition import (
+    ALR_CH4_TRANSFORM,
+    ILR_N2_FIRST_TRANSFORM,
+    TRAIN_MIN_POSITIVE_HALF_EPSILON,
+    TargetTransformSpec,
+    transform_composition_targets,
+)
 from dl.cli import build_parser as build_dl_cli_parser, run as run_dl_cli
 from dl.training.losses import LOSS_REGISTRY, build_loss
 from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
@@ -34,10 +41,15 @@ def _make_smoke_dataset(tmp_path: Path, slug: str = "dl-train-smoke", sequences:
 
 class TestLosses:
     def test_registry_contains_baseline_losses(self):
-        assert {"mse", "mae", "smooth_l1", "huber"}.issubset(LOSS_REGISTRY)
+        assert {"mse", "compositional_mse", "ilr_mse", "mae", "smooth_l1", "huber"}.issubset(LOSS_REGISTRY)
 
     def test_build_loss_from_name(self):
         loss = build_loss("mse")
+        value = loss(torch.tensor([1.0, 2.0]), torch.tensor([1.0, 0.0]))
+        assert torch.isclose(value, torch.tensor(2.0))
+
+    def test_build_semantic_mse_alias(self):
+        loss = build_loss("ilr_mse")
         value = loss(torch.tensor([1.0, 2.0]), torch.tensor([1.0, 0.0]))
         assert torch.isclose(value, torch.tensor(2.0))
 
@@ -148,6 +160,7 @@ class TestDLCli:
         assert set(payload["evaluations"]) == {"val", "test"}
         assert len(payload["history"]) == 1
         assert set(payload["evaluations"]["val"]["component_metrics"]) == set(COMPONENT_FIELDS)
+        assert set(payload["evaluations"]["val"]["conditional_metrics"]) == {"n2_bins", "ch4_bins"}
 
     def test_cli_tcn_config_infers_target_timesteps(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-tcn-config")
@@ -178,6 +191,50 @@ class TestDLCli:
         assert payload["input_format"] == "NCT"
         assert set(payload["evaluations"]) == {"val"}
 
+    def test_cli_trains_fusion_with_ilr_target_transform(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-fusion-ilr", sequences=8)
+        output_dir = tmp_path / "runs" / "fusion-ilr"
+        parser = build_dl_cli_parser()
+        args = parser.parse_args(
+            [
+                "--dataset-dir",
+                str(dataset_dir),
+                "--output-dir",
+                str(output_dir),
+                "--model",
+                "cnn1d_tcn_fusion",
+                "--model-kwargs",
+                '{"waveform_embedding_dim":4,"acoustic_channels":[2,4],"slow_hidden_dim":4,"slow_embedding_dim":4,"tcn_channels":[4],"shared_hidden_dims":[8,4]}',
+                "--modalities",
+                "slow,ultrasonic,fiber_mic",
+                "--target-transform",
+                "ilr_n2_first",
+                "--loss",
+                "ilr_mse",
+                "--epochs",
+                "1",
+                "--batch-size",
+                "2",
+                "--eval-splits",
+                "val",
+                "--json",
+            ]
+        )
+
+        payload = run_dl_cli(args)
+
+        assert payload["target_transform"]["name"] == "ilr_n2_first"
+        assert payload["loss"] == "ilr_mse"
+        assert set(payload["target_transform_audits"]) == {"train", "val"}
+        assert payload["target_transform_audits"]["train"]["epsilon"] == 0.0001
+        assert payload["model_config"]["out_dim"] == 3
+        val = payload["evaluations"]["val"]
+        assert set(val["component_metrics"]) == set(COMPONENT_FIELDS)
+        assert val["compositional_metrics"]["aitchison_mean"] >= 0.0
+        assert val["conditional_metrics"]["n2_bins"]["component"] == "x_N2"
+        assert val["conditional_metrics"]["ch4_bins"]["component"] == "x_CH4"
+        assert val["sum_abs_error"] < 1e-4
+
     def test_cli_reads_json_config_and_writes_best_checkpoint(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-config")
         output_dir = tmp_path / "runs" / "config-cnn1d"
@@ -189,6 +246,7 @@ class TestDLCli:
                     "output_dir": str(output_dir),
                     "model": "cnn1d",
                     "model_kwargs": {"hidden_channels": [4], "kernel_size": 3, "dropout": 0.0},
+                    "target_transform": {"name": "ilr_n2_first", "epsilon": TRAIN_MIN_POSITIVE_HALF_EPSILON},
                     "epochs": 1,
                     "batch_size": 4,
                     "eval_splits": ["val"],
@@ -204,9 +262,45 @@ class TestDLCli:
         payload = run_dl_cli(args)
 
         assert payload["model_config"]["name"] == "cnn1d"
+        assert payload["model_config"]["out_dim"] == 3
+        assert isinstance(payload["target_transform"]["epsilon"], float)
+        assert payload["target_transform_audits"]["train"]["epsilon"] == payload["target_transform"]["epsilon"]
+        run_config = json.loads((output_dir / "run_config.json").read_text(encoding="utf-8"))
+        assert run_config["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
+        assert run_config["resolved_target_transform"]["epsilon"] == payload["target_transform"]["epsilon"]
         assert payload["best_checkpoint_path"] == str(output_dir / "best_checkpoint.pt")
         assert (output_dir / "best_checkpoint.pt").is_file()
         assert payload["learning_rates"] == [0.001]
+
+    def test_cli_rejects_ilr_loss_without_target_transform(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-ilr-loss-without-transform")
+        output_dir = tmp_path / "runs" / "bad-ilr-loss"
+        parser = build_dl_cli_parser()
+        args = parser.parse_args(
+            [
+                "--dataset-dir",
+                str(dataset_dir),
+                "--output-dir",
+                str(output_dir),
+                "--model",
+                "cnn1d",
+                "--model-kwargs",
+                '{"hidden_channels":[4],"kernel_size":3,"dropout":0.0}',
+                "--loss",
+                "ilr_mse",
+                "--epochs",
+                "1",
+                "--batch-size",
+                "4",
+                "--eval-splits",
+                "val",
+            ]
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            run_dl_cli(args)
+
+        assert exc.value.code == 2
 
     def test_cli_writes_live_progress_jsonl_without_polluting_json_stdout(self, tmp_path: Path, capsys):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-progress")
@@ -312,6 +406,30 @@ class TestDLCli:
 
 
 class TestTrainerControl:
+    def test_loss_targets_match_common_alr_transform(self):
+        y_raw = torch.tensor([[0.0, 80.0, 5.0, 15.0], [10.0, 70.0, 0.0, 20.0]])
+        spec = TargetTransformSpec(name=ALR_CH4_TRANSFORM, epsilon=1e-4)
+        model = nn.Linear(1, 3)
+        optimizer = build_optimizer(model, {"name": "sgd", "lr": 0.01})
+        trainer = Trainer(model=model, optimizer=optimizer, loss_fn=nn.MSELoss(), target_transform=spec)
+
+        transformed = trainer._loss_targets(y_raw)
+        expected, _audit = transform_composition_targets(y_raw.numpy(), spec)
+
+        torch.testing.assert_close(transformed, torch.from_numpy(expected), atol=1e-6, rtol=1e-6)
+
+    def test_loss_targets_match_common_ilr_transform(self):
+        y_raw = torch.tensor([[0.0, 80.0, 5.0, 15.0], [10.0, 70.0, 0.0, 20.0]])
+        spec = TargetTransformSpec(name=ILR_N2_FIRST_TRANSFORM, epsilon=1e-4)
+        model = nn.Linear(1, 3)
+        optimizer = build_optimizer(model, {"name": "sgd", "lr": 0.01})
+        trainer = Trainer(model=model, optimizer=optimizer, loss_fn=nn.MSELoss(), target_transform=spec)
+
+        transformed = trainer._loss_targets(y_raw)
+        expected, _audit = transform_composition_targets(y_raw.numpy(), spec)
+
+        torch.testing.assert_close(transformed, torch.from_numpy(expected), atol=1e-6, rtol=1e-6)
+
     def test_early_stopping_stops_when_val_loss_does_not_improve(self, tmp_path: Path):
         model = nn.Linear(1, 4)
         with torch.no_grad():

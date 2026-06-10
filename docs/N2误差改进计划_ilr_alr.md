@@ -6,7 +6,7 @@
 
 - `ridge_all_modalities` 的 test `x_N2 R²` 仅约 `0.22`
 - `cnn1d_tcn_fusion` 的 test `x_N2 R²` 约 `-0.0066`
-- `dynamic_stacking_svr_all_modalities` 的 test `x_N2 R²` 约 `-0.15`
+- `dynamic_stacking_svr_all_modalities` 的 test `x_N2 R²` 约 `0.325`
 
 与此同时，`H2/CH4/CO2` 的 `R²` 明显更高，说明问题不在“整体回归完全失败”，而在 `N2` 的表示方式和可辨识性。
 
@@ -432,6 +432,43 @@ eps = 1e-4  (比例空间中即 0.0001，对应 0.01%)
 2. `Ridge + ILR-N2-first`
 3. `CNN1D-TCN + ILR target head`
 4. `ILR + phase-aware N2 branch`
+
+当前工程落地状态：
+
+- `src/common/composition.py` 已提供 closure、zero replacement、ALR/ILR 正逆变换和 Aitchison distance。
+- `ALR/ILR` 逆变换已使用稳定化归一化，避免极端 transformed coordinate 在服务器正式训练早期触发指数溢出。
+- zero replacement 已支持固定 `epsilon` 与 `train_min_positive_half` 数据驱动策略；正式默认 `ALR/ILR` run 使用训练集最小正值一半作为统一 floor。
+- zero replacement 审计允许空二维 eval split 生成零行审计，避免正式数据变体中空 `extrapolation` 阶段阻塞目标变换元数据记录；一维空输入仍会显式报错。
+- `ML` 路线已支持 `target_transform=alr_ch4` 与 `target_transform=ilr_n2_first`，并在原始四组分空间输出指标。
+- `DL` 路线已支持 `cnn1d_tcn_fusion` 在 `target_transform=ilr_n2_first` 下输出 3 维 transformed coordinates，并在评估阶段 inverse 回四组分空间。
+- `DL` loss 注册表已提供 `compositional_mse` 与 `ilr_mse` 语义别名；`ilr_mse` 会被校验为只能搭配 `target_transform=ilr_n2_first`，正式默认 `cnn1d_tcn_fusion_ilr` 使用 `ilr_mse`。
+- `ML/DL` 的 transformed target 路线都会在 `metrics.json` 中记录 split 级 zero replacement audit。
+- `ML/DL` 的评估结果都会记录 `n2_bins` 与 `ch4_bins` conditional metrics，用于检查 `N2` 低/高浓度区间和 `CH4` reference 区间内的误差变化。
+- `ML/DL` 的 run config 额外记录 `resolved_target_transform`，用于追踪 data-driven 策略解析后的实际 `epsilon`。
+- `formal_full` 默认实验计划已加入 `ridge_alr_ch4_all_modalities`、`ridge_ilr_n2_first_all_modalities` 和 `cnn1d_tcn_fusion_ilr`。
+- `pipeline.inspect_composition_labels` 已提供正式实验前置标签审计工具，用于统计 split 级零值比例、最小正值、推荐 `epsilon` 和 `CH4` ALR reference 的 log 方差。
+- `pipeline.analyze_n2_improvement` 已提供正式结果验收工具，用于比较 baseline 与 ALR/ILR 方案的 `x_N2 R²`、macro RMSE、其他组分退化和 Aitchison mean；当 metrics 含协议窗口结果时，也会同步输出 `per_phase` 与 `early` 窗口的 `N2` 增益；当 metrics 含 `n2_bins/ch4_bins` 时，也会输出 full-window 与协议窗口内的分箱 `N2` 增益。full/window/bin 层级都会按同一阈值输出 pass 标记，用于判断是否进入 phase-aware 支线。
+- 实际收益仍需在 `data/wv4-formal-hitran-standard-6000` 上运行后，以 `test x_N2 R²`、`macro_RMSE`、其他三组分退化幅度和 `Aitchison distance` 判断。
+
+正式运行顺序建议：
+
+```bash
+python -m pipeline.inspect_composition_labels --dataset-dir data/wv4-formal-hitran-standard-6000 --output-path outputs/reports/formal_full_composition_labels.md --json-output-path outputs/reports/formal_full_composition_labels.json
+python -m pipeline.run_experiment --config configs/experiment/formal_full.json --dry-run
+python -m pipeline.run_experiment --config configs/experiment/formal_full.json
+python -m pipeline.analyze_n2_improvement --run-root outputs/runs/formal_full --output-path outputs/reports/formal_full_n2_improvement.md --json-output-path outputs/reports/formal_full_n2_improvement.json
+```
+
+也可先用 workflow 入口生成同一组服务器命令，确认无误后再显式执行。该入口默认读取 `configs/experiment/formal_full.json` 中的 `dataset_dir`、`output_root`、`device` 和 `experiment_name`，避免手工维护第二套运行路径；需要时再用同名参数覆盖：
+
+```bash
+python -m pipeline.run_n2_improvement_workflow --validate-only --json
+python -m pipeline.run_n2_improvement_workflow --execute
+```
+
+`--validate-only --json` 输出包含 `artifacts` 字段，可直接读取 `composition_label_report/json`、`n2_improvement_report/json` 和 `run_root`，不需要从命令数组反向解析路径。
+
+若服务器脚本需要解析 workflow 的 JSON 结果，可使用 `--execute --json`；workflow 自身日志和子命令输出会写入 `stderr`，`stdout` 保持为最终 JSON。
 
 ## 10.1 关于“双主线版本”的当前边界
 

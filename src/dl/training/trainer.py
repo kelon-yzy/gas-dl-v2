@@ -5,10 +5,21 @@ from pathlib import Path
 import time
 from typing import Any, Callable
 
+import numpy as np
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
+from common.composition import (
+    N2_FIRST_ILR_BASIS,
+    ALR_CH4_TRANSFORM,
+    ILR_N2_FIRST_TRANSFORM,
+    TargetTransformSpec,
+    aitchison_distance,
+    inverse_transform_composition_targets,
+    resolve_target_transform_spec,
+)
+from common.metrics import CompositionalMetrics, conditional_component_metrics
 from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
 
 OPTIMIZER_REGISTRY: dict[str, type[optim.Optimizer]] = {
@@ -62,6 +73,8 @@ class EpochMetrics:
     train_metrics: RegressionMetrics | None = None
     val_metrics: RegressionMetrics | None = None
     val_component_metrics: dict[str, RegressionMetrics] | None = None
+    val_compositional_metrics: CompositionalMetrics | None = None
+    val_sum_abs_error: float | None = None
 
 
 @dataclass
@@ -95,11 +108,19 @@ class Trainer:
         optimizer: optim.Optimizer,
         loss_fn: nn.Module,
         device: torch.device | str = "cpu",
+        target_transform: str | dict[str, Any] | TargetTransformSpec | None = None,
     ):
         self.model = model.to(device)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.device = torch.device(device)
+        self.target_transform = (
+            target_transform
+            if isinstance(target_transform, TargetTransformSpec)
+            else resolve_target_transform_spec(target_transform)
+        )
+        if self.target_transform is not None and isinstance(self.target_transform.epsilon, str):
+            raise ValueError("Trainer target_transform epsilon must be resolved before training")
         self.history = TrainHistory()
 
     def fit(
@@ -141,13 +162,13 @@ class Trainer:
                 if amp.enabled:
                     with torch.autocast(device_type="cuda", dtype=amp_dtype):
                         pred = self.model(xb)
-                        loss = self.loss_fn(pred, yb)
+                        loss = self.loss_fn(pred, self._loss_targets(yb))
                     scaler.scale(loss).backward()
                     scaler.step(self.optimizer)
                     scaler.update()
                 else:
                     pred = self.model(xb)
-                    loss = self.loss_fn(pred, yb)
+                    loss = self.loss_fn(pred, self._loss_targets(yb))
                     loss.backward()
                     self.optimizer.step()
                 total_loss += loss.item()
@@ -174,6 +195,8 @@ class Trainer:
                 entry.val_loss = val_result["loss"]
                 entry.val_metrics = val_result["metrics"]
                 entry.val_component_metrics = val_result["component_metrics"]
+                entry.val_compositional_metrics = val_result["compositional_metrics"]
+                entry.val_sum_abs_error = val_result["sum_abs_error"]
 
             self.history.epochs.append(entry)
             _step_scheduler(scheduler, entry)
@@ -227,10 +250,10 @@ class Trainer:
             if amp.enabled:
                 with torch.autocast(device_type="cuda", dtype=amp_dtype):
                     pred = self.model(xb)
-                    loss = self.loss_fn(pred, yb)
+                    loss = self.loss_fn(pred, self._loss_targets(yb))
             else:
                 pred = self.model(xb)
-                loss = self.loss_fn(pred, yb)
+                loss = self.loss_fn(pred, self._loss_targets(yb))
             total_loss += loss.item()
             all_preds.append(pred.cpu())
             all_targets.append(yb.cpu())
@@ -238,14 +261,24 @@ class Trainer:
 
         y_pred = torch.cat(all_preds)
         y_true = torch.cat(all_targets)
-        metrics = regression_metrics(y_pred, y_true)
-        comp_metrics = component_regression_metrics(y_pred, y_true)
+        y_pred_raw = self._metric_predictions(y_pred)
+        metrics = regression_metrics(y_pred_raw, y_true)
+        comp_metrics = component_regression_metrics(y_pred_raw, y_true)
+        compositional_metrics = self._compositional_metrics(y_pred_raw, y_true)
+        conditional_metrics = conditional_component_metrics(
+            y_pred_raw.detach().cpu().numpy(),
+            y_true.detach().cpu().numpy(),
+        )
+        sum_abs_error = float(torch.mean(torch.abs(y_pred_raw.sum(dim=1) - 100.0)).item())
 
         self.model.train()
         return {
             "loss": total_loss / max(n_batches, 1),
             "metrics": metrics,
             "component_metrics": comp_metrics,
+            "compositional_metrics": compositional_metrics,
+            "conditional_metrics": conditional_metrics,
+            "sum_abs_error": sum_abs_error,
         }
 
     @torch.no_grad()
@@ -268,7 +301,7 @@ class Trainer:
                     pred = self.model(xb)
             else:
                 pred = self.model(xb)
-            preds.append(pred.cpu())
+            preds.append(self._metric_predictions(pred).cpu())
             targets.append(yb.cpu())
         self.model.train()
         return torch.cat(preds), torch.cat(targets)
@@ -290,6 +323,46 @@ class Trainer:
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.history = checkpoint.get("history", TrainHistory())
+
+    def _loss_targets(self, y_raw: torch.Tensor) -> torch.Tensor:
+        if self.target_transform is None:
+            return y_raw
+        unit = _replace_zeros_multiplicative_tensor(
+            _close_to_unit_tensor(y_raw),
+            epsilon=self.target_transform.epsilon,
+        )
+        if self.target_transform.name == ALR_CH4_TRANSFORM:
+            return torch.log(unit[:, (0, 2, 3)] / unit[:, 1:2])
+        if self.target_transform.name == ILR_N2_FIRST_TRANSFORM:
+            basis = torch.as_tensor(N2_FIRST_ILR_BASIS, dtype=unit.dtype, device=unit.device)
+            return torch.log(unit) @ basis.T
+        raise ValueError(f"Unknown target transform: {self.target_transform.name!r}")
+
+    def _metric_predictions(self, predictions: torch.Tensor) -> torch.Tensor:
+        if self.target_transform is None:
+            return predictions
+        raw = inverse_transform_composition_targets(
+            predictions.detach().cpu().numpy(),
+            self.target_transform,
+        )
+        return torch.from_numpy(raw).to(predictions.device)
+
+    def _compositional_metrics(
+        self,
+        y_pred_raw: torch.Tensor,
+        y_true_raw: torch.Tensor,
+    ) -> CompositionalMetrics | None:
+        if self.target_transform is None:
+            return None
+        distances = aitchison_distance(
+            y_pred_raw.detach().cpu().numpy(),
+            y_true_raw.detach().cpu().numpy(),
+            epsilon=self.target_transform.epsilon,
+        )
+        return CompositionalMetrics(
+            aitchison_mean=float(np.mean(distances)),
+            aitchison_rmse=float(np.sqrt(np.mean(distances * distances))),
+        )
 
 
 def _validate_early_stopping(
@@ -318,6 +391,32 @@ def _validate_amp(config: AmpConfig, *, device: torch.device) -> torch.dtype:
     if config.enabled and device.type != "cuda":
         raise ValueError("amp.enabled=true requires a CUDA device")
     return dtypes[config.dtype]
+
+
+def _close_to_unit_tensor(values: torch.Tensor) -> torch.Tensor:
+    if values.ndim != 2:
+        raise ValueError(f"target tensor must be shaped (N, C), got {tuple(values.shape)}")
+    if torch.any(values < 0.0):
+        raise ValueError("target tensor must not contain negative components")
+    row_sums = values.sum(dim=1, keepdim=True)
+    if torch.any(row_sums <= 0.0):
+        raise ValueError("target composition rows must have positive sum")
+    return values.float() / row_sums.float()
+
+
+def _replace_zeros_multiplicative_tensor(unit_values: torch.Tensor, *, epsilon: float) -> torch.Tensor:
+    if epsilon <= 0.0:
+        raise ValueError(f"epsilon must be > 0, got {epsilon}")
+    zero_mask = unit_values == 0.0
+    zero_count = zero_mask.sum(dim=1, keepdim=True).to(unit_values.dtype)
+    replacement_total = zero_count * float(epsilon)
+    if torch.any(replacement_total >= 1.0):
+        raise ValueError("zero replacement epsilon is too large for target rows")
+    positive_sum = unit_values.masked_fill(zero_mask, 0.0).sum(dim=1, keepdim=True)
+    if torch.any(positive_sum <= 0.0):
+        raise ValueError("zero replacement requires at least one positive component per row")
+    positive_scale = (1.0 - replacement_total) / positive_sum
+    return torch.where(zero_mask, torch.full_like(unit_values, float(epsilon)), unit_values * positive_scale)
 
 
 def _cuda_synchronize(device: torch.device) -> None:

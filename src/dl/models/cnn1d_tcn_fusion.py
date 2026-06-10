@@ -126,6 +126,19 @@ class GasHeadNormalize(nn.Module):
             self.linear.bias.copy_(torch.cat([free_logits, torch.tensor([total_logit], dtype=prior.dtype)]))
 
 
+class GasCoordinateHead(nn.Module):
+    """Unbounded transformed-coordinate output head for ALR/ILR targets."""
+
+    def __init__(self, in_features: int, out_dim: int):
+        super().__init__()
+        if out_dim != 3:
+            raise ValueError("GasCoordinateHead requires out_dim=3")
+        self.linear = nn.Linear(in_features, out_dim)
+
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        return self.linear(features)
+
+
 class CNN1DTCNFusionRegressor(BaseRegressor):
     """V4-compatible CNN1D-TCN fusion regressor with bounded simplex output.
 
@@ -154,8 +167,8 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         shared_hidden_dims: Sequence[int] = (128, 64),
         output_prior: Sequence[float] = (9.288469, 75.755157, 4.994778, 9.961745),
     ):
-        if out_dim != 4:
-            raise ValueError("CNN1DTCNFusionRegressor uses bounded simplex output and requires out_dim=4")
+        if out_dim not in {3, 4}:
+            raise ValueError("CNN1DTCNFusionRegressor requires out_dim=4 for raw percentages or out_dim=3 for log-ratio targets")
         expected_channels = slow_channels + ultrasonic_channels + fiber_mic_channels
         if in_channels != expected_channels:
             raise ValueError(
@@ -211,7 +224,10 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
             nn.ReLU(),
             nn.Dropout(tcn_dropout),
         )
-        self.gas_head = GasHeadNormalize(h2, output_prior=output_prior)
+        if out_dim == 4:
+            self.gas_head = GasHeadNormalize(h2, output_prior=output_prior)
+        else:
+            self.gas_head = GasCoordinateHead(h2, out_dim=out_dim)
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         if x.ndim != 3:

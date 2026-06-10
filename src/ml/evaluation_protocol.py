@@ -28,6 +28,7 @@ def run_baseline_protocol(
     early_fractions: tuple[float, ...] = DEFAULT_EARLY_FRACTIONS,
     train_split: str = "train",
     eval_splits: tuple[str, ...] = ("train", "val", "test", "extrapolation"),
+    target_transform: str | dict[str, Any] | None = None,
 ) -> BaselineProtocolResult:
     base_config = feature_config or MLFeatureConfig()
     full = train_regressor_on_dataset(
@@ -36,6 +37,7 @@ def run_baseline_protocol(
         feature_config=base_config,
         train_split=train_split,
         eval_splits=eval_splits,
+        target_transform=target_transform,
     )
     per_phase = {
         phase: train_regressor_on_dataset(
@@ -44,6 +46,7 @@ def run_baseline_protocol(
             feature_config=replace(base_config, phase_filter=phase),
             train_split=train_split,
             eval_splits=eval_splits,
+            target_transform=target_transform,
         )
         for phase in phases
     }
@@ -54,6 +57,7 @@ def run_baseline_protocol(
             feature_config=replace(base_config, early_fraction=fraction),
             train_split=train_split,
             eval_splits=eval_splits,
+            target_transform=target_transform,
         )
         for fraction in early_fractions
     }
