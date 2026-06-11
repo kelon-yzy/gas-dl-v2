@@ -141,14 +141,18 @@ class Trainer:
         _validate_early_stopping(early_stopping, val_loader=val_loader)
         amp_dtype = _validate_amp(amp, device=self.device)
         scaler = torch.amp.GradScaler("cuda", enabled=amp.enabled)
-        best_score: float | None = None
-        unimproved_epochs = 0
+        best_score = _best_monitored_score(self.history, early_stopping) if early_stopping.enabled else None
+        unimproved_epochs = (
+            _unimproved_epochs_since_best(self.history, early_stopping)
+            if early_stopping.enabled and best_score is not None
+            else 0
+        )
         best_path = Path(best_checkpoint_path) if best_checkpoint_path is not None else None
         if best_path is not None:
             self.history.best_checkpoint_path = str(best_path)
 
         self.model.train()
-        for epoch in range(1, epochs + 1):
+        for epoch in range(len(self.history.epochs) + 1, epochs + 1):
             _cuda_synchronize(self.device)
             epoch_start = time.perf_counter()
             train_start = epoch_start
@@ -391,6 +395,28 @@ def _validate_amp(config: AmpConfig, *, device: torch.device) -> torch.dtype:
     if config.enabled and device.type != "cuda":
         raise ValueError("amp.enabled=true requires a CUDA device")
     return dtypes[config.dtype]
+
+
+def _best_monitored_score(history: TrainHistory, config: EarlyStoppingConfig) -> float | None:
+    best_score: float | None = None
+    for entry in history.epochs:
+        score = _monitored_value(entry, config.monitor)
+        if _improved(score, best_score, config):
+            best_score = score
+    return best_score
+
+
+def _unimproved_epochs_since_best(history: TrainHistory, config: EarlyStoppingConfig) -> int:
+    best_index = -1
+    best_score: float | None = None
+    for index, entry in enumerate(history.epochs):
+        score = _monitored_value(entry, config.monitor)
+        if _improved(score, best_score, config):
+            best_score = score
+            best_index = index
+    if best_index < 0:
+        return 0
+    return len(history.epochs) - best_index - 1
 
 
 def _close_to_unit_tensor(values: torch.Tensor) -> torch.Tensor:

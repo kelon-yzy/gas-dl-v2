@@ -149,6 +149,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         modalities=",".join(run_config["modalities"]),
         input_format=run_config.get("input_format"),
         scaler_path=run_config.get("scaler_path"),
+        resume_from=run_config.get("resume_from"),
         window=run_config.get("window"),
         target_transform=run_config.get("target_transform"),
         epochs=training["epochs"],

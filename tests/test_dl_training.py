@@ -461,6 +461,24 @@ class TestTrainerControl:
         assert "did not improve" in str(history.stop_reason)
         assert (tmp_path / "best.pt").is_file()
 
+    def test_fit_resumes_after_loaded_checkpoint_history(self, tmp_path: Path):
+        loader = DataLoader(TensorDataset(torch.ones(4, 1), torch.ones(4, 4)), batch_size=2)
+        first_model = nn.Linear(1, 4)
+        first_optimizer = build_optimizer(first_model, {"name": "sgd", "lr": 0.0})
+        first_trainer = Trainer(model=first_model, optimizer=first_optimizer, loss_fn=nn.MSELoss())
+        checkpoint_path = tmp_path / "best.pt"
+
+        first_trainer.fit(loader, val_loader=loader, epochs=1, best_checkpoint_path=checkpoint_path)
+
+        resumed_model = nn.Linear(1, 4)
+        resumed_optimizer = build_optimizer(resumed_model, {"name": "sgd", "lr": 0.0})
+        resumed_trainer = Trainer(model=resumed_model, optimizer=resumed_optimizer, loss_fn=nn.MSELoss())
+        resumed_trainer.load_checkpoint(checkpoint_path)
+
+        history = resumed_trainer.fit(loader, val_loader=loader, epochs=3, best_checkpoint_path=checkpoint_path)
+
+        assert [epoch.epoch for epoch in history.epochs] == [1, 2, 3]
+
     def test_reduce_on_plateau_scheduler_reduces_lr(self):
         model = nn.Linear(1, 4)
         with torch.no_grad():

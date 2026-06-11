@@ -33,6 +33,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "input_format": None,
     "scaler_path": None,
     "window": None,
+    "resume_from": None,
     "target_transform": None,
     "epochs": 50,
     "batch_size": 32,
@@ -81,6 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override model input format; by default the model class contract is used.",
     )
     parser.add_argument("--scaler-path", type=Path, default=None, help="Optional z-score scaler JSON for slow channels.")
+    parser.add_argument("--resume-from", type=Path, default=None, help="Resume model/optimizer/history from checkpoint.")
     parser.add_argument(
         "--window",
         type=str,
@@ -183,8 +185,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = args.output_dir / args.checkpoint_name
     best_checkpoint_path = args.output_dir / "best_checkpoint.pt"
-    _remove_stale_best_checkpoint(best_checkpoint_path)
     scheduler = _build_scheduler(optimizer, args.scheduler)
+    if args.resume_from is not None:
+        trainer.load_checkpoint(args.resume_from)
+    else:
+        _remove_stale_best_checkpoint(best_checkpoint_path)
     progress = _progress_config(args.progress)
     amp = _amp_config(args.amp)
     progress_log_path = args.output_dir / progress["jsonl_name"] if progress["enabled"] and progress["jsonl"] else None
@@ -242,6 +247,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "dataset_dir": str(args.dataset_dir),
         "output_dir": str(args.output_dir),
         "checkpoint_path": str(checkpoint_path),
+        "resume_from": str(args.resume_from) if args.resume_from is not None else None,
         "model_config": model_config,
         "input_format": input_format,
         "modalities": modalities,
@@ -300,6 +306,8 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
     config["output_dir"] = Path(config["output_dir"]) if config.get("output_dir") is not None else None
     if config.get("scaler_path") is not None:
         config["scaler_path"] = Path(config["scaler_path"])
+    if config.get("resume_from") is not None:
+        config["resume_from"] = Path(config["resume_from"])
     if isinstance(config.get("window"), str):
         try:
             config["window"] = json.loads(config["window"])
@@ -336,6 +344,8 @@ def _validate_run_args(args: argparse.Namespace) -> None:
         parser.error("output-dir is required")
     if not args.dataset_dir.is_dir() or not (args.dataset_dir / "labels" / "y.npy").is_file():
         parser.error(f"dataset-dir must be a v4 benchmark root: {args.dataset_dir}")
+    if args.resume_from is not None and not args.resume_from.is_file():
+        parser.error(f"resume-from checkpoint not found: {args.resume_from}")
     if args.epochs < 1:
         parser.error(f"epochs must be >= 1, got {args.epochs}")
     if args.batch_size < 1:
@@ -706,6 +716,7 @@ def _run_config_payload(
         "input_format": input_format,
         "modalities": modalities,
         "scaler_path": str(args.scaler_path) if args.scaler_path is not None else None,
+        "resume_from": str(args.resume_from) if args.resume_from is not None else None,
         "window": window_to_payload(resolve_window_config(args.window)),
         "target_transform": args.target_transform,
         "resolved_target_transform": asdict(target_transform) if target_transform is not None else None,
