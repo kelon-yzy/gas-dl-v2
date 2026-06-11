@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON, resolve_target_transform_spec
+from common.windows import resolve_window_config
 from dl.models.registry import MODEL_REGISTRY
 from dl.training.losses import LOSS_REGISTRY, ILR_MSE_LOSS, validate_loss_target_transform
 from ml.models import REGRESSOR_REGISTRY
@@ -47,6 +48,34 @@ DEFAULT_ML_RUNS: tuple[dict[str, Any], ...] = (
         "modalities": list(ALL_MODALITIES),
         "protocol": False,
     },
+    {
+        "name": "ridge_all_modalities_phase_exposure",
+        "model": {"name": "ridge", "alpha": 1.0},
+        "modalities": list(ALL_MODALITIES),
+        "protocol": False,
+        "window": {"kind": "phase", "value": "exposure"},
+    },
+    {
+        "name": "ridge_all_modalities_phase_recovery",
+        "model": {"name": "ridge", "alpha": 1.0},
+        "modalities": list(ALL_MODALITIES),
+        "protocol": False,
+        "window": {"kind": "phase", "value": "recovery"},
+    },
+    {
+        "name": "ridge_all_modalities_early_050",
+        "model": {"name": "ridge", "alpha": 1.0},
+        "modalities": list(ALL_MODALITIES),
+        "protocol": False,
+        "window": {"kind": "early", "value": 0.5},
+    },
+    {
+        "name": "ridge_all_modalities_early_075",
+        "model": {"name": "ridge", "alpha": 1.0},
+        "modalities": list(ALL_MODALITIES),
+        "protocol": False,
+        "window": {"kind": "early", "value": 0.75},
+    },
 )
 
 DEFAULT_DL_RUNS: tuple[dict[str, Any], ...] = (
@@ -68,6 +97,34 @@ DEFAULT_DL_RUNS: tuple[dict[str, Any], ...] = (
         "target_transform": {"name": "ilr_n2_first", "epsilon": TRAIN_MIN_POSITIVE_HALF_EPSILON},
         "loss": ILR_MSE_LOSS,
         "model_kwargs": {},
+    },
+    {
+        "name": "cnn1d_tcn_fusion_phase_exposure",
+        "model": "cnn1d_tcn_fusion",
+        "modalities": list(ALL_MODALITIES),
+        "model_kwargs": {},
+        "window": {"kind": "phase", "value": "exposure"},
+    },
+    {
+        "name": "cnn1d_tcn_fusion_phase_recovery",
+        "model": "cnn1d_tcn_fusion",
+        "modalities": list(ALL_MODALITIES),
+        "model_kwargs": {},
+        "window": {"kind": "phase", "value": "recovery"},
+    },
+    {
+        "name": "cnn1d_tcn_fusion_early_050",
+        "model": "cnn1d_tcn_fusion",
+        "modalities": list(ALL_MODALITIES),
+        "model_kwargs": {},
+        "window": {"kind": "early", "value": 0.5},
+    },
+    {
+        "name": "cnn1d_tcn_fusion_early_075",
+        "model": "cnn1d_tcn_fusion",
+        "modalities": list(ALL_MODALITIES),
+        "model_kwargs": {},
+        "window": {"kind": "early", "value": 0.75},
     },
 )
 
@@ -219,6 +276,10 @@ def _validate_run_dict(run: dict[str, Any], *, kind: str) -> None:
     if missing:
         raise ValueError(f"{kind} run missing required keys: {sorted(missing)}")
     _string_tuple(run["modalities"], field=f"{kind}.{run['name']}.modalities")
+    try:
+        resolve_window_config(run.get("window"))
+    except ValueError as exc:
+        raise ValueError(f"Invalid {kind} window in run {run.get('name')!r}: {exc}") from exc
 
 
 def _validate_target_transform(run: dict[str, Any], *, kind: str):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -14,16 +15,34 @@ DEFAULT_COMPARISONS = (
     ("cnn1d_tcn_fusion", "cnn1d_tcn_fusion_ilr"),
 )
 
+DEFAULT_PHASE_AWARE_COMPARISONS = (
+    ("ml", "phase", "exposure", "ridge_all_modalities", "ridge_all_modalities_phase_exposure"),
+    ("ml", "phase", "recovery", "ridge_all_modalities", "ridge_all_modalities_phase_recovery"),
+    ("ml", "early", "0.50", "ridge_all_modalities", "ridge_all_modalities_early_050"),
+    ("ml", "early", "0.75", "ridge_all_modalities", "ridge_all_modalities_early_075"),
+    ("dl", "phase", "exposure", "cnn1d_tcn_fusion", "cnn1d_tcn_fusion_phase_exposure"),
+    ("dl", "phase", "recovery", "cnn1d_tcn_fusion", "cnn1d_tcn_fusion_phase_recovery"),
+    ("dl", "early", "0.50", "cnn1d_tcn_fusion", "cnn1d_tcn_fusion_early_050"),
+    ("dl", "early", "0.75", "cnn1d_tcn_fusion", "cnn1d_tcn_fusion_early_075"),
+)
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Analyze N2 gains for compositional target experiments.")
     parser.add_argument("--run-root", type=Path, required=True, help="Experiment run root, e.g. outputs/runs/formal_full.")
     parser.add_argument("--split", type=str, default="test", help="Evaluation split to compare.")
+    parser.add_argument(
+        "--extrapolation-split",
+        type=str,
+        default="extrapolation",
+        help="Extrapolation split required by --phase-aware.",
+    )
+    parser.add_argument("--phase-aware", action="store_true", default=False, help="Analyze phase-aware N2 runs.")
     parser.add_argument("--n2-min-gain", type=float, default=0.10, help="Required x_N2 R2 gain.")
     parser.add_argument(
         "--other-component-max-drop",
         type=float,
-        default=0.02,
+        default=None,
         help="Maximum allowed R2 drop for H2/CH4/CO2.",
     )
     parser.add_argument(
@@ -111,6 +130,74 @@ def analyze_n2_improvement(
             "macro_rmse_max_regression": macro_rmse_max_regression,
         },
         "comparisons": results,
+    }
+
+
+def analyze_phase_aware_n2(
+    run_root: Path | str,
+    *,
+    split: str = "test",
+    extrapolation_split: str = "extrapolation",
+    comparisons: tuple[tuple[str, str, str, str, str], ...] = DEFAULT_PHASE_AWARE_COMPARISONS,
+    n2_min_gain: float = 0.10,
+    other_component_max_drop: float = 0.05,
+    macro_rmse_max_regression: float = 0.0,
+) -> dict[str, Any]:
+    run_root = Path(run_root)
+    results = []
+    for kind, window_kind, window_value, baseline_run, candidate_run in comparisons:
+        baseline_payload = _load_metrics_payload(run_root, baseline_run)
+        candidate_payload = _load_metrics_payload(run_root, candidate_run)
+        test_comparison = _compare_payload_split(
+            baseline_payload,
+            candidate_payload,
+            baseline_run=baseline_run,
+            candidate_run=candidate_run,
+            split=split,
+            n2_min_gain=n2_min_gain,
+            other_component_max_drop=other_component_max_drop,
+            macro_rmse_max_regression=macro_rmse_max_regression,
+        )
+        extrapolation_comparison = _compare_payload_split(
+            baseline_payload,
+            candidate_payload,
+            baseline_run=baseline_run,
+            candidate_run=candidate_run,
+            split=extrapolation_split,
+            n2_min_gain=n2_min_gain,
+            other_component_max_drop=other_component_max_drop,
+            macro_rmse_max_regression=macro_rmse_max_regression,
+        )
+        results.append(
+            {
+                "kind": kind,
+                "window_kind": window_kind,
+                "window_value": window_value,
+                "baseline_run": baseline_run,
+                "candidate_run": candidate_run,
+                "test": test_comparison,
+                "extrapolation": extrapolation_comparison,
+                "extrapolation_n2_r2_margin": (
+                    extrapolation_comparison["candidate_n2_r2"] - test_comparison["candidate_n2_r2"]
+                ),
+                "passed_strong_extrapolation": (
+                    extrapolation_comparison["candidate_n2_r2"] >= test_comparison["candidate_n2_r2"] - 0.10
+                ),
+                "conditional_bins": test_comparison["conditional_bins"],
+            }
+        )
+    return {
+        "analysis_type": "phase_aware_n2",
+        "run_root": str(run_root),
+        "split": split,
+        "extrapolation_split": extrapolation_split,
+        "thresholds": {
+            "n2_min_gain": n2_min_gain,
+            "other_component_max_drop": other_component_max_drop,
+            "macro_rmse_max_regression": macro_rmse_max_regression,
+        },
+        "comparisons": results,
+        "groups": _phase_aware_groups(results),
     }
 
 
@@ -215,11 +302,137 @@ def format_markdown_report(payload: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def format_phase_aware_markdown_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Phase-aware N2 Analysis",
+        "",
+        f"- run_root: `{payload['run_root']}`",
+        f"- test split: `{payload['split']}`",
+        f"- extrapolation split: `{payload['extrapolation_split']}`",
+        "",
+        "| kind | window | baseline | candidate | test N2 R2 gain | test RMSE regression | max other R2 drop | extrap N2 R2 | extrap margin | pass |",
+        "|---|---|---|---|---:|---:|---:|---:|---:|---|",
+    ]
+    for item in payload["comparisons"]:
+        test = item["test"]
+        max_other_drop = max(test["other_component_r2_drops"].values())
+        pass_text = "yes" if test["passed_overall"] and item["passed_strong_extrapolation"] else "no"
+        lines.append(
+            f"| {item['kind']} | {item['window_kind']}:{item['window_value']} | {item['baseline_run']} | "
+            f"{item['candidate_run']} | {test['n2_r2_gain']:.6f} | {test['macro_rmse_regression']:.6f} | "
+            f"{max_other_drop:.6f} | {item['extrapolation']['candidate_n2_r2']:.6f} | "
+            f"{item['extrapolation_n2_r2_margin']:.6f} | {pass_text} |"
+        )
+
+    for kind in ("ml", "dl"):
+        rows = [item for item in payload["comparisons"] if item["kind"] == kind]
+        if not rows:
+            continue
+        lines.extend(["", f"## {kind.upper()}", ""])
+        for window_kind in ("phase", "early"):
+            window_rows = [item for item in rows if item["window_kind"] == window_kind]
+            if not window_rows:
+                continue
+            lines.extend(
+                [
+                    f"### {window_kind}",
+                    "",
+                    "| window | candidate | test N2 baseline | test N2 candidate | gain | macro RMSE regression | max other drop | test pass | extrap pass |",
+                    "|---|---|---:|---:|---:|---:|---:|---|---|",
+                ]
+            )
+            for item in window_rows:
+                test = item["test"]
+                max_other_drop = max(test["other_component_r2_drops"].values())
+                lines.append(
+                    f"| {item['window_value']} | {item['candidate_run']} | {test['baseline_n2_r2']:.6f} | "
+                    f"{test['candidate_n2_r2']:.6f} | {test['n2_r2_gain']:.6f} | "
+                    f"{test['macro_rmse_regression']:.6f} | {max_other_drop:.6f} | "
+                    f"{'yes' if test['passed_overall'] else 'no'} | "
+                    f"{'yes' if item['passed_strong_extrapolation'] else 'no'} |"
+                )
+            lines.append("")
+
+    bin_rows = [
+        (item, group_name, bin_name, bin_payload)
+        for item in payload["comparisons"]
+        for group_name, group in item["conditional_bins"].items()
+        for bin_name, bin_payload in group.items()
+    ]
+    if bin_rows:
+        lines.extend(
+            [
+                "## Conditional Bins",
+                "",
+                "| kind | window | group | bin | count | range | N2 R2 gain | RMSE regression | max other R2 drop | pass |",
+                "|---|---|---|---|---:|---|---:|---:|---:|---|",
+            ]
+        )
+        for item, group_name, bin_name, bin_payload in bin_rows:
+            range_text = f"{bin_payload['range'][0]:.6g}-{bin_payload['range'][1]:.6g}"
+            max_other_drop = max(bin_payload["other_component_r2_drops"].values())
+            lines.append(
+                f"| {item['kind']} | {item['window_kind']}:{item['window_value']} | {group_name} | {bin_name} | "
+                f"{bin_payload['count']} | {range_text} | {bin_payload['n2_r2_gain']:.6f} | "
+                f"{bin_payload['macro_rmse_regression']:.6f} | {max_other_drop:.6f} | "
+                f"{'yes' if bin_payload['passed_overall'] else 'no'} |"
+            )
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def _load_metrics_payload(run_root: Path, run_name: str) -> dict[str, Any]:
     metrics_path = run_root / run_name / "metrics.json"
     if not metrics_path.is_file():
         raise FileNotFoundError(f"metrics.json not found for run {run_name!r}: {metrics_path}")
     return json.loads(metrics_path.read_text(encoding="utf-8"))
+
+
+def _compare_payload_split(
+    baseline_payload: dict[str, Any],
+    candidate_payload: dict[str, Any],
+    *,
+    baseline_run: str,
+    candidate_run: str,
+    split: str,
+    n2_min_gain: float,
+    other_component_max_drop: float,
+    macro_rmse_max_regression: float,
+) -> dict[str, Any]:
+    baseline_eval = _payload_split_eval(baseline_payload, run_name=baseline_run, split=split, window="full")
+    candidate_eval = _payload_split_eval(candidate_payload, run_name=candidate_run, split=split, window="full")
+    _ensure_finite_eval(baseline_eval, run_name=baseline_run, split=split)
+    _ensure_finite_eval(candidate_eval, run_name=candidate_run, split=split)
+    baseline_components = baseline_eval["component_metrics"]
+    candidate_components = candidate_eval["component_metrics"]
+    n2_gain = _component_r2(candidate_components, "x_N2") - _component_r2(baseline_components, "x_N2")
+    other_drops = _other_component_r2_drops(baseline_components, candidate_components)
+    macro_rmse_regression = float(candidate_eval["metrics"]["rmse"]) - float(baseline_eval["metrics"]["rmse"])
+    return {
+        "split": split,
+        "baseline_n2_r2": _component_r2(baseline_components, "x_N2"),
+        "candidate_n2_r2": _component_r2(candidate_components, "x_N2"),
+        "n2_r2_gain": n2_gain,
+        "baseline_rmse": float(baseline_eval["metrics"]["rmse"]),
+        "candidate_rmse": float(candidate_eval["metrics"]["rmse"]),
+        "macro_rmse_regression": macro_rmse_regression,
+        "other_component_r2_drops": other_drops,
+        "candidate_aitchison_mean": _optional_aitchison_mean(candidate_eval),
+        "conditional_bins": _conditional_bin_comparisons(
+            baseline_eval,
+            candidate_eval,
+            n2_min_gain=n2_min_gain,
+            other_component_max_drop=other_component_max_drop,
+            macro_rmse_max_regression=macro_rmse_max_regression,
+        ),
+        **_pass_flags(
+            n2_gain=n2_gain,
+            other_component_r2_drops=other_drops,
+            macro_rmse_regression=macro_rmse_regression,
+            n2_min_gain=n2_min_gain,
+            other_component_max_drop=other_component_max_drop,
+            macro_rmse_max_regression=macro_rmse_max_regression,
+        ),
+    }
 
 
 def _payload_split_eval(payload: dict[str, Any], *, run_name: str, split: str, window: str) -> dict[str, Any]:
@@ -236,6 +449,19 @@ def _payload_split_eval(payload: dict[str, Any], *, run_name: str, split: str, w
     if split not in evaluations:
         raise KeyError(f"split {split!r} not found in run {run_name!r}")
     return evaluations[split]
+
+
+def _ensure_finite_eval(split_eval: dict[str, Any], *, run_name: str, split: str) -> None:
+    values = {
+        "metrics.rmse": split_eval["metrics"]["rmse"],
+        "metrics.r2": split_eval["metrics"]["r2"],
+    }
+    for component, metrics in split_eval["component_metrics"].items():
+        values[f"component_metrics.{component}.rmse"] = metrics["rmse"]
+        values[f"component_metrics.{component}.r2"] = metrics["r2"]
+    for name, value in values.items():
+        if not math.isfinite(float(value)):
+            raise ValueError(f"non-finite metric in run {run_name!r}, split {split!r}: {name}={value!r}")
 
 
 def _component_r2(component_metrics: dict[str, Any], component: str) -> float:
@@ -437,19 +663,39 @@ def _window_group_comparisons(
     return comparisons
 
 
+def _phase_aware_groups(results: list[dict[str, Any]]) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    groups: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for item in results:
+        groups.setdefault(item["kind"], {}).setdefault(item["window_kind"], []).append(item)
+    return groups
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    payload = analyze_n2_improvement(
-        args.run_root,
-        split=args.split,
-        n2_min_gain=args.n2_min_gain,
-        other_component_max_drop=args.other_component_max_drop,
-        macro_rmse_max_regression=args.macro_rmse_max_regression,
-    )
+    other_component_max_drop = args.other_component_max_drop
+    if other_component_max_drop is None:
+        other_component_max_drop = 0.05 if args.phase_aware else 0.02
+    if args.phase_aware:
+        payload = analyze_phase_aware_n2(
+            args.run_root,
+            split=args.split,
+            extrapolation_split=args.extrapolation_split,
+            n2_min_gain=args.n2_min_gain,
+            other_component_max_drop=other_component_max_drop,
+            macro_rmse_max_regression=args.macro_rmse_max_regression,
+        )
+    else:
+        payload = analyze_n2_improvement(
+            args.run_root,
+            split=args.split,
+            n2_min_gain=args.n2_min_gain,
+            other_component_max_drop=other_component_max_drop,
+            macro_rmse_max_regression=args.macro_rmse_max_regression,
+        )
     if args.json:
         output = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
     else:
-        output = format_markdown_report(payload)
+        output = format_phase_aware_markdown_report(payload) if args.phase_aware else format_markdown_report(payload)
     if args.output_path is not None:
         args.output_path.parent.mkdir(parents=True, exist_ok=True)
         args.output_path.write_text(output, encoding="utf-8")

@@ -114,19 +114,50 @@ def test_default_dl_runs_use_all_modalities(tmp_path: Path):
         "patchtst",
         "cnn1d_tcn_fusion",
         "cnn1d_tcn_fusion_ilr",
+        "cnn1d_tcn_fusion_phase_exposure",
+        "cnn1d_tcn_fusion_phase_recovery",
+        "cnn1d_tcn_fusion_early_050",
+        "cnn1d_tcn_fusion_early_075",
     ]
-    assert len(config.dl_runs) == 7
+    assert len(config.dl_runs) == 11
     for run in config.dl_runs:
         assert tuple(run["modalities"]) == ALL_MODALITIES
     dynamic_run = [run for run in config.ml_runs if run["name"] == "dynamic_stacking_svr_all_modalities"][0]
+    ml_phase_run = [run for run in config.ml_runs if run["name"] == "ridge_all_modalities_phase_exposure"][0]
     alr_run = [run for run in config.ml_runs if run["name"] == "ridge_alr_ch4_all_modalities"][0]
     ilr_run = [run for run in config.ml_runs if run["name"] == "ridge_ilr_n2_first_all_modalities"][0]
     fusion_ilr_run = [run for run in config.dl_runs if run["name"] == "cnn1d_tcn_fusion_ilr"][0]
+    dl_phase_run = [run for run in config.dl_runs if run["name"] == "cnn1d_tcn_fusion_phase_exposure"][0]
     assert dynamic_run["model"]["n_jobs"] == 4
+    assert ml_phase_run["window"] == {"kind": "phase", "value": "exposure"}
+    assert dl_phase_run["window"] == {"kind": "phase", "value": "exposure"}
+    assert "target_transform" not in ml_phase_run
+    assert "target_transform" not in dl_phase_run
     assert alr_run["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
     assert ilr_run["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
     assert fusion_ilr_run["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
     assert fusion_ilr_run["loss"] == "ilr_mse"
+
+
+def test_experiment_config_accepts_window_object(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["ml_runs"][0]["window"] = {"kind": "early", "value": 0.5}
+    payload["dl_runs"][0]["window"] = {"kind": "phase", "value": "recovery"}
+    config_path = _write_config(tmp_path / "window_config.json", payload)
+
+    config = load_experiment_config(config_path)
+
+    assert config.ml_runs[0]["window"] == {"kind": "early", "value": 0.5}
+    assert config.dl_runs[0]["window"] == {"kind": "phase", "value": "recovery"}
+
+
+def test_experiment_config_rejects_invalid_window(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["ml_runs"][0]["window"] = {"kind": "early", "value": 0.0}
+    config_path = _write_config(tmp_path / "bad_window_config.json", payload)
+
+    with pytest.raises(ValueError, match="Invalid ml window"):
+        load_experiment_config(config_path)
 
 
 def test_experiment_config_accepts_target_transform_object(tmp_path: Path):
@@ -185,6 +216,7 @@ def test_run_experiment_dry_run_does_not_write_outputs(tmp_path: Path):
     assert ml_detail["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
     assert result["plan"]["dl_run_details"][0]["target_transform"] is None
     assert result["plan"]["dl_run_details"][0]["loss"] == "mse"
+    assert result["plan"]["ml_run_details"][0]["window"] is None
     assert not output_root.exists()
 
 
@@ -216,11 +248,14 @@ def test_run_experiment_writes_runs_summary_report_and_progress_logs(tmp_path: P
     assert "cnn1d_smoke" in summary
     assert "x_n2_r2" in summary
     assert "aitchison_mean" in summary
+    assert "window" in summary
+    assert "full" in summary
     assert ml_run_config["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
     assert isinstance(ml_run_config["resolved_target_transform"]["epsilon"], float)
     assert "# Experiment Report: smoke_suite" in report
     assert "x_N2 R2" in report
     assert "Aitchison mean" in report
+    assert "| kind | run | model | window | split |" in report
 
 
 def test_run_experiment_stops_on_failed_run(tmp_path: Path):

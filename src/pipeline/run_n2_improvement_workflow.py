@@ -53,6 +53,8 @@ def planned_steps(
     effective_run_root = run_root or config.output_root / "runs" / config.experiment_name
     effective_report_path = report_path or config.output_root / "reports" / f"{config.experiment_name}_n2_improvement.md"
     effective_json_report_path = effective_report_path.with_suffix(".json")
+    phase_aware_report_path = config.output_root / "reports" / f"{config.experiment_name}_phase_aware_n2.md"
+    phase_aware_json_report_path = phase_aware_report_path.with_suffix(".json")
 
     run_experiment_base = [
         sys.executable,
@@ -106,6 +108,21 @@ def planned_steps(
                     str(effective_json_report_path),
                 ),
             ),
+            WorkflowStep(
+                name="analyze_phase_aware_n2",
+                command=(
+                    sys.executable,
+                    "-m",
+                    "pipeline.analyze_n2_improvement",
+                    "--phase-aware",
+                    "--run-root",
+                    str(effective_run_root),
+                    "--output-path",
+                    str(phase_aware_report_path),
+                    "--json-output-path",
+                    str(phase_aware_json_report_path),
+                ),
+            ),
         ),
         artifacts={
             "run_root": str(effective_run_root),
@@ -113,6 +130,8 @@ def planned_steps(
             "composition_label_json": str(label_json_report_path),
             "n2_improvement_report": str(effective_report_path),
             "n2_improvement_json": str(effective_json_report_path),
+            "phase_aware_n2_report": str(phase_aware_report_path),
+            "phase_aware_n2_json": str(phase_aware_json_report_path),
         },
     )
 

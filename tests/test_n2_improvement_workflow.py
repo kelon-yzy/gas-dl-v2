@@ -38,6 +38,7 @@ def test_planned_steps_match_formal_n2_workflow(tmp_path: Path):
         "run_experiment_dry_run",
         "run_experiment",
         "analyze_n2_improvement",
+        "analyze_phase_aware_n2",
     ]
     assert plan.artifacts == {
         "run_root": str(output_root / "runs" / "formal_full"),
@@ -45,6 +46,8 @@ def test_planned_steps_match_formal_n2_workflow(tmp_path: Path):
         "composition_label_json": str(output_root / "reports" / "formal_full_composition_labels.json"),
         "n2_improvement_report": str(output_root / "reports" / "formal_full_n2_improvement.md"),
         "n2_improvement_json": str(output_root / "reports" / "formal_full_n2_improvement.json"),
+        "phase_aware_n2_report": str(output_root / "reports" / "formal_full_phase_aware_n2.md"),
+        "phase_aware_n2_json": str(output_root / "reports" / "formal_full_phase_aware_n2.json"),
     }
     assert plan.steps[0].command == (
         sys.executable,
@@ -69,6 +72,15 @@ def test_planned_steps_match_formal_n2_workflow(tmp_path: Path):
         "--json-output-path",
         str(output_root / "reports" / "formal_full_n2_improvement.json"),
     )
+    assert plan.steps[4].command[-7:] == (
+        "--phase-aware",
+        "--run-root",
+        str(output_root / "runs" / "formal_full"),
+        "--output-path",
+        str(output_root / "reports" / "formal_full_phase_aware_n2.md"),
+        "--json-output-path",
+        str(output_root / "reports" / "formal_full_phase_aware_n2.json"),
+    )
 
 
 def test_planned_steps_use_config_experiment_name_for_default_outputs(tmp_path: Path):
@@ -81,6 +93,7 @@ def test_planned_steps_use_config_experiment_name_for_default_outputs(tmp_path: 
 
     assert plan.artifacts["run_root"] == str(output_root / "runs" / "server_suite")
     assert plan.artifacts["composition_label_json"] == str(output_root / "reports" / "server_suite_composition_labels.json")
+    assert plan.artifacts["phase_aware_n2_json"] == str(output_root / "reports" / "server_suite_phase_aware_n2.json")
     assert plan.steps[3].command[-6:] == (
         "--run-root",
         str(output_root / "runs" / "server_suite"),
@@ -89,6 +102,7 @@ def test_planned_steps_use_config_experiment_name_for_default_outputs(tmp_path: 
         "--json-output-path",
         str(output_root / "reports" / "server_suite_n2_improvement.json"),
     )
+    assert plan.steps[4].command[-1].endswith("server_suite_phase_aware_n2.json")
 
 
 def test_workflow_dry_run_does_not_execute_commands(tmp_path: Path):
@@ -103,10 +117,12 @@ def test_workflow_dry_run_does_not_execute_commands(tmp_path: Path):
     assert payload["execute"] is False
     assert payload["mode"] == "validate_only"
     assert payload["artifacts"]["n2_improvement_json"].endswith("formal_full_n2_improvement.json")
+    assert payload["artifacts"]["phase_aware_n2_json"].endswith("formal_full_phase_aware_n2.json")
     assert "completed_steps" not in payload
     assert "## Artifacts" in report
     assert "inspect_composition_labels" in report
     assert "analyze_n2_improvement" in report
+    assert "analyze_phase_aware_n2" in report
 
 
 def test_workflow_validate_only_cli_matches_default_mode(tmp_path: Path, capsys, monkeypatch):
@@ -148,6 +164,8 @@ def test_workflow_validate_only_cli_matches_default_mode(tmp_path: Path, capsys,
     assert payload["artifacts"]["composition_label_json"].endswith("server_suite_composition_labels.json")
     assert payload["steps"][3]["command"][-3].endswith("server_suite_n2_improvement.md")
     assert payload["steps"][3]["command"][-1].endswith("server_suite_n2_improvement.json")
+    assert payload["steps"][4]["command"][-3].endswith("server_suite_phase_aware_n2.md")
+    assert payload["steps"][4]["command"][-1].endswith("server_suite_phase_aware_n2.json")
 
 
 def test_workflow_execute_json_keeps_stdout_parseable(tmp_path: Path, capsys, monkeypatch):
@@ -200,8 +218,9 @@ def test_workflow_execute_json_keeps_stdout_parseable(tmp_path: Path, capsys, mo
         "run_experiment_dry_run",
         "run_experiment",
         "analyze_n2_improvement",
+        "analyze_phase_aware_n2",
     ]
     assert "[workflow start] inspect_composition_labels" in captured.err
     assert "child output" in captured.err
-    assert len(calls) == 4
+    assert len(calls) == 5
     assert all(kwargs["stdout"] is kwargs["stderr"] for _command, _check, kwargs in calls)

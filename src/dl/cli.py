@@ -18,6 +18,7 @@ from common.composition import (
     resolve_target_transform_for_training,
 )
 from common.metrics import conditional_metrics_to_payload
+from common.windows import resolve_window_config, window_to_payload
 from common.splits import load_splits, resolve_split_indices
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.models.registry import MODEL_REGISTRY, build_model
@@ -31,6 +32,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "modalities": "slow",
     "input_format": None,
     "scaler_path": None,
+    "window": None,
     "target_transform": None,
     "epochs": 50,
     "batch_size": 32,
@@ -80,6 +82,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--scaler-path", type=Path, default=None, help="Optional z-score scaler JSON for slow channels.")
     parser.add_argument(
+        "--window",
+        type=str,
+        default=None,
+        help='Optional JSON window, e.g. {"kind":"phase","value":"exposure"} or {"kind":"early","value":0.5}.',
+    )
+    parser.add_argument(
         "--target-transform",
         choices=("none", *TARGET_TRANSFORM_OPTIONS),
         default=None,
@@ -118,6 +126,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         modalities=modalities,
         input_format=input_format,
         scaler_path=args.scaler_path,
+        window=args.window,
         lazy=True,
     )
     sample_x, sample_y = train_dataset[0]
@@ -164,6 +173,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         modalities,
         input_format,
         args.scaler_path,
+        args.window,
         args.batch_size,
         args.num_workers,
         args.pin_memory,
@@ -210,6 +220,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             modalities,
             input_format,
             args.scaler_path,
+            args.window,
             args.batch_size,
             args.num_workers,
             args.pin_memory,
@@ -234,6 +245,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "model_config": model_config,
         "input_format": input_format,
         "modalities": modalities,
+        "window": window_to_payload(resolve_window_config(args.window)),
         "target_transform": asdict(target_transform) if target_transform is not None else None,
         "target_transform_audits": (
             {split: asdict(audit) for split, audit in target_transform_audits.items()}
@@ -288,6 +300,11 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
     config["output_dir"] = Path(config["output_dir"]) if config.get("output_dir") is not None else None
     if config.get("scaler_path") is not None:
         config["scaler_path"] = Path(config["scaler_path"])
+    if isinstance(config.get("window"), str):
+        try:
+            config["window"] = json.loads(config["window"])
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"window must be a JSON object string: {exc}") from exc
     if config.get("prefetch_factor") is not None:
         config["prefetch_factor"] = int(config["prefetch_factor"])
     if isinstance(config.get("eval_splits"), list):
@@ -334,6 +351,7 @@ def _validate_run_args(args: argparse.Namespace) -> None:
     if args.scheduler["name"] not in {"none", "reduce_on_plateau"}:
         parser.error("scheduler.name must be one of ['none', 'reduce_on_plateau']")
     try:
+        resolve_window_config(args.window)
         target_transform = resolve_target_transform_spec(args.target_transform)
         validate_loss_target_transform(args.loss, None if target_transform is None else target_transform.name)
     except ValueError as exc:
@@ -604,6 +622,7 @@ def _optional_loader(
     modalities: tuple[str, ...],
     input_format: str,
     scaler_path: Path | None,
+    window: dict[str, object] | None,
     batch_size: int,
     num_workers: int,
     pin_memory: bool,
@@ -616,6 +635,7 @@ def _optional_loader(
         modalities=modalities,
         input_format=input_format,
         scaler_path=scaler_path,
+        window=window,
         lazy=True,
     )
     if len(dataset) == 0:
@@ -686,6 +706,7 @@ def _run_config_payload(
         "input_format": input_format,
         "modalities": modalities,
         "scaler_path": str(args.scaler_path) if args.scaler_path is not None else None,
+        "window": window_to_payload(resolve_window_config(args.window)),
         "target_transform": args.target_transform,
         "resolved_target_transform": asdict(target_transform) if target_transform is not None else None,
         "epochs": args.epochs,

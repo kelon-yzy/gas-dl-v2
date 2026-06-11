@@ -230,6 +230,55 @@ class TestV4BenchmarkDataset:
         # 相同 augment_seed、相同样本：NCT 应是 NTC 增强结果的转置（增强在 transpose 之前完成）。
         assert torch.allclose(x_nct, x_ntc.transpose(0, 1))
 
+    def test_phase_window_resamples_all_modalities_to_original_length(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-window-phase", sequences=8)
+        full = V4BenchmarkDataset(
+            dataset_dir,
+            split="train",
+            modalities=("slow", "ultrasonic", "fiber_mic"),
+            input_format="NTC",
+            lazy=False,
+        )
+        exposure = V4BenchmarkDataset(
+            dataset_dir,
+            split="train",
+            modalities=("slow", "ultrasonic", "fiber_mic"),
+            input_format="NTC",
+            lazy=False,
+            window={"kind": "phase", "value": "exposure"},
+        )
+
+        x_full, _ = full[0]
+        x_exposure, _ = exposure[0]
+
+        assert x_exposure.shape == x_full.shape
+        assert not torch.allclose(x_exposure, x_full)
+
+    def test_early_window_resamples_for_nct(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-window-early", sequences=8)
+        full = V4BenchmarkDataset(dataset_dir, split="train", modalities=("slow",), input_format="NCT", lazy=False)
+        early = V4BenchmarkDataset(
+            dataset_dir,
+            split="train",
+            modalities=("slow",),
+            input_format="NCT",
+            lazy=False,
+            window={"kind": "early", "value": 0.5},
+        )
+
+        x_full, _ = full[0]
+        x_early, _ = early[0]
+
+        assert x_early.shape == x_full.shape
+        assert not torch.allclose(x_early, x_full)
+
+    def test_rejects_invalid_window(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-window-bad", sequences=8)
+        with pytest.raises(ValueError, match="early window value"):
+            V4BenchmarkDataset(dataset_dir, split="train", window={"kind": "early", "value": 0.0})
+        with pytest.raises(ValueError, match="empty timestep window"):
+            V4BenchmarkDataset(dataset_dir, split="train", window={"kind": "phase", "value": "missing_phase"})
+
 
 def test_augment_sequence_resamples_window_to_original_length():
     values = np.arange(20, dtype=np.float32).reshape(10, 2)

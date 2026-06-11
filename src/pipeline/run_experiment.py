@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from common.metrics import conditional_metrics_to_payload
+from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, resolve_window_config, window_label, window_to_payload
 from dl.cli import run as run_dl_cli
 from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
 from ml.features import MLFeatureConfig
@@ -93,14 +94,19 @@ def _run_with_progress(
 
 def _run_ml(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Path) -> list[dict[str, object]]:
     output_dir.mkdir(parents=True, exist_ok=True)
+    window = resolve_window_config(run_config.get("window"))
     feature_config = MLFeatureConfig(
         modalities=tuple(run_config["modalities"]),
         sequence_statistics=tuple(run_config.get("sequence_statistics", ("mean", "std", "min", "max", "last", "delta", "slope"))),
         waveform_frame_features=tuple(run_config.get("waveform_frame_features", ("mean", "std", "mean_abs", "max_abs", "energy", "peak_index"))),
         slow_scaler_path=run_config.get("scaler_path"),
+        phase_filter=str(window.value) if window is not None and window.kind == WINDOW_KIND_PHASE else None,
+        early_fraction=float(window.value) if window is not None and window.kind == WINDOW_KIND_EARLY else None,
     )
     model_config = run_config["model"]
     if run_config.get("protocol", False):
+        if window is not None:
+            raise ValueError(f"ML run {run_config['name']!r} cannot combine protocol=true with run-level window")
         result = run_baseline_protocol(
             config.dataset_dir,
             model_config=model_config,
@@ -109,7 +115,7 @@ def _run_ml(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
             target_transform=run_config.get("target_transform"),
         )
         payload = _protocol_payload(result)
-        rows = _ml_rows(str(run_config["name"]), str(_model_name(model_config)), result.full)
+        rows = _ml_rows(str(run_config["name"]), str(_model_name(model_config)), result.full, window=window)
         resolved_target_transform = asdict(result.full.target_transform) if result.full.target_transform is not None else None
     else:
         result = train_regressor_on_dataset(
@@ -120,7 +126,7 @@ def _run_ml(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
             target_transform=run_config.get("target_transform"),
         )
         payload = _training_payload(result)
-        rows = _ml_rows(str(run_config["name"]), str(_model_name(model_config)), result)
+        rows = _ml_rows(str(run_config["name"]), str(_model_name(model_config)), result, window=window)
         resolved_target_transform = asdict(result.target_transform) if result.target_transform is not None else None
     (output_dir / "metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     (output_dir / "run_config.json").write_text(
@@ -143,6 +149,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         modalities=",".join(run_config["modalities"]),
         input_format=run_config.get("input_format"),
         scaler_path=run_config.get("scaler_path"),
+        window=run_config.get("window"),
         target_transform=run_config.get("target_transform"),
         epochs=training["epochs"],
         batch_size=training["batch_size"],
@@ -182,6 +189,7 @@ def _planned_run_detail(kind: str, run_config: dict[str, Any], *, default_loss: 
         "modalities": run_config["modalities"],
         "target_transform": run_config.get("target_transform"),
         "protocol": bool(run_config.get("protocol", False)),
+        "window": window_to_payload(resolve_window_config(run_config.get("window"))),
     }
     if default_loss is not None:
         detail["loss"] = run_config.get("loss", default_loss)
@@ -200,6 +208,8 @@ def _training_payload(result: MLTrainingResult) -> dict[str, Any]:
             "modalities": result.feature_config.modalities,
             "sequence_statistics": result.feature_config.sequence_statistics,
             "waveform_frame_features": result.feature_config.waveform_frame_features,
+            "phase_filter": result.feature_config.phase_filter,
+            "early_fraction": result.feature_config.early_fraction,
         },
         "feature_names": result.feature_names,
         "label_names": result.label_names,
@@ -234,14 +244,22 @@ def _protocol_payload(result: BaselineProtocolResult) -> dict[str, Any]:
     }
 
 
-def _ml_rows(run_name: str, model_name: str, result: MLTrainingResult) -> list[dict[str, object]]:
+def _ml_rows(
+    run_name: str,
+    model_name: str,
+    result: MLTrainingResult,
+    *,
+    window: object,
+) -> list[dict[str, object]]:
     rows = []
+    window_text = window_label(resolve_window_config(window))
     for split_name, split_eval in result.evaluations.items():
         rows.append(
             {
                 "kind": "ml",
                 "run_name": run_name,
                 "model": model_name,
+                "window": window_text,
                 "split": split_name,
                 "loss": "",
                 "mae": split_eval.metrics.mae,
@@ -260,6 +278,7 @@ def _ml_rows(run_name: str, model_name: str, result: MLTrainingResult) -> list[d
 
 def _dl_rows(run_name: str, model_name: str, payload: dict[str, Any]) -> list[dict[str, object]]:
     rows = []
+    window_text = window_label(resolve_window_config(payload.get("window")))
     for split_name, split_eval in payload["evaluations"].items():
         metrics = split_eval["metrics"]
         rows.append(
@@ -267,6 +286,7 @@ def _dl_rows(run_name: str, model_name: str, payload: dict[str, Any]) -> list[di
                 "kind": "dl",
                 "run_name": run_name,
                 "model": model_name,
+                "window": window_text,
                 "split": split_name,
                 "loss": split_eval["loss"],
                 "mae": metrics["mae"],
@@ -288,6 +308,7 @@ def _write_summary(path: Path, rows: list[dict[str, object]]) -> None:
         "kind",
         "run_name",
         "model",
+        "window",
         "split",
         "loss",
         "mae",
@@ -311,15 +332,15 @@ def _write_report(path: Path, config: ExperimentConfig, rows: list[dict[str, obj
         f"- dataset: `{config.dataset_dir}`",
         f"- device: `{config.device}`",
         "",
-        "| kind | run | model | split | loss | MAE | RMSE | R2 | x_N2 R2 | Aitchison mean | sum abs error |",
-        "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| kind | run | model | window | split | loss | MAE | RMSE | R2 | x_N2 R2 | Aitchison mean | sum abs error |",
+        "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         loss = "" if row["loss"] == "" else f"{float(row['loss']):.6f}"
         aitchison = "" if row["aitchison_mean"] == "" else f"{float(row['aitchison_mean']):.6f}"
         sum_abs_error = "" if row["sum_abs_error"] == "" else f"{float(row['sum_abs_error']):.6f}"
         lines.append(
-            f"| {row['kind']} | {row['run_name']} | {row['model']} | {row['split']} | "
+            f"| {row['kind']} | {row['run_name']} | {row['model']} | {row['window']} | {row['split']} | "
             f"{loss} | {float(row['mae']):.6f} | {float(row['rmse']):.6f} | {float(row['r2']):.6f} | "
             f"{float(row['x_n2_r2']):.6f} | {aitchison} | {sum_abs_error} |"
         )

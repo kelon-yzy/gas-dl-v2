@@ -3,7 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pipeline.analyze_n2_improvement import analyze_n2_improvement, format_markdown_report, main
+import pytest
+
+from pipeline.analyze_n2_improvement import (
+    DEFAULT_PHASE_AWARE_COMPARISONS,
+    analyze_n2_improvement,
+    analyze_phase_aware_n2,
+    format_markdown_report,
+    format_phase_aware_markdown_report,
+    main,
+)
 
 
 def _write_metrics(path: Path, payload: dict[str, object]) -> None:
@@ -123,6 +132,75 @@ def test_analyze_n2_improvement_flags_other_component_regression(tmp_path: Path)
     assert item["passed_overall"] is False
 
 
+def test_analyze_phase_aware_n2_requires_test_and_extrapolation(tmp_path: Path):
+    run_root = tmp_path / "runs" / "formal_full"
+    _write_metrics(
+        run_root / "ridge_all_modalities" / "metrics.json",
+        {"evaluations": {"test": _split_eval(0.22, 4.0), "extrapolation": _split_eval(0.20, 4.2)}},
+    )
+    _write_metrics(
+        run_root / "ridge_all_modalities_phase_exposure" / "metrics.json",
+        {
+            "evaluations": {
+                "test": _split_eval(0.36, 3.9, h2_r2=0.88, ch4_r2=0.78, co2_r2=0.84),
+                "extrapolation": _split_eval(0.30, 4.1, h2_r2=0.88, ch4_r2=0.78, co2_r2=0.84),
+            }
+        },
+    )
+
+    payload = analyze_phase_aware_n2(
+        run_root,
+        comparisons=(("ml", "phase", "exposure", "ridge_all_modalities", "ridge_all_modalities_phase_exposure"),),
+    )
+
+    item = payload["comparisons"][0]
+    assert payload["analysis_type"] == "phase_aware_n2"
+    assert payload["thresholds"]["other_component_max_drop"] == 0.05
+    assert round(item["test"]["n2_r2_gain"], 6) == 0.14
+    assert item["test"]["passed_overall"] is True
+    assert item["passed_strong_extrapolation"] is True
+    assert "ml" in payload["groups"]
+    report = format_phase_aware_markdown_report(payload)
+    assert "# Phase-aware N2 Analysis" in report
+    assert "## ML" in report
+    assert "### phase" in report
+    assert "Conditional Bins" in report
+
+
+def test_analyze_phase_aware_n2_fails_on_missing_extrapolation_or_nan(tmp_path: Path):
+    run_root = tmp_path / "runs" / "formal_full"
+    _write_metrics(
+        run_root / "ridge_all_modalities" / "metrics.json",
+        {"evaluations": {"test": _split_eval(0.22, 4.0)}},
+    )
+    _write_metrics(
+        run_root / "ridge_all_modalities_phase_exposure" / "metrics.json",
+        {"evaluations": {"test": _split_eval(0.36, 3.9)}},
+    )
+
+    with pytest.raises(KeyError, match="extrapolation"):
+        analyze_phase_aware_n2(
+            run_root,
+            comparisons=(("ml", "phase", "exposure", "ridge_all_modalities", "ridge_all_modalities_phase_exposure"),),
+        )
+
+    _write_metrics(
+        run_root / "ridge_all_modalities" / "metrics.json",
+        {"evaluations": {"test": _split_eval(0.22, 4.0), "extrapolation": _split_eval(0.20, 4.2)}},
+    )
+    nan_eval = _split_eval(float("nan"), 3.9)
+    _write_metrics(
+        run_root / "ridge_all_modalities_phase_exposure" / "metrics.json",
+        {"evaluations": {"test": nan_eval, "extrapolation": _split_eval(0.30, 4.1)}},
+    )
+
+    with pytest.raises(ValueError, match="non-finite metric"):
+        analyze_phase_aware_n2(
+            run_root,
+            comparisons=(("ml", "phase", "exposure", "ridge_all_modalities", "ridge_all_modalities_phase_exposure"),),
+        )
+
+
 def test_analyze_n2_improvement_cli_writes_markdown_and_json_reports(tmp_path: Path, capsys):
     run_root = tmp_path / "runs" / "formal_full"
     _write_metrics(
@@ -178,3 +256,48 @@ def test_analyze_n2_improvement_cli_writes_markdown_and_json_reports(tmp_path: P
         "ridge_ilr_n2_first_all_modalities",
         "cnn1d_tcn_fusion_ilr",
     }
+
+
+def test_analyze_phase_aware_cli_writes_formal_reports(tmp_path: Path, capsys):
+    run_root = tmp_path / "runs" / "formal_full"
+    _write_metrics(
+        run_root / "ridge_all_modalities" / "metrics.json",
+        {"evaluations": {"test": _split_eval(0.22, 4.0), "extrapolation": _split_eval(0.20, 4.1)}},
+    )
+    _write_metrics(
+        run_root / "ridge_all_modalities_phase_exposure" / "metrics.json",
+        {"evaluations": {"test": _split_eval(0.35, 3.9), "extrapolation": _split_eval(0.30, 4.0)}},
+    )
+    for _kind, _window_kind, _window_value, baseline_run, candidate_run in DEFAULT_PHASE_AWARE_COMPARISONS:
+        baseline_path = run_root / baseline_run / "metrics.json"
+        candidate_path = run_root / candidate_run / "metrics.json"
+        if not baseline_path.is_file():
+            _write_metrics(
+                baseline_path,
+                {"evaluations": {"test": _split_eval(0.20, 4.0), "extrapolation": _split_eval(0.18, 4.1)}},
+            )
+        if not candidate_path.is_file():
+            _write_metrics(
+                candidate_path,
+                {"evaluations": {"test": _split_eval(0.32, 3.9), "extrapolation": _split_eval(0.28, 4.0)}},
+            )
+    markdown_path = tmp_path / "reports" / "formal_full_phase_aware_n2.md"
+    json_path = tmp_path / "reports" / "formal_full_phase_aware_n2.json"
+
+    assert main(
+        [
+            "--phase-aware",
+            "--run-root",
+            str(run_root),
+            "--output-path",
+            str(markdown_path),
+            "--json-output-path",
+            str(json_path),
+        ]
+    ) == 0
+
+    stdout = capsys.readouterr().out
+    assert markdown_path.read_text(encoding="utf-8") == stdout
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["analysis_type"] == "phase_aware_n2"
+    assert payload["thresholds"]["other_component_max_drop"] == 0.05

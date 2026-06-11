@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import csv
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset, get_worker_info
 
+from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig, resolve_window_config
 from dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
 from dl.data.scalers import apply_scaler, load_scaler
 from dl.data.splits import load_splits, resolve_split_indices
@@ -48,6 +51,7 @@ class V4BenchmarkDataset(Dataset):
         lazy: bool = True,
         augment_config: TimeSeriesAugmentConfig | None = None,
         augment_seed: int = 0,
+        window: dict[str, object] | WindowConfig | None = None,
     ):
         dataset_dir = Path(dataset_dir)
         self._dataset_dir = dataset_dir
@@ -57,6 +61,7 @@ class V4BenchmarkDataset(Dataset):
         self._augment_config = augment_config
         self._augment_seed = augment_seed
         self._augment_rng: np.random.Generator | None = None
+        self._window = resolve_window_config(window)
 
         _validate_modalities(self._modalities)
         if self._input_format not in {"NTC", "NCT"}:
@@ -66,6 +71,7 @@ class V4BenchmarkDataset(Dataset):
         sequence_ids = _load_sequence_ids(dataset_dir)
         self.indices = resolve_split_indices(splits, sequence_ids)[split]
         self._sequence_ids = sequence_ids
+        self._window_masks = _build_window_masks(dataset_dir, self._sequence_ids, self._window)
 
         self._scaler = None
         if scaler_path is not None:
@@ -125,11 +131,12 @@ class V4BenchmarkDataset(Dataset):
             sl = self._slow[src_idx]
             if self._scaler is not None:
                 sl = apply_scaler(sl, self._scaler)
+            sl = self._apply_window(sl, src_idx)
             parts.append(sl)
         if self._ultrasonic is not None:
-            parts.append(self._ultrasonic[src_idx])
+            parts.append(self._apply_window(self._ultrasonic[src_idx], src_idx))
         if self._fiber_mic is not None:
-            parts.append(self._fiber_mic[src_idx])
+            parts.append(self._apply_window(self._fiber_mic[src_idx], src_idx))
 
         x = np.concatenate(parts, axis=-1) if len(parts) > 1 else parts[0]
         if self._augment_config is not None:
@@ -137,6 +144,12 @@ class V4BenchmarkDataset(Dataset):
         if self._input_format == "NCT":
             x = np.transpose(x, (1, 0))
         return torch.from_numpy(np.array(x, dtype=np.float32, copy=True))
+
+    def _apply_window(self, values: np.ndarray, src_idx: int) -> np.ndarray:
+        if self._window_masks is None:
+            return values
+        mask = self._window_masks[src_idx]
+        return _resample_masked_timesteps(values, mask)
 
 
 def _validate_modalities(modalities: tuple[str, ...]) -> None:
@@ -153,3 +166,63 @@ def _load_sequence_ids(dataset_dir: Path) -> list[str]:
         raise FileNotFoundError(f"sequence_ids metadata not found: {path}")
     ids = np.load(path, allow_pickle=True)
     return [str(sid) for sid in ids.tolist()]
+
+
+def _build_window_masks(
+    dataset_dir: Path,
+    sequence_ids: list[str],
+    window: WindowConfig | None,
+) -> dict[int, np.ndarray] | None:
+    if window is None:
+        return None
+    phase_rows = _load_slow_phase_rows(dataset_dir / "sequences" / "slow_sequence_long.csv")
+    masks: dict[int, np.ndarray] = {}
+    for src_idx, sequence_id in enumerate(sequence_ids):
+        rows = phase_rows.get(sequence_id)
+        if not rows:
+            raise ValueError(f"slow_sequence_long.csv has no rows for sequence_id={sequence_id!r}")
+        if window.kind == WINDOW_KIND_PHASE:
+            mask = np.array([row["phase_id"] == str(window.value) for row in rows], dtype=bool)
+        elif window.kind == WINDOW_KIND_EARLY:
+            count = max(1, int(np.ceil(len(rows) * float(window.value))))
+            mask = np.zeros(len(rows), dtype=bool)
+            mask[:count] = True
+        else:
+            raise ValueError(f"Unknown window kind: {window.kind!r}")
+        if not bool(mask.any()):
+            raise ValueError(f"empty timestep window for sequence_id={sequence_id!r}, window={window!r}")
+        masks[src_idx] = mask
+    return masks
+
+
+@lru_cache(maxsize=8)
+def _load_slow_phase_rows(path: Path) -> dict[str, tuple[dict[str, str], ...]]:
+    if not path.is_file():
+        raise FileNotFoundError(f"slow_sequence_long.csv not found: {path}")
+    rows_by_sequence: dict[str, list[dict[str, str]]] = {}
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        required = {"sequence_id", "phase_id"}
+        missing = required - set(reader.fieldnames or ())
+        if missing:
+            raise ValueError(f"slow_sequence_long.csv missing columns: {sorted(missing)}")
+        for row in reader:
+            rows_by_sequence.setdefault(str(row["sequence_id"]), []).append(row)
+    return {sequence_id: tuple(rows) for sequence_id, rows in rows_by_sequence.items()}
+
+
+def _resample_masked_timesteps(values: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    if values.ndim != 2:
+        raise ValueError(f"windowed DL input expects 2D arrays, got shape {values.shape}")
+    if values.shape[0] != mask.shape[0]:
+        raise ValueError(f"window mask length {mask.shape[0]} does not match timesteps {values.shape[0]}")
+    selected = np.asarray(values[mask], dtype=np.float32)
+    if selected.shape[0] == values.shape[0]:
+        return selected
+    if selected.shape[0] == 1:
+        return np.repeat(selected, values.shape[0], axis=0)
+    target_positions = np.linspace(0.0, selected.shape[0] - 1, values.shape[0], dtype=np.float32)
+    lower = np.floor(target_positions).astype(np.int64)
+    upper = np.ceil(target_positions).astype(np.int64)
+    weights = (target_positions - lower).reshape(-1, 1)
+    return (selected[lower] * (1.0 - weights) + selected[upper] * weights).astype(np.float32)

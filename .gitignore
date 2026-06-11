@@ -7,6 +7,7 @@ outputs/runs/*
 outputs/summary/*
 outputs/reports/*
 outputs/archive/*
+outputs/logs/
 !outputs/runs/.gitkeep
 !outputs/summary/.gitkeep
 !outputs/reports/.gitkeep
