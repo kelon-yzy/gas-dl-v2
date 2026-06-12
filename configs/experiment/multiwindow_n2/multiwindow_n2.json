@@ -1,9 +1,9 @@
 {
-  "experiment_name": "formal_full",
+  "experiment_name": "multiwindow_n2",
   "dataset_dir": "data/wv4-formal-hitran-standard-6000",
   "output_root": "outputs",
   "seed": 20260603,
-  "device": "cuda",
+  "device": "cpu",
   "eval_splits": ["val", "test", "extrapolation"],
   "training": {
     "epochs": 300,
@@ -40,6 +40,23 @@
       "jsonl_name": "metrics_live.jsonl"
     }
   },
-  "ml_runs": null,
-  "dl_runs": null
+  "ml_runs": [
+    {
+      "name": "ridge_all_modalities",
+      "model": {"name": "ridge", "alpha": 1.0},
+      "modalities": ["slow", "ultrasonic", "fiber_mic"],
+      "protocol": false
+    },
+    {
+      "name": "ridge_multiwindow_all_modalities",
+      "model": {"name": "ridge", "alpha": 1.0},
+      "modalities": ["slow", "ultrasonic", "fiber_mic"],
+      "windows": [
+        null,
+        {"kind": "phase", "value": "exposure"},
+        {"kind": "phase", "value": "recovery"}
+      ]
+    }
+  ],
+  "dl_runs": []
 }

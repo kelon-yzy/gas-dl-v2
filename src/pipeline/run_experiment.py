@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from common.metrics import conditional_metrics_to_payload
-from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, resolve_window_config, window_label, window_to_payload
+from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig, resolve_window_config, window_label, window_to_payload
 from dl.cli import run as run_dl_cli
 from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
 from ml.features import MLFeatureConfig
@@ -95,18 +95,22 @@ def _run_with_progress(
 def _run_ml(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Path) -> list[dict[str, object]]:
     output_dir.mkdir(parents=True, exist_ok=True)
     window = resolve_window_config(run_config.get("window"))
+    feature_windows = _resolve_feature_windows(run_config.get("windows"))
     feature_config = MLFeatureConfig(
         modalities=tuple(run_config["modalities"]),
         sequence_statistics=tuple(run_config.get("sequence_statistics", ("mean", "std", "min", "max", "last", "delta", "slope"))),
         waveform_frame_features=tuple(run_config.get("waveform_frame_features", ("mean", "std", "mean_abs", "max_abs", "energy", "peak_index"))),
         slow_scaler_path=run_config.get("scaler_path"),
-        phase_filter=str(window.value) if window is not None and window.kind == WINDOW_KIND_PHASE else None,
-        early_fraction=float(window.value) if window is not None and window.kind == WINDOW_KIND_EARLY else None,
+        phase_filter=None if feature_windows is not None else str(window.value) if window is not None and window.kind == WINDOW_KIND_PHASE else None,
+        early_fraction=None if feature_windows is not None else float(window.value) if window is not None and window.kind == WINDOW_KIND_EARLY else None,
+        feature_windows=feature_windows,
     )
     model_config = run_config["model"]
     if run_config.get("protocol", False):
         if window is not None:
             raise ValueError(f"ML run {run_config['name']!r} cannot combine protocol=true with run-level window")
+        if feature_windows is not None:
+            raise ValueError(f"ML run {run_config['name']!r} cannot combine protocol=true with multi-window features")
         result = run_baseline_protocol(
             config.dataset_dir,
             model_config=model_config,
@@ -115,7 +119,7 @@ def _run_ml(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
             target_transform=run_config.get("target_transform"),
         )
         payload = _protocol_payload(result)
-        rows = _ml_rows(str(run_config["name"]), str(_model_name(model_config)), result.full, window=window)
+        rows = _ml_rows(str(run_config["name"]), str(_model_name(model_config)), result.full, window_text=_window_summary_label(window, feature_windows))
         resolved_target_transform = asdict(result.full.target_transform) if result.full.target_transform is not None else None
     else:
         result = train_regressor_on_dataset(
@@ -126,7 +130,7 @@ def _run_ml(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
             target_transform=run_config.get("target_transform"),
         )
         payload = _training_payload(result)
-        rows = _ml_rows(str(run_config["name"]), str(_model_name(model_config)), result, window=window)
+        rows = _ml_rows(str(run_config["name"]), str(_model_name(model_config)), result, window_text=_window_summary_label(window, feature_windows))
         resolved_target_transform = asdict(result.target_transform) if result.target_transform is not None else None
     (output_dir / "metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     (output_dir / "run_config.json").write_text(
@@ -182,6 +186,39 @@ def _model_name(model_config: str | dict[str, Any]) -> str:
     return str(model_config["name"])
 
 
+def _resolve_feature_windows(value: object) -> tuple[WindowConfig | None, ...] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValueError("windows must be a JSON array")
+    return tuple(resolve_window_config(window) for window in value)
+
+
+def _feature_windows_payload(windows: tuple[WindowConfig | None, ...] | None) -> list[dict[str, Any] | None] | None:
+    if windows is None:
+        return None
+    return [window_to_payload(resolve_window_config(window)) for window in windows]
+
+
+def _window_summary_label(window: object, feature_windows: tuple[WindowConfig | None, ...] | None) -> str:
+    if feature_windows is None:
+        return window_label(resolve_window_config(window))
+    return "multi:" + "+".join(_window_short_label(resolve_window_config(item)) for item in feature_windows)
+
+
+def _window_short_label(window: object) -> str:
+    resolved = resolve_window_config(window)
+    if resolved is None:
+        return "full"
+    if resolved.kind == WINDOW_KIND_PHASE:
+        value = str(resolved.value)
+        aliases = {"baseline": "base", "exposure": "exp", "recovery": "rec"}
+        return aliases.get(value, value)
+    if resolved.kind == WINDOW_KIND_EARLY:
+        return f"early{float(resolved.value):.2f}"
+    raise ValueError(f"Unknown window kind: {resolved.kind!r}")
+
+
 def _planned_run_detail(kind: str, run_config: dict[str, Any], *, default_loss: object | None = None) -> dict[str, Any]:
     detail = {
         "kind": kind,
@@ -192,6 +229,8 @@ def _planned_run_detail(kind: str, run_config: dict[str, Any], *, default_loss: 
         "protocol": bool(run_config.get("protocol", False)),
         "window": window_to_payload(resolve_window_config(run_config.get("window"))),
     }
+    if "windows" in run_config:
+        detail["windows"] = _feature_windows_payload(_resolve_feature_windows(run_config.get("windows")))
     if default_loss is not None:
         detail["loss"] = run_config.get("loss", default_loss)
     return detail
@@ -211,6 +250,7 @@ def _training_payload(result: MLTrainingResult) -> dict[str, Any]:
             "waveform_frame_features": result.feature_config.waveform_frame_features,
             "phase_filter": result.feature_config.phase_filter,
             "early_fraction": result.feature_config.early_fraction,
+            "feature_windows": _feature_windows_payload(result.feature_config.feature_windows),
         },
         "feature_names": result.feature_names,
         "label_names": result.label_names,
@@ -250,10 +290,9 @@ def _ml_rows(
     model_name: str,
     result: MLTrainingResult,
     *,
-    window: object,
+    window_text: str,
 ) -> list[dict[str, object]]:
     rows = []
-    window_text = window_label(resolve_window_config(window))
     for split_name, split_eval in result.evaluations.items():
         rows.append(
             {

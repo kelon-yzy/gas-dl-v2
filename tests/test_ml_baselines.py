@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
+from common.windows import WindowConfig
 from ml.cli import build_parser as build_ml_cli_parser, run as run_ml_cli
 from ml import (
     DynamicStackingSVRRegressor,
@@ -120,6 +121,43 @@ class TestMLFeatures:
         assert full.x.shape == exposure.x.shape == early.x.shape
         assert not np.allclose(full.x, exposure.x)
         assert not np.allclose(full.x, early.x)
+
+    def test_load_feature_matrix_can_concatenate_multiple_windows(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-feature-multiwindow", sequences=8)
+        config = MLFeatureConfig(
+            modalities=("slow",),
+            sequence_statistics=("mean",),
+            feature_windows=(
+                None,
+                WindowConfig(kind="phase", value="exposure"),
+                WindowConfig(kind="phase", value="recovery"),
+            ),
+        )
+
+        multi = load_feature_matrix(dataset_dir, split="train", config=config)
+        full = load_feature_matrix(
+            dataset_dir,
+            split="train",
+            config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean",)),
+        )
+        exposure = load_feature_matrix(
+            dataset_dir,
+            split="train",
+            config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean",), phase_filter="exposure"),
+        )
+        recovery = load_feature_matrix(
+            dataset_dir,
+            split="train",
+            config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean",), phase_filter="recovery"),
+        )
+
+        np.testing.assert_allclose(multi.x, np.concatenate([full.x, exposure.x, recovery.x], axis=1))
+        np.testing.assert_allclose(multi.y, full.y)
+        assert multi.sequence_ids == full.sequence_ids
+        assert multi.label_names == full.label_names
+        assert multi.feature_names[: len(full.feature_names)] == tuple(f"full|{name}" for name in full.feature_names)
+        assert "ph_exposure|slow:T_C:mean" in multi.feature_names
+        assert "ph_recovery|slow:T_C:mean" in multi.feature_names
 
 
 class TestMLModels:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 import csv
@@ -9,6 +9,7 @@ import numpy as np
 
 from common.scalers import apply_scaler, load_scaler
 from common.splits import load_splits, resolve_split_indices
+from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig
 
 
 DEFAULT_SEQUENCE_STATISTICS = ("mean", "std", "min", "max", "last", "delta", "slope")
@@ -26,6 +27,7 @@ class MLFeatureConfig:
     slow_scaler_path: Path | str | None = None
     phase_filter: str | None = None
     early_fraction: float | None = None
+    feature_windows: tuple[WindowConfig | None, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +57,8 @@ def load_feature_matrix(
     config = config or MLFeatureConfig()
     _validate_modalities(config.modalities)
     _validate_window_config(config)
+    if config.feature_windows is not None:
+        return _load_multiwindow_feature_matrix(dataset_dir, split=split, config=config)
 
     splits = load_splits(dataset_dir / "splits")
     master_sequence_ids = _load_str_array(dataset_dir / "metadata" / "sequence_ids.npy")
@@ -107,6 +111,40 @@ def load_feature_matrix(
         raise ValueError("At least one modality must be selected")
     x = np.concatenate(parts, axis=1).astype(np.float32, copy=False)
     return MLFeatureMatrix(x=x, y=labels, feature_names=tuple(names), label_names=label_names, sequence_ids=split_sequence_ids)
+
+
+def _load_multiwindow_feature_matrix(
+    dataset_dir: Path,
+    *,
+    split: str,
+    config: MLFeatureConfig,
+) -> MLFeatureMatrix:
+    matrices: list[MLFeatureMatrix] = []
+    names: list[str] = []
+    for window in config.feature_windows or ():
+        window_config = _single_window_config(config, window)
+        matrix = load_feature_matrix(dataset_dir, split=split, config=window_config)
+        matrices.append(matrix)
+        tag = _window_tag(window)
+        names.extend(f"{tag}|{name}" for name in matrix.feature_names)
+
+    reference = matrices[0]
+    for matrix in matrices[1:]:
+        if matrix.label_names != reference.label_names:
+            raise ValueError("multi-window feature matrices must have matching label names")
+        if matrix.sequence_ids != reference.sequence_ids:
+            raise ValueError("multi-window feature matrices must have matching sequence ids")
+        if not np.array_equal(matrix.y, reference.y):
+            raise ValueError("multi-window feature matrices must have matching labels")
+
+    x = np.concatenate([matrix.x for matrix in matrices], axis=1).astype(np.float32, copy=False)
+    return MLFeatureMatrix(
+        x=x,
+        y=reference.y,
+        feature_names=tuple(names),
+        label_names=reference.label_names,
+        sequence_ids=reference.sequence_ids,
+    )
 
 
 def sequence_stat_features(
@@ -238,6 +276,46 @@ def _validate_modalities(modalities: tuple[str, ...]) -> None:
 def _validate_window_config(config: MLFeatureConfig) -> None:
     if config.early_fraction is not None and (config.early_fraction <= 0.0 or config.early_fraction > 1.0):
         raise ValueError("early_fraction must be in (0, 1]")
+    if config.feature_windows is None:
+        return
+    if config.phase_filter is not None or config.early_fraction is not None:
+        raise ValueError("feature_windows cannot be combined with phase_filter or early_fraction")
+    if not config.feature_windows:
+        raise ValueError("feature_windows must not be empty")
+    for window in config.feature_windows:
+        if window is None:
+            continue
+        if not isinstance(window, WindowConfig):
+            raise ValueError("feature_windows entries must be WindowConfig or None")
+        if window.kind == WINDOW_KIND_PHASE:
+            if not str(window.value):
+                raise ValueError("phase feature window value must be a non-empty string")
+        elif window.kind == WINDOW_KIND_EARLY:
+            fraction = float(window.value)
+            if fraction <= 0.0 or fraction > 1.0:
+                raise ValueError("early feature window value must be in (0, 1]")
+        else:
+            raise ValueError(f"Unknown feature window kind: {window.kind!r}")
+
+
+def _single_window_config(config: MLFeatureConfig, window: WindowConfig | None) -> MLFeatureConfig:
+    if window is None:
+        return replace(config, feature_windows=None, phase_filter=None, early_fraction=None)
+    if window.kind == WINDOW_KIND_PHASE:
+        return replace(config, feature_windows=None, phase_filter=str(window.value), early_fraction=None)
+    if window.kind == WINDOW_KIND_EARLY:
+        return replace(config, feature_windows=None, phase_filter=None, early_fraction=float(window.value))
+    raise ValueError(f"Unknown feature window kind: {window.kind!r}")
+
+
+def _window_tag(window: WindowConfig | None) -> str:
+    if window is None:
+        return "full"
+    if window.kind == WINDOW_KIND_PHASE:
+        return f"ph_{window.value}"
+    if window.kind == WINDOW_KIND_EARLY:
+        return f"early_{float(window.value):.2f}"
+    raise ValueError(f"Unknown feature window kind: {window.kind!r}")
 
 
 def _load_timestep_masks(dataset_dir: Path, sequence_ids: tuple[str, ...], config: MLFeatureConfig) -> tuple[np.ndarray, ...] | None:

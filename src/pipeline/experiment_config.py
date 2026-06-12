@@ -163,8 +163,8 @@ def load_experiment_config(
     if unknown_splits:
         raise ValueError(f"Unknown eval_splits: {sorted(unknown_splits)}")
     training = _validate_training(payload["training"])
-    ml_runs = tuple(payload["ml_runs"] or DEFAULT_ML_RUNS)
-    dl_runs = tuple(payload["dl_runs"] or DEFAULT_DL_RUNS)
+    ml_runs = _runs_or_default(payload["ml_runs"], default=DEFAULT_ML_RUNS, field="ml_runs")
+    dl_runs = _runs_or_default(payload["dl_runs"], default=DEFAULT_DL_RUNS, field="dl_runs")
     _validate_ml_runs(ml_runs)
     _validate_dl_runs(dl_runs, default_loss=str(training["loss"]))
     return ExperimentConfig(
@@ -280,6 +280,19 @@ def _validate_run_dict(run: dict[str, Any], *, kind: str) -> None:
         resolve_window_config(run.get("window"))
     except ValueError as exc:
         raise ValueError(f"Invalid {kind} window in run {run.get('name')!r}: {exc}") from exc
+    if "windows" in run:
+        if kind != "ml":
+            raise ValueError(f"{kind} run {run.get('name')!r} cannot use windows; multi-window features are ML-only")
+        if "window" in run or "protocol" in run:
+            raise ValueError(f"ml run {run.get('name')!r} cannot combine windows with window or protocol")
+        windows = run["windows"]
+        if not isinstance(windows, list) or not windows:
+            raise ValueError(f"ml run {run.get('name')!r} windows must be a non-empty JSON array")
+        for index, window in enumerate(windows):
+            try:
+                resolve_window_config(window)
+            except ValueError as exc:
+                raise ValueError(f"Invalid ml windows[{index}] in run {run.get('name')!r}: {exc}") from exc
 
 
 def _validate_target_transform(run: dict[str, Any], *, kind: str):
@@ -294,4 +307,12 @@ def _string_tuple(value: object, *, field: str) -> tuple[str, ...]:
         raise ValueError(f"{field} must be a non-empty JSON array")
     if any(not isinstance(item, str) or not item for item in value):
         raise ValueError(f"{field} must contain non-empty strings")
+    return tuple(value)
+
+
+def _runs_or_default(value: object, *, default: tuple[dict[str, Any], ...], field: str) -> tuple[dict[str, Any], ...]:
+    if value is None:
+        return tuple(default)
+    if not isinstance(value, list):
+        raise ValueError(f"{field} must be a JSON array or null")
     return tuple(value)

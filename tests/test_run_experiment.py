@@ -100,8 +100,8 @@ def test_load_experiment_config_rejects_unknown_model(tmp_path: Path):
 
 def test_default_dl_runs_use_all_modalities(tmp_path: Path):
     payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
-    payload["ml_runs"] = []
-    payload["dl_runs"] = []
+    payload["ml_runs"] = None
+    payload["dl_runs"] = None
     config_path = _write_config(tmp_path / "defaults_config.json", payload)
 
     config = load_experiment_config(config_path)
@@ -139,6 +139,18 @@ def test_default_dl_runs_use_all_modalities(tmp_path: Path):
     assert fusion_ilr_run["loss"] == "ilr_mse"
 
 
+def test_empty_run_lists_disable_that_family(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["ml_runs"] = []
+    payload["dl_runs"] = []
+    config_path = _write_config(tmp_path / "empty_runs_config.json", payload)
+
+    config = load_experiment_config(config_path)
+
+    assert config.ml_runs == ()
+    assert config.dl_runs == ()
+
+
 def test_experiment_config_accepts_window_object(tmp_path: Path):
     payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
     payload["ml_runs"][0]["window"] = {"kind": "early", "value": 0.5}
@@ -149,6 +161,26 @@ def test_experiment_config_accepts_window_object(tmp_path: Path):
 
     assert config.ml_runs[0]["window"] == {"kind": "early", "value": 0.5}
     assert config.dl_runs[0]["window"] == {"kind": "phase", "value": "recovery"}
+
+
+def test_experiment_config_accepts_ml_windows(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["ml_runs"][0].pop("protocol")
+    payload["ml_runs"][0]["windows"] = [None, {"kind": "phase", "value": "exposure"}]
+    config_path = _write_config(tmp_path / "multiwindow_config.json", payload)
+
+    config = load_experiment_config(config_path)
+
+    assert config.ml_runs[0]["windows"] == [None, {"kind": "phase", "value": "exposure"}]
+
+
+def test_experiment_config_rejects_windows_with_protocol(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["ml_runs"][0]["windows"] = [None, {"kind": "phase", "value": "exposure"}]
+    config_path = _write_config(tmp_path / "bad_multiwindow_config.json", payload)
+
+    with pytest.raises(ValueError, match="cannot combine windows"):
+        load_experiment_config(config_path)
 
 
 def test_experiment_config_rejects_invalid_window(tmp_path: Path):
@@ -218,6 +250,39 @@ def test_run_experiment_dry_run_does_not_write_outputs(tmp_path: Path):
     assert result["plan"]["dl_run_details"][0]["loss"] == "mse"
     assert result["plan"]["ml_run_details"][0]["window"] is None
     assert not output_root.exists()
+
+
+def test_run_experiment_writes_multiwindow_ml_summary(tmp_path: Path):
+    dataset_dir = _make_smoke_dataset(tmp_path)
+    output_root = tmp_path / "outputs"
+    payload = _base_config(dataset_dir, output_root)
+    payload["ml_runs"] = [
+        {
+            "name": "ridge_multiwindow",
+            "model": {"name": "ridge", "alpha": 1.0},
+            "modalities": ["slow"],
+            "sequence_statistics": ["mean"],
+            "windows": [None, {"kind": "phase", "value": "exposure"}, {"kind": "phase", "value": "recovery"}],
+        }
+    ]
+    payload["dl_runs"] = []
+    config_path = _write_config(tmp_path / "multiwindow_config.json", payload)
+    config = load_experiment_config(config_path)
+
+    dry_run = run(config, dry_run=True)
+    result = run(config)
+
+    detail = dry_run["plan"]["ml_run_details"][0]
+    metrics = json.loads(
+        (output_root / "runs" / "smoke_suite" / "ridge_multiwindow" / "metrics.json").read_text(encoding="utf-8")
+    )
+    summary = Path(result["summary_path"]).read_text(encoding="utf-8")
+    assert detail["windows"] == [None, {"kind": "phase", "value": "exposure"}, {"kind": "phase", "value": "recovery"}]
+    assert metrics["feature_config"]["feature_windows"] == detail["windows"]
+    assert metrics["feature_names"][0].startswith("full|")
+    assert "ph_exposure|" in "\n".join(metrics["feature_names"])
+    assert "multi:full+exp+rec" in summary
+    assert not (output_root / "runs" / "smoke_suite" / "cnn1d_smoke").exists()
 
 
 def test_run_experiment_writes_runs_summary_report_and_progress_logs(tmp_path: Path, capsys):
