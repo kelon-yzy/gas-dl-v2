@@ -155,6 +155,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         scaler_path=run_config.get("scaler_path"),
         resume_from=run_config.get("resume_from"),
         window=run_config.get("window"),
+        phase_windows=run_config.get("phase_windows"),
         target_transform=run_config.get("target_transform"),
         epochs=training["epochs"],
         batch_size=training["batch_size"],
@@ -231,6 +232,8 @@ def _planned_run_detail(kind: str, run_config: dict[str, Any], *, default_loss: 
     }
     if "windows" in run_config:
         detail["windows"] = _feature_windows_payload(_resolve_feature_windows(run_config.get("windows")))
+    if "phase_windows" in run_config:
+        detail["phase_windows"] = _feature_windows_payload(_resolve_feature_windows(run_config.get("phase_windows")))
     if default_loss is not None:
         detail["loss"] = run_config.get("loss", default_loss)
     return detail
@@ -318,7 +321,7 @@ def _ml_rows(
 
 def _dl_rows(run_name: str, model_name: str, payload: dict[str, Any]) -> list[dict[str, object]]:
     rows = []
-    window_text = window_label(resolve_window_config(payload.get("window")))
+    window_text = _window_summary_label(payload.get("window"), _resolve_feature_windows(payload.get("phase_windows")))
     for split_name, split_eval in payload["evaluations"].items():
         metrics = split_eval["metrics"]
         rows.append(

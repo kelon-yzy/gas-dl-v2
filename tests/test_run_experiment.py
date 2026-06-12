@@ -174,12 +174,43 @@ def test_experiment_config_accepts_ml_windows(tmp_path: Path):
     assert config.ml_runs[0]["windows"] == [None, {"kind": "phase", "value": "exposure"}]
 
 
+def test_experiment_config_accepts_dl_phase_windows(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["dl_runs"][0]["model"] = "phase_window_tcn"
+    payload["dl_runs"][0]["phase_windows"] = [None, {"kind": "phase", "value": "exposure"}]
+    config_path = _write_config(tmp_path / "phase_windows_config.json", payload)
+
+    config = load_experiment_config(config_path)
+    dry_run = run(config, dry_run=True)
+
+    detail = dry_run["plan"]["dl_run_details"][0]
+    assert config.dl_runs[0]["phase_windows"] == [None, {"kind": "phase", "value": "exposure"}]
+    assert detail["phase_windows"] == [None, {"kind": "phase", "value": "exposure"}]
+
+
 def test_experiment_config_rejects_windows_with_protocol(tmp_path: Path):
     payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
     payload["ml_runs"][0]["windows"] = [None, {"kind": "phase", "value": "exposure"}]
     config_path = _write_config(tmp_path / "bad_multiwindow_config.json", payload)
 
     with pytest.raises(ValueError, match="cannot combine windows"):
+        load_experiment_config(config_path)
+
+
+def test_experiment_config_rejects_phase_windows_for_ml_or_with_window(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["ml_runs"][0]["phase_windows"] = [None, {"kind": "phase", "value": "exposure"}]
+    config_path = _write_config(tmp_path / "bad_ml_phase_windows_config.json", payload)
+
+    with pytest.raises(ValueError, match="DL-only"):
+        load_experiment_config(config_path)
+
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["dl_runs"][0]["phase_windows"] = [None, {"kind": "phase", "value": "exposure"}]
+    payload["dl_runs"][0]["window"] = {"kind": "phase", "value": "recovery"}
+    config_path = _write_config(tmp_path / "bad_dl_phase_windows_config.json", payload)
+
+    with pytest.raises(ValueError, match="cannot combine phase_windows"):
         load_experiment_config(config_path)
 
 
@@ -283,6 +314,46 @@ def test_run_experiment_writes_multiwindow_ml_summary(tmp_path: Path):
     assert "ph_exposure|" in "\n".join(metrics["feature_names"])
     assert "multi:full+exp+rec" in summary
     assert not (output_root / "runs" / "smoke_suite" / "cnn1d_smoke").exists()
+
+
+def test_run_experiment_writes_phase_window_dl_summary(tmp_path: Path):
+    dataset_dir = _make_smoke_dataset(tmp_path)
+    output_root = tmp_path / "outputs"
+    payload = _base_config(dataset_dir, output_root)
+    payload["ml_runs"] = []
+    payload["dl_runs"] = [
+        {
+            "name": "phase_window_tcn_smoke",
+            "model": "phase_window_tcn",
+            "modalities": ["slow", "ultrasonic", "fiber_mic"],
+            "phase_windows": [None, {"kind": "phase", "value": "exposure"}, {"kind": "phase", "value": "recovery"}],
+            "model_kwargs": {
+                "window_count": 3,
+                "waveform_embedding_dim": 4,
+                "acoustic_channels": [2, 4],
+                "slow_hidden_dim": 4,
+                "slow_embedding_dim": 4,
+                "tcn_channels": [4],
+                "shared_hidden_dims": [8, 4],
+            },
+        }
+    ]
+    config_path = _write_config(tmp_path / "phase_window_dl_config.json", payload)
+    config = load_experiment_config(config_path)
+
+    result = run(config)
+
+    run_config = json.loads(
+        (output_root / "runs" / "smoke_suite" / "phase_window_tcn_smoke" / "run_config.json").read_text(encoding="utf-8")
+    )
+    summary = Path(result["summary_path"]).read_text(encoding="utf-8")
+    assert run_config["phase_windows"] == [
+        None,
+        {"kind": "phase", "value": "exposure"},
+        {"kind": "phase", "value": "recovery"},
+    ]
+    assert "phase_window_tcn_smoke" in summary
+    assert "multi:full+exp+rec" in summary
 
 
 def test_run_experiment_writes_runs_summary_report_and_progress_logs(tmp_path: Path, capsys):

@@ -293,6 +293,19 @@ def _validate_run_dict(run: dict[str, Any], *, kind: str) -> None:
                 resolve_window_config(window)
             except ValueError as exc:
                 raise ValueError(f"Invalid ml windows[{index}] in run {run.get('name')!r}: {exc}") from exc
+    if "phase_windows" in run:
+        if kind != "dl":
+            raise ValueError(f"{kind} run {run.get('name')!r} cannot use phase_windows; phase_windows are DL-only")
+        if "window" in run:
+            raise ValueError(f"dl run {run.get('name')!r} cannot combine phase_windows with window")
+        phase_windows = run["phase_windows"]
+        if not isinstance(phase_windows, list) or not phase_windows:
+            raise ValueError(f"dl run {run.get('name')!r} phase_windows must be a non-empty JSON array")
+        for index, window in enumerate(phase_windows):
+            try:
+                resolve_window_config(window)
+            except ValueError as exc:
+                raise ValueError(f"Invalid dl phase_windows[{index}] in run {run.get('name')!r}: {exc}") from exc
 
 
 def _validate_target_transform(run: dict[str, Any], *, kind: str):

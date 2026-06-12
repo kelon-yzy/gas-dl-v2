@@ -52,6 +52,7 @@ class V4BenchmarkDataset(Dataset):
         augment_config: TimeSeriesAugmentConfig | None = None,
         augment_seed: int = 0,
         window: dict[str, object] | WindowConfig | None = None,
+        phase_windows: tuple[dict[str, object] | WindowConfig | None, ...] | None = None,
     ):
         dataset_dir = Path(dataset_dir)
         self._dataset_dir = dataset_dir
@@ -62,6 +63,9 @@ class V4BenchmarkDataset(Dataset):
         self._augment_seed = augment_seed
         self._augment_rng: np.random.Generator | None = None
         self._window = resolve_window_config(window)
+        self._phase_windows = _resolve_phase_windows(phase_windows)
+        if self._window is not None and self._phase_windows is not None:
+            raise ValueError("window and phase_windows cannot be combined")
 
         _validate_modalities(self._modalities)
         if self._input_format not in {"NTC", "NCT"}:
@@ -72,6 +76,11 @@ class V4BenchmarkDataset(Dataset):
         self.indices = resolve_split_indices(splits, sequence_ids)[split]
         self._sequence_ids = sequence_ids
         self._window_masks = _build_window_masks(dataset_dir, self._sequence_ids, self._window)
+        self._phase_window_masks = (
+            tuple(_build_window_masks(dataset_dir, self._sequence_ids, window) for window in self._phase_windows)
+            if self._phase_windows is not None
+            else None
+        )
 
         self._scaler = None
         if scaler_path is not None:
@@ -126,29 +135,37 @@ class V4BenchmarkDataset(Dataset):
         return self._augment_rng
 
     def _build_input(self, src_idx: int) -> torch.Tensor:
+        if self._phase_window_masks is not None:
+            views = [self._build_single_input(src_idx, masks) for masks in self._phase_window_masks]
+            x = np.stack(views, axis=0)
+            return torch.from_numpy(np.array(x, dtype=np.float32, copy=True))
+        x = self._build_single_input(src_idx, self._window_masks)
+        return torch.from_numpy(np.array(x, dtype=np.float32, copy=True))
+
+    def _build_single_input(self, src_idx: int, window_masks: dict[int, np.ndarray] | None) -> np.ndarray:
         parts: list[np.ndarray] = []
         if self._slow is not None:
             sl = self._slow[src_idx]
             if self._scaler is not None:
                 sl = apply_scaler(sl, self._scaler)
-            sl = self._apply_window(sl, src_idx)
+            sl = self._apply_window(sl, src_idx, window_masks)
             parts.append(sl)
         if self._ultrasonic is not None:
-            parts.append(self._apply_window(self._ultrasonic[src_idx], src_idx))
+            parts.append(self._apply_window(self._ultrasonic[src_idx], src_idx, window_masks))
         if self._fiber_mic is not None:
-            parts.append(self._apply_window(self._fiber_mic[src_idx], src_idx))
+            parts.append(self._apply_window(self._fiber_mic[src_idx], src_idx, window_masks))
 
         x = np.concatenate(parts, axis=-1) if len(parts) > 1 else parts[0]
         if self._augment_config is not None:
             x = augment_sequence(x, self._augment_config, self._ensure_augment_rng())
         if self._input_format == "NCT":
             x = np.transpose(x, (1, 0))
-        return torch.from_numpy(np.array(x, dtype=np.float32, copy=True))
+        return np.asarray(x, dtype=np.float32)
 
-    def _apply_window(self, values: np.ndarray, src_idx: int) -> np.ndarray:
-        if self._window_masks is None:
+    def _apply_window(self, values: np.ndarray, src_idx: int, window_masks: dict[int, np.ndarray] | None) -> np.ndarray:
+        if window_masks is None:
             return values
-        mask = self._window_masks[src_idx]
+        mask = window_masks[src_idx]
         return _resample_masked_timesteps(values, mask)
 
 
@@ -193,6 +210,16 @@ def _build_window_masks(
             raise ValueError(f"empty timestep window for sequence_id={sequence_id!r}, window={window!r}")
         masks[src_idx] = mask
     return masks
+
+
+def _resolve_phase_windows(
+    windows: tuple[dict[str, object] | WindowConfig | None, ...] | list[dict[str, object] | WindowConfig | None] | None,
+) -> tuple[WindowConfig | None, ...] | None:
+    if windows is None:
+        return None
+    if not windows:
+        raise ValueError("phase_windows must not be empty")
+    return tuple(resolve_window_config(window) for window in windows)
 
 
 @lru_cache(maxsize=8)

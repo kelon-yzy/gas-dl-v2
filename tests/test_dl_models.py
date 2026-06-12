@@ -9,6 +9,7 @@ from dl.models.cnn1d import CNN1DRegressor
 from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor, GasHeadNormalize
 from dl.models.lstm import LSTMRegressor
 from dl.models.patchtst import PatchTSTRegressor
+from dl.models.phase_window_tcn import PhaseWindowTCNRegressor
 from dl.models.registry import MODEL_REGISTRY, build_model
 from dl.models.tcn import CausalConv1d, TCNRegressor, tcn_channels_for_timesteps
 from dl.models.transformer import TransformerRegressor
@@ -41,6 +42,9 @@ class TestModelRegistry:
     def test_registry_contains_cnn1d_tcn_fusion(self):
         assert "cnn1d_tcn_fusion" in MODEL_REGISTRY
 
+    def test_registry_contains_phase_window_tcn(self):
+        assert "phase_window_tcn" in MODEL_REGISTRY
+
     def test_registry_contains_sequence_models(self):
         assert {"lstm", "transformer", "patchtst"}.issubset(MODEL_REGISTRY)
 
@@ -69,6 +73,25 @@ class TestModelRegistry:
             }
         )
         assert isinstance(model, CNN1DTCNFusionRegressor)
+
+    def test_build_phase_window_tcn_from_config(self):
+        model = build_model(
+            {
+                "name": "phase_window_tcn",
+                "in_channels": 14,
+                "slow_channels": 2,
+                "ultrasonic_channels": 5,
+                "fiber_mic_channels": 7,
+                "window_count": 3,
+                "waveform_embedding_dim": 4,
+                "acoustic_channels": [2, 4],
+                "slow_hidden_dim": 4,
+                "slow_embedding_dim": 4,
+                "tcn_channels": [4],
+                "shared_hidden_dims": [8, 4],
+            }
+        )
+        assert isinstance(model, PhaseWindowTCNRegressor)
 
     def test_build_sequence_models_from_config(self):
         assert isinstance(build_model({"name": "lstm", "in_channels": 8, "out_dim": 4}), LSTMRegressor)
@@ -275,6 +298,71 @@ class TestCNN1DTCNFusionRegressor:
         assert torch.allclose(out[0], torch.tensor([10.0, 70.0, 5.0, 15.0]), atol=1e-5)
 
 
+class TestPhaseWindowTCNRegressor:
+    def test_forward_shape_for_raw4_head(self):
+        model = PhaseWindowTCNRegressor(
+            in_channels=14,
+            slow_channels=2,
+            ultrasonic_channels=5,
+            fiber_mic_channels=7,
+            window_count=3,
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+        )
+
+        out = model(torch.randn(2, 3, 6, 14))
+
+        assert out.shape == (2, 4)
+        assert model.input_format == "NTC"
+        assert model.receptive_field == 5
+
+    def test_softmax100_head_keeps_simplex_sum(self):
+        model = PhaseWindowTCNRegressor(
+            in_channels=14,
+            slow_channels=2,
+            ultrasonic_channels=5,
+            fiber_mic_channels=7,
+            window_count=3,
+            output_mode="softmax100",
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+        )
+
+        out = model(torch.randn(2, 3, 6, 14))
+
+        assert torch.allclose(out.sum(dim=-1), torch.full((2,), 100.0), atol=1e-5)
+
+    def test_rejects_window_count_mismatch(self):
+        model = PhaseWindowTCNRegressor(
+            in_channels=14,
+            slow_channels=2,
+            ultrasonic_channels=5,
+            fiber_mic_channels=7,
+            window_count=3,
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+        )
+
+        try:
+            model(torch.randn(2, 2, 6, 14))
+        except ValueError as exc:
+            assert "Expected 3 windows" in str(exc)
+        else:
+            raise AssertionError("window count mismatch should be rejected")
+
+
 class TestLongSequenceRegressors:
     def test_lstm_forward_shape_ntc(self):
         model = LSTMRegressor(in_channels=8, out_dim=4, hidden_size=16)
@@ -390,3 +478,28 @@ class TestEndToEndWithDataset:
             out = model(x.unsqueeze(0))
         assert out.shape == (1, 4)
         assert torch.allclose(out.sum(dim=-1), torch.tensor([100.0]), atol=1e-4)
+
+    def test_dataset_to_phase_window_tcn_forward(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path)
+        ds = V4BenchmarkDataset(
+            dataset_dir,
+            split="train",
+            modalities=("slow", "ultrasonic", "fiber_mic"),
+            input_format="NTC",
+            phase_windows=[None, {"kind": "phase", "value": "exposure"}, {"kind": "phase", "value": "recovery"}],
+            lazy=False,
+        )
+        model = PhaseWindowTCNRegressor(
+            in_channels=3008,
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+        )
+        model.eval()
+        x, _y = ds[0]
+        with torch.no_grad():
+            out = model(x.unsqueeze(0))
+        assert out.shape == (1, 4)

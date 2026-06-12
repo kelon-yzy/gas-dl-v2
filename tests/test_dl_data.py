@@ -272,6 +272,39 @@ class TestV4BenchmarkDataset:
         assert x_early.shape == x_full.shape
         assert not torch.allclose(x_early, x_full)
 
+    def test_phase_windows_stack_resampled_views(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-phase-windows", sequences=8)
+        full = V4BenchmarkDataset(dataset_dir, split="train", modalities=("slow",), input_format="NTC", lazy=False)
+        multi = V4BenchmarkDataset(
+            dataset_dir,
+            split="train",
+            modalities=("slow",),
+            input_format="NTC",
+            lazy=False,
+            phase_windows=[None, {"kind": "phase", "value": "exposure"}, {"kind": "phase", "value": "recovery"}],
+        )
+
+        x_full, _ = full[0]
+        x_multi, y = multi[0]
+
+        assert x_multi.shape == (3, *x_full.shape)
+        assert y.shape == (4,)
+        assert torch.allclose(x_multi[0], x_full)
+        assert not torch.allclose(x_multi[1], x_full)
+        assert not torch.allclose(x_multi[2], x_full)
+
+    def test_phase_windows_rejects_empty_and_window_combination(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-phase-windows-bad", sequences=8)
+        with pytest.raises(ValueError, match="phase_windows must not be empty"):
+            V4BenchmarkDataset(dataset_dir, split="train", phase_windows=[])
+        with pytest.raises(ValueError, match="cannot be combined"):
+            V4BenchmarkDataset(
+                dataset_dir,
+                split="train",
+                window={"kind": "phase", "value": "exposure"},
+                phase_windows=[None, {"kind": "phase", "value": "recovery"}],
+            )
+
     def test_rejects_invalid_window(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-window-bad", sequences=8)
         with pytest.raises(ValueError, match="early window value"):
