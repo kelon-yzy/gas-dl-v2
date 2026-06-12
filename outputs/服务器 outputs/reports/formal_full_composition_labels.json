@@ -1,0 +1,165 @@
+{
+  "dataset_dir": "data/wv4-formal-hitran-standard-6000",
+  "label_names": [
+    "x_H2",
+    "x_CH4",
+    "x_CO2",
+    "x_N2"
+  ],
+  "alr_reference": "x_CH4",
+  "recommended_zero_replacement": {
+    "strategy": "train_min_positive_half",
+    "epsilon": 4.2049998502414786e-06,
+    "epsilon_percent": 0.0004204999850241479
+  },
+  "splits": {
+    "train": {
+      "total_rows": 4200,
+      "components": {
+        "x_H2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.0008410000009462237,
+          "min_positive_percent": 0.0008410000009462237,
+          "max_percent": 29.99823570251465
+        },
+        "x_CH4": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 40.0,
+          "min_positive_percent": 40.0,
+          "max_percent": 98.09557342529297
+        },
+        "x_CO2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.0014890000456944108,
+          "min_positive_percent": 0.0014890000456944108,
+          "max_percent": 14.992533683776855
+        },
+        "x_N2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.001560000004246831,
+          "min_positive_percent": 0.001560000004246831,
+          "max_percent": 19.997608184814453
+        }
+      },
+      "alr_reference": {
+        "log_mean": -0.40787104276183966,
+        "log_variance": 0.035207865188492414
+      }
+    },
+    "val": {
+      "total_rows": 900,
+      "components": {
+        "x_H2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.013113000430166721,
+          "min_positive_percent": 0.013113000430166721,
+          "max_percent": 29.92363166809082
+        },
+        "x_CH4": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 40.0,
+          "min_positive_percent": 40.0,
+          "max_percent": 98.13188171386719
+        },
+        "x_CO2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.005555999930948019,
+          "min_positive_percent": 0.005555999930948019,
+          "max_percent": 14.990639686584473
+        },
+        "x_N2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.017575999721884727,
+          "min_positive_percent": 0.017575999721884727,
+          "max_percent": 19.986623764038086
+        }
+      },
+      "alr_reference": {
+        "log_mean": -0.40893641482987364,
+        "log_variance": 0.03549813391853243
+      }
+    },
+    "test": {
+      "total_rows": 600,
+      "components": {
+        "x_H2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.01748800091445446,
+          "min_positive_percent": 0.01748800091445446,
+          "max_percent": 29.979677200317383
+        },
+        "x_CH4": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 40.0,
+          "min_positive_percent": 40.0,
+          "max_percent": 95.40516662597656
+        },
+        "x_CO2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.015560000203549862,
+          "min_positive_percent": 0.015560000203549862,
+          "max_percent": 14.998265266418457
+        },
+        "x_N2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.02552499994635582,
+          "min_positive_percent": 0.02552499994635582,
+          "max_percent": 19.960166931152344
+        }
+      },
+      "alr_reference": {
+        "log_mean": -0.4056402701799876,
+        "log_variance": 0.0372850706079117
+      }
+    },
+    "extrapolation": {
+      "total_rows": 300,
+      "components": {
+        "x_H2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.035294000059366226,
+          "min_positive_percent": 0.035294000059366226,
+          "max_percent": 29.8483943939209
+        },
+        "x_CH4": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 40.255767822265625,
+          "min_positive_percent": 40.255767822265625,
+          "max_percent": 95.39826202392578
+        },
+        "x_CO2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.06484399735927582,
+          "min_positive_percent": 0.06484399735927582,
+          "max_percent": 14.995741844177246
+        },
+        "x_N2": {
+          "zero_count": 0,
+          "zero_ratio": 0.0,
+          "min_percent": 0.04436200112104416,
+          "min_positive_percent": 0.04436200112104416,
+          "max_percent": 19.993343353271484
+        }
+      },
+      "alr_reference": {
+        "log_mean": -0.41298867519777166,
+        "log_variance": 0.03400058124897452
+      }
+    }
+  }
+}

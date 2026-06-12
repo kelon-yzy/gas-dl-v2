@@ -1,0 +1,80 @@
+{
+  "execute": true,
+  "mode": "execute",
+  "artifacts": {
+    "run_root": "outputs/runs/formal_full",
+    "composition_label_report": "outputs/reports/formal_full_composition_labels.md",
+    "composition_label_json": "outputs/reports/formal_full_composition_labels.json",
+    "n2_improvement_report": "outputs/reports/formal_full_n2_improvement.md",
+    "n2_improvement_json": "outputs/reports/formal_full_n2_improvement.json"
+  },
+  "steps": [
+    {
+      "name": "inspect_composition_labels",
+      "command": [
+        "/root/aigc_apps/venv/bin/python",
+        "-m",
+        "pipeline.inspect_composition_labels",
+        "--dataset-dir",
+        "data/wv4-formal-hitran-standard-6000",
+        "--output-path",
+        "outputs/reports/formal_full_composition_labels.md",
+        "--json-output-path",
+        "outputs/reports/formal_full_composition_labels.json"
+      ]
+    },
+    {
+      "name": "run_experiment_dry_run",
+      "command": [
+        "/root/aigc_apps/venv/bin/python",
+        "-m",
+        "pipeline.run_experiment",
+        "--config",
+        "configs/experiment/formal_full.json",
+        "--dataset-dir",
+        "data/wv4-formal-hitran-standard-6000",
+        "--output-root",
+        "outputs",
+        "--device",
+        "cuda",
+        "--dry-run"
+      ]
+    },
+    {
+      "name": "run_experiment",
+      "command": [
+        "/root/aigc_apps/venv/bin/python",
+        "-m",
+        "pipeline.run_experiment",
+        "--config",
+        "configs/experiment/formal_full.json",
+        "--dataset-dir",
+        "data/wv4-formal-hitran-standard-6000",
+        "--output-root",
+        "outputs",
+        "--device",
+        "cuda"
+      ]
+    },
+    {
+      "name": "analyze_n2_improvement",
+      "command": [
+        "/root/aigc_apps/venv/bin/python",
+        "-m",
+        "pipeline.analyze_n2_improvement",
+        "--run-root",
+        "outputs/runs/formal_full",
+        "--output-path",
+        "outputs/reports/formal_full_n2_improvement.md",
+        "--json-output-path",
+        "outputs/reports/formal_full_n2_improvement.json"
+      ]
+    }
+  ],
+  "completed_steps": [
+    "inspect_composition_labels",
+    "run_experiment_dry_run",
+    "run_experiment",
+    "analyze_n2_improvement"
+  ]
+}

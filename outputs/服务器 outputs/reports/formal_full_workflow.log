@@ -1,0 +1,1453 @@
+[workflow start] inspect_composition_labels
+# Composition Label Inspection
+
+- dataset_dir: `data/wv4-formal-hitran-standard-6000`
+- alr_reference: `x_CH4`
+- recommended epsilon: `4.20499985e-06` (train_min_positive_half)
+
+| split | rows | component | zero count | zero ratio | min % | min positive % | max % |
+|---|---:|---|---:|---:|---:|---:|---:|
+| train | 4200 | x_H2 | 0 | 0.000000 | 0.000841 | 0.000841 | 29.9982 |
+| train | 4200 | x_CH4 | 0 | 0.000000 | 40 | 40 | 98.0956 |
+| train | 4200 | x_CO2 | 0 | 0.000000 | 0.001489 | 0.001489 | 14.9925 |
+| train | 4200 | x_N2 | 0 | 0.000000 | 0.00156 | 0.00156 | 19.9976 |
+| val | 900 | x_H2 | 0 | 0.000000 | 0.013113 | 0.013113 | 29.9236 |
+| val | 900 | x_CH4 | 0 | 0.000000 | 40 | 40 | 98.1319 |
+| val | 900 | x_CO2 | 0 | 0.000000 | 0.005556 | 0.005556 | 14.9906 |
+| val | 900 | x_N2 | 0 | 0.000000 | 0.017576 | 0.017576 | 19.9866 |
+| test | 600 | x_H2 | 0 | 0.000000 | 0.017488 | 0.017488 | 29.9797 |
+| test | 600 | x_CH4 | 0 | 0.000000 | 40 | 40 | 95.4052 |
+| test | 600 | x_CO2 | 0 | 0.000000 | 0.01556 | 0.01556 | 14.9983 |
+| test | 600 | x_N2 | 0 | 0.000000 | 0.025525 | 0.025525 | 19.9602 |
+| extrapolation | 300 | x_H2 | 0 | 0.000000 | 0.035294 | 0.035294 | 29.8484 |
+| extrapolation | 300 | x_CH4 | 0 | 0.000000 | 40.2558 | 40.2558 | 95.3983 |
+| extrapolation | 300 | x_CO2 | 0 | 0.000000 | 0.064844 | 0.064844 | 14.9957 |
+| extrapolation | 300 | x_N2 | 0 | 0.000000 | 0.044362 | 0.044362 | 19.9933 |
+
+| split | ALR reference | log-reference mean | log-reference variance |
+|---|---|---:|---:|
+| train | x_CH4 | -0.407871 | 0.035208 |
+| val | x_CH4 | -0.408936 | 0.035498 |
+| test | x_CH4 | -0.405640 | 0.037285 |
+| extrapolation | x_CH4 | -0.412989 | 0.034001 |
+[workflow done] inspect_composition_labels
+[workflow start] run_experiment_dry_run
+{
+  "dry_run": true,
+  "plan": {
+    "experiment_name": "formal_full",
+    "dataset_dir": "data/wv4-formal-hitran-standard-6000",
+    "output_root": "outputs",
+    "ml_runs": [
+      "ridge_slow",
+      "ridge_all_modalities",
+      "ridge_alr_ch4_all_modalities",
+      "ridge_ilr_n2_first_all_modalities",
+      "dynamic_stacking_svr_all_modalities"
+    ],
+    "dl_runs": [
+      "cnn1d",
+      "tcn",
+      "lstm",
+      "transformer",
+      "patchtst",
+      "cnn1d_tcn_fusion",
+      "cnn1d_tcn_fusion_ilr"
+    ],
+    "ml_run_details": [
+      {
+        "kind": "ml",
+        "name": "ridge_slow",
+        "model": "ridge",
+        "modalities": [
+          "slow"
+        ],
+        "target_transform": null,
+        "protocol": true
+      },
+      {
+        "kind": "ml",
+        "name": "ridge_all_modalities",
+        "model": "ridge",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": null,
+        "protocol": true
+      },
+      {
+        "kind": "ml",
+        "name": "ridge_alr_ch4_all_modalities",
+        "model": "ridge",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": {
+          "name": "alr_ch4",
+          "epsilon": "train_min_positive_half"
+        },
+        "protocol": true
+      },
+      {
+        "kind": "ml",
+        "name": "ridge_ilr_n2_first_all_modalities",
+        "model": "ridge",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": {
+          "name": "ilr_n2_first",
+          "epsilon": "train_min_positive_half"
+        },
+        "protocol": true
+      },
+      {
+        "kind": "ml",
+        "name": "dynamic_stacking_svr_all_modalities",
+        "model": "dynamic_stacking_svr",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": null,
+        "protocol": false
+      }
+    ],
+    "dl_run_details": [
+      {
+        "kind": "dl",
+        "name": "cnn1d",
+        "model": "cnn1d",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": null,
+        "protocol": false,
+        "loss": "mse"
+      },
+      {
+        "kind": "dl",
+        "name": "tcn",
+        "model": "tcn",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": null,
+        "protocol": false,
+        "loss": "mse"
+      },
+      {
+        "kind": "dl",
+        "name": "lstm",
+        "model": "lstm",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": null,
+        "protocol": false,
+        "loss": "mse"
+      },
+      {
+        "kind": "dl",
+        "name": "transformer",
+        "model": "transformer",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": null,
+        "protocol": false,
+        "loss": "mse"
+      },
+      {
+        "kind": "dl",
+        "name": "patchtst",
+        "model": "patchtst",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": null,
+        "protocol": false,
+        "loss": "mse"
+      },
+      {
+        "kind": "dl",
+        "name": "cnn1d_tcn_fusion",
+        "model": "cnn1d_tcn_fusion",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": null,
+        "protocol": false,
+        "loss": "mse"
+      },
+      {
+        "kind": "dl",
+        "name": "cnn1d_tcn_fusion_ilr",
+        "model": "cnn1d_tcn_fusion",
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "target_transform": {
+          "name": "ilr_n2_first",
+          "epsilon": "train_min_positive_half"
+        },
+        "protocol": false,
+        "loss": "ilr_mse"
+      }
+    ]
+  }
+}
+[workflow done] run_experiment_dry_run
+[workflow start] run_experiment
+[run start] kind=ml name=ridge_slow model=ridge output_dir=outputs/runs/formal_full/ridge_slow
+[run done] kind=ml name=ridge_slow model=ridge
+[run start] kind=ml name=ridge_all_modalities model=ridge output_dir=outputs/runs/formal_full/ridge_all_modalities
+[run done] kind=ml name=ridge_all_modalities model=ridge
+[run start] kind=ml name=ridge_alr_ch4_all_modalities model=ridge output_dir=outputs/runs/formal_full/ridge_alr_ch4_all_modalities
+[run done] kind=ml name=ridge_alr_ch4_all_modalities model=ridge
+[run start] kind=ml name=ridge_ilr_n2_first_all_modalities model=ridge output_dir=outputs/runs/formal_full/ridge_ilr_n2_first_all_modalities
+[run done] kind=ml name=ridge_ilr_n2_first_all_modalities model=ridge
+[run start] kind=ml name=dynamic_stacking_svr_all_modalities model=dynamic_stacking_svr output_dir=outputs/runs/formal_full/dynamic_stacking_svr_all_modalities
+[run done] kind=ml name=dynamic_stacking_svr_all_modalities model=dynamic_stacking_svr
+[run start] kind=dl name=cnn1d model=cnn1d output_dir=outputs/runs/formal_full/cnn1d
+[epoch] model=cnn1d epoch=1/300 train_loss=314.304048 val_loss=67.281250 lr=0.001 best_epoch=1 sec=11.89 samples/s=409.3 gpu_mem=71MB
+[epoch] model=cnn1d epoch=2/300 train_loss=75.506065 val_loss=64.606137 lr=0.001 best_epoch=2 sec=8.81 samples/s=576.0 gpu_mem=71MB
+[epoch] model=cnn1d epoch=3/300 train_loss=73.427407 val_loss=63.481826 lr=0.001 best_epoch=3 sec=8.80 samples/s=573.2 gpu_mem=71MB
+[epoch] model=cnn1d epoch=4/300 train_loss=72.633571 val_loss=63.363217 lr=0.001 best_epoch=4 sec=8.75 samples/s=579.1 gpu_mem=71MB
+[epoch] model=cnn1d epoch=5/300 train_loss=72.017784 val_loss=74.954643 lr=0.001 best_epoch=4 sec=8.88 samples/s=567.1 gpu_mem=71MB
+[epoch] model=cnn1d epoch=6/300 train_loss=71.539379 val_loss=63.866330 lr=0.001 best_epoch=4 sec=8.74 samples/s=577.6 gpu_mem=71MB
+[epoch] model=cnn1d epoch=7/300 train_loss=70.457426 val_loss=63.561137 lr=0.001 best_epoch=4 sec=8.62 samples/s=588.5 gpu_mem=71MB
+[epoch] model=cnn1d epoch=8/300 train_loss=69.843619 val_loss=61.926952 lr=0.001 best_epoch=8 sec=8.75 samples/s=578.9 gpu_mem=71MB
+[epoch] model=cnn1d epoch=9/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=8 sec=8.73 samples/s=580.0 gpu_mem=71MB
+[epoch] model=cnn1d epoch=10/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=8 sec=8.80 samples/s=575.2 gpu_mem=71MB
+[epoch] model=cnn1d epoch=11/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=8 sec=8.67 samples/s=586.7 gpu_mem=71MB
+[epoch] model=cnn1d epoch=12/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=8 sec=8.78 samples/s=575.8 gpu_mem=71MB
+[epoch] model=cnn1d epoch=13/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=8 sec=8.82 samples/s=573.6 gpu_mem=71MB
+[epoch] model=cnn1d epoch=14/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=8 sec=8.81 samples/s=575.6 gpu_mem=71MB
+[epoch] model=cnn1d epoch=15/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=8 sec=8.68 samples/s=585.3 gpu_mem=71MB
+[epoch] model=cnn1d epoch=16/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=8 sec=8.80 samples/s=574.3 gpu_mem=71MB
+[epoch] model=cnn1d epoch=17/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=8 sec=8.82 samples/s=572.7 gpu_mem=71MB
+[epoch] model=cnn1d epoch=18/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=8 sec=8.72 samples/s=579.6 gpu_mem=71MB
+[epoch] model=cnn1d epoch=19/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=8 sec=8.72 samples/s=581.6 gpu_mem=71MB
+[epoch] model=cnn1d epoch=20/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=8 sec=8.58 samples/s=591.5 gpu_mem=71MB
+[epoch] model=cnn1d epoch=21/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=8 sec=8.75 samples/s=578.6 gpu_mem=71MB
+[epoch] model=cnn1d epoch=22/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=8 sec=8.78 samples/s=577.3 gpu_mem=71MB
+[epoch] model=cnn1d epoch=23/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=8 sec=8.79 samples/s=575.3 gpu_mem=71MB
+[epoch] model=cnn1d epoch=24/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=8 sec=8.88 samples/s=568.8 gpu_mem=71MB
+[epoch] model=cnn1d epoch=25/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=8 sec=8.83 samples/s=574.0 gpu_mem=71MB
+[epoch] model=cnn1d epoch=26/300 train_loss=nan val_loss=nan lr=0.00025 best_epoch=8 sec=8.96 samples/s=564.0 gpu_mem=71MB
+[epoch] model=cnn1d epoch=27/300 train_loss=nan val_loss=nan lr=0.00025 best_epoch=8 sec=8.70 samples/s=582.2 gpu_mem=71MB
+[epoch] model=cnn1d epoch=28/300 train_loss=nan val_loss=nan lr=0.00025 best_epoch=8 sec=8.78 samples/s=574.5 gpu_mem=71MB
+model          cnn1d
+modalities     slow, ultrasonic, fiber_mic
+input format   NCT
+checkpoint     outputs/runs/formal_full/cnn1d/checkpoint.pt
+------------------------------------------------------------------------
+         split       loss        MAE       RMSE         R2
+------------------------------------------------------------------------
+           val  61.926952   6.423765   7.864914   0.190824
+          test  63.492713   6.497366   7.981838   0.183142
+ extrapolation  63.762005   6.522214   7.989968   0.172070
+------------------------------------------------------------------------
+[run done] kind=dl name=cnn1d model=cnn1d
+[run start] kind=dl name=tcn model=tcn output_dir=outputs/runs/formal_full/tcn
+[epoch] model=tcn epoch=1/300 train_loss=165.527381 val_loss=42.347785 lr=0.001 best_epoch=1 sec=9.05 samples/s=564.9 gpu_mem=74MB
+[epoch] model=tcn epoch=2/300 train_loss=58.459869 val_loss=35.284727 lr=0.001 best_epoch=2 sec=8.79 samples/s=577.9 gpu_mem=74MB
+[epoch] model=tcn epoch=3/300 train_loss=50.301459 val_loss=34.375203 lr=0.001 best_epoch=3 sec=8.91 samples/s=570.0 gpu_mem=74MB
+[epoch] model=tcn epoch=4/300 train_loss=47.870842 val_loss=34.460107 lr=0.001 best_epoch=3 sec=8.82 samples/s=573.9 gpu_mem=74MB
+[epoch] model=tcn epoch=5/300 train_loss=46.349872 val_loss=31.143013 lr=0.001 best_epoch=5 sec=8.87 samples/s=569.6 gpu_mem=74MB
+[epoch] model=tcn epoch=6/300 train_loss=45.990030 val_loss=35.216982 lr=0.001 best_epoch=5 sec=9.02 samples/s=562.1 gpu_mem=74MB
+[epoch] model=tcn epoch=7/300 train_loss=43.958653 val_loss=30.347320 lr=0.001 best_epoch=7 sec=9.10 samples/s=558.0 gpu_mem=74MB
+[epoch] model=tcn epoch=8/300 train_loss=43.812252 val_loss=30.101178 lr=0.001 best_epoch=8 sec=9.02 samples/s=561.8 gpu_mem=74MB
+[epoch] model=tcn epoch=9/300 train_loss=42.682167 val_loss=44.929225 lr=0.001 best_epoch=8 sec=9.14 samples/s=552.8 gpu_mem=74MB
+[epoch] model=tcn epoch=10/300 train_loss=42.426360 val_loss=28.896286 lr=0.001 best_epoch=10 sec=9.09 samples/s=559.2 gpu_mem=74MB
+[epoch] model=tcn epoch=11/300 train_loss=41.007048 val_loss=29.218534 lr=0.001 best_epoch=10 sec=9.09 samples/s=560.2 gpu_mem=74MB
+[epoch] model=tcn epoch=12/300 train_loss=39.552239 val_loss=30.832262 lr=0.001 best_epoch=10 sec=9.14 samples/s=555.2 gpu_mem=74MB
+[epoch] model=tcn epoch=13/300 train_loss=38.670108 val_loss=29.885301 lr=0.001 best_epoch=10 sec=8.99 samples/s=561.1 gpu_mem=74MB
+[epoch] model=tcn epoch=14/300 train_loss=40.703240 val_loss=35.809743 lr=0.001 best_epoch=10 sec=9.01 samples/s=562.6 gpu_mem=74MB
+[epoch] model=tcn epoch=15/300 train_loss=41.095794 val_loss=37.790468 lr=0.001 best_epoch=10 sec=8.99 samples/s=564.2 gpu_mem=74MB
+[epoch] model=tcn epoch=16/300 train_loss=38.678617 val_loss=31.688461 lr=0.001 best_epoch=10 sec=9.08 samples/s=556.7 gpu_mem=74MB
+[epoch] model=tcn epoch=17/300 train_loss=37.500883 val_loss=30.787313 lr=0.001 best_epoch=10 sec=9.04 samples/s=560.8 gpu_mem=74MB
+[epoch] model=tcn epoch=18/300 train_loss=38.380656 val_loss=30.864643 lr=0.001 best_epoch=10 sec=9.16 samples/s=554.8 gpu_mem=74MB
+[epoch] model=tcn epoch=19/300 train_loss=38.664739 val_loss=32.432879 lr=0.0005 best_epoch=10 sec=9.01 samples/s=564.9 gpu_mem=74MB
+[epoch] model=tcn epoch=20/300 train_loss=34.293996 val_loss=38.719960 lr=0.0005 best_epoch=10 sec=9.02 samples/s=562.0 gpu_mem=74MB
+[epoch] model=tcn epoch=21/300 train_loss=34.434603 val_loss=30.983029 lr=0.0005 best_epoch=10 sec=9.00 samples/s=564.2 gpu_mem=74MB
+[epoch] model=tcn epoch=22/300 train_loss=34.055855 val_loss=30.778759 lr=0.0005 best_epoch=10 sec=9.07 samples/s=561.4 gpu_mem=74MB
+[epoch] model=tcn epoch=23/300 train_loss=33.488645 val_loss=32.576476 lr=0.0005 best_epoch=10 sec=9.11 samples/s=557.7 gpu_mem=74MB
+[epoch] model=tcn epoch=24/300 train_loss=33.236950 val_loss=31.364983 lr=0.0005 best_epoch=10 sec=8.93 samples/s=568.7 gpu_mem=74MB
+[epoch] model=tcn epoch=25/300 train_loss=33.823057 val_loss=37.148603 lr=0.0005 best_epoch=10 sec=9.00 samples/s=562.6 gpu_mem=74MB
+[epoch] model=tcn epoch=26/300 train_loss=33.591666 val_loss=34.180011 lr=0.0005 best_epoch=10 sec=9.07 samples/s=558.9 gpu_mem=74MB
+[epoch] model=tcn epoch=27/300 train_loss=32.142938 val_loss=45.597254 lr=0.0005 best_epoch=10 sec=9.09 samples/s=558.3 gpu_mem=74MB
+[epoch] model=tcn epoch=28/300 train_loss=33.137732 val_loss=33.088440 lr=0.00025 best_epoch=10 sec=8.93 samples/s=571.2 gpu_mem=74MB
+[epoch] model=tcn epoch=29/300 train_loss=30.628723 val_loss=34.811716 lr=0.00025 best_epoch=10 sec=8.99 samples/s=565.8 gpu_mem=74MB
+[epoch] model=tcn epoch=30/300 train_loss=30.839550 val_loss=33.329884 lr=0.00025 best_epoch=10 sec=9.10 samples/s=560.1 gpu_mem=74MB
+model          tcn
+modalities     slow, ultrasonic, fiber_mic
+input format   NCT
+checkpoint     outputs/runs/formal_full/tcn/checkpoint.pt
+------------------------------------------------------------------------
+         split       loss        MAE       RMSE         R2
+------------------------------------------------------------------------
+           val  28.896286   4.151608   5.381320   0.621180
+          test  30.969622   4.289006   5.579615   0.600838
+ extrapolation  29.520232   4.181366   5.446115   0.615340
+------------------------------------------------------------------------
+[run done] kind=dl name=tcn model=tcn
+[run start] kind=dl name=lstm model=lstm output_dir=outputs/runs/formal_full/lstm
+[epoch] model=lstm epoch=1/300 train_loss=647.372380 val_loss=97.246160 lr=0.001 best_epoch=1 sec=9.07 samples/s=563.5 gpu_mem=83MB
+[epoch] model=lstm epoch=2/300 train_loss=90.195765 val_loss=80.456340 lr=0.001 best_epoch=2 sec=8.87 samples/s=571.6 gpu_mem=83MB
+[epoch] model=lstm epoch=3/300 train_loss=87.973427 val_loss=79.493113 lr=0.001 best_epoch=3 sec=8.76 samples/s=578.4 gpu_mem=83MB
+[epoch] model=lstm epoch=4/300 train_loss=85.188340 val_loss=78.542452 lr=0.001 best_epoch=4 sec=8.83 samples/s=573.8 gpu_mem=83MB
+[epoch] model=lstm epoch=5/300 train_loss=84.582545 val_loss=79.300634 lr=0.001 best_epoch=4 sec=8.77 samples/s=575.7 gpu_mem=83MB
+[epoch] model=lstm epoch=6/300 train_loss=84.027098 val_loss=79.729450 lr=0.001 best_epoch=4 sec=8.79 samples/s=575.4 gpu_mem=83MB
+[epoch] model=lstm epoch=7/300 train_loss=84.741517 val_loss=78.696239 lr=0.001 best_epoch=4 sec=8.75 samples/s=577.7 gpu_mem=83MB
+[epoch] model=lstm epoch=8/300 train_loss=84.204130 val_loss=78.164325 lr=0.001 best_epoch=8 sec=8.89 samples/s=569.9 gpu_mem=83MB
+[epoch] model=lstm epoch=9/300 train_loss=83.250694 val_loss=77.881822 lr=0.001 best_epoch=9 sec=8.84 samples/s=574.8 gpu_mem=83MB
+[epoch] model=lstm epoch=10/300 train_loss=81.492502 val_loss=77.888900 lr=0.001 best_epoch=9 sec=8.77 samples/s=580.7 gpu_mem=83MB
+[epoch] model=lstm epoch=11/300 train_loss=80.406895 val_loss=76.972914 lr=0.001 best_epoch=11 sec=8.76 samples/s=577.1 gpu_mem=83MB
+[epoch] model=lstm epoch=12/300 train_loss=80.334664 val_loss=77.255855 lr=0.001 best_epoch=11 sec=8.72 samples/s=583.2 gpu_mem=83MB
+[epoch] model=lstm epoch=13/300 train_loss=79.672038 val_loss=76.485643 lr=0.001 best_epoch=13 sec=8.86 samples/s=572.1 gpu_mem=83MB
+[epoch] model=lstm epoch=14/300 train_loss=79.578755 val_loss=77.275948 lr=0.001 best_epoch=13 sec=8.63 samples/s=589.5 gpu_mem=83MB
+[epoch] model=lstm epoch=15/300 train_loss=79.254545 val_loss=77.517236 lr=0.001 best_epoch=13 sec=8.81 samples/s=575.4 gpu_mem=83MB
+[epoch] model=lstm epoch=16/300 train_loss=78.966140 val_loss=78.338011 lr=0.001 best_epoch=13 sec=8.83 samples/s=574.8 gpu_mem=83MB
+[epoch] model=lstm epoch=17/300 train_loss=78.323182 val_loss=76.862277 lr=0.001 best_epoch=13 sec=8.81 samples/s=573.9 gpu_mem=83MB
+[epoch] model=lstm epoch=18/300 train_loss=78.028529 val_loss=77.090286 lr=0.001 best_epoch=13 sec=8.86 samples/s=571.7 gpu_mem=83MB
+[epoch] model=lstm epoch=19/300 train_loss=77.869837 val_loss=76.980915 lr=0.001 best_epoch=13 sec=8.81 samples/s=577.5 gpu_mem=83MB
+[epoch] model=lstm epoch=20/300 train_loss=77.942983 val_loss=76.251728 lr=0.001 best_epoch=20 sec=8.78 samples/s=577.8 gpu_mem=83MB
+[epoch] model=lstm epoch=21/300 train_loss=76.988407 val_loss=76.002103 lr=0.001 best_epoch=21 sec=8.93 samples/s=567.2 gpu_mem=83MB
+[epoch] model=lstm epoch=22/300 train_loss=76.265228 val_loss=77.324842 lr=0.001 best_epoch=21 sec=8.72 samples/s=583.1 gpu_mem=83MB
+[epoch] model=lstm epoch=23/300 train_loss=76.023384 val_loss=76.210742 lr=0.001 best_epoch=21 sec=8.97 samples/s=561.9 gpu_mem=83MB
+[epoch] model=lstm epoch=24/300 train_loss=74.976631 val_loss=75.825903 lr=0.001 best_epoch=24 sec=8.74 samples/s=581.7 gpu_mem=83MB
+[epoch] model=lstm epoch=25/300 train_loss=74.802148 val_loss=74.993119 lr=0.001 best_epoch=25 sec=8.87 samples/s=571.4 gpu_mem=83MB
+[epoch] model=lstm epoch=26/300 train_loss=75.586384 val_loss=75.176829 lr=0.001 best_epoch=25 sec=8.83 samples/s=576.6 gpu_mem=83MB
+[epoch] model=lstm epoch=27/300 train_loss=74.705708 val_loss=75.942838 lr=0.001 best_epoch=25 sec=8.85 samples/s=573.8 gpu_mem=83MB
+[epoch] model=lstm epoch=28/300 train_loss=73.654924 val_loss=75.158395 lr=0.001 best_epoch=25 sec=8.89 samples/s=572.5 gpu_mem=83MB
+[epoch] model=lstm epoch=29/300 train_loss=72.801609 val_loss=75.004590 lr=0.001 best_epoch=25 sec=8.82 samples/s=571.0 gpu_mem=83MB
+[epoch] model=lstm epoch=30/300 train_loss=72.736624 val_loss=76.215183 lr=0.001 best_epoch=25 sec=8.83 samples/s=574.9 gpu_mem=83MB
+[epoch] model=lstm epoch=31/300 train_loss=72.517692 val_loss=76.576199 lr=0.001 best_epoch=25 sec=8.81 samples/s=570.8 gpu_mem=83MB
+[epoch] model=lstm epoch=32/300 train_loss=73.160907 val_loss=75.734008 lr=0.001 best_epoch=25 sec=8.79 samples/s=578.2 gpu_mem=83MB
+[epoch] model=lstm epoch=33/300 train_loss=71.454872 val_loss=76.093126 lr=0.001 best_epoch=25 sec=8.82 samples/s=574.8 gpu_mem=83MB
+[epoch] model=lstm epoch=34/300 train_loss=70.784162 val_loss=76.948663 lr=0.0005 best_epoch=25 sec=8.89 samples/s=572.5 gpu_mem=83MB
+[epoch] model=lstm epoch=35/300 train_loss=69.028914 val_loss=75.174893 lr=0.0005 best_epoch=25 sec=8.76 samples/s=578.0 gpu_mem=83MB
+[epoch] model=lstm epoch=36/300 train_loss=69.835468 val_loss=75.173732 lr=0.0005 best_epoch=25 sec=8.88 samples/s=569.3 gpu_mem=83MB
+[epoch] model=lstm epoch=37/300 train_loss=69.205535 val_loss=75.479227 lr=0.0005 best_epoch=25 sec=8.85 samples/s=572.9 gpu_mem=83MB
+[epoch] model=lstm epoch=38/300 train_loss=68.406884 val_loss=74.785238 lr=0.0005 best_epoch=38 sec=8.95 samples/s=569.5 gpu_mem=83MB
+[epoch] model=lstm epoch=39/300 train_loss=68.687355 val_loss=75.307272 lr=0.0005 best_epoch=38 sec=8.81 samples/s=576.3 gpu_mem=83MB
+[epoch] model=lstm epoch=40/300 train_loss=68.053830 val_loss=75.310604 lr=0.0005 best_epoch=38 sec=8.81 samples/s=577.4 gpu_mem=83MB
+[epoch] model=lstm epoch=41/300 train_loss=67.752930 val_loss=75.676114 lr=0.0005 best_epoch=38 sec=8.81 samples/s=576.4 gpu_mem=83MB
+[epoch] model=lstm epoch=42/300 train_loss=67.485805 val_loss=74.941551 lr=0.0005 best_epoch=38 sec=8.78 samples/s=577.2 gpu_mem=83MB
+[epoch] model=lstm epoch=43/300 train_loss=67.582410 val_loss=74.893054 lr=0.0005 best_epoch=38 sec=8.85 samples/s=572.0 gpu_mem=83MB
+[epoch] model=lstm epoch=44/300 train_loss=66.764336 val_loss=74.771943 lr=0.0005 best_epoch=44 sec=8.82 samples/s=575.5 gpu_mem=83MB
+[epoch] model=lstm epoch=45/300 train_loss=66.383612 val_loss=75.037513 lr=0.0005 best_epoch=44 sec=8.85 samples/s=572.2 gpu_mem=83MB
+[epoch] model=lstm epoch=46/300 train_loss=65.830019 val_loss=75.869424 lr=0.0005 best_epoch=44 sec=8.84 samples/s=575.6 gpu_mem=83MB
+[epoch] model=lstm epoch=47/300 train_loss=65.827458 val_loss=75.746541 lr=0.0005 best_epoch=44 sec=8.66 samples/s=584.7 gpu_mem=83MB
+[epoch] model=lstm epoch=48/300 train_loss=65.774936 val_loss=75.427429 lr=0.0005 best_epoch=44 sec=8.86 samples/s=573.1 gpu_mem=83MB
+[epoch] model=lstm epoch=49/300 train_loss=65.333255 val_loss=75.425955 lr=0.0005 best_epoch=44 sec=8.82 samples/s=573.4 gpu_mem=83MB
+[epoch] model=lstm epoch=50/300 train_loss=64.660572 val_loss=75.721093 lr=0.0005 best_epoch=44 sec=8.88 samples/s=571.2 gpu_mem=83MB
+[epoch] model=lstm epoch=51/300 train_loss=65.032573 val_loss=75.278227 lr=0.0005 best_epoch=44 sec=8.74 samples/s=582.1 gpu_mem=83MB
+[epoch] model=lstm epoch=52/300 train_loss=64.430599 val_loss=74.853211 lr=0.0005 best_epoch=44 sec=8.84 samples/s=573.8 gpu_mem=83MB
+[epoch] model=lstm epoch=53/300 train_loss=64.220973 val_loss=75.668416 lr=0.00025 best_epoch=44 sec=8.79 samples/s=576.7 gpu_mem=83MB
+[epoch] model=lstm epoch=54/300 train_loss=65.337843 val_loss=74.889216 lr=0.00025 best_epoch=44 sec=8.87 samples/s=571.0 gpu_mem=83MB
+[epoch] model=lstm epoch=55/300 train_loss=64.185848 val_loss=74.596736 lr=0.00025 best_epoch=55 sec=8.81 samples/s=575.7 gpu_mem=83MB
+[epoch] model=lstm epoch=56/300 train_loss=64.795837 val_loss=74.630256 lr=0.00025 best_epoch=55 sec=8.88 samples/s=570.6 gpu_mem=83MB
+[epoch] model=lstm epoch=57/300 train_loss=63.914865 val_loss=74.153288 lr=0.00025 best_epoch=57 sec=8.72 samples/s=583.9 gpu_mem=83MB
+[epoch] model=lstm epoch=58/300 train_loss=64.287647 val_loss=74.284304 lr=0.00025 best_epoch=57 sec=8.69 samples/s=585.7 gpu_mem=83MB
+[epoch] model=lstm epoch=59/300 train_loss=63.979187 val_loss=74.250665 lr=0.00025 best_epoch=57 sec=8.83 samples/s=574.9 gpu_mem=83MB
+[epoch] model=lstm epoch=60/300 train_loss=63.287878 val_loss=73.870422 lr=0.00025 best_epoch=60 sec=8.85 samples/s=573.8 gpu_mem=83MB
+[epoch] model=lstm epoch=61/300 train_loss=62.513343 val_loss=73.743655 lr=0.00025 best_epoch=61 sec=8.93 samples/s=569.3 gpu_mem=83MB
+[epoch] model=lstm epoch=62/300 train_loss=63.850735 val_loss=74.014989 lr=0.00025 best_epoch=61 sec=8.83 samples/s=572.4 gpu_mem=83MB
+[epoch] model=lstm epoch=63/300 train_loss=62.690855 val_loss=73.691461 lr=0.00025 best_epoch=63 sec=8.82 samples/s=571.8 gpu_mem=83MB
+[epoch] model=lstm epoch=64/300 train_loss=63.642064 val_loss=73.733147 lr=0.00025 best_epoch=63 sec=8.78 samples/s=576.9 gpu_mem=83MB
+[epoch] model=lstm epoch=65/300 train_loss=63.284870 val_loss=73.675408 lr=0.00025 best_epoch=65 sec=8.80 samples/s=574.9 gpu_mem=83MB
+[epoch] model=lstm epoch=66/300 train_loss=62.218372 val_loss=74.259209 lr=0.00025 best_epoch=65 sec=8.80 samples/s=575.9 gpu_mem=83MB
+[epoch] model=lstm epoch=67/300 train_loss=62.624897 val_loss=73.808263 lr=0.00025 best_epoch=65 sec=8.92 samples/s=568.2 gpu_mem=83MB
+[epoch] model=lstm epoch=68/300 train_loss=61.924775 val_loss=73.480392 lr=0.00025 best_epoch=68 sec=8.73 samples/s=580.7 gpu_mem=83MB
+[epoch] model=lstm epoch=69/300 train_loss=62.343077 val_loss=73.394775 lr=0.00025 best_epoch=69 sec=8.87 samples/s=570.7 gpu_mem=83MB
+[epoch] model=lstm epoch=70/300 train_loss=62.068060 val_loss=73.563378 lr=0.00025 best_epoch=69 sec=8.89 samples/s=569.9 gpu_mem=83MB
+[epoch] model=lstm epoch=71/300 train_loss=61.628406 val_loss=73.710922 lr=0.00025 best_epoch=69 sec=8.88 samples/s=570.0 gpu_mem=83MB
+[epoch] model=lstm epoch=72/300 train_loss=62.671200 val_loss=73.580016 lr=0.00025 best_epoch=69 sec=8.83 samples/s=573.1 gpu_mem=83MB
+[epoch] model=lstm epoch=73/300 train_loss=61.104940 val_loss=73.484379 lr=0.00025 best_epoch=69 sec=8.89 samples/s=570.7 gpu_mem=83MB
+[epoch] model=lstm epoch=74/300 train_loss=61.731944 val_loss=73.643415 lr=0.00025 best_epoch=69 sec=8.85 samples/s=575.4 gpu_mem=83MB
+[epoch] model=lstm epoch=75/300 train_loss=61.734281 val_loss=73.813655 lr=0.00025 best_epoch=69 sec=8.83 samples/s=572.9 gpu_mem=83MB
+[epoch] model=lstm epoch=76/300 train_loss=62.579305 val_loss=73.360838 lr=0.00025 best_epoch=76 sec=8.79 samples/s=578.4 gpu_mem=83MB
+[epoch] model=lstm epoch=77/300 train_loss=60.806886 val_loss=73.557549 lr=0.00025 best_epoch=76 sec=8.91 samples/s=567.2 gpu_mem=83MB
+[epoch] model=lstm epoch=78/300 train_loss=60.364149 val_loss=73.513925 lr=0.00025 best_epoch=76 sec=8.90 samples/s=570.2 gpu_mem=83MB
+[epoch] model=lstm epoch=79/300 train_loss=61.580287 val_loss=73.545926 lr=0.00025 best_epoch=76 sec=8.75 samples/s=581.4 gpu_mem=83MB
+[epoch] model=lstm epoch=80/300 train_loss=60.514541 val_loss=73.725368 lr=0.00025 best_epoch=76 sec=8.81 samples/s=575.4 gpu_mem=83MB
+[epoch] model=lstm epoch=81/300 train_loss=59.950267 val_loss=73.674840 lr=0.00025 best_epoch=76 sec=8.83 samples/s=572.6 gpu_mem=83MB
+[epoch] model=lstm epoch=82/300 train_loss=60.323252 val_loss=73.733107 lr=0.00025 best_epoch=76 sec=8.80 samples/s=574.9 gpu_mem=83MB
+[epoch] model=lstm epoch=83/300 train_loss=60.644371 val_loss=73.802410 lr=0.00025 best_epoch=76 sec=8.86 samples/s=572.0 gpu_mem=83MB
+[epoch] model=lstm epoch=84/300 train_loss=60.810194 val_loss=73.649286 lr=0.00025 best_epoch=76 sec=8.82 samples/s=576.4 gpu_mem=83MB
+[epoch] model=lstm epoch=85/300 train_loss=60.859796 val_loss=73.505094 lr=0.000125 best_epoch=76 sec=8.85 samples/s=571.5 gpu_mem=83MB
+[epoch] model=lstm epoch=86/300 train_loss=60.348116 val_loss=73.593831 lr=0.000125 best_epoch=76 sec=8.76 samples/s=577.7 gpu_mem=83MB
+[epoch] model=lstm epoch=87/300 train_loss=59.688533 val_loss=73.629485 lr=0.000125 best_epoch=76 sec=8.83 samples/s=574.2 gpu_mem=83MB
+[epoch] model=lstm epoch=88/300 train_loss=59.122532 val_loss=73.591495 lr=0.000125 best_epoch=76 sec=8.71 samples/s=584.4 gpu_mem=83MB
+[epoch] model=lstm epoch=89/300 train_loss=59.915325 val_loss=73.560717 lr=0.000125 best_epoch=76 sec=8.74 samples/s=581.7 gpu_mem=83MB
+[epoch] model=lstm epoch=90/300 train_loss=58.975139 val_loss=73.628551 lr=0.000125 best_epoch=76 sec=8.73 samples/s=582.2 gpu_mem=83MB
+[epoch] model=lstm epoch=91/300 train_loss=59.635853 val_loss=73.488122 lr=0.000125 best_epoch=76 sec=8.85 samples/s=574.4 gpu_mem=83MB
+[epoch] model=lstm epoch=92/300 train_loss=59.570950 val_loss=73.522326 lr=0.000125 best_epoch=76 sec=8.82 samples/s=575.4 gpu_mem=83MB
+[epoch] model=lstm epoch=93/300 train_loss=58.951869 val_loss=73.513262 lr=0.000125 best_epoch=76 sec=8.93 samples/s=568.4 gpu_mem=83MB
+[epoch] model=lstm epoch=94/300 train_loss=59.497455 val_loss=73.617965 lr=6.25e-05 best_epoch=76 sec=8.86 samples/s=570.9 gpu_mem=83MB
+[epoch] model=lstm epoch=95/300 train_loss=59.260108 val_loss=73.528898 lr=6.25e-05 best_epoch=76 sec=8.91 samples/s=568.4 gpu_mem=83MB
+[epoch] model=lstm epoch=96/300 train_loss=59.210966 val_loss=73.625169 lr=6.25e-05 best_epoch=76 sec=9.02 samples/s=560.7 gpu_mem=83MB
+model          lstm
+modalities     slow, ultrasonic, fiber_mic
+input format   NTC
+checkpoint     outputs/runs/formal_full/lstm/checkpoint.pt
+------------------------------------------------------------------------
+         split       loss        MAE       RMSE         R2
+------------------------------------------------------------------------
+           val  73.360838   6.724669   8.576803   0.037711
+          test  74.741461   6.786984   8.664304   0.037483
+ extrapolation  75.162718   6.801312   8.687006   0.021313
+------------------------------------------------------------------------
+[run done] kind=dl name=lstm model=lstm
+[run start] kind=dl name=transformer model=transformer output_dir=outputs/runs/formal_full/transformer
+[epoch] model=transformer epoch=1/300 train_loss=287.877832 val_loss=76.131713 lr=0.001 best_epoch=1 sec=9.04 samples/s=564.4 gpu_mem=76MB
+[epoch] model=transformer epoch=2/300 train_loss=nan val_loss=53.877635 lr=0.001 best_epoch=2 sec=8.80 samples/s=576.9 gpu_mem=76MB
+[epoch] model=transformer epoch=3/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=2 sec=8.79 samples/s=577.2 gpu_mem=76MB
+[epoch] model=transformer epoch=4/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=2 sec=8.84 samples/s=572.3 gpu_mem=76MB
+[epoch] model=transformer epoch=5/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=2 sec=8.83 samples/s=574.7 gpu_mem=76MB
+[epoch] model=transformer epoch=6/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=2 sec=8.85 samples/s=572.2 gpu_mem=76MB
+[epoch] model=transformer epoch=7/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=2 sec=8.85 samples/s=573.3 gpu_mem=76MB
+[epoch] model=transformer epoch=8/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=2 sec=8.80 samples/s=575.6 gpu_mem=76MB
+[epoch] model=transformer epoch=9/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=2 sec=8.74 samples/s=578.5 gpu_mem=76MB
+[epoch] model=transformer epoch=10/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=2 sec=8.87 samples/s=571.9 gpu_mem=76MB
+[epoch] model=transformer epoch=11/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=2 sec=8.75 samples/s=582.9 gpu_mem=76MB
+[epoch] model=transformer epoch=12/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=2 sec=8.77 samples/s=580.2 gpu_mem=76MB
+[epoch] model=transformer epoch=13/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=2 sec=8.84 samples/s=572.9 gpu_mem=76MB
+[epoch] model=transformer epoch=14/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=2 sec=8.85 samples/s=572.3 gpu_mem=76MB
+[epoch] model=transformer epoch=15/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=2 sec=8.72 samples/s=578.9 gpu_mem=76MB
+[epoch] model=transformer epoch=16/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=2 sec=8.81 samples/s=575.5 gpu_mem=76MB
+[epoch] model=transformer epoch=17/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=2 sec=8.88 samples/s=571.0 gpu_mem=76MB
+[epoch] model=transformer epoch=18/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=2 sec=8.79 samples/s=575.1 gpu_mem=76MB
+[epoch] model=transformer epoch=19/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=2 sec=8.82 samples/s=574.6 gpu_mem=76MB
+[epoch] model=transformer epoch=20/300 train_loss=nan val_loss=nan lr=0.00025 best_epoch=2 sec=8.90 samples/s=569.0 gpu_mem=76MB
+[epoch] model=transformer epoch=21/300 train_loss=nan val_loss=nan lr=0.00025 best_epoch=2 sec=8.80 samples/s=575.6 gpu_mem=76MB
+[epoch] model=transformer epoch=22/300 train_loss=nan val_loss=nan lr=0.00025 best_epoch=2 sec=8.81 samples/s=575.9 gpu_mem=76MB
+model          transformer
+modalities     slow, ultrasonic, fiber_mic
+input format   NTC
+checkpoint     outputs/runs/formal_full/transformer/checkpoint.pt
+------------------------------------------------------------------------
+         split       loss        MAE       RMSE         R2
+------------------------------------------------------------------------
+           val  53.877635   5.776959   7.349942   0.293320
+          test  55.905567   5.891555   7.497651   0.279239
+ extrapolation  52.550014   5.709006   7.259306   0.316570
+------------------------------------------------------------------------
+[run done] kind=dl name=transformer model=transformer
+[run start] kind=dl name=patchtst model=patchtst output_dir=outputs/runs/formal_full/patchtst
+[epoch] model=patchtst epoch=1/300 train_loss=281.682600 val_loss=nan lr=0.001 best_epoch=1 sec=9.01 samples/s=567.1 gpu_mem=119MB
+[epoch] model=patchtst epoch=2/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=1 sec=8.73 samples/s=581.8 gpu_mem=119MB
+[epoch] model=patchtst epoch=3/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=1 sec=8.80 samples/s=576.8 gpu_mem=119MB
+[epoch] model=patchtst epoch=4/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=1 sec=8.71 samples/s=580.8 gpu_mem=119MB
+[epoch] model=patchtst epoch=5/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=1 sec=8.65 samples/s=586.2 gpu_mem=119MB
+[epoch] model=patchtst epoch=6/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=1 sec=8.71 samples/s=579.7 gpu_mem=119MB
+[epoch] model=patchtst epoch=7/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=1 sec=8.73 samples/s=581.1 gpu_mem=119MB
+[epoch] model=patchtst epoch=8/300 train_loss=nan val_loss=nan lr=0.001 best_epoch=1 sec=8.74 samples/s=578.1 gpu_mem=119MB
+[epoch] model=patchtst epoch=9/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=1 sec=8.72 samples/s=582.1 gpu_mem=119MB
+[epoch] model=patchtst epoch=10/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=1 sec=8.84 samples/s=574.5 gpu_mem=119MB
+[epoch] model=patchtst epoch=11/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=1 sec=8.88 samples/s=570.4 gpu_mem=119MB
+[epoch] model=patchtst epoch=12/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=1 sec=8.68 samples/s=583.4 gpu_mem=119MB
+[epoch] model=patchtst epoch=13/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=1 sec=8.71 samples/s=579.5 gpu_mem=119MB
+[epoch] model=patchtst epoch=14/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=1 sec=8.74 samples/s=578.1 gpu_mem=119MB
+[epoch] model=patchtst epoch=15/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=1 sec=8.66 samples/s=583.8 gpu_mem=119MB
+[epoch] model=patchtst epoch=16/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=1 sec=8.67 samples/s=583.4 gpu_mem=119MB
+[epoch] model=patchtst epoch=17/300 train_loss=nan val_loss=nan lr=0.0005 best_epoch=1 sec=8.60 samples/s=592.0 gpu_mem=119MB
+[epoch] model=patchtst epoch=18/300 train_loss=nan val_loss=nan lr=0.00025 best_epoch=1 sec=8.71 samples/s=581.5 gpu_mem=119MB
+[epoch] model=patchtst epoch=19/300 train_loss=nan val_loss=nan lr=0.00025 best_epoch=1 sec=8.76 samples/s=577.9 gpu_mem=119MB
+[epoch] model=patchtst epoch=20/300 train_loss=nan val_loss=nan lr=0.00025 best_epoch=1 sec=8.81 samples/s=574.1 gpu_mem=119MB
+[epoch] model=patchtst epoch=21/300 train_loss=nan val_loss=nan lr=0.00025 best_epoch=1 sec=8.74 samples/s=581.5 gpu_mem=119MB
+model          patchtst
+modalities     slow, ultrasonic, fiber_mic
+input format   NTC
+checkpoint     outputs/runs/formal_full/patchtst/checkpoint.pt
+------------------------------------------------------------------------
+         split       loss        MAE       RMSE         R2
+------------------------------------------------------------------------
+           val        nan        nan        nan        nan
+          test        nan        nan        nan        nan
+ extrapolation        nan        nan        nan        nan
+------------------------------------------------------------------------
+[run done] kind=dl name=patchtst model=patchtst
+[run start] kind=dl name=cnn1d_tcn_fusion model=cnn1d_tcn_fusion output_dir=outputs/runs/formal_full/cnn1d_tcn_fusion
+[epoch] model=cnn1d_tcn_fusion epoch=1/300 train_loss=82.761791 val_loss=80.699434 lr=0.001 best_epoch=1 sec=85.70 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=2/300 train_loss=62.548518 val_loss=38.849667 lr=0.001 best_epoch=2 sec=85.43 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=3/300 train_loss=37.375710 val_loss=39.978127 lr=0.001 best_epoch=2 sec=85.51 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=4/300 train_loss=34.021996 val_loss=37.951392 lr=0.001 best_epoch=4 sec=85.52 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=5/300 train_loss=32.519000 val_loss=62.045722 lr=0.001 best_epoch=4 sec=85.53 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=6/300 train_loss=30.763978 val_loss=33.797937 lr=0.001 best_epoch=6 sec=85.53 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=7/300 train_loss=29.437726 val_loss=34.943563 lr=0.001 best_epoch=6 sec=85.40 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=8/300 train_loss=27.673907 val_loss=48.335567 lr=0.001 best_epoch=6 sec=85.50 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=9/300 train_loss=26.245626 val_loss=34.827119 lr=0.001 best_epoch=6 sec=85.50 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=10/300 train_loss=25.653020 val_loss=29.027207 lr=0.001 best_epoch=10 sec=85.44 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=11/300 train_loss=24.966909 val_loss=28.034343 lr=0.001 best_epoch=11 sec=85.62 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=12/300 train_loss=23.919317 val_loss=28.207333 lr=0.001 best_epoch=11 sec=85.50 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=13/300 train_loss=24.249226 val_loss=37.178320 lr=0.001 best_epoch=11 sec=85.42 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=14/300 train_loss=23.534957 val_loss=27.630395 lr=0.001 best_epoch=14 sec=85.53 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=15/300 train_loss=23.469096 val_loss=31.488770 lr=0.001 best_epoch=14 sec=85.50 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=16/300 train_loss=23.108830 val_loss=36.489580 lr=0.001 best_epoch=14 sec=85.50 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=17/300 train_loss=22.883952 val_loss=24.367573 lr=0.001 best_epoch=17 sec=85.60 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=18/300 train_loss=22.717441 val_loss=33.526116 lr=0.001 best_epoch=17 sec=85.55 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=19/300 train_loss=22.251595 val_loss=33.186798 lr=0.001 best_epoch=17 sec=85.47 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=20/300 train_loss=22.628418 val_loss=34.344135 lr=0.001 best_epoch=17 sec=85.53 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=21/300 train_loss=22.213073 val_loss=22.497951 lr=0.001 best_epoch=21 sec=85.59 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=22/300 train_loss=22.229692 val_loss=31.090017 lr=0.001 best_epoch=21 sec=85.42 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=23/300 train_loss=22.084773 val_loss=34.527488 lr=0.001 best_epoch=21 sec=85.55 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=24/300 train_loss=21.994907 val_loss=30.692245 lr=0.001 best_epoch=21 sec=85.49 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=25/300 train_loss=21.984505 val_loss=30.879952 lr=0.001 best_epoch=21 sec=85.32 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=26/300 train_loss=21.765622 val_loss=22.824350 lr=0.001 best_epoch=21 sec=85.47 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=27/300 train_loss=21.666012 val_loss=28.674126 lr=0.001 best_epoch=21 sec=85.49 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=28/300 train_loss=22.080319 val_loss=31.141892 lr=0.001 best_epoch=21 sec=85.44 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=29/300 train_loss=21.872151 val_loss=30.211964 lr=0.001 best_epoch=21 sec=85.53 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=30/300 train_loss=21.746833 val_loss=24.866676 lr=0.0005 best_epoch=21 sec=85.56 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=31/300 train_loss=20.660403 val_loss=25.418628 lr=0.0005 best_epoch=21 sec=85.52 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=32/300 train_loss=20.581555 val_loss=31.419549 lr=0.0005 best_epoch=21 sec=85.56 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=33/300 train_loss=20.367358 val_loss=30.507422 lr=0.0005 best_epoch=21 sec=85.52 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=34/300 train_loss=20.213965 val_loss=24.556812 lr=0.0005 best_epoch=21 sec=85.33 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=35/300 train_loss=20.152353 val_loss=33.263634 lr=0.0005 best_epoch=21 sec=85.53 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=36/300 train_loss=20.298982 val_loss=26.421031 lr=0.0005 best_epoch=21 sec=85.59 samples/s=51.0 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=37/300 train_loss=20.325338 val_loss=29.133779 lr=0.0005 best_epoch=21 sec=85.56 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=38/300 train_loss=20.261927 val_loss=31.647236 lr=0.0005 best_epoch=21 sec=85.46 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=39/300 train_loss=20.323631 val_loss=28.683686 lr=0.00025 best_epoch=21 sec=85.45 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=40/300 train_loss=19.450496 val_loss=23.947738 lr=0.00025 best_epoch=21 sec=85.50 samples/s=51.1 gpu_mem=75MB
+[epoch] model=cnn1d_tcn_fusion epoch=41/300 train_loss=19.357535 val_loss=30.584823 lr=0.00025 best_epoch=21 sec=85.58 samples/s=51.1 gpu_mem=75MB
+model          cnn1d_tcn_fusion
+modalities     slow, ultrasonic, fiber_mic
+input format   NTC
+checkpoint     outputs/runs/formal_full/cnn1d_tcn_fusion/checkpoint.pt
+------------------------------------------------------------------------
+         split       loss        MAE       RMSE         R2
+------------------------------------------------------------------------
+           val  22.497951   3.558515   4.738966   0.706220
+          test  22.201013   3.491202   4.724582   0.713801
+ extrapolation  21.711905   3.490669   4.664549   0.717822
+------------------------------------------------------------------------
+[run done] kind=dl name=cnn1d_tcn_fusion model=cnn1d_tcn_fusion
+[run start] kind=dl name=cnn1d_tcn_fusion_ilr model=cnn1d_tcn_fusion output_dir=outputs/runs/formal_full/cnn1d_tcn_fusion_ilr
+[epoch] model=cnn1d_tcn_fusion epoch=1/300 train_loss=1.102807 val_loss=0.996528 lr=0.001 best_epoch=1 sec=86.50 samples/s=50.5 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=2/300 train_loss=0.912986 val_loss=0.792526 lr=0.001 best_epoch=2 sec=86.34 samples/s=50.6 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=3/300 train_loss=0.667019 val_loss=0.521798 lr=0.001 best_epoch=3 sec=86.22 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=4/300 train_loss=0.554155 val_loss=0.534810 lr=0.001 best_epoch=3 sec=86.20 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=5/300 train_loss=0.518999 val_loss=0.400631 lr=0.001 best_epoch=5 sec=86.24 samples/s=50.6 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=6/300 train_loss=0.483183 val_loss=0.493989 lr=0.001 best_epoch=5 sec=86.17 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=7/300 train_loss=0.463456 val_loss=0.403292 lr=0.001 best_epoch=5 sec=86.13 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=8/300 train_loss=0.452327 val_loss=0.381263 lr=0.001 best_epoch=8 sec=86.11 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=9/300 train_loss=0.443052 val_loss=0.394861 lr=0.001 best_epoch=8 sec=86.13 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=10/300 train_loss=0.429863 val_loss=0.467076 lr=0.001 best_epoch=8 sec=86.16 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=11/300 train_loss=0.417683 val_loss=0.358755 lr=0.001 best_epoch=11 sec=86.29 samples/s=50.6 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=12/300 train_loss=0.416847 val_loss=0.408161 lr=0.001 best_epoch=11 sec=86.16 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=13/300 train_loss=0.414807 val_loss=0.428899 lr=0.001 best_epoch=11 sec=86.16 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=14/300 train_loss=0.394588 val_loss=0.428985 lr=0.001 best_epoch=11 sec=86.13 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=15/300 train_loss=0.391942 val_loss=0.352403 lr=0.001 best_epoch=15 sec=86.22 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=16/300 train_loss=0.393649 val_loss=0.454410 lr=0.001 best_epoch=15 sec=86.24 samples/s=50.6 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=17/300 train_loss=0.386906 val_loss=0.350140 lr=0.001 best_epoch=17 sec=86.13 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=18/300 train_loss=0.380323 val_loss=0.412435 lr=0.001 best_epoch=17 sec=86.18 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=19/300 train_loss=0.377205 val_loss=0.499012 lr=0.001 best_epoch=17 sec=85.98 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=20/300 train_loss=0.379552 val_loss=0.412073 lr=0.001 best_epoch=17 sec=86.20 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=21/300 train_loss=0.383125 val_loss=0.339149 lr=0.001 best_epoch=21 sec=86.27 samples/s=50.6 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=22/300 train_loss=0.368732 val_loss=0.336644 lr=0.001 best_epoch=22 sec=86.13 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=23/300 train_loss=0.368348 val_loss=0.323342 lr=0.001 best_epoch=23 sec=86.16 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=24/300 train_loss=0.371947 val_loss=0.368179 lr=0.001 best_epoch=23 sec=86.15 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=25/300 train_loss=0.373044 val_loss=0.373615 lr=0.001 best_epoch=23 sec=86.09 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=26/300 train_loss=0.358451 val_loss=0.333585 lr=0.001 best_epoch=23 sec=86.22 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=27/300 train_loss=0.359732 val_loss=0.394800 lr=0.001 best_epoch=23 sec=86.22 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=28/300 train_loss=0.358195 val_loss=0.321793 lr=0.001 best_epoch=28 sec=86.21 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=29/300 train_loss=0.361374 val_loss=0.452160 lr=0.001 best_epoch=28 sec=86.01 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=30/300 train_loss=0.364691 val_loss=0.344571 lr=0.001 best_epoch=28 sec=86.20 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=31/300 train_loss=0.360753 val_loss=0.382068 lr=0.001 best_epoch=28 sec=86.03 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=32/300 train_loss=0.353323 val_loss=0.385267 lr=0.001 best_epoch=28 sec=86.22 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=33/300 train_loss=0.359511 val_loss=0.460757 lr=0.001 best_epoch=28 sec=86.29 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=34/300 train_loss=0.351338 val_loss=0.439871 lr=0.001 best_epoch=28 sec=86.14 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=35/300 train_loss=0.360586 val_loss=0.405976 lr=0.001 best_epoch=28 sec=86.06 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=36/300 train_loss=0.355928 val_loss=0.315929 lr=0.001 best_epoch=36 sec=86.20 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=37/300 train_loss=0.367484 val_loss=0.321395 lr=0.001 best_epoch=36 sec=86.10 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=38/300 train_loss=0.353100 val_loss=0.371982 lr=0.001 best_epoch=36 sec=85.98 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=39/300 train_loss=0.347192 val_loss=0.315656 lr=0.001 best_epoch=39 sec=86.25 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=40/300 train_loss=0.353557 val_loss=0.332924 lr=0.001 best_epoch=39 sec=86.12 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=41/300 train_loss=0.350067 val_loss=0.352693 lr=0.001 best_epoch=39 sec=86.11 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=42/300 train_loss=0.346445 val_loss=0.372859 lr=0.001 best_epoch=39 sec=86.13 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=43/300 train_loss=0.349075 val_loss=0.340445 lr=0.001 best_epoch=39 sec=86.12 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=44/300 train_loss=0.343921 val_loss=0.325066 lr=0.001 best_epoch=39 sec=86.16 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=45/300 train_loss=0.342800 val_loss=0.336840 lr=0.001 best_epoch=39 sec=86.13 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=46/300 train_loss=0.344963 val_loss=0.425211 lr=0.001 best_epoch=39 sec=86.15 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=47/300 train_loss=0.343208 val_loss=0.318668 lr=0.001 best_epoch=39 sec=86.00 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=48/300 train_loss=0.349942 val_loss=0.355065 lr=0.0005 best_epoch=39 sec=86.01 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=49/300 train_loss=0.331405 val_loss=0.325754 lr=0.0005 best_epoch=39 sec=86.13 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=50/300 train_loss=0.327907 val_loss=0.338879 lr=0.0005 best_epoch=39 sec=86.13 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=51/300 train_loss=0.330075 val_loss=0.330111 lr=0.0005 best_epoch=39 sec=86.25 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=52/300 train_loss=0.326797 val_loss=0.385127 lr=0.0005 best_epoch=39 sec=86.18 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=53/300 train_loss=0.323615 val_loss=0.321551 lr=0.0005 best_epoch=39 sec=86.16 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=54/300 train_loss=0.329099 val_loss=0.312391 lr=0.0005 best_epoch=54 sec=86.27 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=55/300 train_loss=0.326292 val_loss=0.312922 lr=0.0005 best_epoch=54 sec=86.15 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=56/300 train_loss=0.325042 val_loss=0.336619 lr=0.0005 best_epoch=54 sec=86.19 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=57/300 train_loss=0.325149 val_loss=0.341202 lr=0.0005 best_epoch=54 sec=86.20 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=58/300 train_loss=0.324112 val_loss=0.321044 lr=0.0005 best_epoch=54 sec=86.03 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=59/300 train_loss=0.326892 val_loss=0.312281 lr=0.0005 best_epoch=59 sec=86.06 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=60/300 train_loss=0.323757 val_loss=0.322832 lr=0.0005 best_epoch=59 sec=86.13 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=61/300 train_loss=0.326583 val_loss=0.306603 lr=0.0005 best_epoch=61 sec=86.03 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=62/300 train_loss=0.323933 val_loss=0.341071 lr=0.0005 best_epoch=61 sec=86.18 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=63/300 train_loss=0.323558 val_loss=0.315369 lr=0.0005 best_epoch=61 sec=86.10 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=64/300 train_loss=0.324760 val_loss=0.326097 lr=0.0005 best_epoch=61 sec=86.08 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=65/300 train_loss=0.319247 val_loss=0.310086 lr=0.0005 best_epoch=61 sec=86.02 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=66/300 train_loss=0.321895 val_loss=0.327597 lr=0.0005 best_epoch=61 sec=86.15 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=67/300 train_loss=0.323896 val_loss=0.312263 lr=0.0005 best_epoch=61 sec=86.07 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=68/300 train_loss=0.320813 val_loss=0.306516 lr=0.0005 best_epoch=68 sec=86.12 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=69/300 train_loss=0.315170 val_loss=0.311636 lr=0.0005 best_epoch=68 sec=86.09 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=70/300 train_loss=0.320258 val_loss=0.315410 lr=0.0005 best_epoch=68 sec=86.05 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=71/300 train_loss=0.323883 val_loss=0.337672 lr=0.0005 best_epoch=68 sec=86.10 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=72/300 train_loss=0.316456 val_loss=0.332381 lr=0.0005 best_epoch=68 sec=86.18 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=73/300 train_loss=0.315984 val_loss=0.339063 lr=0.0005 best_epoch=68 sec=86.14 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=74/300 train_loss=0.319936 val_loss=0.345331 lr=0.0005 best_epoch=68 sec=86.17 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=75/300 train_loss=0.314933 val_loss=0.315520 lr=0.0005 best_epoch=68 sec=86.26 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=76/300 train_loss=0.318877 val_loss=0.313778 lr=0.0005 best_epoch=68 sec=86.18 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=77/300 train_loss=0.319999 val_loss=0.305718 lr=0.0005 best_epoch=77 sec=86.00 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=78/300 train_loss=0.317255 val_loss=0.333453 lr=0.0005 best_epoch=77 sec=86.06 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=79/300 train_loss=0.314356 val_loss=0.306514 lr=0.0005 best_epoch=77 sec=86.15 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=80/300 train_loss=0.314432 val_loss=0.330278 lr=0.0005 best_epoch=77 sec=86.14 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=81/300 train_loss=0.318567 val_loss=0.304103 lr=0.0005 best_epoch=81 sec=86.06 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=82/300 train_loss=0.317216 val_loss=0.318679 lr=0.0005 best_epoch=81 sec=86.08 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=83/300 train_loss=0.313250 val_loss=0.337756 lr=0.0005 best_epoch=81 sec=86.18 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=84/300 train_loss=0.320036 val_loss=0.336530 lr=0.0005 best_epoch=81 sec=86.18 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=85/300 train_loss=0.314760 val_loss=0.324645 lr=0.0005 best_epoch=81 sec=86.10 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=86/300 train_loss=0.317453 val_loss=0.328615 lr=0.0005 best_epoch=81 sec=86.12 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=87/300 train_loss=0.313604 val_loss=0.318471 lr=0.0005 best_epoch=81 sec=86.11 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=88/300 train_loss=0.314595 val_loss=0.304162 lr=0.0005 best_epoch=81 sec=86.16 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=89/300 train_loss=0.309535 val_loss=0.345885 lr=0.0005 best_epoch=81 sec=86.14 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=90/300 train_loss=0.310408 val_loss=0.325379 lr=0.00025 best_epoch=81 sec=86.05 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=91/300 train_loss=0.306206 val_loss=0.306880 lr=0.00025 best_epoch=81 sec=86.10 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=92/300 train_loss=0.304664 val_loss=0.311676 lr=0.00025 best_epoch=81 sec=86.05 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=93/300 train_loss=0.299372 val_loss=0.311804 lr=0.00025 best_epoch=81 sec=86.11 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=94/300 train_loss=0.300677 val_loss=0.311664 lr=0.00025 best_epoch=81 sec=86.18 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=95/300 train_loss=0.297672 val_loss=0.301060 lr=0.00025 best_epoch=95 sec=86.09 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=96/300 train_loss=0.297929 val_loss=0.323268 lr=0.00025 best_epoch=95 sec=86.14 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=97/300 train_loss=0.297400 val_loss=0.303853 lr=0.00025 best_epoch=95 sec=86.22 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=98/300 train_loss=0.298886 val_loss=0.345656 lr=0.00025 best_epoch=95 sec=86.13 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=99/300 train_loss=0.299186 val_loss=0.318602 lr=0.00025 best_epoch=95 sec=86.10 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=100/300 train_loss=0.298790 val_loss=0.320029 lr=0.00025 best_epoch=95 sec=86.15 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=101/300 train_loss=0.297705 val_loss=0.310074 lr=0.00025 best_epoch=95 sec=86.00 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=102/300 train_loss=0.299055 val_loss=0.314991 lr=0.00025 best_epoch=95 sec=86.15 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=103/300 train_loss=0.298062 val_loss=0.311613 lr=0.00025 best_epoch=95 sec=86.11 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=104/300 train_loss=0.301177 val_loss=0.322150 lr=0.000125 best_epoch=95 sec=86.10 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=105/300 train_loss=0.291005 val_loss=0.304763 lr=0.000125 best_epoch=95 sec=86.20 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=106/300 train_loss=0.288251 val_loss=0.313439 lr=0.000125 best_epoch=95 sec=86.12 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=107/300 train_loss=0.290711 val_loss=0.305556 lr=0.000125 best_epoch=95 sec=86.15 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=108/300 train_loss=0.292013 val_loss=0.313607 lr=0.000125 best_epoch=95 sec=86.04 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=109/300 train_loss=0.291270 val_loss=0.313907 lr=0.000125 best_epoch=95 sec=86.06 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=110/300 train_loss=0.290679 val_loss=0.326450 lr=0.000125 best_epoch=95 sec=86.12 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=111/300 train_loss=0.288927 val_loss=0.319991 lr=0.000125 best_epoch=95 sec=86.10 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=112/300 train_loss=0.290853 val_loss=0.324460 lr=0.000125 best_epoch=95 sec=86.18 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=113/300 train_loss=0.289913 val_loss=0.319021 lr=6.25e-05 best_epoch=95 sec=86.22 samples/s=50.7 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=114/300 train_loss=0.286244 val_loss=0.308465 lr=6.25e-05 best_epoch=95 sec=86.03 samples/s=50.8 gpu_mem=78MB
+[epoch] model=cnn1d_tcn_fusion epoch=115/300 train_loss=0.284160 val_loss=0.308810 lr=6.25e-05 best_epoch=95 sec=86.13 samples/s=50.7 gpu_mem=78MB
+model          cnn1d_tcn_fusion
+modalities     slow, ultrasonic, fiber_mic
+input format   NTC
+checkpoint     outputs/runs/formal_full/cnn1d_tcn_fusion_ilr/checkpoint.pt
+------------------------------------------------------------------------
+         split       loss        MAE       RMSE         R2
+------------------------------------------------------------------------
+           val   0.301060   3.583567   5.125388   0.656356
+          test   0.273907   3.566010   5.127155   0.662950
+ extrapolation   0.312831   3.489429   4.981272   0.678201
+------------------------------------------------------------------------
+[run done] kind=dl name=cnn1d_tcn_fusion_ilr model=cnn1d_tcn_fusion
+{
+  "experiment_name": "formal_full",
+  "summary_path": "outputs/summary/formal_full_summary.csv",
+  "report_path": "outputs/reports/formal_full.md",
+  "rows": [
+    {
+      "kind": "ml",
+      "run_name": "ridge_slow",
+      "model": "ridge",
+      "split": "train",
+      "loss": "",
+      "mae": 3.7991357558599255,
+      "rmse": 4.941005388740395,
+      "r2": 0.6831319249800563,
+      "x_n2_r2": 0.02582761917148202,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_slow",
+      "model": "ridge",
+      "split": "val",
+      "loss": "",
+      "mae": 3.8614685989056143,
+      "rmse": 5.054736233529099,
+      "r2": 0.6657651115298129,
+      "x_n2_r2": 0.025614214440277228,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_slow",
+      "model": "ridge",
+      "split": "test",
+      "loss": "",
+      "mae": 3.9384413227815336,
+      "rmse": 5.149995114500941,
+      "r2": 0.6599408191055771,
+      "x_n2_r2": 0.021443905119415185,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_slow",
+      "model": "ridge",
+      "split": "extrapolation",
+      "loss": "",
+      "mae": 3.999040412288159,
+      "rmse": 5.2641592171889275,
+      "r2": 0.6406136155286323,
+      "x_n2_r2": -0.008963986003279967,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_all_modalities",
+      "model": "ridge",
+      "split": "train",
+      "loss": "",
+      "mae": 2.582798153040667,
+      "rmse": 3.875643515488795,
+      "r2": 0.8050445064658869,
+      "x_n2_r2": 0.24334487874072763,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_all_modalities",
+      "model": "ridge",
+      "split": "val",
+      "loss": "",
+      "mae": 2.621623431842826,
+      "rmse": 3.930793164425509,
+      "r2": 0.7978772637315165,
+      "x_n2_r2": 0.23149794321770534,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_all_modalities",
+      "model": "ridge",
+      "split": "test",
+      "loss": "",
+      "mae": 2.650241662857394,
+      "rmse": 3.981043428436567,
+      "r2": 0.7967948545218538,
+      "x_n2_r2": 0.21733758622178945,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_all_modalities",
+      "model": "ridge",
+      "split": "extrapolation",
+      "loss": "",
+      "mae": 2.6286389861657518,
+      "rmse": 3.9603905646595,
+      "r2": 0.7965865707500606,
+      "x_n2_r2": 0.22727220685486604,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_alr_ch4_all_modalities",
+      "model": "ridge",
+      "split": "train",
+      "loss": "",
+      "mae": 3.4084966847032496,
+      "rmse": 4.75048440142347,
+      "r2": 0.7070971326355943,
+      "x_n2_r2": 0.11538971519499008,
+      "aitchison_mean": 0.730169951915741,
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_alr_ch4_all_modalities",
+      "model": "ridge",
+      "split": "val",
+      "loss": "",
+      "mae": 3.602671359817161,
+      "rmse": 4.983172345149388,
+      "r2": 0.6751621704576845,
+      "x_n2_r2": 0.06342331171662108,
+      "aitchison_mean": 0.7457239031791687,
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_alr_ch4_all_modalities",
+      "model": "ridge",
+      "split": "test",
+      "loss": "",
+      "mae": 3.380424497273052,
+      "rmse": 4.736911040232961,
+      "r2": 0.7123056534558043,
+      "x_n2_r2": 0.10576247081538426,
+      "aitchison_mean": 0.7048540115356445,
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_alr_ch4_all_modalities",
+      "model": "ridge",
+      "split": "extrapolation",
+      "loss": "",
+      "mae": 3.5690372009109708,
+      "rmse": 4.9785961887389245,
+      "r2": 0.6785470677260111,
+      "x_n2_r2": 0.1221562885137717,
+      "aitchison_mean": 0.7408773899078369,
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_ilr_n2_first_all_modalities",
+      "model": "ridge",
+      "split": "train",
+      "loss": "",
+      "mae": 3.408496842463196,
+      "rmse": 4.750484523936673,
+      "r2": 0.7070971175278848,
+      "x_n2_r2": 0.11538965843944804,
+      "aitchison_mean": 0.730169951915741,
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_ilr_n2_first_all_modalities",
+      "model": "ridge",
+      "split": "val",
+      "loss": "",
+      "mae": 3.6026715161489684,
+      "rmse": 4.983172436789024,
+      "r2": 0.6751621585102667,
+      "x_n2_r2": 0.06342328337836267,
+      "aitchison_mean": 0.7457239031791687,
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_ilr_n2_first_all_modalities",
+      "model": "ridge",
+      "split": "test",
+      "loss": "",
+      "mae": 3.380424488093316,
+      "rmse": 4.736911051911256,
+      "r2": 0.7123056520372515,
+      "x_n2_r2": 0.10576245570210485,
+      "aitchison_mean": 0.7048539519309998,
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "ridge_ilr_n2_first_all_modalities",
+      "model": "ridge",
+      "split": "extrapolation",
+      "loss": "",
+      "mae": 3.569037153786048,
+      "rmse": 4.978596119171415,
+      "r2": 0.6785470767095394,
+      "x_n2_r2": 0.12215623251280294,
+      "aitchison_mean": 0.7408773899078369,
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "dynamic_stacking_svr_all_modalities",
+      "model": "dynamic_stacking_svr",
+      "split": "train",
+      "loss": "",
+      "mae": 2.5434074035796193,
+      "rmse": 3.7315342334385297,
+      "r2": 0.8192731450786115,
+      "x_n2_r2": 0.32547984504913696,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "dynamic_stacking_svr_all_modalities",
+      "model": "dynamic_stacking_svr",
+      "split": "val",
+      "loss": "",
+      "mae": 3.389069905388298,
+      "rmse": 4.794952416135299,
+      "r2": 0.6992377064261843,
+      "x_n2_r2": -0.06893548213214817,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "dynamic_stacking_svr_all_modalities",
+      "model": "dynamic_stacking_svr",
+      "split": "test",
+      "loss": "",
+      "mae": 3.4945743593150596,
+      "rmse": 5.070484009686607,
+      "r2": 0.670360152000585,
+      "x_n2_r2": -0.15207943312225813,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "ml",
+      "run_name": "dynamic_stacking_svr_all_modalities",
+      "model": "dynamic_stacking_svr",
+      "split": "extrapolation",
+      "loss": "",
+      "mae": 3.5049698771346205,
+      "rmse": 5.041533415382258,
+      "r2": 0.6703683630304953,
+      "x_n2_r2": -0.10159688620212948,
+      "aitchison_mean": "",
+      "sum_abs_error": "",
+      "checkpoint_path": ""
+    },
+    {
+      "kind": "dl",
+      "run_name": "cnn1d",
+      "model": "cnn1d",
+      "split": "val",
+      "loss": 61.92695236206055,
+      "mae": 6.423765182495117,
+      "rmse": 7.864914417266846,
+      "r2": 0.19082438945770264,
+      "x_n2_r2": -0.02445399761199951,
+      "aitchison_mean": "",
+      "sum_abs_error": 8.890625,
+      "checkpoint_path": "outputs/runs/formal_full/cnn1d/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "cnn1d",
+      "model": "cnn1d",
+      "split": "test",
+      "loss": 63.49271262319464,
+      "mae": 6.497366428375244,
+      "rmse": 7.981837749481201,
+      "r2": 0.18314188718795776,
+      "x_n2_r2": -0.0330580472946167,
+      "aitchison_mean": "",
+      "sum_abs_error": 9.0234375,
+      "checkpoint_path": "outputs/runs/formal_full/cnn1d/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "cnn1d",
+      "model": "cnn1d",
+      "split": "extrapolation",
+      "loss": 63.76200485229492,
+      "mae": 6.522213935852051,
+      "rmse": 7.9899678230285645,
+      "r2": 0.17207002639770508,
+      "x_n2_r2": 0.004531919956207275,
+      "aitchison_mean": "",
+      "sum_abs_error": 9.09375,
+      "checkpoint_path": "outputs/runs/formal_full/cnn1d/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "tcn",
+      "model": "tcn",
+      "split": "val",
+      "loss": 28.896285843430903,
+      "mae": 4.151607990264893,
+      "rmse": 5.381320476531982,
+      "r2": 0.6211804151535034,
+      "x_n2_r2": -0.0238875150680542,
+      "aitchison_mean": "",
+      "sum_abs_error": 2.775390625,
+      "checkpoint_path": "outputs/runs/formal_full/tcn/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "tcn",
+      "model": "tcn",
+      "split": "test",
+      "loss": 30.96962211006566,
+      "mae": 4.289005756378174,
+      "rmse": 5.579615116119385,
+      "r2": 0.6008378267288208,
+      "x_n2_r2": -0.060105085372924805,
+      "aitchison_mean": "",
+      "sum_abs_error": 2.59375,
+      "checkpoint_path": "outputs/runs/formal_full/tcn/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "tcn",
+      "model": "tcn",
+      "split": "extrapolation",
+      "loss": 29.520231949655635,
+      "mae": 4.181365966796875,
+      "rmse": 5.446114540100098,
+      "r2": 0.6153399348258972,
+      "x_n2_r2": -0.03330528736114502,
+      "aitchison_mean": "",
+      "sum_abs_error": 2.59375,
+      "checkpoint_path": "outputs/runs/formal_full/tcn/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "lstm",
+      "model": "lstm",
+      "split": "val",
+      "loss": 73.36083823756168,
+      "mae": 6.724668979644775,
+      "rmse": 8.576803207397461,
+      "r2": 0.037710726261138916,
+      "x_n2_r2": -0.01747739315032959,
+      "aitchison_mean": "",
+      "sum_abs_error": 2.099609375,
+      "checkpoint_path": "outputs/runs/formal_full/lstm/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "lstm",
+      "model": "lstm",
+      "split": "test",
+      "loss": 74.74146110133121,
+      "mae": 6.786984443664551,
+      "rmse": 8.66430377960205,
+      "r2": 0.03748345375061035,
+      "x_n2_r2": -0.009846329689025879,
+      "aitchison_mean": "",
+      "sum_abs_error": 2.142578125,
+      "checkpoint_path": "outputs/runs/formal_full/lstm/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "lstm",
+      "model": "lstm",
+      "split": "extrapolation",
+      "loss": 75.1627177188271,
+      "mae": 6.801312446594238,
+      "rmse": 8.687005996704102,
+      "r2": 0.021313071250915527,
+      "x_n2_r2": -0.012805342674255371,
+      "aitchison_mean": "",
+      "sum_abs_error": 2.08203125,
+      "checkpoint_path": "outputs/runs/formal_full/lstm/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "transformer",
+      "model": "transformer",
+      "split": "val",
+      "loss": 53.87763501886736,
+      "mae": 5.776959419250488,
+      "rmse": 7.349941730499268,
+      "r2": 0.2933204174041748,
+      "x_n2_r2": -0.0008387565612792969,
+      "aitchison_mean": "",
+      "sum_abs_error": 2.548828125,
+      "checkpoint_path": "outputs/runs/formal_full/transformer/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "transformer",
+      "model": "transformer",
+      "split": "test",
+      "loss": 55.90556651667545,
+      "mae": 5.891555309295654,
+      "rmse": 7.497651100158691,
+      "r2": 0.27923887968063354,
+      "x_n2_r2": -0.022080659866333008,
+      "aitchison_mean": "",
+      "sum_abs_error": 2.525390625,
+      "checkpoint_path": "outputs/runs/formal_full/transformer/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "transformer",
+      "model": "transformer",
+      "split": "extrapolation",
+      "loss": 52.55001429507607,
+      "mae": 5.709006309509277,
+      "rmse": 7.259305953979492,
+      "r2": 0.3165704607963562,
+      "x_n2_r2": -0.014926552772521973,
+      "aitchison_mean": "",
+      "sum_abs_error": 2.474609375,
+      "checkpoint_path": "outputs/runs/formal_full/transformer/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "patchtst",
+      "model": "patchtst",
+      "split": "val",
+      "loss": NaN,
+      "mae": NaN,
+      "rmse": NaN,
+      "r2": NaN,
+      "x_n2_r2": NaN,
+      "aitchison_mean": "",
+      "sum_abs_error": NaN,
+      "checkpoint_path": "outputs/runs/formal_full/patchtst/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "patchtst",
+      "model": "patchtst",
+      "split": "test",
+      "loss": NaN,
+      "mae": NaN,
+      "rmse": NaN,
+      "r2": NaN,
+      "x_n2_r2": NaN,
+      "aitchison_mean": "",
+      "sum_abs_error": NaN,
+      "checkpoint_path": "outputs/runs/formal_full/patchtst/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "patchtst",
+      "model": "patchtst",
+      "split": "extrapolation",
+      "loss": NaN,
+      "mae": NaN,
+      "rmse": NaN,
+      "r2": NaN,
+      "x_n2_r2": NaN,
+      "aitchison_mean": "",
+      "sum_abs_error": NaN,
+      "checkpoint_path": "outputs/runs/formal_full/patchtst/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "cnn1d_tcn_fusion",
+      "model": "cnn1d_tcn_fusion",
+      "split": "val",
+      "loss": 22.497950537162914,
+      "mae": 3.5585145950317383,
+      "rmse": 4.73896598815918,
+      "r2": 0.7062202095985413,
+      "x_n2_r2": -0.007905960083007812,
+      "aitchison_mean": "",
+      "sum_abs_error": 1.8564860511105508e-06,
+      "checkpoint_path": "outputs/runs/formal_full/cnn1d_tcn_fusion/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "cnn1d_tcn_fusion",
+      "model": "cnn1d_tcn_fusion",
+      "split": "test",
+      "loss": 22.201012561195775,
+      "mae": 3.491201639175415,
+      "rmse": 4.724581718444824,
+      "r2": 0.713801383972168,
+      "x_n2_r2": -0.007450699806213379,
+      "aitchison_mean": "",
+      "sum_abs_error": 1.945495569088962e-06,
+      "checkpoint_path": "outputs/runs/formal_full/cnn1d_tcn_fusion/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "cnn1d_tcn_fusion",
+      "model": "cnn1d_tcn_fusion",
+      "split": "extrapolation",
+      "loss": 21.71190522846423,
+      "mae": 3.490669012069702,
+      "rmse": 4.664549350738525,
+      "r2": 0.7178220748901367,
+      "x_n2_r2": 0.0008404254913330078,
+      "aitchison_mean": "",
+      "sum_abs_error": 1.7038980786310276e-06,
+      "checkpoint_path": "outputs/runs/formal_full/cnn1d_tcn_fusion/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "cnn1d_tcn_fusion_ilr",
+      "model": "cnn1d_tcn_fusion",
+      "split": "val",
+      "loss": 0.30106022770990404,
+      "mae": 3.5835671424865723,
+      "rmse": 5.125387668609619,
+      "r2": 0.6563564538955688,
+      "x_n2_r2": -0.11111712455749512,
+      "aitchison_mean": 0.7529215216636658,
+      "sum_abs_error": 2.5516085315757664e-06,
+      "checkpoint_path": "outputs/runs/formal_full/cnn1d_tcn_fusion_ilr/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "cnn1d_tcn_fusion_ilr",
+      "model": "cnn1d_tcn_fusion",
+      "split": "test",
+      "loss": 0.27390651248003306,
+      "mae": 3.566009998321533,
+      "rmse": 5.127155303955078,
+      "r2": 0.6629503965377808,
+      "x_n2_r2": -0.09158515930175781,
+      "aitchison_mean": 0.7375281453132629,
+      "sum_abs_error": 2.3523966774519067e-06,
+      "checkpoint_path": "outputs/runs/formal_full/cnn1d_tcn_fusion_ilr/checkpoint.pt"
+    },
+    {
+      "kind": "dl",
+      "run_name": "cnn1d_tcn_fusion_ilr",
+      "model": "cnn1d_tcn_fusion",
+      "split": "extrapolation",
+      "loss": 0.3128311053702706,
+      "mae": 3.489428758621216,
+      "rmse": 4.981271743774414,
+      "r2": 0.67820143699646,
+      "x_n2_r2": -0.0326380729675293,
+      "aitchison_mean": 0.760272741317749,
+      "sum_abs_error": 2.4668374862812925e-06,
+      "checkpoint_path": "outputs/runs/formal_full/cnn1d_tcn_fusion_ilr/checkpoint.pt"
+    }
+  ]
+}
+[workflow done] run_experiment
+[workflow start] analyze_n2_improvement
+# N2 Improvement Analysis
+
+- run_root: `outputs/runs/formal_full`
+- split: `test`
+
+| baseline | candidate | N2 R2 gain | RMSE regression | max other R2 drop | Aitchison mean | pass |
+|---|---|---:|---:|---:|---:|---|
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | -0.111575 | 0.755868 | 0.235974 | 0.704854 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | -0.111575 | 0.755868 | 0.235974 | 0.704854 | no |
+| cnn1d_tcn_fusion | cnn1d_tcn_fusion_ilr | -0.084134 | 0.402574 | 0.088387 | 0.737528 | no |
+
+## Protocol Windows
+
+| baseline | candidate | group | window | N2 R2 gain | RMSE regression | max other R2 drop | Aitchison mean | pass |
+|---|---|---|---|---:|---:|---:|---:|---|
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | baseline | -0.083210 | 1.108953 | 0.353828 | 1.464959 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | exposure | -0.316743 | 1.119212 | 0.101725 | 0.648896 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | recovery | -0.329831 | 1.209944 | 0.122055 | 0.650793 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | steady | -0.159159 | 0.696445 | 0.201275 | 0.792965 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.25 | -0.083210 | 1.108953 | 0.353828 | 1.464959 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.5 | -0.169347 | 0.912404 | 0.126018 | 0.716628 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.75 | -0.113200 | 0.669135 | 0.157241 | 0.670183 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 1.0 | -0.111575 | 0.755868 | 0.235974 | 0.704854 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | baseline | -0.083210 | 1.108954 | 0.353828 | 1.464959 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | exposure | -0.316743 | 1.119212 | 0.101725 | 0.648896 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | recovery | -0.329832 | 1.209946 | 0.122055 | 0.650793 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | steady | -0.159159 | 0.696445 | 0.201275 | 0.792965 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.25 | -0.083210 | 1.108954 | 0.353828 | 1.464959 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.5 | -0.169347 | 0.912405 | 0.126019 | 0.716628 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.75 | -0.113200 | 0.669135 | 0.157241 | 0.670183 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 1.0 | -0.111575 | 0.755868 | 0.235974 | 0.704854 | no |
+
+## Conditional Bins
+
+| baseline | candidate | group | bin | count | range | N2 R2 gain | RMSE regression | max other R2 drop | pass |
+|---|---|---|---|---:|---|---:|---:|---:|---|
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 11.466262 | -0.320393 | 0.223820 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -12.318765 | 1.399608 | 0.217441 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 1.560446 | 0.566495 | 0.283776 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -6.317847 | 1.686738 | 0.217720 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.574456 | 1.191932 | 1.368252 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.133598 | 1.492414 | 1.480695 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.030820 | 0.649938 | 0.625053 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.012710 | -1.058153 | 0.086666 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 11.466266 | -0.320394 | 0.223820 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -12.318769 | 1.399609 | 0.217441 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 1.560446 | 0.566495 | 0.283776 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -6.317847 | 1.686738 | 0.217720 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.574456 | 1.191932 | 1.368251 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.133598 | 1.492414 | 1.480696 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.030820 | 0.649938 | 0.625053 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.012711 | -1.058154 | 0.086666 | no |
+| cnn1d_tcn_fusion | cnn1d_tcn_fusion_ilr | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 16.601958 | -1.212572 | 0.007422 | yes |
+| cnn1d_tcn_fusion | cnn1d_tcn_fusion_ilr | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -13.934673 | 1.263481 | 0.345137 | no |
+| cnn1d_tcn_fusion | cnn1d_tcn_fusion_ilr | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 1.752069 | -0.046280 | 0.031475 | no |
+| cnn1d_tcn_fusion | cnn1d_tcn_fusion_ilr | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -7.474700 | 1.374337 | 0.219521 | no |
+| cnn1d_tcn_fusion | cnn1d_tcn_fusion_ilr | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.954309 | 2.009477 | 5.247519 | no |
+| cnn1d_tcn_fusion | cnn1d_tcn_fusion_ilr | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.174484 | 0.331308 | 0.468112 | no |
+| cnn1d_tcn_fusion | cnn1d_tcn_fusion_ilr | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | 0.154400 | -0.187645 | 0.065158 | no |
+| cnn1d_tcn_fusion | cnn1d_tcn_fusion_ilr | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.205057 | -0.892024 | -0.159271 | yes |
+
+## Protocol Conditional Bins
+
+| baseline | candidate | window group | window | bin group | bin | count | range | N2 R2 gain | RMSE regression | max other R2 drop | pass |
+|---|---|---|---|---|---|---:|---|---:|---:|---:|---|
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | baseline | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 12.328611 | -0.712058 | 0.221167 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | baseline | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -13.405497 | 2.703215 | 1.381640 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | baseline | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 2.617941 | 0.372992 | 0.154826 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | baseline | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -5.236745 | 1.952527 | 0.857286 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | baseline | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.300838 | 4.327713 | 22.880541 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | baseline | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.143509 | 3.416261 | 9.223648 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | baseline | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.004628 | -1.215909 | 0.066297 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | baseline | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.059368 | -4.173040 | -0.309818 | yes |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | exposure | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 5.671503 | -0.124425 | 0.082482 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | exposure | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -16.859002 | 1.984335 | 0.228940 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | exposure | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 0.094386 | 0.714893 | 0.116355 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | exposure | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -8.620268 | 1.890942 | 0.198523 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | exposure | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.571054 | 2.158120 | 2.147677 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | exposure | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.515756 | 2.066425 | 1.716477 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | exposure | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.172176 | 0.472838 | 0.372664 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | exposure | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 0.307523 | -1.137204 | 0.032885 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | recovery | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 6.169695 | -0.139232 | 0.085686 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | recovery | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -14.894369 | 1.965111 | 0.201655 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | recovery | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | -0.273746 | 0.719844 | 0.106962 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | recovery | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -11.519611 | 2.283517 | 0.196989 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | recovery | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.537600 | 2.064579 | 2.147632 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | recovery | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.598135 | 2.012960 | 1.399094 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | recovery | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.161655 | 0.769598 | 0.634483 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | recovery | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 0.429365 | -1.001783 | 0.006509 | yes |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | steady | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 16.446191 | -0.489020 | 0.206523 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | steady | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -19.244615 | 1.609608 | 0.251550 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | steady | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 2.705243 | 0.219292 | 0.199041 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | steady | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -7.904135 | 1.796223 | 0.315412 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | steady | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -2.385339 | 1.277455 | 1.722845 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | steady | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.214999 | 1.682708 | 2.139671 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | steady | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | 0.016919 | 0.307936 | 0.249892 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | per_phase | steady | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.430912 | -1.421520 | 0.059627 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.25 | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 12.328611 | -0.712058 | 0.221167 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.25 | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -13.405497 | 2.703215 | 1.381640 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.25 | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 2.617941 | 0.372992 | 0.154826 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.25 | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -5.236745 | 1.952527 | 0.857286 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.25 | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.300838 | 4.327713 | 22.880541 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.25 | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.143509 | 3.416261 | 9.223648 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.25 | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.004628 | -1.215909 | 0.066297 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.25 | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.059368 | -4.173040 | -0.309818 | yes |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.5 | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 8.087740 | 0.087408 | 0.164652 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.5 | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -11.837549 | 1.446718 | 0.197403 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.5 | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 1.290081 | 0.584207 | 0.134448 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.5 | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -7.424374 | 1.697916 | 0.189876 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.5 | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.600771 | 1.810905 | 2.065536 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.5 | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.221464 | 1.899026 | 1.866608 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.5 | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.048243 | 0.475463 | 0.474555 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.5 | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 0.621933 | -1.409656 | 0.022635 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.75 | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 11.331266 | -0.405789 | 0.155394 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.75 | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -12.294955 | 1.389137 | 0.133775 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.75 | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 1.471834 | 0.363776 | 0.177935 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.75 | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -6.236003 | 1.604487 | 0.190266 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.75 | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.752948 | 1.298119 | 1.735915 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.75 | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.115899 | 1.363826 | 1.218447 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.75 | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.006301 | 0.441620 | 0.329601 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 0.75 | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 0.988485 | -1.163258 | 0.068205 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 1.0 | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 11.466262 | -0.320393 | 0.223820 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 1.0 | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -12.318765 | 1.399608 | 0.217441 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 1.0 | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 1.560446 | 0.566495 | 0.283776 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 1.0 | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -6.317847 | 1.686738 | 0.217720 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 1.0 | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.574456 | 1.191932 | 1.368252 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 1.0 | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.133598 | 1.492414 | 1.480695 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 1.0 | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.030820 | 0.649938 | 0.625053 | no |
+| ridge_all_modalities | ridge_alr_ch4_all_modalities | early | 1.0 | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.012710 | -1.058153 | 0.086666 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | baseline | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 12.328615 | -0.712058 | 0.221167 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | baseline | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -13.405500 | 2.703215 | 1.381640 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | baseline | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 2.617941 | 0.372992 | 0.154826 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | baseline | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -5.236747 | 1.952528 | 0.857286 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | baseline | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.300839 | 4.327713 | 22.880542 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | baseline | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.143509 | 3.416261 | 9.223650 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | baseline | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.004628 | -1.215909 | 0.066297 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | baseline | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.059368 | -4.173040 | -0.309818 | yes |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | exposure | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 5.671504 | -0.124425 | 0.082482 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | exposure | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -16.859016 | 1.984335 | 0.228940 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | exposure | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 0.094386 | 0.714892 | 0.116355 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | exposure | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -8.620273 | 1.890943 | 0.198523 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | exposure | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.571055 | 2.158120 | 2.147676 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | exposure | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.515756 | 2.066425 | 1.716476 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | exposure | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.172177 | 0.472838 | 0.372664 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | exposure | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 0.307523 | -1.137204 | 0.032885 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | recovery | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 6.169697 | -0.139231 | 0.085687 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | recovery | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -14.894393 | 1.965113 | 0.201656 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | recovery | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | -0.273746 | 0.719844 | 0.106962 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | recovery | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -11.519619 | 2.283519 | 0.196990 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | recovery | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.537601 | 2.064581 | 2.147632 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | recovery | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.598136 | 2.012962 | 1.399096 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | recovery | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.161655 | 0.769599 | 0.634484 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | recovery | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 0.429365 | -1.001784 | 0.006509 | yes |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | steady | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 16.446193 | -0.489021 | 0.206524 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | steady | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -19.244618 | 1.609609 | 0.251550 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | steady | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 2.705243 | 0.219292 | 0.199041 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | steady | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -7.904137 | 1.796223 | 0.315412 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | steady | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -2.385339 | 1.277455 | 1.722845 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | steady | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.215000 | 1.682708 | 2.139671 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | steady | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | 0.016919 | 0.307936 | 0.249892 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | per_phase | steady | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.430912 | -1.421520 | 0.059627 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.25 | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 12.328615 | -0.712058 | 0.221167 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.25 | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -13.405500 | 2.703215 | 1.381640 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.25 | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 2.617941 | 0.372992 | 0.154826 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.25 | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -5.236747 | 1.952528 | 0.857286 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.25 | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.300839 | 4.327713 | 22.880542 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.25 | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.143509 | 3.416261 | 9.223650 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.25 | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.004628 | -1.215909 | 0.066297 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.25 | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.059368 | -4.173040 | -0.309818 | yes |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.5 | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 8.087741 | 0.087409 | 0.164653 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.5 | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -11.837548 | 1.446719 | 0.197403 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.5 | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 1.290081 | 0.584209 | 0.134449 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.5 | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -7.424373 | 1.697918 | 0.189876 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.5 | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.600771 | 1.810908 | 2.065541 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.5 | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.221464 | 1.899028 | 1.866611 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.5 | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.048243 | 0.475464 | 0.474556 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.5 | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 0.621933 | -1.409657 | 0.022635 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.75 | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 11.331267 | -0.405789 | 0.155394 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.75 | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -12.294962 | 1.389138 | 0.133775 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.75 | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 1.471834 | 0.363776 | 0.177935 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.75 | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -6.236005 | 1.604488 | 0.190266 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.75 | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.752949 | 1.298119 | 1.735915 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.75 | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.115900 | 1.363826 | 1.218447 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.75 | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.006301 | 0.441620 | 0.329602 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 0.75 | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 0.988485 | -1.163258 | 0.068205 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 1.0 | n2_bins | 0.025525_5.00919 | 154 | 0.025525-5.00919 | 11.466266 | -0.320394 | 0.223820 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 1.0 | n2_bins | 14.9765_19.9602 | 142 | 14.9765-19.9602 | -12.318769 | 1.399609 | 0.217441 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 1.0 | n2_bins | 5.00919_9.99285 | 166 | 5.00919-9.99285 | 1.560446 | 0.566495 | 0.283776 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 1.0 | n2_bins | 9.99285_14.9765 | 138 | 9.99285-14.9765 | -6.317847 | 1.686738 | 0.217720 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 1.0 | ch4_bins | 40_53.8513 | 97 | 40-53.8513 | -1.574456 | 1.191932 | 1.368251 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 1.0 | ch4_bins | 53.8513_67.7026 | 192 | 53.8513-67.7026 | -0.133598 | 1.492414 | 1.480696 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 1.0 | ch4_bins | 67.7026_81.5539 | 219 | 67.7026-81.5539 | -0.030820 | 0.649938 | 0.625053 | no |
+| ridge_all_modalities | ridge_ilr_n2_first_all_modalities | early | 1.0 | ch4_bins | 81.5539_95.4052 | 92 | 81.5539-95.4052 | 1.012711 | -1.058154 | 0.086666 | no |
+[workflow done] analyze_n2_improvement

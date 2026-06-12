@@ -1,0 +1,18 @@
+{
+  "name": "ridge_all_modalities_phase_recovery",
+  "model": {
+    "name": "ridge",
+    "alpha": 1.0
+  },
+  "modalities": [
+    "slow",
+    "ultrasonic",
+    "fiber_mic"
+  ],
+  "protocol": false,
+  "window": {
+    "kind": "phase",
+    "value": "recovery"
+  },
+  "resolved_target_transform": null
+}
