@@ -578,3 +578,66 @@ class TestTrainerControl:
         history = trainer.fit(loader, epochs=1, amp=AmpConfig(enabled=True))
 
         assert len(history.epochs) == 1
+
+
+class TestPerformanceConfig:
+    def test_defaults_all_disabled(self):
+        cfg = dl_cli._performance_config({})
+        assert cfg == {
+            "cudnn_benchmark": False,
+            "tf32": False,
+            "compile": False,
+            "compile_mode": "default",
+        }
+
+    def test_overrides_apply(self):
+        cfg = dl_cli._performance_config(
+            {"cudnn_benchmark": True, "tf32": True, "compile": True, "compile_mode": "max-autotune"}
+        )
+        assert cfg["cudnn_benchmark"] is True
+        assert cfg["tf32"] is True
+        assert cfg["compile"] is True
+        assert cfg["compile_mode"] == "max-autotune"
+
+    def test_rejects_invalid_compile_mode(self):
+        with pytest.raises(ValueError, match="compile_mode"):
+            dl_cli._performance_config({"compile_mode": "turbo"})
+
+    def test_rejects_unknown_key(self):
+        with pytest.raises(ValueError, match="Unknown performance keys"):
+            dl_cli._performance_config({"cudnn_benchark": True})
+
+    def test_rejects_non_dict(self):
+        with pytest.raises(ValueError, match="performance must be"):
+            dl_cli._performance_config("fast")
+
+    def test_apply_settings_cpu_is_noop(self):
+        # CPU 设备下应静默跳过全部 CUDA backend 开关，不抛错。
+        dl_cli._apply_performance_settings(
+            {"cudnn_benchmark": True, "tf32": True, "compile": False, "compile_mode": "default"},
+            torch.device("cpu"),
+        )
+
+    def test_apply_settings_cuda_can_reset_global_backend_flags(self):
+        original = (
+            torch.backends.cuda.matmul.allow_tf32,
+            torch.backends.cudnn.allow_tf32,
+            torch.backends.cudnn.benchmark,
+        )
+        enabled = {"cudnn_benchmark": True, "tf32": True, "compile": False, "compile_mode": "default"}
+        disabled = {"cudnn_benchmark": False, "tf32": False, "compile": False, "compile_mode": "default"}
+
+        try:
+            dl_cli._apply_performance_settings(enabled, torch.device("cuda"))
+            assert torch.backends.cuda.matmul.allow_tf32 is True
+            assert torch.backends.cudnn.allow_tf32 is True
+            assert torch.backends.cudnn.benchmark is True
+
+            dl_cli._apply_performance_settings(disabled, torch.device("cuda"))
+            assert torch.backends.cuda.matmul.allow_tf32 is False
+            assert torch.backends.cudnn.allow_tf32 is False
+            assert torch.backends.cudnn.benchmark is False
+        finally:
+            torch.backends.cuda.matmul.allow_tf32 = original[0]
+            torch.backends.cudnn.allow_tf32 = original[1]
+            torch.backends.cudnn.benchmark = original[2]

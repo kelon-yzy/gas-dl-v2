@@ -147,7 +147,14 @@ def test_phase_window_tcn_improvement_config_plans_gas_head_runs():
 
     result = run(config, dry_run=True)
 
-    assert config.training["lr"] == 0.0001
+    assert config.training["lr"] == 0.0003
+    assert config.training["batch_size"] == 64
+    assert config.training["performance"] == {
+        "cudnn_benchmark": True,
+        "tf32": True,
+        "compile": True,
+        "compile_mode": "default",
+    }
     assert [run_config["name"] for run_config in config.dl_runs] == [
         "phase_window_tcn_gas_4mse",
         "phase_window_tcn_gas_free",

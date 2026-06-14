@@ -243,6 +243,9 @@ def _validate_training(value: object) -> dict[str, Any]:
     loss_name = loss_config_name(value["loss"])
     if loss_name not in LOSS_REGISTRY:
         raise ValueError(f"Unknown training.loss: {value['loss']!r}. Available: {sorted(LOSS_REGISTRY)}")
+    performance = value.get("performance")
+    if performance is not None and not isinstance(performance, dict):
+        raise ValueError("training.performance must be a JSON object")
     return dict(value)
 
 

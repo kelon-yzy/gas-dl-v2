@@ -174,6 +174,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         early_stopping=training["early_stopping"],
         scheduler=training["scheduler"],
         amp=training.get("amp"),
+        performance=training.get("performance"),
         progress=training.get("progress"),
         json=False,
     )

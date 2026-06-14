@@ -156,13 +156,14 @@ class Trainer:
             _cuda_synchronize(self.device)
             epoch_start = time.perf_counter()
             train_start = epoch_start
-            total_loss = 0.0
+            # 在设备上累积 loss，epoch 末再取标量，避免 per-batch .item() 强制 CUDA 同步。
+            loss_accum = torch.zeros((), dtype=torch.float64, device=self.device)
             n_batches = 0
             n_samples = 0
             for xb, yb in train_loader:
                 xb = xb.to(self.device, non_blocking=non_blocking)
                 yb = yb.to(self.device, non_blocking=non_blocking)
-                self.optimizer.zero_grad()
+                self.optimizer.zero_grad(set_to_none=True)
                 if amp.enabled:
                     with torch.autocast(device_type="cuda", dtype=amp_dtype):
                         pred = self.model(xb)
@@ -175,13 +176,13 @@ class Trainer:
                     loss = self.loss_fn(pred, self._loss_targets(yb))
                     loss.backward()
                     self.optimizer.step()
-                total_loss += loss.item()
+                loss_accum += loss.detach().double()
                 n_batches += 1
                 n_samples += int(xb.shape[0])
 
             _cuda_synchronize(self.device)
             train_seconds = time.perf_counter() - train_start
-            avg_train_loss = total_loss / max(n_batches, 1)
+            avg_train_loss = float(loss_accum.item()) / max(n_batches, 1)
 
             entry = EpochMetrics(
                 epoch=epoch,
@@ -313,9 +314,12 @@ class Trainer:
     def save_checkpoint(self, path: Path | str) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
+        # torch.compile 会把模型包成 OptimizedModule，state_dict 带 `_orig_mod.` 前缀；
+        # 取原始模块保存，保证与未 compile 的已归档 checkpoint 双向兼容。
+        model = getattr(self.model, "_orig_mod", self.model)
         torch.save(
             {
-                "model_state_dict": self.model.state_dict(),
+                "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "history": self.history,
             },
@@ -324,7 +328,8 @@ class Trainer:
 
     def load_checkpoint(self, path: Path | str) -> None:
         checkpoint = torch.load(path, map_location=self.device, weights_only=False)
-        self.model.load_state_dict(checkpoint["model_state_dict"])
+        model = getattr(self.model, "_orig_mod", self.model)
+        model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.history = checkpoint.get("history", TrainHistory())
 

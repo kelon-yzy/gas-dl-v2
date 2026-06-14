@@ -53,6 +53,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "early_stopping": {"enabled": False, "monitor": "val_loss", "patience": 20, "min_delta": 0.0, "mode": "min"},
     "scheduler": {"name": "none"},
     "amp": {"enabled": False, "dtype": "float16"},
+    "performance": {"cudnn_benchmark": False, "tf32": False, "compile": False, "compile_mode": "default"},
     "progress": {"enabled": True, "stdout": True, "jsonl": True, "jsonl_name": "metrics_live.jsonl"},
     "json": False,
 }
@@ -127,6 +128,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     _validate_run_args(args)
     torch.manual_seed(args.seed)
 
+    performance = _performance_config(args.performance)
+    _apply_performance_settings(performance, torch.device(args.device))
+
     modalities = _parse_modalities(args.modalities)
     input_format = args.input_format or _model_input_format(args.model)
     train_dataset = V4BenchmarkDataset(
@@ -167,6 +171,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         },
     )
     trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn, device=args.device, target_transform=target_transform)
+    if performance["compile"]:
+        trainer.model = torch.compile(trainer.model, mode=performance["compile_mode"])
 
     train_loader = _build_loader(
         train_dataset,
@@ -277,6 +283,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "persistent_workers": args.persistent_workers,
         "prefetch_factor": args.prefetch_factor,
         "amp": args.amp,
+        "performance": args.performance,
         "loss": args.loss,
         "optimizer": {
             "name": args.optimizer,
@@ -517,6 +524,40 @@ def _amp_config(value: dict[str, Any]) -> AmpConfig:
     if dtype not in {"float16", "bfloat16"}:
         raise ValueError("amp.dtype must be one of ['bfloat16', 'float16']")
     return AmpConfig(enabled=enabled, dtype=dtype)
+
+
+_COMPILE_MODES = frozenset(
+    ("default", "reduce-overhead", "max-autotune", "max-autotune-no-cudagraphs")
+)
+_PERFORMANCE_KEYS = frozenset(DEFAULT_DL_CONFIG["performance"])
+
+
+def _performance_config(value: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("performance must be a JSON object")
+    unknown = set(value) - _PERFORMANCE_KEYS
+    if unknown:
+        raise ValueError(f"Unknown performance keys: {sorted(unknown)}")
+    config = dict(DEFAULT_DL_CONFIG["performance"])
+    config.update(value)
+    compile_mode = str(config["compile_mode"])
+    if compile_mode not in _COMPILE_MODES:
+        raise ValueError(f"performance.compile_mode must be one of {sorted(_COMPILE_MODES)}, got {compile_mode!r}")
+    return {
+        "cudnn_benchmark": bool(config["cudnn_benchmark"]),
+        "tf32": bool(config["tf32"]),
+        "compile": bool(config["compile"]),
+        "compile_mode": compile_mode,
+    }
+
+
+def _apply_performance_settings(performance: dict[str, Any], device: torch.device) -> None:
+    # benchmark/TF32 是全局 CUDA backend 开关，CPU 设备下静默跳过。
+    if device.type != "cuda":
+        return
+    torch.backends.cuda.matmul.allow_tf32 = bool(performance["tf32"])
+    torch.backends.cudnn.allow_tf32 = bool(performance["tf32"])
+    torch.backends.cudnn.benchmark = bool(performance["cudnn_benchmark"])
 
 
 def _progress_config(value: dict[str, Any]) -> dict[str, Any]:
@@ -766,6 +807,7 @@ def _run_config_payload(
         "early_stopping": args.early_stopping,
         "scheduler": args.scheduler,
         "amp": args.amp,
+        "performance": args.performance,
         "progress": args.progress,
         "eval_splits": _parse_comma(args.eval_splits),
     }
