@@ -7,7 +7,13 @@ from typing import Any
 from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON, resolve_target_transform_spec
 from common.windows import resolve_window_config
 from dl.models.registry import MODEL_REGISTRY
-from dl.training.losses import LOSS_REGISTRY, ILR_MSE_LOSS, validate_loss_target_transform
+from dl.training.losses import (
+    LOSS_REGISTRY,
+    ILR_MSE_LOSS,
+    loss_config_name,
+    validate_loss_model_output,
+    validate_loss_target_transform,
+)
 from ml.models import REGRESSOR_REGISTRY
 from sim.core.schema import SPLIT_NAMES
 
@@ -166,7 +172,7 @@ def load_experiment_config(
     ml_runs = _runs_or_default(payload["ml_runs"], default=DEFAULT_ML_RUNS, field="ml_runs")
     dl_runs = _runs_or_default(payload["dl_runs"], default=DEFAULT_DL_RUNS, field="dl_runs")
     _validate_ml_runs(ml_runs)
-    _validate_dl_runs(dl_runs, default_loss=str(training["loss"]))
+    _validate_dl_runs(dl_runs, default_loss=training["loss"])
     return ExperimentConfig(
         experiment_name=str(payload["experiment_name"]),
         dataset_dir=Path(payload["dataset_dir"]),
@@ -234,7 +240,8 @@ def _validate_training(value: object) -> dict[str, Any]:
         raise ValueError("training.scheduler must be a JSON object")
     if scheduler.get("name") not in {"none", "reduce_on_plateau"}:
         raise ValueError("training.scheduler.name must be one of ['none', 'reduce_on_plateau']")
-    if str(value["loss"]) not in LOSS_REGISTRY:
+    loss_name = loss_config_name(value["loss"])
+    if loss_name not in LOSS_REGISTRY:
         raise ValueError(f"Unknown training.loss: {value['loss']!r}. Available: {sorted(LOSS_REGISTRY)}")
     return dict(value)
 
@@ -254,16 +261,17 @@ def _validate_ml_runs(runs: tuple[dict[str, Any], ...]) -> None:
         _validate_target_transform(run, kind="ML")
 
 
-def _validate_dl_runs(runs: tuple[dict[str, Any], ...], *, default_loss: str) -> None:
+def _validate_dl_runs(runs: tuple[dict[str, Any], ...], *, default_loss: object) -> None:
     for run in runs:
         _validate_run_dict(run, kind="dl")
         model_name = str(run["model"])
         if model_name not in MODEL_REGISTRY:
             raise ValueError(f"Unknown DL model {model_name!r} in run {run.get('name')!r}")
         target_transform = _validate_target_transform(run, kind="DL")
-        loss_name = str(run.get("loss", default_loss))
+        loss_config = run.get("loss", default_loss)
         try:
-            validate_loss_target_transform(loss_name, None if target_transform is None else target_transform.name)
+            validate_loss_target_transform(loss_config, None if target_transform is None else target_transform.name)
+            validate_loss_model_output(loss_config, model_name=model_name, model_kwargs=run.get("model_kwargs", {}))
         except ValueError as exc:
             raise ValueError(f"Invalid DL loss in run {run.get('name')!r}: {exc}") from exc
 

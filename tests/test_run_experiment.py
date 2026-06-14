@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
+from dl.training.losses import FREE_COMPONENT_MSE_LOSS
 from pipeline.experiment_config import ALL_MODALITIES, load_experiment_config
 from pipeline.run_experiment import run
 from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
@@ -139,6 +140,27 @@ def test_default_dl_runs_use_all_modalities(tmp_path: Path):
     assert fusion_ilr_run["loss"] == "ilr_mse"
 
 
+def test_phase_window_tcn_improvement_config_plans_gas_head_runs():
+    config = load_experiment_config(
+        Path("configs/experiment/phase_window_tcn_improvement/phase_window_tcn_improvement.json")
+    )
+
+    result = run(config, dry_run=True)
+
+    assert config.training["lr"] == 0.0001
+    assert [run_config["name"] for run_config in config.dl_runs] == [
+        "phase_window_tcn_gas_4mse",
+        "phase_window_tcn_gas_free",
+    ]
+    first, second = config.dl_runs
+    assert first["model_kwargs"]["output_mode"] == "gas_head"
+    assert second["model_kwargs"]["output_mode"] == "gas_head"
+    assert second["loss"] == FREE_COMPONENT_MSE_LOSS
+    assert result["plan"]["dl_runs"] == ["phase_window_tcn_gas_4mse", "phase_window_tcn_gas_free"]
+    assert result["plan"]["dl_run_details"][0]["loss"] == "mse"
+    assert result["plan"]["dl_run_details"][1]["loss"] == FREE_COMPONENT_MSE_LOSS
+
+
 def test_empty_run_lists_disable_that_family(tmp_path: Path):
     payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
     payload["ml_runs"] = []
@@ -265,6 +287,35 @@ def test_experiment_config_rejects_ilr_loss_without_target_transform(tmp_path: P
         load_experiment_config(config_path)
 
 
+def test_experiment_config_accepts_configured_training_loss(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["training"]["loss"] = {"name": "smooth_l1", "beta": 0.5}
+    config_path = _write_config(tmp_path / "configured_training_loss.json", payload)
+
+    config = load_experiment_config(config_path)
+    dry_run = run(config, dry_run=True)
+
+    assert config.training["loss"] == {"name": "smooth_l1", "beta": 0.5}
+    assert dry_run["plan"]["dl_run_details"][0]["loss"] == {"name": "smooth_l1", "beta": 0.5}
+
+
+def test_experiment_config_rejects_free_component_loss_without_gas_head(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["dl_runs"] = [
+        {
+            "name": "bad_free_loss",
+            "model": "phase_window_tcn",
+            "modalities": ["slow"],
+            "loss": FREE_COMPONENT_MSE_LOSS,
+            "model_kwargs": {"window_count": 1, "output_mode": "raw4"},
+        }
+    ]
+    config_path = _write_config(tmp_path / "bad_free_loss_config.json", payload)
+
+    with pytest.raises(ValueError, match="output_mode='gas_head'"):
+        load_experiment_config(config_path)
+
+
 def test_run_experiment_dry_run_does_not_write_outputs(tmp_path: Path):
     dataset_dir = _make_smoke_dataset(tmp_path)
     output_root = tmp_path / "outputs"
@@ -326,6 +377,7 @@ def test_run_experiment_writes_phase_window_dl_summary(tmp_path: Path):
             "name": "phase_window_tcn_smoke",
             "model": "phase_window_tcn",
             "modalities": ["slow", "ultrasonic", "fiber_mic"],
+            "loss": FREE_COMPONENT_MSE_LOSS,
             "phase_windows": [None, {"kind": "phase", "value": "exposure"}, {"kind": "phase", "value": "recovery"}],
             "model_kwargs": {
                 "window_count": 3,
@@ -335,6 +387,7 @@ def test_run_experiment_writes_phase_window_dl_summary(tmp_path: Path):
                 "slow_embedding_dim": 4,
                 "tcn_channels": [4],
                 "shared_hidden_dims": [8, 4],
+                "output_mode": "gas_head",
             },
         }
     ]
@@ -343,15 +396,19 @@ def test_run_experiment_writes_phase_window_dl_summary(tmp_path: Path):
 
     result = run(config)
 
-    run_config = json.loads(
-        (output_root / "runs" / "smoke_suite" / "phase_window_tcn_smoke" / "run_config.json").read_text(encoding="utf-8")
-    )
+    run_dir = output_root / "runs" / "smoke_suite" / "phase_window_tcn_smoke"
+    run_config = json.loads((run_dir / "run_config.json").read_text(encoding="utf-8"))
+    metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
     summary = Path(result["summary_path"]).read_text(encoding="utf-8")
     assert run_config["phase_windows"] == [
         None,
         {"kind": "phase", "value": "exposure"},
         {"kind": "phase", "value": "recovery"},
     ]
+    assert run_config["loss"] == FREE_COMPONENT_MSE_LOSS
+    assert run_config["model_config"]["output_mode"] == "gas_head"
+    assert metrics["loss"] == FREE_COMPONENT_MSE_LOSS
+    assert metrics["evaluations"]["val"]["sum_abs_error"] < 1e-4
     assert "phase_window_tcn_smoke" in summary
     assert "multi:full+exp+rec" in summary
 

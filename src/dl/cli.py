@@ -22,7 +22,7 @@ from common.windows import resolve_window_config, window_to_payload
 from common.splits import load_splits, resolve_split_indices
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.models.registry import MODEL_REGISTRY, build_model
-from dl.training.losses import LOSS_REGISTRY, build_loss, validate_loss_target_transform
+from dl.training.losses import LOSS_REGISTRY, build_loss, validate_loss_model_output, validate_loss_target_transform
 from dl.training.trainer import AmpConfig, EarlyStoppingConfig, OPTIMIZER_REGISTRY, Trainer, build_optimizer
 
 DEFAULT_EVAL_SPLITS = ("val", "test", "extrapolation")
@@ -153,6 +153,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
 
     model_config = _build_model_config(args.model, args.model_kwargs, in_channels, out_dim, timesteps)
+    validate_loss_model_output(args.loss, model_name=args.model, model_kwargs=model_config)
     if target_transform is not None and int(model_config["out_dim"]) != 3:
         raise ValueError("DL target_transform requires model out_dim=3")
     model = build_model(model_config)

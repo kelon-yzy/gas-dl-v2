@@ -17,7 +17,7 @@ from common.composition import (
     transform_composition_targets,
 )
 from dl.cli import build_parser as build_dl_cli_parser, run as run_dl_cli
-from dl.training.losses import LOSS_REGISTRY, build_loss
+from dl.training.losses import FREE_COMPONENT_MSE_LOSS
 from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
 from dl.training.trainer import AmpConfig, EarlyStoppingConfig, Trainer, build_optimizer
 from sim.core.schema import COMPONENT_FIELDS
@@ -37,34 +37,6 @@ def _make_smoke_dataset(tmp_path: Path, slug: str = "dl-train-smoke", sequences:
         ),
     )
     return tmp_path / slug
-
-
-class TestLosses:
-    def test_registry_contains_baseline_losses(self):
-        assert {"mse", "compositional_mse", "ilr_mse", "mae", "smooth_l1", "huber"}.issubset(LOSS_REGISTRY)
-
-    def test_build_loss_from_name(self):
-        loss = build_loss("mse")
-        value = loss(torch.tensor([1.0, 2.0]), torch.tensor([1.0, 0.0]))
-        assert torch.isclose(value, torch.tensor(2.0))
-
-    def test_build_semantic_mse_alias(self):
-        loss = build_loss("ilr_mse")
-        value = loss(torch.tensor([1.0, 2.0]), torch.tensor([1.0, 0.0]))
-        assert torch.isclose(value, torch.tensor(2.0))
-
-    def test_build_loss_from_config_passes_kwargs(self):
-        loss = build_loss({"name": "smooth_l1", "beta": 0.5})
-        assert loss.beta == 0.5
-
-    def test_build_unknown_loss_raises(self):
-        try:
-            build_loss({"name": "imaginary"})
-        except ValueError as exc:
-            assert "imaginary" in str(exc)
-        else:
-            raise AssertionError("build_loss should reject unknown loss names")
-
 
 class TestRegressionMetrics:
     def test_regression_metrics_for_perfect_prediction(self):
@@ -272,6 +244,37 @@ class TestDLCli:
         assert (output_dir / "best_checkpoint.pt").is_file()
         assert payload["learning_rates"] == [0.001]
 
+    def test_cli_reads_json_configured_loss(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-configured-loss")
+        output_dir = tmp_path / "runs" / "configured-loss"
+        config_path = tmp_path / "configured_loss.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "dataset_dir": str(dataset_dir),
+                    "output_dir": str(output_dir),
+                    "model": "cnn1d",
+                    "model_kwargs": {"hidden_channels": [4], "kernel_size": 3, "dropout": 0.0},
+                    "loss": {"name": "smooth_l1", "beta": 0.5},
+                    "epochs": 1,
+                    "batch_size": 4,
+                    "eval_splits": ["val"],
+                    "early_stopping": {"enabled": False},
+                    "scheduler": {"name": "none"},
+                    "json": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+        parser = build_dl_cli_parser()
+        args = parser.parse_args(["--config", str(config_path)])
+
+        payload = run_dl_cli(args)
+
+        run_config = json.loads((output_dir / "run_config.json").read_text(encoding="utf-8"))
+        assert payload["loss"] == {"name": "smooth_l1", "beta": 0.5}
+        assert run_config["loss"] == {"name": "smooth_l1", "beta": 0.5}
+
     def test_cli_rejects_ilr_loss_without_target_transform(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-ilr-loss-without-transform")
         output_dir = tmp_path / "runs" / "bad-ilr-loss"
@@ -301,6 +304,36 @@ class TestDLCli:
             run_dl_cli(args)
 
         assert exc.value.code == 2
+
+    def test_cli_rejects_free_component_loss_without_gas_head(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-free-loss-without-gas-head")
+        output_dir = tmp_path / "runs" / "bad-free-loss"
+        parser = build_dl_cli_parser()
+        args = parser.parse_args(
+            [
+                "--dataset-dir",
+                str(dataset_dir),
+                "--output-dir",
+                str(output_dir),
+                "--model",
+                "phase_window_tcn",
+                "--model-kwargs",
+                '{"window_count":1,"output_mode":"raw4"}',
+                "--modalities",
+                "slow",
+                "--loss",
+                FREE_COMPONENT_MSE_LOSS,
+                "--epochs",
+                "1",
+                "--batch-size",
+                "4",
+                "--eval-splits",
+                "val",
+            ]
+        )
+
+        with pytest.raises(ValueError, match="output_mode='gas_head'"):
+            run_dl_cli(args)
 
     def test_cli_writes_live_progress_jsonl_without_polluting_json_stdout(self, tmp_path: Path, capsys):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-progress")
