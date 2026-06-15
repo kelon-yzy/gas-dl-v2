@@ -1,18 +1,26 @@
 # v4 正式实验 实施计划
 
 > 基于 `新项目PLAN.md` 6 项改进要求 + `docs/新项目目标架构说明.md` 目标架构，当前状态评估后制定。
+> 2026-06-15 补充：本文件保留阶段实施脉络，最新实验状态请先读 `docs/AI_CONTEXT_GUIDE.md` 和 `docs/PhaseWindowTCN结构消融实验方案.md`。
+
+## 2026-06-15 最新覆盖说明
+
+- 正式 ML phase-aware 主线已收束为 `ridge_multiwindow_all_modalities`，使用 `full + exposure + recovery` 多窗口特征拼接。
+- PhaseWindowTCN 已完成 MVP 与 `gas_head + free_component_mse` 改进实验；`gas_head` 修复闭包问题，但 N2 仍未转正。
+- 当前 DL 下一步只做结构消融：`share_window_encoder=false` 与更深 TCN 感受野；配置位于 `configs/experiment/phase_window_tcn_ablation/`。
+- 旧的 ILR/ALR、PhasePreservingTCN、复杂频域融合等方案已归档，只作为历史依据。
 
 ## 当前状态总览
 
 | 子系统               | 状态                                                              | 完成度 |
 | ----------------- | --------------------------------------------------------------- | --- |
 | `src/sim`         | 核心链路完成（core/generation/packaging/validation + HITRAN benchmark 默认接入 + 声学模型契约标注 + 超声 TOF 派生数组 + 外部谱表 sanity check 入口 + spectral 默认配置 source-of-truth + 长时序阶段协议） | 94% |
-| `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers；lazy memmap、scaler 阈值契约、窗口切片/重采样抖动增强已收敛 | 55% |
-| `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1D/CNN pooling + TCN 大感受野配置 + LSTM/Transformer/PatchTST + registry | 55% |
-| `src/dl/training` | loss/metrics、optimizer 构造、轻量 Trainer、evaluate/predict、checkpoint 已完成；CLI、scheduler、early stopping、完整 run 输出待实现 | 45% |
-| `src/ml`          | 已落地 dependency-light 传统 ML baseline：v4 benchmark 表格特征抽取、Mean/Ridge 多输出回归、numpy 指标、split 训练/评估入口、full/per-phase/early protocol report | 38% |
-| `src/pipeline`    | layout + generate_benchmark 并行生成 + HITRAN benchmark cache 并行预计算/对照 CLI + 外部谱表 sanity check CLI + waveform bundle CLI | 32% |
-| `configs/`        | 已新增 `configs/data/spectral-defaults.json`（运行时 spectral 默认值 source-of-truth，含 `filter_source` 行业参考占位元信息），其余配置未落地 | 8%  |
+| `src/dl/data`     | P0 完成：V4BenchmarkDataset + splits + scalers；lazy memmap、scaler 阈值契约、窗口切片/重采样抖动、`phase_windows` 多窗口输入已收敛 | 70% |
+| `src/dl/models`   | P0+ 完成：BaseRegressor + CNN1D/CNN pooling + TCN 大感受野配置 + LSTM/Transformer/PatchTST + CNN1DTCNFusion + PhaseWindowTCN + registry | 70% |
+| `src/dl/training` | loss/metrics、optimizer 构造、Trainer、evaluate/predict、checkpoint、CLI、scheduler、early stopping、AMP、run_config/metrics 输出已完成；分布式训练未做 | 65% |
+| `src/ml`          | 已落地 dependency-light 传统 ML baseline：v4 benchmark 表格特征抽取、Mean/Ridge 多输出回归、numpy 指标、split 训练/评估入口、full/per-phase/early/multiwindow protocol report | 65% |
+| `src/pipeline`    | layout + generate_benchmark 并行生成 + HITRAN benchmark cache 并行预计算/对照 CLI + 外部谱表 sanity check CLI + waveform bundle CLI + experiment_config/run_experiment | 58% |
+| `configs/`        | 已新增 spectral defaults、formal_full、ML phase-aware、multiwindow_n2、PhaseWindowTCN MVP/improvement/ablation 配置 | 45%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
 | `tests/`          | 全量 187 个测试通过，覆盖 sim + ml + dl + pipeline | 78% |
 
@@ -142,7 +150,7 @@
 
 - 文件：`configs/train/adamw-cosine.yaml`（Hydra 结构）
 - 字段：`optimizer`、`scheduler`、`loss`、`batch_size`、`epochs`、`grad_clip`
-- **状态**：尚未落地正式配置文件和 argparse/Hydra 训练入口。
+- **状态**：Hydra 配置未采用；当前正式入口为 JSON 实验配置和 argparse CLI。`python -m dl.cli` 与 `python -m pipeline.run_experiment` 已支持 optimizer、scheduler、loss、batch_size、epochs、early stopping、AMP 和进度日志。
 
 ### 4.2 Loss 与 Metrics
 
@@ -151,7 +159,7 @@
   - `SumConstraintLoss`（总和=100% 约束）
 - 文件：`src/dl/training/metrics.py`
   - `macro_RMSE`、`macro_MAE`、`per_component_R2`、`sum_error`
-- **状态**：已落地基础 loss 和回归指标；当前指标实现服务轻量训练闭环，正式报告字段仍需与 run 输出契约对齐。
+- **状态**：已落地基础 loss、`free_component_mse`、组成数据相关 loss 别名、回归指标、component metrics、conditional metrics、sum error；正式 run 会写 metrics JSON 和 summary/report。
 
 ### 4.3 Trainer
 
@@ -159,8 +167,7 @@
 - **状态**：已落地轻量训练器。
 - 标准训练循环：epoch → batch → forward → loss → backward → step。
 - 支持 validation evaluate、predict、optimizer 构造、checkpoint 保存/加载。
-- 当前不含 early stopping、LR scheduler、多 GPU/分布式训练或正式 run 输出写出。
-- 待补 CLI 输出契约：`config.json`、`summary.json`、`component_metrics.csv`、`predictions.csv`、`train_log.csv`、`report.md`。
+- 当前已含 early stopping、ReduceLROnPlateau、AMP、epoch 进度输出和 metrics/run_config JSON。多 GPU/分布式训练未做；完整 CSV predictions 和训练曲线图仍可后续补。
 
 ### 4.4 Seed 管理
 
@@ -219,13 +226,13 @@
 
 - 文件：`experiments/run_baseline.py`
 - 读实验配置 → 生成 benchmark（如需要）→ 训练 → 评估 → 写报告
-- **当前状态**：尚未落地批量实验脚本；传统 ML 的单数据集 protocol report 已由 `python -m ml.cli --protocol` 提供。
+- **当前状态**：`python -m pipeline.run_experiment --config ...` 已作为批量实验入口落地，支持 dry-run、ML/DL run 列表、summary CSV 和 Markdown report。传统 ML 的单数据集 protocol report 仍由 `python -m ml.cli --protocol` 提供。
 
 ### 6.3 汇总与绘图
 
 - 文件：`src/pipeline/summary.py`
 - 跨 run 汇总表、model comparison 表
-- **当前状态**：跨 run 汇总与绘图未落地；S5 的单 run baseline protocol report 已落地。
+- **当前状态**：单 experiment summary/report 已落地；跨 experiment 汇总、绘图和长期状态管理仍待完善。
 
 ---
 

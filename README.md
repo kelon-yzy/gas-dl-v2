@@ -4,6 +4,8 @@
 
 ## 当前状态
 
+> 2026-06-15 最新实验导读见 `docs/AI_CONTEXT_GUIDE.md`。若 README 中的历史状态与该导读或 `docs/PhaseWindowTCN结构消融实验方案.md` 冲突，以最新导读和活跃实验方案为准。
+
 - 已建立 `src/sim/core`：定义 benchmark、mixture、sequence 的核心 ID 语义。
 - 已建立 `src/sim/generation`：提供正式 benchmark 生成的最小垂直切片，默认使用拉丁超立方采样（LHS），NDIR 默认走 `hitran_hapi_v1` cache-only 光谱积分；HITRAN 主线只计算 TCS 热导慢变量，不再顺带跑 empirical NDIR；`empirical_v1` 保留为显式兼容/对照路径。
 - 已建立 `src/sim/packaging`：定义 `condition_grid`、`sequence_index`、split rows、manifest、scaler 常量和正式 run 最小输出契约。
@@ -12,11 +14,33 @@
 - 已建立 `src/dl/data`：`V4BenchmarkDataset` 消费 v4 benchmark，支持慢变量/超声/光纤三模态、NTC/NCT 格式、split 加载、真正 lazy memmap（取单条样本时才转 float32）、scaler 归一化；训练期增强通过显式 `TimeSeriesAugmentConfig` 开启，默认关闭。
 - 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor`、`TCNRegressor`、`CNN1DTCNFusionRegressor`、`LSTMRegressor`、`TransformerRegressor` 和 `PatchTSTRegressor`。CNN/TCN 支持 `mean/last/attention` 聚合，TCN 支持按 `target_timesteps` 自动扩展感受野；`cnn1d_tcn_fusion` 支持 slow/ultrasonic/fiber_mic 三路编码、TCN 融合与 bounded simplex 输出约束。
 - 已建立 `src/dl/training`：提供 loss、metrics、轻量 `Trainer`、optimizer 构造、evaluate/predict 和 checkpoint 保存/加载；`python -m dl.cli` 已支持单数据集训练、checkpoint、run_config 与 metrics JSON 输出。当前仍没有 LR scheduler 或 early stopping。
+- 已建立 PhaseWindowTCN 多窗口 DL 实验链路：`phase_windows` 支持 `full + exposure + recovery` 真实多窗口输入，`PhaseWindowTCNRegressor` 支持 `share_window_encoder`、`gas_head` 和更深 TCN 结构消融；当前活跃方案见 `docs/PhaseWindowTCN结构消融实验方案.md`。
+- 当前实验结论：ML 多窗口 `ridge_multiwindow_all_modalities` 是正式 phase-aware 主线；PhaseWindowTCN 的 `gas_head` 已修复闭包误差，但 `free_component_mse` 未使 N2 转正，因此下一步只做 `share_window_encoder=false` 和更深 TCN 的结构消融。
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口，CLI 默认按 CPU 自动启用 sequence chunk 多进程生成。
 - 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/precompute_hitran_benchmark_cache.py`、`src/pipeline/compare_optical_backends.py`、`src/pipeline/sanity_check_tabulated_spectra.py` 和 `src/pipeline/bundle_waveform_sequence.py`：HITRAN 谱缓存预计算、benchmark 专用 cache 预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check、生成后 waveform 压缩包打包入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
 - 已建立长时序协议：支持 `short/standard/long/xlong` 时间轴预设、显式 `timesteps/dt_s` 覆盖、动态 `PhaseSchedule`、`stage_jitter`、`standard_exposure/variable_onset/fast_transient/incomplete_recovery/multi_pulse` 阶段 profile，相关溯源写入 `manifest.json` 和 `metadata/waveform_spec.json`。
 - 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。当前全量验证为 187 passed。
+
+## 给其他 AI 的快速入口
+
+请优先阅读：
+
+1. `AGENTS.md`
+2. `docs/AI_CONTEXT_GUIDE.md`
+3. `docs/PhaseWindowTCN结构消融实验方案.md`
+
+当前 PhaseWindowTCN 结构消融第一批配置：
+
+```powershell
+python -m pipeline.run_experiment --config configs\experiment\phase_window_tcn_ablation\phase_window_tcn_ablation.json --dry-run
+```
+
+若第一批有效，再运行 followup：
+
+```powershell
+python -m pipeline.run_experiment --config configs\experiment\phase_window_tcn_ablation\phase_window_tcn_ablation_followup.json --dry-run
+```
 
 ## 目标目录
 

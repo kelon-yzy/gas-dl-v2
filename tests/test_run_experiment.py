@@ -147,12 +147,12 @@ def test_phase_window_tcn_improvement_config_plans_gas_head_runs():
 
     result = run(config, dry_run=True)
 
-    assert config.training["lr"] == 0.0003
-    assert config.training["batch_size"] == 64
+    assert config.training["lr"] == 0.0001
+    assert config.training["batch_size"] == 16
     assert config.training["performance"] == {
         "cudnn_benchmark": True,
         "tf32": True,
-        "compile": True,
+        "compile": False,
         "compile_mode": "default",
     }
     assert [run_config["name"] for run_config in config.dl_runs] == [
@@ -166,6 +166,44 @@ def test_phase_window_tcn_improvement_config_plans_gas_head_runs():
     assert result["plan"]["dl_runs"] == ["phase_window_tcn_gas_4mse", "phase_window_tcn_gas_free"]
     assert result["plan"]["dl_run_details"][0]["loss"] == "mse"
     assert result["plan"]["dl_run_details"][1]["loss"] == FREE_COMPONENT_MSE_LOSS
+
+
+def test_phase_window_tcn_ablation_configs_split_first_batch_from_followup():
+    config = load_experiment_config(
+        Path("configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation.json")
+    )
+    followup = load_experiment_config(
+        Path("configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation_followup.json")
+    )
+
+    result = run(config, dry_run=True)
+    followup_result = run(followup, dry_run=True)
+
+    assert config.seed == followup.seed == 20260615
+    assert [run_config["name"] for run_config in config.dl_runs] == [
+        "phase_window_tcn_gas_free",
+        "phase_window_tcn_gas_free_split",
+        "phase_window_tcn_gas_free_deep",
+    ]
+    assert [run_config["name"] for run_config in followup.dl_runs] == [
+        "phase_window_tcn_gas_free_split_deep"
+    ]
+    baseline, split, deep = config.dl_runs
+    assert baseline["loss"] == FREE_COMPONENT_MSE_LOSS
+    assert baseline["model_kwargs"]["output_mode"] == "gas_head"
+    assert "share_window_encoder" not in baseline["model_kwargs"]
+    assert split["model_kwargs"]["share_window_encoder"] is False
+    assert split["model_kwargs"]["tcn_channels"] == [64, 64, 64]
+    assert "share_window_encoder" not in deep["model_kwargs"]
+    assert deep["model_kwargs"]["tcn_channels"] == [64, 64, 64, 64, 64]
+    assert followup.dl_runs[0]["model_kwargs"]["share_window_encoder"] is False
+    assert followup.dl_runs[0]["model_kwargs"]["tcn_channels"] == [64, 64, 64, 64, 64]
+    assert result["plan"]["dl_runs"] == [
+        "phase_window_tcn_gas_free",
+        "phase_window_tcn_gas_free_split",
+        "phase_window_tcn_gas_free_deep",
+    ]
+    assert followup_result["plan"]["dl_runs"] == ["phase_window_tcn_gas_free_split_deep"]
 
 
 def test_empty_run_lists_disable_that_family(tmp_path: Path):

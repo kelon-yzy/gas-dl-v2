@@ -21,9 +21,11 @@
 - HITRAN 光谱积分支撑：`src/sim/generation/spectral/` 已具备表格谱积分、HAPI 适配、缓存、单位换算和默认滤光片/网格配置；`src/pipeline/precompute_hitran_benchmark_cache.py` 按 benchmark 的 `sequence_count/seed/sampling_strategy` 预计算每条 condition 的 T/P cache，先串行确保 HAPI 原始表，再以保守进程数和有界 pending 队列补齐缺失 `.npz` cache，已有 cache 直接跳过；`src/pipeline/precompute_hitran_spectra.py` 保留通用通道预计算入口。默认滤光片当前使用 InfraTec NBP 行业参考占位（`filter_source.type=industry_reference_only`），待目标传感器 TraceGas-HC-NDIR 实际 datasheet 替换。
 - DL 数据加载：`V4BenchmarkDataset` 消费 v4 benchmark 目录，支持慢变量/超声/光纤麦克风三模态、NTC/NCT 格式切换、lazy memmap、按 split 消费；训练期可选 `TimeSeriesAugmentConfig` 做窗口切片/重采样抖动，默认关闭。
 - DL 模型注册：`MODEL_REGISTRY` + `build_model()` 工厂，已落地 `CNN1DRegressor`、`TCNRegressor`、`LSTMRegressor`、`TransformerRegressor` 和 `PatchTSTRegressor`。CNN/TCN 支持 `mean/last/attention` 时序聚合；`TCNRegressor.receptive_field` 记录模型时间感受野，并可按 `target_timesteps` 自动扩展通道层数。
-- DL 训练闭环：`src/dl/training` 已落地 `WeightedMSELoss`、`SumConstraintLoss`、回归指标、`build_optimizer`、轻量 `Trainer.fit/evaluate/predict` 和 checkpoint 保存/加载。当前定位为单卡最小闭环，不包含正式 argparse CLI、LR scheduler、early stopping 或完整 run report 写出。
+- PhaseWindowTCN 多窗口 DL 链路：`V4BenchmarkDataset` 支持 `phase_windows` 返回 `(W, T, C)` 多窗口输入；`PhaseWindowTCNRegressor` 消费真实 `full + exposure + recovery` 窗口视图，支持 `share_window_encoder`、`output_mode={"raw4","softmax100","gas_head"}` 和更深 TCN 通道配置。当前活跃结构消融配置位于 `configs/experiment/phase_window_tcn_ablation/`。
+- DL 训练闭环：`src/dl/training` 已落地 loss registry、`free_component_mse`、回归指标、`build_optimizer`、轻量 `Trainer.fit/evaluate/predict`、checkpoint 保存/加载、early stopping、ReduceLROnPlateau、AMP、训练进度 JSONL 和 run_config/metrics JSON 写出。当前定位为单卡实验闭环，不包含多 GPU/分布式训练。
 - v4 输出契约：正式 split 只使用 `splits/train.csv`、`splits/val.csv`、`splits/test.csv`、`splits/extrapolation.csv`；不写 V3 的 `*_sequence_ids.csv` 旧命名。
-- 传统 ML 与协议评估：`src/ml` 支持 Mean/Ridge baseline、full/per-phase/early-window 特征窗口，`python -m ml.cli --protocol` 可输出 JSON 或 Markdown baseline protocol report。
+- 传统 ML 与协议评估：`src/ml` 支持 Mean/Ridge baseline、full/per-phase/early-window 特征窗口，以及 `full + exposure + recovery` 多窗口特征拼接；`ridge_multiwindow_all_modalities` 是当前正式 phase-aware ML 主线。
+- 实验编排：`src/pipeline/experiment_config.py` 与 `src/pipeline/run_experiment.py` 支持 JSON 实验配置、ML/DL run 列表、`phase_windows`、dry-run、summary CSV 和 Markdown report。当前 PhaseWindowTCN 结构消融首批和 followup 配置已落地。
 - 存储策略：正式大规模数据集默认推荐 `storage=memmap`，下游 ML/DL 已能直接读取 `.npy`/memmap。若需要兼容压缩包，生成后用 `python -m pipeline.bundle_waveform_sequence --dataset-dir <dataset>` 单独打包 `sequences/waveform_sequence.npz`；`storage=npz/both` 保留兼容，但不作为大规模主路径。
 - 验证基线：核心依赖为 `numpy/scipy/torch/pytest/hitran-api`；`python -m pytest` 当前为 187 passed。
 
@@ -32,5 +34,5 @@
 - 更复杂的环境串扰参数化。
 - 目标传感器 TraceGas-HC-NDIR 实际 datasheet 替换当前行业参考占位、真实 PNNL/NIST 或仪器外部谱表对照和更完整谱源版本管理；当前已具备 HITRAN benchmark 默认接入、通用 CSV sanity check、HAPI 适配层、谱线缓存和 InfraTec NBP 行业参考占位（含 `filter_source` 元信息）。
 - 独立 ML feature package 落盘导出尚未迁移；传统 ML baseline 与 baseline protocol report 入口已落地。
-- DL 正式训练 CLI、LR scheduler、early stopping、多 GPU/分布式训练、完整 run report 写出。
-- 跨 run 汇总、绘图和状态管理。
+- 多 GPU/分布式训练。
+- 跨 run 绘图和更完整状态管理。

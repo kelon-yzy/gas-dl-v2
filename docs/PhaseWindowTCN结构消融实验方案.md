@@ -212,10 +212,37 @@ PhaseWindowTCN 近期已验证的事实：
 
 ## 7. 运行顺序
 
-1. 先跑 `phase_window_tcn_gas_free_split`
-2. 再跑 `phase_window_tcn_gas_free_deep`
-3. 若两者任一有效，再跑 `phase_window_tcn_gas_free_split_deep`
-4. 若仍无效，停止 DL 继续扩展
+第一批配置：
+
+```text
+configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation.json
+```
+
+该配置包含同 seed 下的三项：
+
+1. `phase_window_tcn_gas_free`
+2. `phase_window_tcn_gas_free_split`
+3. `phase_window_tcn_gas_free_deep`
+
+第一批用于回答：
+
+```text
+split 或 deep 是否相对同 seed gas_free 基线带来 N2 增益
+```
+
+若两者任一有效，再运行后续配置：
+
+```text
+configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation_followup.json
+```
+
+该配置只包含：
+
+```text
+phase_window_tcn_gas_free_split_deep
+```
+
+若第一批均无效，停止 DL 继续扩展，不运行 followup。
 
 ## 8. 验收口径
 
