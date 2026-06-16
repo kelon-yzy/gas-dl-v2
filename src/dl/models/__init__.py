@@ -3,6 +3,7 @@
 from dl.models.base import BaseRegressor
 from dl.models.cnn1d import CNN1DRegressor
 from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor, DeepAcousticEncoder1D, GasHeadNormalize, SlowFeatureEncoder
+from dl.models.handcraft_mlp import HandcraftMLPRegressor
 from dl.models.lstm import LSTMRegressor
 from dl.models.patchtst import PatchTSTRegressor
 from dl.models.phase_window_tcn import PhaseWindowTCNRegressor, WindowedFusionEncoder
@@ -17,6 +18,7 @@ __all__ = [
     "CNN1DTCNFusionRegressor",
     "DeepAcousticEncoder1D",
     "GasHeadNormalize",
+    "HandcraftMLPRegressor",
     "LSTMRegressor",
     "MODEL_REGISTRY",
     "PatchTSTRegressor",

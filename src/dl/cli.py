@@ -21,6 +21,7 @@ from common.metrics import conditional_metrics_to_payload
 from common.windows import resolve_window_config, window_to_payload
 from common.splits import load_splits, resolve_split_indices
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
+from dl.data.feature_dataset import V4FeatureMatrixDataset
 from dl.models.registry import MODEL_REGISTRY, build_model
 from dl.training.losses import LOSS_REGISTRY, build_loss, validate_loss_model_output, validate_loss_target_transform
 from dl.training.trainer import AmpConfig, EarlyStoppingConfig, OPTIMIZER_REGISTRY, Trainer, build_optimizer
@@ -79,7 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--input-format",
-        choices=["NTC", "NCT"],
+        choices=["NTC", "NCT", "FEATURES"],
         default=None,
         help="Override model input format; by default the model class contract is used.",
     )
@@ -133,7 +134,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
     modalities = _parse_modalities(args.modalities)
     input_format = args.input_format or _model_input_format(args.model)
-    train_dataset = V4BenchmarkDataset(
+    train_dataset = _build_dataset(
         args.dataset_dir,
         split="train",
         modalities=modalities,
@@ -145,9 +146,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     sample_x, sample_y = train_dataset[0]
     in_channels, timesteps = _infer_input_shape(sample_x, input_format)
+    train_labels = _split_labels(args.dataset_dir, "train")
     target_transform = resolve_target_transform_for_training(
         args.target_transform,
-        _split_labels(args.dataset_dir, "train"),
+        train_labels,
     )
     out_dim = 3 if target_transform is not None else int(sample_y.shape[-1])
     target_transform_audits = _target_transform_audits(
@@ -161,7 +163,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if target_transform is not None and int(model_config["out_dim"]) != 3:
         raise ValueError("DL target_transform requires model out_dim=3")
     model = build_model(model_config)
-    loss_fn = build_loss(args.loss)
+    loss_fn = build_loss(args.loss, train_targets=train_labels)
     optimizer = build_optimizer(
         model,
         {
@@ -414,12 +416,16 @@ def _parse_comma(value: str) -> tuple[str, ...]:
 def _model_input_format(model_name: str) -> str:
     entry = MODEL_REGISTRY[model_name]
     input_format = getattr(entry, "input_format", None)
-    if input_format not in {"NTC", "NCT"}:
+    if input_format not in {"NTC", "NCT", "FEATURES"}:
         raise ValueError(f"Model {model_name!r} does not declare input_format; pass --input-format explicitly.")
     return str(input_format)
 
 
 def _infer_input_shape(sample_x: torch.Tensor, input_format: str) -> tuple[int, int]:
+    if input_format == "FEATURES":
+        if sample_x.ndim != 1:
+            raise ValueError(f"Expected one feature sample shaped (F,), got {tuple(sample_x.shape)}")
+        return int(sample_x.shape[0]), 1
     if sample_x.ndim == 3:
         if input_format == "NTC":
             return int(sample_x.shape[2]), int(sample_x.shape[1])
@@ -432,7 +438,39 @@ def _infer_input_shape(sample_x: torch.Tensor, input_format: str) -> tuple[int, 
         return int(sample_x.shape[1]), int(sample_x.shape[0])
     if input_format == "NCT":
         return int(sample_x.shape[0]), int(sample_x.shape[1])
-    raise ValueError(f"input_format must be NTC or NCT, got {input_format!r}")
+    raise ValueError(f"input_format must be one of ['FEATURES', 'NCT', 'NTC'], got {input_format!r}")
+
+
+def _build_dataset(
+    dataset_dir: Path,
+    *,
+    split: str,
+    modalities: tuple[str, ...],
+    input_format: str,
+    scaler_path: Path | None,
+    window: dict[str, object] | None,
+    phase_windows: list[object] | tuple[object, ...] | None,
+    lazy: bool,
+):
+    if input_format == "FEATURES":
+        return V4FeatureMatrixDataset(
+            dataset_dir,
+            split=split,
+            modalities=modalities,
+            scaler_path=scaler_path,
+            window=window,
+            phase_windows=phase_windows,
+        )
+    return V4BenchmarkDataset(
+        dataset_dir,
+        split=split,
+        modalities=modalities,
+        input_format=input_format,
+        scaler_path=scaler_path,
+        window=window,
+        phase_windows=phase_windows,
+        lazy=lazy,
+    )
 
 
 def _target_transform_audits(
@@ -707,7 +745,7 @@ def _optional_loader(
     persistent_workers: bool,
     prefetch_factor: int | None,
 ) -> DataLoader | None:
-    dataset = V4BenchmarkDataset(
+    dataset = _build_dataset(
         dataset_dir,
         split=split,
         modalities=modalities,

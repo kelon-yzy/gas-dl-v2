@@ -7,6 +7,7 @@ import torch
 from dl.models.base import BaseRegressor
 from dl.models.cnn1d import CNN1DRegressor
 from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor, GasHeadNormalize
+from dl.models.handcraft_mlp import HandcraftMLPRegressor
 from dl.models.lstm import LSTMRegressor
 from dl.models.patchtst import PatchTSTRegressor
 from dl.models.phase_window_tcn import PhaseWindowTCNRegressor
@@ -44,6 +45,9 @@ class TestModelRegistry:
 
     def test_registry_contains_phase_window_tcn(self):
         assert "phase_window_tcn" in MODEL_REGISTRY
+
+    def test_registry_contains_handcraft_mlp(self):
+        assert "handcraft_mlp" in MODEL_REGISTRY
 
     def test_registry_contains_sequence_models(self):
         assert {"lstm", "transformer", "patchtst"}.issubset(MODEL_REGISTRY)
@@ -92,6 +96,12 @@ class TestModelRegistry:
             }
         )
         assert isinstance(model, PhaseWindowTCNRegressor)
+
+    def test_build_handcraft_mlp_from_config(self):
+        model = build_model(
+            {"name": "handcraft_mlp", "in_channels": 12, "hidden_dims": [8, 4], "dropout": 0.0}
+        )
+        assert isinstance(model, HandcraftMLPRegressor)
 
     def test_build_sequence_models_from_config(self):
         assert isinstance(build_model({"name": "lstm", "in_channels": 8, "out_dim": 4}), LSTMRegressor)
@@ -361,6 +371,28 @@ class TestPhaseWindowTCNRegressor:
             assert "Expected 3 windows" in str(exc)
         else:
             raise AssertionError("window count mismatch should be rejected")
+
+
+class TestHandcraftMLPRegressor:
+    def test_forward_shape_and_simplex_constraint(self):
+        model = HandcraftMLPRegressor(in_channels=12, hidden_dims=[8, 4], dropout=0.0)
+
+        out = model(torch.randn(3, 12))
+
+        assert out.shape == (3, 4)
+        assert model.input_format == "FEATURES"
+        assert torch.all(out >= 0.0)
+        assert torch.allclose(out.sum(dim=-1), torch.full((3,), 100.0), atol=1e-5)
+
+    def test_rejects_feature_mismatch(self):
+        model = HandcraftMLPRegressor(in_channels=12, hidden_dims=[8, 4], dropout=0.0)
+
+        try:
+            model(torch.randn(3, 11))
+        except ValueError as exc:
+            assert "Expected 12 input features" in str(exc)
+        else:
+            raise AssertionError("feature mismatch should be rejected")
 
 
 class TestLongSequenceRegressors:

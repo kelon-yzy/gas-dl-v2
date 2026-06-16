@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 
 from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
-from dl.training.losses import FREE_COMPONENT_MSE_LOSS
+from dl.training.losses import (
+    FREE_COMPONENT_MSE_LOSS,
+    WEIGHTED_COMPONENT_MSE_LOSS,
+    WEIGHTED_FREE_COMPONENT_MSE_LOSS,
+)
 from pipeline.experiment_config import ALL_MODALITIES, load_experiment_config
 from pipeline.run_experiment import run
 from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
@@ -168,30 +172,45 @@ def test_phase_window_tcn_improvement_config_plans_gas_head_runs():
     assert result["plan"]["dl_run_details"][1]["loss"] == FREE_COMPONENT_MSE_LOSS
 
 
-def test_phase_window_tcn_ablation_configs_split_first_batch_from_followup():
+def test_phase_window_tcn_ablation_configs_diagnostic_batch_then_structure_followup():
     config = load_experiment_config(
         Path("configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation.json")
+    )
+    structure = load_experiment_config(
+        Path("configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation_structure.json")
     )
     followup = load_experiment_config(
         Path("configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation_followup.json")
     )
 
     result = run(config, dry_run=True)
+    structure_result = run(structure, dry_run=True)
     followup_result = run(followup, dry_run=True)
 
-    assert config.seed == followup.seed == 20260615
+    assert config.seed == structure.seed == followup.seed == 20260615
     assert [run_config["name"] for run_config in config.dl_runs] == [
         "phase_window_tcn_gas_free",
+        "phase_window_tcn_gas_varweight",
+        "phase_window_tcn_gas_free_varweight",
+        "phase_window_tcn_handcraft_mlp",
+    ]
+    assert [run_config["name"] for run_config in structure.dl_runs] == [
         "phase_window_tcn_gas_free_split",
         "phase_window_tcn_gas_free_deep",
     ]
     assert [run_config["name"] for run_config in followup.dl_runs] == [
         "phase_window_tcn_gas_free_split_deep"
     ]
-    baseline, split, deep = config.dl_runs
+    baseline, varweight, free_varweight, handcraft = config.dl_runs
     assert baseline["loss"] == FREE_COMPONENT_MSE_LOSS
     assert baseline["model_kwargs"]["output_mode"] == "gas_head"
     assert "share_window_encoder" not in baseline["model_kwargs"]
+    assert varweight["loss"] == {"name": WEIGHTED_COMPONENT_MSE_LOSS, "weighting": "inverse_train_var"}
+    assert varweight["model_kwargs"]["output_mode"] == "gas_head"
+    assert free_varweight["loss"] == {"name": WEIGHTED_FREE_COMPONENT_MSE_LOSS, "weighting": "inverse_train_var"}
+    assert handcraft["model"] == "handcraft_mlp"
+    assert handcraft["loss"] == {"name": WEIGHTED_COMPONENT_MSE_LOSS, "weighting": "inverse_train_var"}
+    split, deep = structure.dl_runs
     assert split["model_kwargs"]["share_window_encoder"] is False
     assert split["model_kwargs"]["tcn_channels"] == [64, 64, 64]
     assert "share_window_encoder" not in deep["model_kwargs"]
@@ -200,6 +219,11 @@ def test_phase_window_tcn_ablation_configs_split_first_batch_from_followup():
     assert followup.dl_runs[0]["model_kwargs"]["tcn_channels"] == [64, 64, 64, 64, 64]
     assert result["plan"]["dl_runs"] == [
         "phase_window_tcn_gas_free",
+        "phase_window_tcn_gas_varweight",
+        "phase_window_tcn_gas_free_varweight",
+        "phase_window_tcn_handcraft_mlp",
+    ]
+    assert structure_result["plan"]["dl_runs"] == [
         "phase_window_tcn_gas_free_split",
         "phase_window_tcn_gas_free_deep",
     ]
@@ -455,6 +479,38 @@ def test_run_experiment_writes_phase_window_dl_summary(tmp_path: Path):
     assert metrics["loss"] == FREE_COMPONENT_MSE_LOSS
     assert metrics["evaluations"]["val"]["sum_abs_error"] < 1e-4
     assert "phase_window_tcn_smoke" in summary
+    assert "multi:full+exp+rec" in summary
+
+
+def test_run_experiment_writes_handcraft_mlp_summary(tmp_path: Path):
+    dataset_dir = _make_smoke_dataset(tmp_path)
+    output_root = tmp_path / "outputs"
+    payload = _base_config(dataset_dir, output_root)
+    payload["ml_runs"] = []
+    payload["dl_runs"] = [
+        {
+            "name": "handcraft_mlp_smoke",
+            "model": "handcraft_mlp",
+            "modalities": ["slow"],
+            "loss": {"name": WEIGHTED_COMPONENT_MSE_LOSS, "weighting": "inverse_train_var"},
+            "phase_windows": [None, {"kind": "phase", "value": "exposure"}, {"kind": "phase", "value": "recovery"}],
+            "model_kwargs": {"hidden_dims": [8, 4], "dropout": 0.0},
+        }
+    ]
+    config_path = _write_config(tmp_path / "handcraft_mlp_config.json", payload)
+    config = load_experiment_config(config_path)
+
+    result = run(config)
+
+    run_dir = output_root / "runs" / "smoke_suite" / "handcraft_mlp_smoke"
+    run_config = json.loads((run_dir / "run_config.json").read_text(encoding="utf-8"))
+    metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    summary = Path(result["summary_path"]).read_text(encoding="utf-8")
+    assert run_config["input_format"] == "FEATURES"
+    assert run_config["model_config"]["name"] == "handcraft_mlp"
+    assert run_config["loss"] == {"name": WEIGHTED_COMPONENT_MSE_LOSS, "weighting": "inverse_train_var"}
+    assert metrics["evaluations"]["val"]["sum_abs_error"] < 1e-4
+    assert "handcraft_mlp_smoke" in summary
     assert "multi:full+exp+rec" in summary
 
 
