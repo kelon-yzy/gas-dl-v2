@@ -7,13 +7,13 @@
   "eval_splits": ["val", "test", "extrapolation"],
   "training": {
     "epochs": 80,
-    "batch_size": 32,
+    "batch_size": 16,
     "num_workers": 2,
     "pin_memory": true,
     "persistent_workers": false,
     "prefetch_factor": 2,
     "optimizer": "adamw",
-    "lr": 0.0002,
+    "lr": 0.00015,
     "weight_decay": 0.0001,
     "loss": "mse",
     "early_stopping": {

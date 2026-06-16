@@ -37,6 +37,7 @@ python src/pipeline/run_experiment.py \
 **输出位置**: `outputs/runs/phase_window_tcn_ablation/`
 
 **包含的实验**:
+
 1. `phase_window_tcn_gas_free` - 自由组分 MSE 损失
 2. `phase_window_tcn_gas_varweight` - 方差加权 MSE 损失
 3. `phase_window_tcn_gas_free_varweight` - 方差加权自由组分 MSE
@@ -59,6 +60,7 @@ python src/pipeline/run_experiment.py \
 **输出位置**: `outputs/runs/phase_window_tcn_ablation_structure/`
 
 **包含的实验**:
+
 1. `phase_window_tcn_gas_free_split` - 分离 window 编码器（share_window_encoder=false）
 2. `phase_window_tcn_gas_free_deep` - 深层 TCN（5 blocks vs 3 blocks）
 
@@ -79,6 +81,7 @@ python src/pipeline/run_experiment.py \
 **输出位置**: `outputs/runs/phase_window_tcn_ablation_followup/`
 
 **包含的实验**:
+
 1. `phase_window_tcn_gas_free_split_deep` - 分离编码器 + 深层 TCN
 
 ---
@@ -103,6 +106,7 @@ python src/pipeline/run_experiment.py \
 ```
 
 **对比原配置**:
+
 - batch_size: 16 → 32 (2×)
 - num_workers: 8 → 2 (-75%)
 - persistent_workers: true → false
@@ -134,6 +138,7 @@ tail -f outputs/runs/phase_window_tcn_ablation/*/metrics_live.jsonl
 ### 关键验收
 
 每个实验完成后检查：
+
 1. `outputs/runs/<experiment_name>/<run_name>/metrics_live.jsonl` - 训练曲线
 2. `outputs/runs/<experiment_name>/<run_name>/best_checkpoint.pt` - 最佳模型
 3. `outputs/summary/phase_window_tcn_ablation.json` - 汇总结果（Phase 1 完成后）
@@ -146,6 +151,7 @@ tail -f outputs/runs/phase_window_tcn_ablation/*/metrics_live.jsonl
 
 **症状**: CUDA out of memory  
 **解决**:
+
 ```bash
 # 降低 batch size 到 24
 # 修改配置文件中的 "batch_size": 32 → 24
@@ -156,6 +162,7 @@ tail -f outputs/runs/phase_window_tcn_ablation/*/metrics_live.jsonl
 **症状**: samples/s < 40  
 **原因**: 可能数据加载成为瓶颈  
 **解决**:
+
 ```bash
 # 增加 num_workers 到 4
 # 修改配置文件中的 "num_workers": 2 → 4
@@ -166,6 +173,7 @@ tail -f outputs/runs/phase_window_tcn_ablation/*/metrics_live.jsonl
 
 **症状**: val_loss 比原配置高 > 10%  
 **解决**:
+
 ```bash
 # 降低学习率
 # 修改配置文件中的 "lr": 0.0002 → 0.00015
@@ -175,6 +183,7 @@ tail -f outputs/runs/phase_window_tcn_ablation/*/metrics_live.jsonl
 
 **症状**: best_epoch < 8  
 **解决**:
+
 ```bash
 # 增加 patience
 # 修改配置文件中的 "patience": 10 → 15
@@ -187,12 +196,14 @@ tail -f outputs/runs/phase_window_tcn_ablation/*/metrics_live.jsonl
 ### Phase 1 完成后
 
 查看损失函数对比：
+
 ```bash
 python scripts/analyze_phase1_results.py \
   --summary outputs/summary/phase_window_tcn_ablation.json
 ```
 
 关注指标：
+
 - N2 R² (test, extrapolation)
 - CH4, CO2, H2 MAE
 - 训练时长
@@ -200,6 +211,7 @@ python scripts/analyze_phase1_results.py \
 ### Phase 2 完成后
 
 对比结构变体：
+
 ```bash
 python scripts/analyze_phase2_results.py \
   --structure outputs/summary/phase_window_tcn_ablation_structure.json \
@@ -207,6 +219,7 @@ python scripts/analyze_phase2_results.py \
 ```
 
 关注：
+
 - 分离编码器是否提升性能
 - 深层 TCN 是否改善收敛
 - 组合方案是否有协同效应
@@ -215,14 +228,15 @@ python scripts/analyze_phase2_results.py \
 
 ## 时间线估算
 
-| 阶段 | 实验数 | 预计时长 | 累计时长 |
-|------|-------|---------|---------|
-| Phase 1 诊断批次 | 4 | 1-2 小时 | 1-2 小时 |
-| Phase 2.1 结构消融 | 2 | 40-60 分钟 | 1.5-3 小时 |
-| Phase 2.2 组合测试 | 1 | 20-30 分钟 | 2-3.5 小时 |
-| **总计** | **7** | **2-3.5 小时** | - |
+| 阶段             | 实验数   | 预计时长         | 累计时长     |
+| -------------- | ----- | ------------ | -------- |
+| Phase 1 诊断批次   | 4     | 1-2 小时       | 1-2 小时   |
+| Phase 2.1 结构消融 | 2     | 40-60 分钟     | 1.5-3 小时 |
+| Phase 2.2 组合测试 | 1     | 20-30 分钟     | 2-3.5 小时 |
+| **总计**         | **7** | **2-3.5 小时** | -        |
 
 **对比原配置** (未优化):
+
 - Phase 1: 8 小时
 - Phase 2: 6 小时
 - 总计: 14 小时
