@@ -27,6 +27,7 @@ Phase 0  前置准备 ──G0──> Phase 1 诊断批 ──G1──> [按病�
 - **同批同 seed**：同一批内所有 arm 用同一个 seed（当前配置 `seed=20260615`），相互之间才可比。
 - **外部基准**：Ridge 多窗口（`seed=20260603`，test N2 R2=0.7121 / extrapolation=0.7247）是固定参照，不与 DL 同 seed，只用于判断 DL 离正式主线还有多远。
 - **运行入口**（README 已记录，PowerShell 设 `$env:PYTHONPATH = "src"`）：
+  
   ```text
   python -m pipeline.run_experiment --config <配置路径> --dry-run   # 校验并打印计划
   python -m pipeline.run_experiment --config <配置路径>             # 实跑
@@ -34,13 +35,13 @@ Phase 0  前置准备 ──G0──> Phase 1 诊断批 ──G1──> [按病�
 
 ## 2. Phase 0：前置准备（开跑前必须完成）
 
-| 编号 | 任务 | 改动位置 | 类型 |
-|---|---|---|---|
-| P0.1 | 实现按方差加权的组分损失 | `src/dl/training/losses.py` | 新增代码 |
-| P0.2 | 构建手工特征 + 小 MLP 诊断模型 | `src/dl/models/` + 配置 | 新增代码 |
-| P0.3 | 确认逐 epoch 与 per-component 日志可用 | 验证现有 `metrics_live.jsonl` / summary CSV | 验证 |
-| P0.4 | 改写第一批配置为诊断批，旧 split/deep 移到 Phase 2 配置 | `configs/experiment/phase_window_tcn_ablation/` | 配置 |
-| P0.5 | 全部新配置 dry-run 通过 + 新 loss 单测通过 | — | 验证 |
+| 编号   | 任务                                     | 改动位置                                            | 类型   |
+| ---- | -------------------------------------- | ----------------------------------------------- | ---- |
+| P0.1 | 实现按方差加权的组分损失                           | `src/dl/training/losses.py`                     | 新增代码 |
+| P0.2 | 构建手工特征 + 小 MLP 诊断模型                    | `src/dl/models/` + 配置                           | 新增代码 |
+| P0.3 | 确认逐 epoch 与 per-component 日志可用         | 验证现有 `metrics_live.jsonl` / summary CSV         | 验证   |
+| P0.4 | 改写第一批配置为诊断批，旧 split/deep 移到 Phase 2 配置 | `configs/experiment/phase_window_tcn_ablation/` | 配置   |
+| P0.5 | 全部新配置 dry-run 通过 + 新 loss 单测通过         | —                                               | 验证   |
 
 ### P0.1 加权损失
 
@@ -50,6 +51,7 @@ Phase 0  前置准备 ──G0──> Phase 1 诊断批 ──G1──> [按病�
 - `weighted_free_component_mse`：只对 **3 个自由组分**做方差加权，N2 仍为残差（候选 A 的对照）。
 
 实现要点：
+
 - 走 `build_loss` 已支持的"字典 + 额外 kwargs"机制，配置写 `{"name": "weighted_component_mse", "weighting": "inverse_train_var"}`。
 - `weighting="inverse_train_var"` 时从训练集统计读组分方差；权重在构造时固定，不随 batch 变化。
 - 在 `validate_loss_model_output` 里补充：`weighted_component_mse` 要求 `output_mode='gas_head'`、`out_dim=4`。
@@ -73,6 +75,7 @@ loss = weighted_component_mse
 ### P0.3 日志确认
 
 确认每个 run 落盘以下内容（现有 `metrics_live.jsonl` 已逐 epoch 记录，summary CSV 已含 `x_n2_r2`）：
+
 - 逐 epoch 的 train/val loss（判断过拟合）
 - val/test/extrapolation 三 split 的 per-component R2 与 `x_n2_r2`
 - `sum_abs_error`、`macro RMSE`、overall R2
@@ -102,12 +105,12 @@ loss = weighted_component_mse
 
 ### 实验清单
 
-| 实验名 | loss | 关键改动 | 对应候选 |
-|---|---|---|---|
-| `phase_window_tcn_gas_free` | free_component_mse | 无（基线） | — |
-| `phase_window_tcn_gas_varweight` | weighted_component_mse | N2 被直接监督 + 方差加权 | A + B |
-| `phase_window_tcn_gas_free_varweight` | weighted_free_component_mse | 仅自由组分方差加权，N2 仍残差 | A |
-| `phase_window_tcn_handcraft_mlp` | weighted_component_mse | 手工特征 + 小 MLP | C |
+| 实验名                                   | loss                        | 关键改动             | 对应候选  |
+| ------------------------------------- | --------------------------- | ---------------- | ----- |
+| `phase_window_tcn_gas_free`           | free_component_mse          | 无（基线）            | —     |
+| `phase_window_tcn_gas_varweight`      | weighted_component_mse      | N2 被直接监督 + 方差加权  | A + B |
+| `phase_window_tcn_gas_free_varweight` | weighted_free_component_mse | 仅自由组分方差加权，N2 仍残差 | A     |
+| `phase_window_tcn_handcraft_mlp`      | weighted_component_mse      | 手工特征 + 小 MLP     | C     |
 
 ### 运行步骤
 
@@ -118,13 +121,13 @@ loss = weighted_component_mse
 
 ### 判读表（结果 → 病因 → 分流）
 
-| 现象 | 病因定位 | 分流动作 |
-|---|---|---|
-| `gas_varweight` 让 N2 达到 Tier 1+ | 损失尺度 + N2 监督（A+B） | 采用加权损失为新 DL 基线；是否进 Phase 2 取决于是否想进一步逼近 ML |
-| 仅 `gas_free_varweight` 改善、`gas_varweight` 更好 | 损失尺度为主，直接监督 N2 是关键 | 同上，确认 4 组分加权为默认 |
-| 只有 `handcraft_mlp` 达 Tier 1+ | 从原始波形学特征是瓶颈（C） | **跳过** Phase 2 原始波形 split/deep；转向特征注入混合模型，或接受 ML 主线 |
-| 四个 arm 的 N2 都 ≤ Tier 0 | 不在损失/监督/特征学习层 | 进入 Phase 2 结构消融 |
-| 任意 arm overall R2 上升但 N2 仍负 | 损失尺度被进一步确认 | 检查 per-component：是否大组分变好、N2 没动 |
+| 现象                                           | 病因定位               | 分流动作                                                |
+| -------------------------------------------- | ------------------ | --------------------------------------------------- |
+| `gas_varweight` 让 N2 达到 Tier 1+              | 损失尺度 + N2 监督（A+B）  | 采用加权损失为新 DL 基线；是否进 Phase 2 取决于是否想进一步逼近 ML           |
+| 仅 `gas_free_varweight` 改善、`gas_varweight` 更好 | 损失尺度为主，直接监督 N2 是关键 | 同上，确认 4 组分加权为默认                                     |
+| 只有 `handcraft_mlp` 达 Tier 1+                 | 从原始波形学特征是瓶颈（C）     | **跳过** Phase 2 原始波形 split/deep；转向特征注入混合模型，或接受 ML 主线 |
+| 四个 arm 的 N2 都 ≤ Tier 0                       | 不在损失/监督/特征学习层      | 进入 Phase 2 结构消融                                     |
+| 任意 arm overall R2 上升但 N2 仍负                  | 损失尺度被进一步确认         | 检查 per-component：是否大组分变好、N2 没动                      |
 
 ### 决策门 G1
 
@@ -138,11 +141,11 @@ loss = weighted_component_mse
 
 **固定正则口径**：training 块保持与 Phase 1 一致。若 Phase 1 的 train/val 曲线确认过拟合，先把 `tcn_dropout`、`weight_decay` 调强（如 dropout 0.25→0.4、weight_decay 1e-4→1e-3）作为统一基线，再做结构对比，避免把"加容量导致的过拟合"误读成"结构无效"。
 
-| 实验名 | 改动 | 说明 |
-|---|---|---|
-| `phase_window_tcn_gas_free_split` | `share_window_encoder=false` | encoder 参数 ×3，重点监控 val 是否更早过拟合 |
-| `phase_window_tcn_gas_free_deep` | `tcn_channels=[64,64,64,64,64]` | 已有 mean/max 全局池化，deep 是较弱变量 |
-| `phase_window_tcn_gas_free_split_deep` | split + deep | 仅当 split 或 deep 任一达 Tier 1+ 时跑（followup 配置） |
+| 实验名                                    | 改动                              | 说明                                          |
+| -------------------------------------- | ------------------------------- | ------------------------------------------- |
+| `phase_window_tcn_gas_free_split`      | `share_window_encoder=false`    | encoder 参数 ×3，重点监控 val 是否更早过拟合              |
+| `phase_window_tcn_gas_free_deep`       | `tcn_channels=[64,64,64,64,64]` | 已有 mean/max 全局池化，deep 是较弱变量                 |
+| `phase_window_tcn_gas_free_split_deep` | split + deep                    | 仅当 split 或 deep 任一达 Tier 1+ 时跑（followup 配置） |
 
 运行顺序：先跑 `split` 与 `deep`（同 seed），按 G2 决定是否跑 `split_deep`。
 
@@ -155,11 +158,11 @@ loss = weighted_component_mse
 
 **进入条件**：Phase 2 出现正信号但未达标。
 
-| 实验名 | 改动 | 目的 |
-|---|---|---|
-| `phase_window_tcn_gas_free_gated` | gated fusion | 窗口级自适应加权是否优于纯 concat |
-| `phase_window_tcn_gas_free_attn` | pooled 特征上的轻量 attention | 窗口交互是否有帮助 |
-| `phase_window_tcn_ilr` | `ilr_mse` + `target_transform='ilr_n2_first'` + `out_dim=3` 头 | 对数比目标是否缓解闭包残差（受限对照，不进正式主线） |
+| 实验名                               | 改动                                                            | 目的                         |
+| --------------------------------- | ------------------------------------------------------------- | -------------------------- |
+| `phase_window_tcn_gas_free_gated` | gated fusion                                                  | 窗口级自适应加权是否优于纯 concat       |
+| `phase_window_tcn_gas_free_attn`  | pooled 特征上的轻量 attention                                       | 窗口交互是否有帮助                  |
+| `phase_window_tcn_ilr`            | `ilr_mse` + `target_transform='ilr_n2_first'` + `out_dim=3` 头 | 对数比目标是否缓解闭包残差（受限对照，不进正式主线） |
 
 ### 决策门 G3
 
@@ -178,11 +181,11 @@ loss = weighted_component_mse
 
 ### 6.2 分层门槛（相对同 seed 的 `phase_window_tcn_gas_free` 基线）
 
-| 档位 | 条件 | 含义 |
-|---|---|---|
-| Tier 0（失败） | test 或 extrapolation N2 R2 ≤ 0 | 该 arm 无效 |
-| Tier 1（有信号） | 两 split N2 R2 均 > 0，且 < 0.3 | 病因/方向被确认，但 DL 大概率仍不及 ML |
-| Tier 2（强信号） | 两 split N2 R2 均 ≥ 0.3 | 值得继续推进到下一批 |
+| 档位          | 条件                             | 含义                      |
+| ----------- | ------------------------------ | ----------------------- |
+| Tier 0（失败）  | test 或 extrapolation N2 R2 ≤ 0 | 该 arm 无效                |
+| Tier 1（有信号） | 两 split N2 R2 均 > 0，且 < 0.3    | 病因/方向被确认，但 DL 大概率仍不及 ML |
+| Tier 2（强信号） | 两 split N2 R2 均 ≥ 0.3          | 值得继续推进到下一批              |
 
 > 门槛数值为建议值，可按需要调整。Ridge 已在 0.71/0.72，Tier 2 的 0.3 仍远低于 ML，跨过只代表方向成立，不代表 DL 可作正式主线。
 
@@ -254,14 +257,14 @@ Phase 1 诊断批
 
 ## 9. 风险与回退
 
-| 风险 | 表现 | 回退 |
-|---|---|---|
-| 加权损失实现错误 | 权重方向反了、N2 反而更差 | 先用单测 + 小规模 dry-run 验证权重数值 |
-| 方差加权数值不稳 | 大权重导致梯度不稳、训练发散 | 改用对数空间标准化或夹住权重上限，参照 SLAW 思路 |
-| handcraft_mlp 复用特征不一致 | 与 Ridge 特征口径不同导致结论失真 | 直接复用 `MLFeatureConfig`，核对特征维度与 Ridge 一致 |
-| 把不同 seed 结果混比 | 误判某 arm 有效/无效 | 严格同批同 seed；Ridge 仅作参照 |
-| 过拟合误读为结构无效 | split/deep 看似无效，实为过拟合 | 先固定并调强正则，再比结构 |
-| 改文件名/引用断裂 | README 等引用失效 | 方案文档文件名保持不变；新增本执行文档而非改名 |
+| 风险                    | 表现                    | 回退                                      |
+| --------------------- | --------------------- | --------------------------------------- |
+| 加权损失实现错误              | 权重方向反了、N2 反而更差        | 先用单测 + 小规模 dry-run 验证权重数值               |
+| 方差加权数值不稳              | 大权重导致梯度不稳、训练发散        | 改用对数空间标准化或夹住权重上限，参照 SLAW 思路             |
+| handcraft_mlp 复用特征不一致 | 与 Ridge 特征口径不同导致结论失真  | 直接复用 `MLFeatureConfig`，核对特征维度与 Ridge 一致 |
+| 把不同 seed 结果混比         | 误判某 arm 有效/无效         | 严格同批同 seed；Ridge 仅作参照                   |
+| 过拟合误读为结构无效            | split/deep 看似无效，实为过拟合 | 先固定并调强正则，再比结构                           |
+| 改文件名/引用断裂             | README 等引用失效          | 方案文档文件名保持不变；新增本执行文档而非改名                 |
 
 ---
 
