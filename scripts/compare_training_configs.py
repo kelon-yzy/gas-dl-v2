@@ -97,10 +97,10 @@ def compare_configs():
     # 测试命令
     print("快速测试命令 (使用 smoke dataset):")
     print()
-    print("python src/dl/cli.py \\")
+    print("python src/pipeline/run_experiment.py \\")
     print("  --config configs/experiment/phase_window_tcn_mvp/phase_window_tcn_mvp_optimized.json \\")
     print("  --dataset-dir data/wv4-smoke \\")
-    print("  --output-dir outputs/test_optimized")
+    print("  --output-root outputs")
     print()
     print("监控命令 (另一个终端):")
     print("nvidia-smi -l 1")
