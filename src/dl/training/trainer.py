@@ -233,7 +233,7 @@ class Trainer:
 
         return self.history
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def evaluate(
         self,
         data_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
@@ -286,7 +286,7 @@ class Trainer:
             "sum_abs_error": sum_abs_error,
         }
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def predict(
         self,
         data_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],

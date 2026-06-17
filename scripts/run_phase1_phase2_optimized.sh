@@ -1,18 +1,22 @@
 #!/bin/bash
-# PhaseWindowTCN 诊断与消融实验批量运行脚本
-# 优化配置：batch_size=32, num_workers=2, epochs=80, patience=10
-# 预计总时长：2.5-3.5 小时（优化前 14 小时）
+# PhaseWindowTCN Phase 1 诊断实验批量运行脚本
+# 只运行 Phase 1；Phase 2 必须在 G1 判读后手动触发。
+# 当前 OOM 修正版：batch_size=16, num_workers=2, epochs=80, patience=10
 
 set -e  # 遇到错误立即退出
 
+export PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}src"
+
 DATASET_DIR="data/wv4-formal-hitran-standard-6000"
 OUTPUT_ROOT="outputs"
+EXTRA_ARGS=("$@")
 
 echo "========================================"
-echo "PhaseWindowTCN 诊断与消融实验"
+echo "PhaseWindowTCN Phase 1 诊断实验"
 echo "========================================"
-echo "优化配置: batch=32, workers=2, epochs=80"
-echo "预计总时长: 2.5-3.5 小时"
+echo "入口: python -m pipeline.run_experiment"
+echo "配置: batch=16, workers=2, epochs=80"
+echo "说明: Phase 2 不会自动运行，需完成 G1 判读后手动触发"
 echo "========================================"
 echo ""
 
@@ -28,69 +32,26 @@ echo ""
 echo "开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
 echo ""
 
-python src/pipeline/run_experiment.py \
+python -m pipeline.run_experiment \
   --config configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation.json \
   --dataset-dir "$DATASET_DIR" \
-  --output-root "$OUTPUT_ROOT"
+  --output-root "$OUTPUT_ROOT" \
+  "${EXTRA_ARGS[@]}"
 
 echo ""
 echo "[Phase 1] 完成时间: $(date '+%Y-%m-%d %H:%M:%S')"
 echo ""
 echo "========================================"
-echo ""
-
-# ==========================================
-# Phase 2: 结构消融 (3 个实验)
-# ==========================================
-echo "[Phase 2] 结构消融实验"
-echo "实验数: 3"
-echo "预计时长: 1-1.5 小时"
-echo "----------------------------------------"
-echo ""
-
-# Phase 2.1: 分离编码器 vs 深层 TCN
-echo "[Phase 2.1] 分离编码器 vs 深层 TCN (2 runs)"
-echo "开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
-echo ""
-
-python src/pipeline/run_experiment.py \
-  --config configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation_structure.json \
-  --dataset-dir "$DATASET_DIR" \
-  --output-root "$OUTPUT_ROOT"
-
-echo ""
-echo "[Phase 2.1] 完成时间: $(date '+%Y-%m-%d %H:%M:%S')"
-echo ""
-
-# Phase 2.2: 组合消融（分离 + 深层）
-echo "[Phase 2.2] 组合消融 - 分离编码器 + 深层 TCN (1 run)"
-echo "开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
-echo ""
-
-python src/pipeline/run_experiment.py \
-  --config configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation_followup.json \
-  --dataset-dir "$DATASET_DIR" \
-  --output-root "$OUTPUT_ROOT"
-
-echo ""
-echo "[Phase 2.2] 完成时间: $(date '+%Y-%m-%d %H:%M:%S')"
-echo ""
-
-# ==========================================
-# 完成总结
-# ==========================================
-echo "========================================"
-echo "所有实验完成"
-echo "========================================"
-echo "总完成时间: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "Phase 1 已完成，当前停在 G1 决策门"
 echo ""
 echo "结果位置: $OUTPUT_ROOT/runs/"
-echo ""
-echo "Phase 1 输出目录:"
 echo "  - $OUTPUT_ROOT/runs/phase_window_tcn_ablation/"
+echo "汇总: $OUTPUT_ROOT/summary/phase_window_tcn_ablation_summary.csv"
+echo "报告: $OUTPUT_ROOT/reports/phase_window_tcn_ablation.md"
 echo ""
-echo "Phase 2 输出目录:"
-echo "  - $OUTPUT_ROOT/runs/phase_window_tcn_ablation_structure/"
-echo "  - $OUTPUT_ROOT/runs/phase_window_tcn_ablation_followup/"
+echo "请按 docs/PhaseWindowTCN实验执行与验收流程.md 的 G1 规则判读。"
+echo "仅当 G1 判定进入 Phase 2 时，再手动运行："
+echo "  bash scripts/run_phase1_phase2_commands.sh phase2-structure"
+echo "  bash scripts/run_phase1_phase2_commands.sh phase2-followup"
 echo ""
 echo "========================================"

@@ -593,6 +593,7 @@ def _apply_performance_settings(performance: dict[str, Any], device: torch.devic
     # benchmark/TF32 是全局 CUDA backend 开关，CPU 设备下静默跳过。
     if device.type != "cuda":
         return
+    torch.set_float32_matmul_precision("high" if performance["tf32"] else "highest")
     torch.backends.cuda.matmul.allow_tf32 = bool(performance["tf32"])
     torch.backends.cudnn.allow_tf32 = bool(performance["tf32"])
     torch.backends.cudnn.benchmark = bool(performance["cudnn_benchmark"])

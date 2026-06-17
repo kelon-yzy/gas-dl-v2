@@ -151,7 +151,7 @@ def test_phase_window_tcn_improvement_config_plans_gas_head_runs():
 
     result = run(config, dry_run=True)
 
-    assert config.training["lr"] == 0.0001
+    assert config.training["lr"] == 0.00015
     assert config.training["batch_size"] == 16
     assert config.training["performance"] == {
         "cudnn_benchmark": True,

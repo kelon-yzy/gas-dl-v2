@@ -623,6 +623,7 @@ class TestPerformanceConfig:
             torch.backends.cuda.matmul.allow_tf32,
             torch.backends.cudnn.allow_tf32,
             torch.backends.cudnn.benchmark,
+            torch.get_float32_matmul_precision(),
         )
         enabled = {"cudnn_benchmark": True, "tf32": True, "compile": False, "compile_mode": "default"}
         disabled = {"cudnn_benchmark": False, "tf32": False, "compile": False, "compile_mode": "default"}
@@ -632,12 +633,15 @@ class TestPerformanceConfig:
             assert torch.backends.cuda.matmul.allow_tf32 is True
             assert torch.backends.cudnn.allow_tf32 is True
             assert torch.backends.cudnn.benchmark is True
+            assert torch.get_float32_matmul_precision() == "high"
 
             dl_cli._apply_performance_settings(disabled, torch.device("cuda"))
             assert torch.backends.cuda.matmul.allow_tf32 is False
             assert torch.backends.cudnn.allow_tf32 is False
             assert torch.backends.cudnn.benchmark is False
+            assert torch.get_float32_matmul_precision() == "highest"
         finally:
             torch.backends.cuda.matmul.allow_tf32 = original[0]
             torch.backends.cudnn.allow_tf32 = original[1]
             torch.backends.cudnn.benchmark = original[2]
+            torch.set_float32_matmul_precision(original[3])

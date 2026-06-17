@@ -1,110 +1,43 @@
-"""对比原配置和优化配置的关键参数与预期效果。"""
-
-import json
-from pathlib import Path
+"""Print the current PhaseWindowTCN training baseline and candidate sweeps."""
 
 
-def load_config(path: Path) -> dict:
-    """加载配置文件。"""
-    with open(path) as f:
-        return json.load(f)
-
-
-def compare_configs():
-    """对比两个配置。"""
-    base_dir = Path("configs/experiment/phase_window_tcn_mvp")
-    original = load_config(base_dir / "phase_window_tcn_mvp.json")
-    optimized = load_config(base_dir / "phase_window_tcn_mvp_optimized.json")
-
+def compare_configs() -> None:
     print("=" * 80)
-    print("训练配置对比：原配置 vs 优化配置")
+    print("PhaseWindowTCN 训练配置：当前基线与候选加速")
     print("=" * 80)
     print()
-
-    # 训练参数对比
-    params = [
-        ("实验名称", "experiment_name"),
-        ("最大 Epochs", "training.epochs"),
-        ("Batch Size", "training.batch_size"),
-        ("Num Workers", "training.num_workers"),
-        ("Pin Memory", "training.pin_memory"),
-        ("Persistent Workers", "training.persistent_workers"),
-        ("Prefetch Factor", "training.prefetch_factor"),
-        ("学习率", "training.lr"),
-        ("Weight Decay", "training.weight_decay"),
-        ("Early Stop Patience", "training.early_stopping.patience"),
-    ]
-
-    print(f"{'参数':<30} {'原配置':<25} {'优化配置':<25}")
-    print("-" * 80)
-
-    for name, path in params:
-        orig_val = original
-        opt_val = optimized
-        for key in path.split("."):
-            orig_val = orig_val.get(key, "N/A")
-            opt_val = opt_val.get(key, "N/A")
-
-        # 高亮变化
-        marker = " *" if orig_val != opt_val else ""
-        print(f"{name:<30} {str(orig_val):<25} {str(opt_val):<25}{marker}")
-
+    print("目标服务器:")
+    print("  GPU: NVIDIA RTX5880, 48 GiB")
+    print("  CPU: AMD vCPU, 32 核")
+    print("  RAM: 64 GB")
     print()
-    print("=" * 80)
+    print("当前正式基线:")
+    print("  batch_size: 16")
+    print("  num_workers: 2")
+    print("  persistent_workers: false")
+    print("  lr: 0.00015")
+    print("  epochs: 80")
+    print("  early_stopping.patience: 10")
+    print("  amp: enabled, float16")
+    print("  performance: tf32=true, cudnn_benchmark=true, compile=false")
     print()
-
-    # 预期效果
-    print("预期效果分析：")
+    print("候选实测顺序:")
+    print("  1. 记录当前基线 epoch_seconds / samples/s / 显存 / N2 R2")
+    print("  2. worker sweep: num_workers=0/2/4/8")
+    print("  3. 单 run 测 torch.compile(mode='reduce-overhead')")
+    print("  4. batch sweep: 20 -> 24 -> 32")
     print()
-
-    # 计算理论加速比
-    orig_batch = original["training"]["batch_size"]
-    opt_batch = optimized["training"]["batch_size"]
-    batch_speedup = opt_batch / orig_batch
-
-    orig_epochs = original["training"]["epochs"]
-    opt_epochs = optimized["training"]["epochs"]
-
-    orig_patience = original["training"]["early_stopping"]["patience"]
-    opt_patience = optimized["training"]["early_stopping"]["patience"]
-
-    print(f"1. GPU 利用率")
-    print(f"   Batch size 提升: {orig_batch} → {opt_batch} ({batch_speedup:.1f}×)")
-    print(f"   理论吞吐量: 17.6 samples/s → {17.6 * batch_speedup * 0.7:.1f} samples/s (估算)")
+    print("注意:")
+    print("  batch=32 在旧 24 GiB 环境 OOM；48 GiB 服务器可重测，但不能直接转正。")
+    print("  只有速度、显存、val_loss、test/extrapolation x_N2 R2 全部通过，才更新正式配置。")
     print()
-
-    print(f"2. 显存占用")
-    print(f"   Num workers: {original['training']['num_workers']} → {optimized['training']['num_workers']}")
-    print(f"   Persistent workers: {original['training']['persistent_workers']} → {optimized['training']['persistent_workers']}")
-    print(f"   预期显存: 17GB → 6-8GB (降低 ~60%)")
-    print()
-
-    print(f"3. 训练时长")
-    print(f"   每 epoch 预期: 248s → 60-80s (加速 3-4×)")
-    print(f"   Early stop patience: {orig_patience} → {opt_patience}")
-    print(f"   MVP best_epoch=4, 预计停止: ~12-15 epochs")
-    print(f"   完整训练: ~2 小时 → ~15-25 分钟 (加速 5-8×)")
-    print()
-
-    print(f"4. Phase 1 诊断批次 (3 个实验)")
-    print(f"   原配置: ~6 小时")
-    print(f"   优化后: ~1-1.5 小时")
-    print()
-
-    print("=" * 80)
-    print()
-
-    # 测试命令
-    print("快速测试命令 (使用 smoke dataset):")
-    print()
-    print("python src/pipeline/run_experiment.py \\")
-    print("  --config configs/experiment/phase_window_tcn_mvp/phase_window_tcn_mvp_optimized.json \\")
-    print("  --dataset-dir data/wv4-smoke \\")
+    print("运行当前基线:")
+    print("PYTHONPATH=src python -m pipeline.run_experiment \\")
+    print("  --config configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation.json \\")
+    print("  --dataset-dir data/wv4-formal-hitran-standard-6000 \\")
     print("  --output-root outputs")
     print()
-    print("监控命令 (另一个终端):")
-    print("nvidia-smi -l 1")
-    print()
+    print("详细方案: docs/训练配置优化方案.md")
     print("=" * 80)
 
 
