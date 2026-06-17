@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "recallloom": {
+      "source": "Frappucc1no/recall-loom",
+      "sourceType": "github",
+      "skillPath": "skills/recallloom/SKILL.md",
+      "computedHash": "a75b050d04b3ce6e7b16cee8634c2a6586aaee021c5c525a1050d062f07c9ce4"
+    }
+  }
+}
