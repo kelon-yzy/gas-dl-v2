@@ -43,6 +43,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "pin_memory": False,
     "persistent_workers": False,
     "prefetch_factor": None,
+    "drop_last": False,
     "seed": 42,
     "device": "cpu",
     "loss": "mse",
@@ -185,6 +186,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         pin_memory=args.pin_memory,
         persistent_workers=args.persistent_workers,
         prefetch_factor=args.prefetch_factor,
+        drop_last=args.drop_last,
     )
     val_loader = _optional_loader(
         args.dataset_dir,
@@ -284,6 +286,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "pin_memory": args.pin_memory,
         "persistent_workers": args.persistent_workers,
         "prefetch_factor": args.prefetch_factor,
+        "drop_last": args.drop_last,
         "amp": args.amp,
         "performance": args.performance,
         "loss": args.loss,
@@ -341,6 +344,7 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
             raise ValueError(f"phase_windows must be a JSON array string: {exc}") from exc
     if config.get("prefetch_factor") is not None:
         config["prefetch_factor"] = int(config["prefetch_factor"])
+    config["drop_last"] = bool(config.get("drop_last", False))
     if isinstance(config.get("eval_splits"), list):
         config["eval_splits"] = ",".join(str(item) for item in config["eval_splits"])
     if isinstance(config.get("modalities"), list):
@@ -715,6 +719,7 @@ def _build_loader(
     pin_memory: bool,
     persistent_workers: bool,
     prefetch_factor: int | None,
+    drop_last: bool = False,
 ) -> DataLoader:
     generator = torch.Generator()
     generator.manual_seed(seed)
@@ -724,6 +729,7 @@ def _build_loader(
         "num_workers": num_workers,
         "generator": generator if shuffle else None,
         "pin_memory": pin_memory,
+        "drop_last": drop_last,
     }
     if num_workers > 0:
         kwargs["persistent_workers"] = persistent_workers
@@ -835,6 +841,7 @@ def _run_config_payload(
         "pin_memory": args.pin_memory,
         "persistent_workers": args.persistent_workers,
         "prefetch_factor": args.prefetch_factor,
+        "drop_last": args.drop_last,
         "seed": args.seed,
         "device": args.device,
         "loss": args.loss,

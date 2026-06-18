@@ -163,6 +163,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         pin_memory=training.get("pin_memory"),
         persistent_workers=training.get("persistent_workers"),
         prefetch_factor=training.get("prefetch_factor"),
+        drop_last=training.get("drop_last"),
         seed=config.seed,
         device=config.device,
         loss=run_config.get("loss", training["loss"]),
