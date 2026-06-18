@@ -6,46 +6,6 @@
       "lease_type": "recallloom.preflight_write_binding_lease",
       "lease_version": "0.1",
       "issued_by": "recallloom.py",
-      "issued_at": "2026-06-12T13:18:50+08:00",
-      "binding_hash": "sha256:9eb98d805b707d56a3eaf5778c965ccd5d118076f616436ac845d6738ee6113d",
-      "preflight_payload_digest": "sha256:1c43dd52f61c36885aa0d8a7c910adcbcb8748914d32ffbcee947283e17f9203",
-      "operation_class": "daily_log_append",
-      "file_key": "daily_log",
-      "write_type": "milestone_evidence",
-      "contract_type": null,
-      "expected_workspace_revision": 111,
-      "expected_file_revision": null,
-      "preflight_contract_identity": {
-        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
-        "contract_name": "recallloom.provenance_core",
-        "contract_version": "0.4.2-mvp.2"
-      },
-      "lease_digest": "sha256:8f9101a812c11c1557bf24428b09e9a3c12d25adf00b8b8e6df7dd68e4895eef"
-    },
-    {
-      "lease_type": "recallloom.preflight_write_binding_lease",
-      "lease_version": "0.1",
-      "issued_by": "recallloom.py",
-      "issued_at": "2026-06-12T13:19:08+08:00",
-      "binding_hash": "sha256:9eb98d805b707d56a3eaf5778c965ccd5d118076f616436ac845d6738ee6113d",
-      "preflight_payload_digest": "sha256:1c43dd52f61c36885aa0d8a7c910adcbcb8748914d32ffbcee947283e17f9203",
-      "operation_class": "daily_log_append",
-      "file_key": "daily_log",
-      "write_type": "milestone_evidence",
-      "contract_type": null,
-      "expected_workspace_revision": 111,
-      "expected_file_revision": null,
-      "preflight_contract_identity": {
-        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
-        "contract_name": "recallloom.provenance_core",
-        "contract_version": "0.4.2-mvp.2"
-      },
-      "lease_digest": "sha256:b4a4d0a25e3946866e9ae7e701c02f7146890b385dbb489d77e516954e4f93d9"
-    },
-    {
-      "lease_type": "recallloom.preflight_write_binding_lease",
-      "lease_version": "0.1",
-      "issued_by": "recallloom.py",
       "issued_at": "2026-06-12T13:19:53+08:00",
       "binding_hash": "sha256:631f53c222f5c1655db529a2b2ec9e22d289c4af3138f0bb4309221cf3ed7a64",
       "preflight_payload_digest": "sha256:4f42e4278da80387f8c32250bf9462060e16da49c7cb86aa2dff3156b6b85dfd",
@@ -961,6 +921,46 @@
         "contract_version": "0.4.2-mvp.2"
       },
       "lease_digest": "sha256:342d567eec11b87258b0b0aa6a5c38841a375375e9805ca01d8b5ae6387a7517"
+    },
+    {
+      "lease_type": "recallloom.preflight_write_binding_lease",
+      "lease_version": "0.1",
+      "issued_by": "recallloom.py",
+      "issued_at": "2026-06-18T15:31:55+08:00",
+      "binding_hash": "sha256:5da217cae806b58c8f4b80f3244e8366d6060b04bd70c27d74d2761b3143ac2d",
+      "preflight_payload_digest": "sha256:238ee3f9b8253e7a68b9b46e69d4c13fd51c03126f0053dc21bfddb926053f64",
+      "operation_class": "managed_file_commit",
+      "file_key": "rolling_summary",
+      "write_type": "current-state",
+      "contract_type": null,
+      "expected_workspace_revision": 139,
+      "expected_file_revision": 70,
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "lease_digest": "sha256:d98d9449fae4808fff6b780c57928d2d8639789a6cb00f6232709883f96fa62b"
+    },
+    {
+      "lease_type": "recallloom.preflight_write_binding_lease",
+      "lease_version": "0.1",
+      "issued_by": "recallloom.py",
+      "issued_at": "2026-06-18T15:32:02+08:00",
+      "binding_hash": "sha256:6c554b60304ed6ebad4b4bc0c09830e417f489e730df06e336480e2f09a3e2cc",
+      "preflight_payload_digest": "sha256:67e97d8cfb16c177be2ab7aca6ad67ddbed93695d1000abf8314a570edf266d8",
+      "operation_class": "daily_log_append",
+      "file_key": "daily_log",
+      "write_type": "milestone_evidence",
+      "contract_type": null,
+      "expected_workspace_revision": 140,
+      "expected_file_revision": null,
+      "preflight_contract_identity": {
+        "contract_hash": "sha256:48dfffb1deaa3d8421c93b22fa9af727658efc1bf9e153e52c18713b6411b0ba",
+        "contract_name": "recallloom.provenance_core",
+        "contract_version": "0.4.2-mvp.2"
+      },
+      "lease_digest": "sha256:e3affa0c17f4126c4241496457b788ab3f1ee4d617bc88b37675fbeeecd77c9e"
     }
   ]
 }
