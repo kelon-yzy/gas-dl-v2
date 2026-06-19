@@ -33,3 +33,25 @@
 ## 第一阶段约束
 
 第一阶段先固定核心契约，不整仓复制 V3 历史代码。可复用逻辑必须在迁移时显式去除旧主键语义和临时产物命名。
+
+## RecallLoom 写入规约
+
+写入 `.recallloom/` sidecar（rolling_summary、daily_logs、context_brief、update_protocol）必须遵守以下两条，否则 helper 写入会失败，被迫手写会写坏 marker。
+
+### 1. 调用统一带 PYTHONUTF8=1
+
+RecallLoom helper 输出含 emoji（✅ ▶️ 🔥 等），Windows 控制台默认 GBK 编码会崩在 `UnicodeEncodeError`，且 helper 会把这个崩溃误报成 `damaged_sidecar`。所有 RecallLoom 调用前缀 `PYTHONUTF8=1`：
+
+```
+PYTHONUTF8=1 python <recallloom>/recallloom.py status . --json
+```
+
+### 2. section 正文避免“中文字符紧跟斜杠再接字母数字”
+
+helper 的 attached-text 安全扫描会把这种写法误判成 `absolute_path_dump`（绝对路径转储）而拒绝写入。精确触发条件：一个斜杠，前面是中文字符（或空格、标点），后面紧跟字母数字段。
+
+- 触发误报：中文词后直接用裸斜杠连英文或数字 token（例如把“线性”和“N2”裸斜杠连写）。
+- 安全写法：斜杠两侧加空格（`线性 / N2`），或改用顿号 `线性、N2`、连字符 `线性-N2`、或“与”。
+- 不受影响：纯字母数字之间的斜杠，如 `H2/CH4/CO2`、`val/test`、`free_component_mse/weighted`——斜杠前是字母或数字，不触发。
+
+只有“中文 + 斜杠 + 字母数字”这一种组合需要规避，其余斜杠写法照常使用。
