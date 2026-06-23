@@ -173,7 +173,7 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
         write_csv(staging_dir / "sequences" / "slow_sequence_long.csv", SLOW_SEQUENCE_FIELDS, arrays["slow_rows"])
         for split_name in SPLIT_NAMES:
             write_csv(staging_dir / "splits" / f"{split_name}.csv", SPLIT_FIELDS, split_rows[split_name])
-        write_json(staging_dir / "splits" / "split_summary.json", _split_summary(split_rows))
+        write_json(staging_dir / "splits" / "split_summary.json", _split_summary(split_rows, conditions))
         train_sequence_ids = {row["sequence_id"] for row in split_rows["train"]}
         train_indexes = [index for index, sequence_id in enumerate(sequence_ids) if sequence_id in train_sequence_ids]
         slow_scaler, slow_modal_scaler = fit_z_score_scalers(
@@ -278,8 +278,19 @@ def _label_array(conditions: list[dict[str, str]]) -> np.ndarray:
     return np.array([[float(row[name]) for name in COMPONENT_FIELDS] for row in conditions], dtype=np.float32)
 
 
-def _split_summary(split_rows: dict[str, list[dict[str, str]]]) -> dict[str, object]:
-    return {
+def _split_summary(
+    split_rows: dict[str, list[dict[str, str]]],
+    conditions: list[dict[str, str]] | None = None,
+) -> dict[str, object]:
+    """Build split summary with per-split component statistics and distribution checks.
+
+    When ``conditions`` is provided, each split entry includes ``components``
+    with per-field mean / std / min / p25 / p50 / p75 / max, and a top-level
+    ``distribution_checks`` block runs KS tests between train and every other
+    split.  When ``conditions`` is *None* the legacy minimal summary is returned
+    (backward-compatible path).
+    """
+    summary: dict[str, object] = {
         "split_policy": "stratified_mixture_id_group_split_v4",
         "group_field": "mixture_id",
         "splits": {
@@ -290,6 +301,89 @@ def _split_summary(split_rows: dict[str, list[dict[str, str]]]) -> dict[str, obj
             for name, rows in split_rows.items()
         },
     }
+    if conditions is None:
+        return summary
+
+    # Build sequence_id → component-values lookup.
+    seq_to_components: dict[str, list[float]] = {
+        row["sequence_id"]: [float(row[name]) for name in COMPONENT_FIELDS]
+        for row in conditions
+    }
+
+    # Per-split component statistics.
+    splits_dict: dict[str, dict[str, object]] = {}
+    for split_name, rows in split_rows.items():
+        entry: dict[str, object] = {
+            "sequence_count": len(rows),
+            "mixture_count": len({row["mixture_id"] for row in rows}),
+        }
+        # Gather component values for every sequence in this split.
+        component_cols: list[list[float]] = []
+        for row in rows:
+            sid = row["sequence_id"]
+            if sid in seq_to_components:
+                component_cols.append(seq_to_components[sid])
+        if component_cols:
+            arr = np.array(component_cols, dtype=np.float64)
+            comp_stats: dict[str, dict[str, float]] = {}
+            for col_idx, field in enumerate(COMPONENT_FIELDS):
+                col = arr[:, col_idx]
+                comp_stats[field] = {
+                    "mean": float(np.mean(col)),
+                    "std": float(np.std(col, ddof=0)),
+                    "min": float(np.min(col)),
+                    "p25": float(np.percentile(col, 25)),
+                    "p50": float(np.median(col)),
+                    "p75": float(np.percentile(col, 75)),
+                    "max": float(np.max(col)),
+                }
+            entry["components"] = comp_stats
+        splits_dict[split_name] = entry
+
+    summary["splits"] = splits_dict  # type: ignore[assignment]
+
+    # KS tests: train vs each non-train split.
+    train_rows = split_rows.get("train", [])
+    train_values: list[list[float]] = [
+        seq_to_components[r["sequence_id"]]
+        for r in train_rows
+        if r["sequence_id"] in seq_to_components
+    ]
+    if not train_values:
+        return summary
+
+    train_arr = np.array(train_values, dtype=np.float64)
+    from scipy.stats import ks_2samp
+
+    dist_checks: dict[str, dict[str, object]] = {}
+    for other in SPLIT_NAMES:
+        if other == "train":
+            continue
+        other_rows = split_rows.get(other, [])
+        other_values = [
+            seq_to_components[r["sequence_id"]]
+            for r in other_rows
+            if r["sequence_id"] in seq_to_components
+        ]
+        if not other_values:
+            continue
+        other_arr = np.array(other_values, dtype=np.float64)
+        ks_results: dict[str, dict[str, float]] = {}
+        has_warning = False
+        for col_idx, field in enumerate(COMPONENT_FIELDS):
+            stat, pval = ks_2samp(train_arr[:, col_idx], other_arr[:, col_idx])
+            ks_results[field] = {"statistic": float(stat), "p_value": float(pval)}
+            if pval < 0.05:
+                has_warning = True
+        dist_checks[f"{other}_vs_train"] = {
+            "status": "warn" if has_warning else "pass",
+            "ks_tests": ks_results,
+        }
+
+    if dist_checks:
+        summary["distribution_checks"] = dist_checks
+
+    return summary
 
 
 def default_worker_count(sequence_count: int | None = None) -> int:

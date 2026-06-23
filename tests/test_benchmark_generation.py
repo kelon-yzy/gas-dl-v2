@@ -61,6 +61,79 @@ def test_generate_benchmark_dataset_writes_v4_assets(tmp_path):
     assert split_sequence_ids == {row["sequence_id"] for row in condition_rows}
 
 
+def test_split_summary_contains_component_stats(tmp_path):
+    summary = generate_benchmark_dataset(
+        tmp_path,
+        BenchmarkGenerationSpec(dataset_slug="wv4-split-stats", sequence_count=16, seed=7, optical_absorption_backend="empirical_v1"),
+    )
+    split_summary = json.loads((tmp_path / "wv4-split-stats" / "splits" / "split_summary.json").read_text(encoding="utf-8"))
+
+    # 每个 split 应有 components
+    for split_name in ("train", "val", "test", "extrapolation"):
+        split_entry = split_summary["splits"][split_name]
+        assert "components" in split_entry, f"{split_name} missing components"
+        comps = split_entry["components"]
+        for field in ("x_H2", "x_CH4", "x_CO2", "x_N2"):
+            assert field in comps, f"{split_name}/{field} missing"
+            stats = comps[field]
+            for key in ("mean", "std", "min", "max", "p25", "p50", "p75"):
+                assert key in stats, f"{split_name}/{field}/{key} missing"
+                assert isinstance(stats[key], (int, float)), f"{split_name}/{field}/{key} not numeric"
+
+    train_h2 = split_summary["splits"]["train"]["components"]["x_H2"]
+    # H2 双峰映射范围 [0, 30]，验证边界和有限性
+    assert train_h2["min"] >= 0.0
+    assert train_h2["max"] <= 30.0
+    assert train_h2["mean"] >= train_h2["min"]
+    assert train_h2["mean"] <= train_h2["max"]
+    assert train_h2["std"] > 0.0  # H2 为双峰分布，必有方差
+    assert train_h2["p25"] <= train_h2["p50"] <= train_h2["p75"]
+
+
+def test_split_summary_distribution_checks_pass(tmp_path):
+    generate_benchmark_dataset(
+        tmp_path,
+        BenchmarkGenerationSpec(dataset_slug="wv4-dist-check", sequence_count=200, seed=13, optical_absorption_backend="empirical_v1"),
+    )
+    split_summary = json.loads((tmp_path / "wv4-dist-check" / "splits" / "split_summary.json").read_text(encoding="utf-8"))
+
+    assert "distribution_checks" in split_summary, "distribution_checks key missing"
+    checks = split_summary["distribution_checks"]
+
+    # 应有 val_vs_train / test_vs_train / extrapolation_vs_train
+    for check_key in ("val_vs_train", "test_vs_train", "extrapolation_vs_train"):
+        assert check_key in checks, f"{check_key} missing"
+        entry = checks[check_key]
+        assert "status" in entry, f"{check_key} missing status"
+        assert "ks_tests" in entry, f"{check_key} missing ks_tests"
+        # 随机分箱不应产生显著分布偏移，预期 pass
+        assert entry["status"] == "pass", f"{check_key} status={entry['status']} — unexpected distribution shift"
+
+        ks = entry["ks_tests"]
+        for field in ("x_H2", "x_CH4", "x_CO2", "x_N2"):
+            assert field in ks, f"{check_key}/{field} missing"
+            assert "statistic" in ks[field], f"{check_key}/{field} missing statistic"
+            assert "p_value" in ks[field], f"{check_key}/{field} missing p_value"
+            assert ks[field]["p_value"] >= 0.05, f"{check_key}/{field} p={ks[field]['p_value']} < 0.05"
+
+
+def test_split_summary_backward_compatible_without_conditions(tmp_path):
+    """调用 _split_summary(split_rows) 不带 conditions 应返回最小摘要。"""
+    split_rows = {
+        "train": [{"sequence_id": "Q1", "mixture_id": "M1"}],
+        "val": [{"sequence_id": "Q2", "mixture_id": "M2"}],
+        "test": [{"sequence_id": "Q3", "mixture_id": "M3"}],
+        "extrapolation": [{"sequence_id": "Q4", "mixture_id": "M4"}],
+    }
+    result = benchmark_module._split_summary(split_rows)
+
+    assert "split_policy" in result
+    assert "group_field" in result
+    assert "splits" in result
+    assert "components" not in result["splits"]["train"]
+    assert "distribution_checks" not in result
+
+
 def test_generated_condition_rows_have_component_sum_100(tmp_path):
     generate_benchmark_dataset(
         tmp_path,
