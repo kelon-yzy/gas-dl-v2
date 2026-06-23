@@ -173,9 +173,31 @@ def test_weighted_mse_requires_gas_head_output():
     )
     with pytest.raises(ValueError, match="output_mode='gas_head'"):
         validate_loss_model_output(
-            WEIGHTED_COMPONENT_MSE_LOSS,
+            WEIGHTED_FREE_COMPONENT_MSE_LOSS,
             model_name="phase_window_tcn",
             model_kwargs={"output_mode": "raw4"},
+        )
+
+
+def test_weighted_component_mse_allows_non_gas_head():
+    # weighted_component_mse 监督全 4 列，与 head 无关，phase_window_tcn 上应放开 raw4 / softmax100 / gas_head。
+    for output_mode in ("raw4", "softmax100", "gas_head"):
+        validate_loss_model_output(
+            WEIGHTED_COMPONENT_MSE_LOSS,
+            model_name="phase_window_tcn",
+            model_kwargs={"output_mode": output_mode, "out_dim": 4},
+        )
+    with pytest.raises(ValueError, match="out_dim=4"):
+        validate_loss_model_output(
+            WEIGHTED_COMPONENT_MSE_LOSS,
+            model_name="phase_window_tcn",
+            model_kwargs={"output_mode": "raw4", "out_dim": 3},
+        )
+    with pytest.raises(ValueError, match="output_mode"):
+        validate_loss_model_output(
+            WEIGHTED_COMPONENT_MSE_LOSS,
+            model_name="phase_window_tcn",
+            model_kwargs={"output_mode": "unknown"},
         )
 
 

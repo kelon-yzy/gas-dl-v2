@@ -579,6 +579,48 @@ class TestTrainerControl:
 
         assert len(history.epochs) == 1
 
+    def test_grad_clip_norm_zero_does_not_clip(self):
+        """grad_clip_norm=0.0 时不裁剪，训练正常完成。"""
+        model = nn.Linear(1, 4)
+        loss_fn = nn.MSELoss()
+        optimizer = build_optimizer(model, {"name": "sgd", "lr": 0.01})
+        trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn)
+        loader = DataLoader(TensorDataset(torch.ones(4, 1), torch.ones(4, 4)), batch_size=2)
+        history = trainer.fit(loader, epochs=1, grad_clip_norm=0.0)
+        assert len(history.epochs) == 1
+
+    def test_grad_clip_norm_positive_clips_and_completes(self):
+        """grad_clip_norm>0 时训练正常完成。"""
+        model = nn.Linear(1, 4)
+        loss_fn = nn.MSELoss()
+        optimizer = build_optimizer(model, {"name": "sgd", "lr": 0.01})
+        trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn)
+        loader = DataLoader(TensorDataset(torch.ones(4, 1), torch.ones(4, 4)), batch_size=2)
+        history = trainer.fit(loader, epochs=1, grad_clip_norm=1.0)
+        assert len(history.epochs) == 1
+
+    def test_weight_init_breaks_symmetry(self):
+        """两个相同结构的模型，初始化后权重应不同（打破对称性）。"""
+        model1 = nn.Linear(4, 4)
+        model2 = nn.Linear(4, 4)
+        assert not torch.allclose(model1.weight, model2.weight)
+
+    def test_weight_init_produces_finite_values(self):
+        """初始化后所有权重和偏置为有限值。"""
+        from dl.models.registry import build_model
+        model = build_model(
+            {
+                "name": "cnn1d",
+                "in_channels": 8,
+                "out_dim": 4,
+                "hidden_channels": [4],
+                "kernel_size": 3,
+                "dropout": 0.0,
+            }
+        )
+        for name, param in model.named_parameters():
+            assert torch.isfinite(param).all(), f"Non-finite values in {name}"
+
 
 class TestPerformanceConfig:
     def test_defaults_all_disabled(self):
