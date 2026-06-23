@@ -413,8 +413,8 @@ def _validate_run_args(args: argparse.Namespace) -> None:
         parser.error(f"weight-decay must be >= 0, got {args.weight_decay}")
     if args.grad_clip_norm < 0.0:
         parser.error(f"grad-clip-norm must be >= 0, got {args.grad_clip_norm}")
-    if args.scheduler["name"] not in {"none", "reduce_on_plateau"}:
-        parser.error("scheduler.name must be one of ['none', 'reduce_on_plateau']")
+    if args.scheduler["name"] not in {"none", "reduce_on_plateau", "cosine_annealing"}:
+        parser.error("scheduler.name must be one of ['none', 'reduce_on_plateau', 'cosine_annealing']")
     try:
         resolve_window_config(args.window)
         _resolve_phase_windows(args.phase_windows)
