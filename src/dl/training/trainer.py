@@ -135,6 +135,7 @@ class Trainer:
         epoch_callback: Callable[[EpochMetrics, TrainHistory, int], None] | None = None,
         amp: AmpConfig | None = None,
         non_blocking: bool = False,
+        grad_clip_norm: float = 0.0,
     ) -> TrainHistory:
         early_stopping = early_stopping or EarlyStoppingConfig(enabled=False)
         amp = amp or AmpConfig(enabled=False)
@@ -169,12 +170,17 @@ class Trainer:
                         pred = self.model(xb)
                         loss = self.loss_fn(pred, self._loss_targets(yb))
                     scaler.scale(loss).backward()
+                    if grad_clip_norm > 0.0:
+                        scaler.unscale_(self.optimizer)
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), grad_clip_norm)
                     scaler.step(self.optimizer)
                     scaler.update()
                 else:
                     pred = self.model(xb)
                     loss = self.loss_fn(pred, self._loss_targets(yb))
                     loss.backward()
+                    if grad_clip_norm > 0.0:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), grad_clip_norm)
                     self.optimizer.step()
                 loss_accum += loss.detach().double()
                 n_batches += 1
@@ -244,7 +250,7 @@ class Trainer:
         amp = amp or AmpConfig(enabled=False)
         amp_dtype = _validate_amp(amp, device=self.device)
         self.model.eval()
-        total_loss = 0.0
+        loss_accum = torch.zeros((), dtype=torch.float64, device=self.device)
         all_preds: list[torch.Tensor] = []
         all_targets: list[torch.Tensor] = []
         n_batches = 0
@@ -259,7 +265,7 @@ class Trainer:
             else:
                 pred = self.model(xb)
                 loss = self.loss_fn(pred, self._loss_targets(yb))
-            total_loss += loss.item()
+            loss_accum += loss.detach().double()
             all_preds.append(pred.cpu())
             all_targets.append(yb.cpu())
             n_batches += 1
@@ -278,7 +284,7 @@ class Trainer:
 
         self.model.train()
         return {
-            "loss": total_loss / max(n_batches, 1),
+            "loss": float(loss_accum.item()) / max(n_batches, 1),
             "metrics": metrics,
             "component_metrics": comp_metrics,
             "compositional_metrics": compositional_metrics,

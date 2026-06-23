@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
@@ -57,6 +58,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "amp": {"enabled": False, "dtype": "float16"},
     "performance": {"cudnn_benchmark": False, "tf32": False, "compile": False, "compile_mode": "default"},
     "progress": {"enabled": True, "stdout": True, "jsonl": True, "jsonl_name": "metrics_live.jsonl"},
+    "grad_clip_norm": 0.0,
     "json": False,
 }
 
@@ -115,6 +117,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lr", type=float, default=None, help="Optimizer learning rate.")
     parser.add_argument("--weight-decay", type=float, default=None, help="Optimizer weight decay.")
     parser.add_argument(
+        "--grad-clip-norm",
+        type=float,
+        default=None,
+        help="Gradient clipping max norm (0=disabled).",
+    )
+    parser.add_argument(
         "--eval-splits",
         type=str,
         default=None,
@@ -129,6 +137,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     args = _resolve_args(args)
     _validate_run_args(args)
     torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
 
     performance = _performance_config(args.performance)
     _apply_performance_settings(performance, torch.device(args.device))
@@ -231,6 +242,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         epoch_callback=epoch_callback,
         amp=amp,
         non_blocking=bool(args.pin_memory and torch.device(args.device).type == "cuda"),
+        grad_clip_norm=args.grad_clip_norm,
     )
     _write_training_progress_event(args.model, history, progress_log_path)
     if best_checkpoint_path.is_file():
@@ -388,6 +400,8 @@ def _validate_run_args(args: argparse.Namespace) -> None:
         parser.error(f"lr must be > 0, got {args.lr}")
     if args.weight_decay < 0.0:
         parser.error(f"weight-decay must be >= 0, got {args.weight_decay}")
+    if args.grad_clip_norm < 0.0:
+        parser.error(f"grad-clip-norm must be >= 0, got {args.grad_clip_norm}")
     if args.scheduler["name"] not in {"none", "reduce_on_plateau"}:
         parser.error("scheduler.name must be one of ['none', 'reduce_on_plateau']")
     try:
@@ -855,6 +869,7 @@ def _run_config_payload(
         "amp": args.amp,
         "performance": args.performance,
         "progress": args.progress,
+        "grad_clip_norm": args.grad_clip_norm,
         "eval_splits": _parse_comma(args.eval_splits),
     }
 
