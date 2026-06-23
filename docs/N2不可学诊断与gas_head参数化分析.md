@@ -23,18 +23,26 @@
 
 数据来源：`outputs/runs/multiwindow_n2/ridge_multiwindow_all_modalities/metrics.json`。
 
-### 2. N2 在全浓度区间都可学
+### 2. N2 全局可学，但分箱 R2 因方差塌缩不可判读
 
-ridge 在 test 的 N2 分箱（`conditional_metrics.n2_bins`）：
+ridge 在 test 的全局 N2 R2 = 0.712，跨 train / val / test / extrapolation 四 split 稳定在 0.71–0.74，足以证明 N2 信号在线性特征下可学。但分箱后的 N2 列 R2 不能用来判可学性：
 
-| N2 浓度区间 | count | N2 R2 | rmse |
-|---|---|---|---|
-| 0.03 – 5.01 | 154 | 0.883 | 2.64 |
-| 5.01 – 9.99 | 166 | 0.930 | 2.01 |
-| 9.99 – 14.98 | 138 | 0.943 | 1.84 |
-| 14.98 – 19.96 | 142 | 0.860 | 3.00 |
+ridge 在 test 的 N2 分箱（`conditional_metrics.n2_bins`），区分两类 R2：
 
-N2 不是"低浓度难学"的局部问题，全范围 R2 都在 0.86 以上。原"方向 A 诊断（N2 是否在任何浓度区间可学）"已被 ridge 输出回答：可学。
+| N2 浓度区间 | count | bin 聚合 R2（四组分加权） | **N2 列 R2** | N2 rmse | N2 mae |
+|---|---|---|---|---|---|
+| 0.03 – 5.01 | 154 | 0.883 | **−5.95** | 3.43 | 2.69 |
+| 5.01 – 9.99 | 166 | 0.930 | **−2.33** | 2.59 | 1.86 |
+| 9.99 – 14.98 | 138 | 0.943 | **−1.65** | 2.41 | 1.82 |
+| 14.98 – 19.96 | 142 | 0.860 | **−5.57** | 3.80 | 3.11 |
+
+> 数据来源：`outputs/runs/multiwindow_n2/ridge_multiwindow_all_modalities/metrics.json`，字段 `evaluations.test.conditional_metrics.n2_bins[*].component_metrics.x_N2`。
+
+N2 列分箱 R2 全为负，是因为分箱后 N2 的局部分差极小（每个 bin 跨度仅约 5%，std 缩到 1–2），而 rmse 量级（2.4–3.8）没有等比缩小，R2 = 1 − SS_res/SS_tot 的分母被压垮所致。这是分箱方差塌缩的几何后果，不是"N2 在该区间学不到"。
+
+> ⚠️ 不要把 `bin.metrics.r2`（bin 内四组分的加权聚合 R2，被强预测的 H2 / CH4 / CO2 顶到 0.86–0.94）误当成 N2 列 R2。
+
+据此修正对方向 A 的回答：**N2 全局可学（R2=0.712，可学性由全局指标确立），分箱 R2 因方差塌缩为负，不可据分箱判可学性。**
 
 ### 3. 全部 Phase 1 run 被配置校验锁死在 gas_head
 
@@ -94,10 +102,18 @@ ridge 在**全部四个组分**上都超过最好的 DL：
 
 - S1 是 ridge 的非线性版，验证"给 N2 独立参数能否恢复"。
 - S2 是潜在生产修法：softmax over 4 既给 N2 直接 logit，又保住 sum=100。
-- 判读：若 S1 或 S2 的 N2 R2 跳到 0.5 以上 → 残差参数化确认为主因，gas_head 应被 softmax100 取代；若仍 ≈ 0 → 非线性假设才成立，再考虑其他方向。
+- 判读规则（分单向有效与盲区处理）：
+  - **正向（N2 R2 跳到 0.5 以上）→ 残差参数化确认为主因**，gas_head 应被 softmax100 取代。此方向结论可靠，因唯一变量是 head。
+  - **反向不能直接复活"非线性假设"**。若 S1 / S2 的 N2 R2 仍 ≈ 0，需先同时检查 H2 / CH4 / CO2 的 R2：
+    - 若三者也明显低于 ridge（H2<0.99、CH4<0.92、CO2<0.97 的量级），根因应归为 **PhaseWindowTCN 特征提取能力不足**（gas_varweight 当前 CH4 仅 0.534 vs ridge 0.920 已是征兆），而非"N2 非线性不可学"。此时应回到"DL 主线为何打不过手工特征 + ridge"这个更上游的战略问题。
+    - 只有当 H2 / CH4 / CO2 都追平 ridge、唯独 N2 仍 ≈ 0 时，才考虑 N2 存在与 H2/CH4/CO2 强负相关之外的非线性耦合。
+  - **S1 与 S2 必须都跑**：raw4 不保证 sum=100，softmax100 软保证。若 S1 的 N2 起来但四组分加和严重偏离 100，说明模型无法在自由预测与闭包约束间平衡，生产上仍需 softmax100。两者缺一无法区分"独立参数有用"与"闭包约束有用"。
 
-### 需要的代码改动
+### 代码改动（已完成，2026-06-20）
 
-`validate_loss_model_output`（`src/dl/training/losses.py:182-188`）目前把 `weighted_component_mse` 强制绑死 gas_head。该约束是人为的——`WeightedComponentMSELoss` 对全 4 列算 loss，与 head 无关。需放开，允许 `weighted_component_mse` 配 `raw4` / `softmax100`。
+`validate_loss_model_output`（`src/dl/training/losses.py`）原先把三个 raw-percentage loss 全部强制 `phase_window_tcn` 用 gas_head。该约束对 `weighted_component_mse` 是人为的——`WeightedComponentMSELoss` 对全 4 列算 loss，与 head 无关。已按监督列数拆分校验：
 
-注意：`free_component_mse` 与 `weighted_free_component_mse` 只监督 3 列、靠闭包补 N2，应继续锁定 gas_head；只放开监督全 4 列的 `weighted_component_mse`。
+- `weighted_component_mse`（监督全 4 列）：放开，允许 `phase_window_tcn` 配 `output_mode` 为 `raw4` / `softmax100` / `gas_head`，`out_dim` 仍须为 4。
+- `free_component_mse` / `weighted_free_component_mse`（只监督前 3 列、靠闭包补 N2）：继续强制 `output_mode='gas_head'`。
+
+校验入口集合 `GAS_HEAD_PERCENTAGE_LOSSES` 保留不变（三个 loss 都仍需做 head 校验），新增 `FREE_COMPONENT_CLOSURE_LOSSES` 区分闭包类、`RAW_PERCENTAGE_VALID_HEADS` 约束 weighted_component_mse 的合法 head。改动同步覆盖 `tests/test_dl_losses.py`（新增 `test_weighted_component_mse_allows_non_gas_head`，free 类锁定断言保留），全 18 项单测通过。S1（raw4）与 S2（softmax100）现已可配置运行。

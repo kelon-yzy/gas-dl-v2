@@ -47,14 +47,14 @@ Phase 0  前置准备 ──G0──> Phase 1 诊断批 ──G1──> [按病�
 
 在 `losses.py` 注册一个新 loss，权重 `w_c = 1/σ_c²`（σ_c 取训练集各组分标准差）：
 
-- `weighted_component_mse`：在 gas_head 输出的 **4 组分百分比**上做加权 MSE，N2 获得直接但尺度平衡的监督。
+- `weighted_component_mse`：在 **4 组分百分比**上做加权 MSE，监督全 4 列、与 head 无关，N2 获得直接但尺度平衡的监督。
 - `weighted_free_component_mse`：只对 **3 个自由组分**做方差加权，N2 仍为残差（候选 A 的对照）。
 
 实现要点：
 
 - 走 `build_loss` 已支持的"字典 + 额外 kwargs"机制，配置写 `{"name": "weighted_component_mse", "weighting": "inverse_train_var"}`。
 - `weighting="inverse_train_var"` 时从训练集统计读组分方差；权重在构造时固定，不随 batch 变化。
-- 在 `validate_loss_model_output` 里补充：`weighted_component_mse` 要求 `output_mode='gas_head'`、`out_dim=4`。
+- `validate_loss_model_output` 的 head 约束按监督列数区分：`weighted_component_mse` 监督全 4 列、不依赖闭包，允许 `phase_window_tcn` 配 `output_mode` 为 `raw4` / `softmax100` / `gas_head`（`out_dim` 必须为 4）；`free_component_mse` 与 `weighted_free_component_mse` 只监督前 3 列、靠 sum=100 闭包补 N2，仍强制 `output_mode='gas_head'`。
 - **eval 一律在原始百分比空间算 R2**，加权只作用于训练损失，不改评估口径。
 
 需写最小单测：权重计算正确、shape 校验、与 `gas_head` 组合校验通过。
