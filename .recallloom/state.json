@@ -1,5 +1,5 @@
 {
-  "workspace_revision": 156,
+  "workspace_revision": 160,
   "update_protocol_revision": 2,
   "git_exclude_mode": "skipped",
   "bridged_entries": {},
@@ -11,10 +11,10 @@
       "base_workspace_revision": 2
     },
     "rolling_summary": {
-      "file_revision": 77,
-      "updated_at": "2026-06-23T09:15:19+08:00",
-      "writer_id": "Codex",
-      "base_workspace_revision": 156
+      "file_revision": 79,
+      "updated_at": "2026-06-23T13:42:26+08:00",
+      "writer_id": "Claude-Code",
+      "base_workspace_revision": 160
     },
     "update_protocol": {
       "file_revision": 2,
@@ -25,16 +25,16 @@
   },
   "daily_logs": {
     "latest_file": "daily_logs/2026-06-23.md",
-    "latest_entry_id": "entry-1",
-    "latest_entry_seq": 1,
-    "entry_count": 1,
-    "updated_at": "2026-06-23T09:14:28+08:00"
+    "latest_entry_id": "entry-3",
+    "latest_entry_seq": 3,
+    "entry_count": 3,
+    "updated_at": "2026-06-23T13:42:01+08:00"
   },
   "provenance": {
     "schema_version": "0.4.2-mvp.1",
     "state_label": "helper_evidenced",
     "baseline_kind": "helper_receipt_finalized",
-    "updated_at": "2026-06-23T09:15:19+08:00",
+    "updated_at": "2026-06-23T13:42:26+08:00",
     "receipt_backed": true,
     "previous_state_label": "helper_evidenced"
   }
