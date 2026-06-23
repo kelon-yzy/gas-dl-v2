@@ -733,6 +733,12 @@ def _build_scheduler(optimizer: torch.optim.Optimizer, config: dict[str, Any]):
             patience=int(config.get("patience", 8)),
             min_lr=float(config.get("min_lr", 1e-6)),
         )
+    if name == "cosine_annealing":
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=int(config.get("T_max", 50)),
+            eta_min=float(config.get("eta_min", 0.0)),
+        )
     raise ValueError(f"Unknown scheduler: {name!r}")
 
 
