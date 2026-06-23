@@ -99,6 +99,7 @@ class TCNRegressor(BaseRegressor):
         self.encoder = nn.Sequential(*layers)
         self.pool = TemporalPooling(current, mode=pooling)
         self.head = build_regression_head(current, out_dim, dropout)
+        self.apply(self._init_weights)
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         encoded = self.encoder(x)

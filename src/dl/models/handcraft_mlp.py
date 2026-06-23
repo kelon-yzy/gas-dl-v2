@@ -45,6 +45,7 @@ class HandcraftMLPRegressor(BaseRegressor):
             current = int(hidden)
         self.feature_mlp = nn.Sequential(*layers)
         self.gas_head = GasHeadNormalize(current, output_prior=output_prior)
+        self.apply(self._init_weights)
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         if x.ndim != 2:

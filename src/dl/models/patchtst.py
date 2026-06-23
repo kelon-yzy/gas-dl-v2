@@ -46,6 +46,7 @@ class PatchTSTRegressor(BaseRegressor):
         self.encoder = nn.TransformerEncoder(layer, num_layers=num_layers)
         self.attention = nn.Linear(d_model, 1) if pooling == "attention" else None
         self.head = build_regression_head(d_model, out_dim, dropout)
+        self.apply(self._init_weights)
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         patches = self._patchify(x)

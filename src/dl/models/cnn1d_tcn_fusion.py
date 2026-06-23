@@ -228,6 +228,7 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
             self.gas_head = GasHeadNormalize(h2, output_prior=output_prior)
         else:
             self.gas_head = GasCoordinateHead(h2, out_dim=out_dim)
+        self.apply(self._init_weights)
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         if x.ndim != 3:

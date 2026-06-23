@@ -37,6 +37,7 @@ class LSTMRegressor(BaseRegressor):
         )
         encoded_dim = hidden_size * (2 if bidirectional else 1)
         self.head = build_regression_head(encoded_dim, out_dim, dropout)
+        self.apply(self._init_weights)
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         encoded, _state = self.encoder(x)

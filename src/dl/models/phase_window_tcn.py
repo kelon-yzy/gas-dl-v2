@@ -185,6 +185,7 @@ class PhaseWindowTCNRegressor(BaseRegressor):
         else:
             self.output_head = nn.Linear(h2, out_dim)
         self.output_mode = output_mode
+        self.apply(self._init_weights)
 
     @property
     def receptive_field(self) -> int:

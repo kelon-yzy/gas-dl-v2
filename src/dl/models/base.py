@@ -19,3 +19,13 @@ class BaseRegressor(nn.Module):
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         raise NotImplementedError
+
+    @staticmethod
+    def _init_weights(module: nn.Module) -> None:
+        if isinstance(module, nn.Conv1d):
+            nn.init.kaiming_normal_(module.weight, mode="fan_out", nonlinearity="relu")
+        elif isinstance(module, nn.Linear):
+            nn.init.kaiming_normal_(module.weight, mode="fan_out", nonlinearity="relu")
+        elif isinstance(module, nn.BatchNorm1d):
+            nn.init.ones_(module.weight)
+            nn.init.zeros_(module.bias)
