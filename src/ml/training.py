@@ -33,6 +33,7 @@ class SplitEvaluation:
     component_metrics: dict[str, RegressionMetrics]
     compositional_metrics: CompositionalMetrics | None
     conditional_metrics: dict[str, dict[str, object]]
+    sum_abs_error: float
     predictions: np.ndarray
     targets: np.ndarray
     sequence_ids: tuple[str, ...]
@@ -74,12 +75,14 @@ def evaluate_regressor(
     compositional_metrics = (
         _compositional_metrics(predictions, matrix.y, target_transform) if target_transform is not None else None
     )
+    sum_abs_error = float(np.mean(np.abs(predictions.sum(axis=1) - 100.0)))
     return SplitEvaluation(
         split=split,
         metrics=regression_metrics(predictions, matrix.y),
         component_metrics=component_regression_metrics(predictions, matrix.y, matrix.label_names),
         compositional_metrics=compositional_metrics,
         conditional_metrics=conditional_component_metrics(predictions, matrix.y, matrix.label_names),
+        sum_abs_error=sum_abs_error,
         predictions=predictions.astype(np.float32, copy=False),
         targets=matrix.y.astype(np.float32, copy=False),
         sequence_ids=matrix.sequence_ids,

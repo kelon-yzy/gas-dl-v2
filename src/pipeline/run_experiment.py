@@ -156,6 +156,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         resume_from=run_config.get("resume_from"),
         window=run_config.get("window"),
         phase_windows=run_config.get("phase_windows"),
+        dequantize_waveforms=bool(run_config.get("dequantize_waveforms", False)),
         target_transform=run_config.get("target_transform"),
         epochs=training["epochs"],
         batch_size=training["batch_size"],
@@ -170,6 +171,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         optimizer=training["optimizer"],
         lr=training["lr"],
         weight_decay=training["weight_decay"],
+        grad_clip_norm=float(training.get("grad_clip_norm", 0.0)),
         eval_splits=",".join(config.eval_splits),
         checkpoint_name="checkpoint.pt",
         early_stopping=training["early_stopping"],
@@ -236,6 +238,8 @@ def _planned_run_detail(kind: str, run_config: dict[str, Any], *, default_loss: 
         detail["windows"] = _feature_windows_payload(_resolve_feature_windows(run_config.get("windows")))
     if "phase_windows" in run_config:
         detail["phase_windows"] = _feature_windows_payload(_resolve_feature_windows(run_config.get("phase_windows")))
+    if kind == "dl" and "dequantize_waveforms" in run_config:
+        detail["dequantize_waveforms"] = bool(run_config["dequantize_waveforms"])
     if default_loss is not None:
         detail["loss"] = run_config.get("loss", default_loss)
     return detail
@@ -276,6 +280,7 @@ def _training_payload(result: MLTrainingResult) -> dict[str, Any]:
                     else None
                 ),
                 "conditional_metrics": conditional_metrics_to_payload(split_eval.conditional_metrics),
+                "sum_abs_error": split_eval.sum_abs_error,
             }
             for split_name, split_eval in result.evaluations.items()
         },
@@ -314,7 +319,7 @@ def _ml_rows(
                 "aitchison_mean": (
                     "" if split_eval.compositional_metrics is None else split_eval.compositional_metrics.aitchison_mean
                 ),
-                "sum_abs_error": "",
+                "sum_abs_error": split_eval.sum_abs_error,
                 "checkpoint_path": "",
             }
         )

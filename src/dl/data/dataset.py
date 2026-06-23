@@ -53,6 +53,7 @@ class V4BenchmarkDataset(Dataset):
         augment_seed: int = 0,
         window: dict[str, object] | WindowConfig | None = None,
         phase_windows: tuple[dict[str, object] | WindowConfig | None, ...] | None = None,
+        dequantize_waveforms: bool = False,
     ):
         dataset_dir = Path(dataset_dir)
         self._dataset_dir = dataset_dir
@@ -61,6 +62,7 @@ class V4BenchmarkDataset(Dataset):
         self._lazy = lazy
         self._augment_config = augment_config
         self._augment_seed = augment_seed
+        self._dequantize_waveforms = bool(dequantize_waveforms)
         self._augment_rng: np.random.Generator | None = None
         self._window = resolve_window_config(window)
         self._phase_windows = _resolve_phase_windows(phase_windows)
@@ -88,7 +90,9 @@ class V4BenchmarkDataset(Dataset):
 
         self._slow: np.ndarray | None = None
         self._ultrasonic: np.ndarray | None = None
+        self._ultrasonic_scale: np.ndarray | None = None
         self._fiber_mic: np.ndarray | None = None
+        self._fiber_mic_scale: np.ndarray | None = None
         self._labels: np.ndarray | None = None
 
         if not lazy:
@@ -109,7 +113,9 @@ class V4BenchmarkDataset(Dataset):
         state = self.__dict__.copy()
         state["_slow"] = None
         state["_ultrasonic"] = None
+        state["_ultrasonic_scale"] = None
         state["_fiber_mic"] = None
+        state["_fiber_mic_scale"] = None
         state["_labels"] = None
         state["_augment_rng"] = None
         return state
@@ -122,8 +128,12 @@ class V4BenchmarkDataset(Dataset):
             self._slow = np.load(seq_dir / "slow.npy", mmap_mode="r")
         if "ultrasonic" in self._modalities:
             self._ultrasonic = np.load(seq_dir / "ultrasonic_int16.npy", mmap_mode="r")
+            if self._dequantize_waveforms:
+                self._ultrasonic_scale = np.load(seq_dir / "ultrasonic_scale.npy", mmap_mode="r")
         if "fiber_mic" in self._modalities:
             self._fiber_mic = np.load(seq_dir / "fiber_mic_int16.npy", mmap_mode="r")
+            if self._dequantize_waveforms:
+                self._fiber_mic_scale = np.load(seq_dir / "fiber_mic_scale.npy", mmap_mode="r")
 
     def _ensure_augment_rng(self) -> np.random.Generator:
         # 多 worker DataLoader 下，每个 worker 进程按 worker_id 派生独立 RNG，
@@ -151,9 +161,25 @@ class V4BenchmarkDataset(Dataset):
             sl = self._apply_window(sl, src_idx, window_masks)
             parts.append(sl)
         if self._ultrasonic is not None:
-            parts.append(self._apply_window(self._ultrasonic[src_idx], src_idx, window_masks))
+            parts.append(
+                self._waveform_values(
+                    self._ultrasonic,
+                    self._ultrasonic_scale,
+                    src_idx,
+                    window_masks,
+                    modality="ultrasonic",
+                )
+            )
         if self._fiber_mic is not None:
-            parts.append(self._apply_window(self._fiber_mic[src_idx], src_idx, window_masks))
+            parts.append(
+                self._waveform_values(
+                    self._fiber_mic,
+                    self._fiber_mic_scale,
+                    src_idx,
+                    window_masks,
+                    modality="fiber_mic",
+                )
+            )
 
         x = np.concatenate(parts, axis=-1) if len(parts) > 1 else parts[0]
         if self._augment_config is not None:
@@ -167,6 +193,22 @@ class V4BenchmarkDataset(Dataset):
             return values
         mask = window_masks[src_idx]
         return _resample_masked_timesteps(values, mask)
+
+    def _waveform_values(
+        self,
+        waveform: np.ndarray,
+        scale: np.ndarray | None,
+        src_idx: int,
+        window_masks: dict[int, np.ndarray] | None,
+        *,
+        modality: str,
+    ) -> np.ndarray:
+        values = waveform[src_idx]
+        if self._dequantize_waveforms:
+            if scale is None:
+                raise ValueError(f"{modality}_scale is required when dequantize_waveforms=true")
+            values = values.astype(np.float32) * scale[src_idx].astype(np.float32)[:, np.newaxis]
+        return self._apply_window(values, src_idx, window_masks)
 
 
 def _validate_modalities(modalities: tuple[str, ...]) -> None:

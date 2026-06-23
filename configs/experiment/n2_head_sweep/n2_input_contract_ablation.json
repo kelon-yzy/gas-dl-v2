@@ -1,5 +1,5 @@
 {
-  "experiment_name": "n2_head_sweep",
+  "experiment_name": "n2_input_contract_ablation",
   "dataset_dir": "data/wv4-formal-hitran-standard-6000",
   "output_root": "outputs",
   "seed": 20260615,
@@ -51,34 +51,7 @@
   "ml_runs": [],
   "dl_runs": [
     {
-      "name": "phase_window_tcn_gas_varweight",
-      "model": "phase_window_tcn",
-      "modalities": ["slow", "ultrasonic", "fiber_mic"],
-      "phase_windows": [
-        null,
-        {"kind": "phase", "value": "exposure"},
-        {"kind": "phase", "value": "recovery"}
-      ],
-      "loss": {"name": "weighted_component_mse", "weighting": "inverse_train_var"},
-      "dequantize_waveforms": false,
-      "model_kwargs": {
-        "window_count": 3,
-        "output_mode": "gas_head",
-        "waveform_embedding_dim": 64,
-        "waveform_int16_scale": 32767.0,
-        "acoustic_channels": [16, 32, 64, 64],
-        "acoustic_kernel_size": 7,
-        "acoustic_dropout": 0.15,
-        "slow_hidden_dim": 32,
-        "slow_embedding_dim": 64,
-        "tcn_channels": [64, 64, 64],
-        "tcn_kernel_size": 3,
-        "tcn_dropout": 0.25,
-        "shared_hidden_dims": [128, 64]
-      }
-    },
-    {
-      "name": "phase_window_tcn_raw4",
+      "name": "phase_window_tcn_raw4_int16",
       "model": "phase_window_tcn",
       "modalities": ["slow", "ultrasonic", "fiber_mic"],
       "phase_windows": [
@@ -105,7 +78,7 @@
       }
     },
     {
-      "name": "phase_window_tcn_softmax100",
+      "name": "phase_window_tcn_raw4_dequantized_scale5",
       "model": "phase_window_tcn",
       "modalities": ["slow", "ultrasonic", "fiber_mic"],
       "phase_windows": [
@@ -114,12 +87,12 @@
         {"kind": "phase", "value": "recovery"}
       ],
       "loss": {"name": "weighted_component_mse", "weighting": "inverse_train_var"},
-      "dequantize_waveforms": false,
+      "dequantize_waveforms": true,
       "model_kwargs": {
         "window_count": 3,
-        "output_mode": "softmax100",
+        "output_mode": "raw4",
         "waveform_embedding_dim": 64,
-        "waveform_int16_scale": 32767.0,
+        "waveform_int16_scale": 5.0,
         "acoustic_channels": [16, 32, 64, 64],
         "acoustic_kernel_size": 7,
         "acoustic_dropout": 0.15,

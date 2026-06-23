@@ -277,6 +277,7 @@ def _training_payload(result: MLTrainingResult) -> dict[str, Any]:
                 else None
             ),
             "conditional_metrics": conditional_metrics_to_payload(split_eval.conditional_metrics),
+            "sum_abs_error": split_eval.sum_abs_error,
         }
     return payload
 

@@ -176,6 +176,24 @@ class TestV4BenchmarkDataset:
         x, _ = ds[0]
         assert x.dtype == torch.float32
 
+    def test_dequantize_waveforms_uses_scale_arrays(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-wave-dequant", sequences=8)
+        ds = V4BenchmarkDataset(
+            dataset_dir,
+            split="train",
+            modalities=("ultrasonic",),
+            input_format="NTC",
+            lazy=False,
+            dequantize_waveforms=True,
+        )
+
+        x, _ = ds[0]
+        src_idx = ds.indices[0]
+        raw = np.load(dataset_dir / "sequences" / "ultrasonic_int16.npy", mmap_mode="r")[src_idx].astype(np.float32)
+        scale = np.load(dataset_dir / "sequences" / "ultrasonic_scale.npy", mmap_mode="r")[src_idx].astype(np.float32)
+
+        np.testing.assert_allclose(x.numpy(), raw * scale[:, np.newaxis], rtol=1e-6, atol=1e-6)
+
     def test_multimodal_concatenates_channels(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-multi", sequences=8)
         ds = V4BenchmarkDataset(

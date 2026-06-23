@@ -36,6 +36,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "scaler_path": None,
     "window": None,
     "phase_windows": None,
+    "dequantize_waveforms": False,
     "resume_from": None,
     "target_transform": None,
     "epochs": 50,
@@ -102,6 +103,12 @@ def build_parser() -> argparse.ArgumentParser:
         help='Optional JSON array of DL phase windows, e.g. [null, {"kind":"phase","value":"exposure"}].',
     )
     parser.add_argument(
+        "--dequantize-waveforms",
+        action="store_true",
+        default=False,
+        help="Load waveform inputs as int16 * scale instead of raw int16 values.",
+    )
+    parser.add_argument(
         "--target-transform",
         choices=("none", *TARGET_TRANSFORM_OPTIONS),
         default=None,
@@ -154,6 +161,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         scaler_path=args.scaler_path,
         window=args.window,
         phase_windows=args.phase_windows,
+        dequantize_waveforms=args.dequantize_waveforms,
         lazy=True,
     )
     sample_x, sample_y = train_dataset[0]
@@ -207,6 +215,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.scaler_path,
         args.window,
         args.phase_windows,
+        args.dequantize_waveforms,
         args.batch_size,
         args.num_workers,
         args.pin_memory,
@@ -259,6 +268,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.scaler_path,
             args.window,
             args.phase_windows,
+            args.dequantize_waveforms,
             args.batch_size,
             args.num_workers,
             args.pin_memory,
@@ -286,6 +296,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "modalities": modalities,
         "window": window_to_payload(resolve_window_config(args.window)),
         "phase_windows": _phase_windows_payload(args.phase_windows),
+        "dequantize_waveforms": args.dequantize_waveforms,
         "target_transform": asdict(target_transform) if target_transform is not None else None,
         "target_transform_audits": (
             {split: asdict(audit) for split, audit in target_transform_audits.items()}
@@ -468,6 +479,7 @@ def _build_dataset(
     scaler_path: Path | None,
     window: dict[str, object] | None,
     phase_windows: list[object] | tuple[object, ...] | None,
+    dequantize_waveforms: bool,
     lazy: bool,
 ):
     if input_format == "FEATURES":
@@ -487,6 +499,7 @@ def _build_dataset(
         scaler_path=scaler_path,
         window=window,
         phase_windows=phase_windows,
+        dequantize_waveforms=dequantize_waveforms,
         lazy=lazy,
     )
 
@@ -760,6 +773,7 @@ def _optional_loader(
     scaler_path: Path | None,
     window: dict[str, object] | None,
     phase_windows: list[object] | tuple[object, ...] | None,
+    dequantize_waveforms: bool,
     batch_size: int,
     num_workers: int,
     pin_memory: bool,
@@ -774,6 +788,7 @@ def _optional_loader(
         scaler_path=scaler_path,
         window=window,
         phase_windows=phase_windows,
+        dequantize_waveforms=dequantize_waveforms,
         lazy=True,
     )
     if len(dataset) == 0:
@@ -847,6 +862,7 @@ def _run_config_payload(
         "resume_from": str(args.resume_from) if args.resume_from is not None else None,
         "window": window_to_payload(resolve_window_config(args.window)),
         "phase_windows": _phase_windows_payload(args.phase_windows),
+        "dequantize_waveforms": args.dequantize_waveforms,
         "target_transform": args.target_transform,
         "resolved_target_transform": asdict(target_transform) if target_transform is not None else None,
         "epochs": args.epochs,

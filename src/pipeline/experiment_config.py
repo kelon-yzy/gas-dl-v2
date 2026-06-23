@@ -243,6 +243,13 @@ def _validate_training(value: object) -> dict[str, Any]:
     loss_name = loss_config_name(value["loss"])
     if loss_name not in LOSS_REGISTRY:
         raise ValueError(f"Unknown training.loss: {value['loss']!r}. Available: {sorted(LOSS_REGISTRY)}")
+    if "grad_clip_norm" in value:
+        try:
+            grad_clip_norm = float(value["grad_clip_norm"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("training.grad_clip_norm must be a number") from exc
+        if grad_clip_norm < 0.0:
+            raise ValueError("training.grad_clip_norm must be >= 0")
     performance = value.get("performance")
     if performance is not None and not isinstance(performance, dict):
         raise ValueError("training.performance must be a JSON object")
@@ -317,6 +324,11 @@ def _validate_run_dict(run: dict[str, Any], *, kind: str) -> None:
                 resolve_window_config(window)
             except ValueError as exc:
                 raise ValueError(f"Invalid dl phase_windows[{index}] in run {run.get('name')!r}: {exc}") from exc
+    if "dequantize_waveforms" in run:
+        if kind != "dl":
+            raise ValueError(f"{kind} run {run.get('name')!r} cannot use dequantize_waveforms; DL-only")
+        if not isinstance(run["dequantize_waveforms"], bool):
+            raise ValueError(f"dl run {run.get('name')!r} dequantize_waveforms must be a boolean")
 
 
 def _validate_target_transform(run: dict[str, Any], *, kind: str):

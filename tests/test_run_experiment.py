@@ -269,6 +269,7 @@ def test_experiment_config_accepts_dl_phase_windows(tmp_path: Path):
     payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
     payload["dl_runs"][0]["model"] = "phase_window_tcn"
     payload["dl_runs"][0]["phase_windows"] = [None, {"kind": "phase", "value": "exposure"}]
+    payload["dl_runs"][0]["dequantize_waveforms"] = True
     config_path = _write_config(tmp_path / "phase_windows_config.json", payload)
 
     config = load_experiment_config(config_path)
@@ -277,6 +278,25 @@ def test_experiment_config_accepts_dl_phase_windows(tmp_path: Path):
     detail = dry_run["plan"]["dl_run_details"][0]
     assert config.dl_runs[0]["phase_windows"] == [None, {"kind": "phase", "value": "exposure"}]
     assert detail["phase_windows"] == [None, {"kind": "phase", "value": "exposure"}]
+    assert detail["dequantize_waveforms"] is True
+
+
+def test_experiment_config_rejects_invalid_training_grad_clip_norm(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["training"]["grad_clip_norm"] = -1.0
+    config_path = _write_config(tmp_path / "bad_grad_clip_config.json", payload)
+
+    with pytest.raises(ValueError, match="grad_clip_norm"):
+        load_experiment_config(config_path)
+
+
+def test_experiment_config_rejects_invalid_dequantize_waveforms(tmp_path: Path):
+    payload = _base_config(tmp_path / "dataset", tmp_path / "outputs")
+    payload["dl_runs"][0]["dequantize_waveforms"] = "true"
+    config_path = _write_config(tmp_path / "bad_dequantize_config.json", payload)
+
+    with pytest.raises(ValueError, match="dequantize_waveforms"):
+        load_experiment_config(config_path)
 
 
 def test_experiment_config_rejects_windows_with_protocol(tmp_path: Path):
@@ -430,6 +450,8 @@ def test_run_experiment_writes_multiwindow_ml_summary(tmp_path: Path):
     summary = Path(result["summary_path"]).read_text(encoding="utf-8")
     assert detail["windows"] == [None, {"kind": "phase", "value": "exposure"}, {"kind": "phase", "value": "recovery"}]
     assert metrics["feature_config"]["feature_windows"] == detail["windows"]
+    assert isinstance(metrics["evaluations"]["val"]["sum_abs_error"], float)
+    assert isinstance(result["rows"][0]["sum_abs_error"], float)
     assert metrics["feature_names"][0].startswith("full|")
     assert "ph_exposure|" in "\n".join(metrics["feature_names"])
     assert "multi:full+exp+rec" in summary
@@ -447,10 +469,12 @@ def test_run_experiment_writes_phase_window_dl_summary(tmp_path: Path):
             "model": "phase_window_tcn",
             "modalities": ["slow", "ultrasonic", "fiber_mic"],
             "loss": FREE_COMPONENT_MSE_LOSS,
+            "dequantize_waveforms": True,
             "phase_windows": [None, {"kind": "phase", "value": "exposure"}, {"kind": "phase", "value": "recovery"}],
             "model_kwargs": {
                 "window_count": 3,
                 "waveform_embedding_dim": 4,
+                "waveform_int16_scale": 5.0,
                 "acoustic_channels": [2, 4],
                 "slow_hidden_dim": 4,
                 "slow_embedding_dim": 4,
@@ -476,6 +500,8 @@ def test_run_experiment_writes_phase_window_dl_summary(tmp_path: Path):
     ]
     assert run_config["loss"] == FREE_COMPONENT_MSE_LOSS
     assert run_config["model_config"]["output_mode"] == "gas_head"
+    assert run_config["model_config"]["waveform_int16_scale"] == 5.0
+    assert run_config["dequantize_waveforms"] is True
     assert metrics["loss"] == FREE_COMPONENT_MSE_LOSS
     assert metrics["evaluations"]["val"]["sum_abs_error"] < 1e-4
     assert "phase_window_tcn_smoke" in summary
@@ -517,7 +543,10 @@ def test_run_experiment_writes_handcraft_mlp_summary(tmp_path: Path):
 def test_run_experiment_writes_runs_summary_report_and_progress_logs(tmp_path: Path, capsys):
     dataset_dir = _make_smoke_dataset(tmp_path)
     output_root = tmp_path / "outputs"
-    config_path = _write_config(tmp_path / "config.json", _base_config(dataset_dir, output_root))
+    payload = _base_config(dataset_dir, output_root)
+    payload["training"]["grad_clip_norm"] = 1.0
+    payload["dl_runs"][0]["dequantize_waveforms"] = True
+    config_path = _write_config(tmp_path / "config.json", payload)
     config = load_experiment_config(config_path)
 
     result = run(config)
@@ -531,6 +560,9 @@ def test_run_experiment_writes_runs_summary_report_and_progress_logs(tmp_path: P
     )
     assert (output_root / "runs" / "smoke_suite" / "cnn1d_smoke" / "metrics.json").is_file()
     assert (output_root / "runs" / "smoke_suite" / "cnn1d_smoke" / "metrics_live.jsonl").is_file()
+    dl_run_config = json.loads(
+        (output_root / "runs" / "smoke_suite" / "cnn1d_smoke" / "run_config.json").read_text(encoding="utf-8")
+    )
     assert "[run start] kind=ml name=mean_slow" in output
     assert "[run done] kind=ml name=mean_slow" in output
     assert "[run start] kind=dl name=cnn1d_smoke" in output
@@ -546,6 +578,8 @@ def test_run_experiment_writes_runs_summary_report_and_progress_logs(tmp_path: P
     assert "full" in summary
     assert ml_run_config["target_transform"]["epsilon"] == TRAIN_MIN_POSITIVE_HALF_EPSILON
     assert isinstance(ml_run_config["resolved_target_transform"]["epsilon"], float)
+    assert dl_run_config["grad_clip_norm"] == 1.0
+    assert dl_run_config["dequantize_waveforms"] is True
     assert "# Experiment Report: smoke_suite" in report
     assert "x_N2 R2" in report
     assert "Aitchison mean" in report

@@ -287,6 +287,7 @@ class TestMLTraining:
             assert split_eval.predictions.shape[1] == 4
             assert np.isfinite(split_eval.predictions).all()
             assert isinstance(split_eval.metrics, RegressionMetrics)
+            assert split_eval.sum_abs_error >= 0.0
 
     def test_train_regressor_can_use_alr_ch4_target_transform(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-train-alr", sequences=16)

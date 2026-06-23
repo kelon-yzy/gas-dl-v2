@@ -60,7 +60,7 @@ class DeepAcousticEncoder1D(nn.Module):
             raise ValueError(f"Expected waveform length {self.waveform_length}, got {waveform.shape[-1]}")
 
         batch_size, timesteps, waveform_length = waveform.shape
-        # V4BenchmarkDataset exposes waveform values inside the fused tensor; scale arrays are not part of that input.
+        # Keep the input scale explicit so raw-int16 and dequantized-voltage ablations are traceable.
         flat = waveform.reshape(batch_size * timesteps, 1, waveform_length).float() / self.waveform_int16_scale
         encoded = self.encoder(flat)
         avg = nn.functional.adaptive_avg_pool1d(encoded, 1).squeeze(-1)
@@ -156,6 +156,7 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         ultrasonic_channels: int = 1000,
         fiber_mic_channels: int = 2000,
         waveform_embedding_dim: int = 64,
+        waveform_int16_scale: float = 32767.0,
         acoustic_channels: Sequence[int] = (16, 32, 64, 64),
         acoustic_kernel_size: int = 7,
         acoustic_dropout: float = 0.15,
@@ -187,6 +188,7 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         self.ultrasonic_encoder = DeepAcousticEncoder1D(
             ultrasonic_channels,
             embedding_dim=waveform_embedding_dim,
+            waveform_int16_scale=waveform_int16_scale,
             channels=acoustic_channels,
             kernel_size=acoustic_kernel_size,
             dropout=acoustic_dropout,
@@ -194,6 +196,7 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         self.fiber_mic_encoder = DeepAcousticEncoder1D(
             fiber_mic_channels,
             embedding_dim=waveform_embedding_dim,
+            waveform_int16_scale=waveform_int16_scale,
             channels=acoustic_channels,
             kernel_size=acoustic_kernel_size,
             dropout=acoustic_dropout,
