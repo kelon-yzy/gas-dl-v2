@@ -140,10 +140,14 @@ class GasCoordinateHead(nn.Module):
 
 
 class CNN1DTCNFusionRegressor(BaseRegressor):
-    """V4-compatible CNN1D-TCN fusion regressor with bounded simplex output.
+    """V4-compatible CNN1D-TCN fusion regressor.
 
     Expected input format is NTC with channels ordered as:
     slow[8] + ultrasonic[1000] + fiber_mic[2000].
+
+    output_mode supports:
+    - ``"gas_head"``: bounded simplex output using GasHeadNormalize (default, original behavior).
+    - ``"raw4"``: unbounded linear output for raw component percentages.
     """
 
     input_format = "NTC"
@@ -167,9 +171,14 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         tcn_dropout: float = 0.25,
         shared_hidden_dims: Sequence[int] = (128, 64),
         output_prior: Sequence[float] = (9.288469, 75.755157, 4.994778, 9.961745),
+        output_mode: str = "gas_head",
     ):
         if out_dim not in {3, 4}:
             raise ValueError("CNN1DTCNFusionRegressor requires out_dim=4 for raw percentages or out_dim=3 for log-ratio targets")
+        if output_mode not in {"raw4", "gas_head"}:
+            raise ValueError("output_mode must be one of ['raw4', 'gas_head']")
+        if output_mode == "raw4" and out_dim != 4:
+            raise ValueError("raw4 output_mode requires out_dim=4")
         expected_channels = slow_channels + ultrasonic_channels + fiber_mic_channels
         if in_channels != expected_channels:
             raise ValueError(
@@ -227,10 +236,14 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
             nn.ReLU(),
             nn.Dropout(tcn_dropout),
         )
-        if out_dim == 4:
-            self.gas_head = GasHeadNormalize(h2, output_prior=output_prior)
+        if output_mode == "gas_head":
+            if out_dim == 4:
+                self.output_head = GasHeadNormalize(h2, output_prior=output_prior)
+            else:
+                self.output_head = GasCoordinateHead(h2, out_dim=out_dim)
         else:
-            self.gas_head = GasCoordinateHead(h2, out_dim=out_dim)
+            self.output_head = nn.Linear(h2, out_dim)
+        self.output_mode = output_mode
         self.apply(self._init_weights)
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
@@ -256,4 +269,4 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         )
         feats = self.tcn(fused.transpose(1, 2))
         pooled = torch.cat([feats[:, :, -1], feats.mean(dim=-1), feats.amax(dim=-1)], dim=-1)
-        return self.gas_head(self.shared_head(pooled))
+        return self.output_head(self.shared_head(pooled))

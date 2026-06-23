@@ -25,7 +25,7 @@ GAS_HEAD_PERCENTAGE_LOSSES = RAW_PERCENTAGE_LOSSES
 # free-component 闭包类损失只监督前 3 列 (H2/CH4/CO2)，N2 靠 sum=100 闭包补全，
 # 必须搭配 gas_head；只有监督全 4 列的 weighted_component_mse 不依赖闭包。
 FREE_COMPONENT_CLOSURE_LOSSES = frozenset((FREE_COMPONENT_MSE_LOSS, WEIGHTED_FREE_COMPONENT_MSE_LOSS))
-IMPLICIT_GAS_HEAD_MODELS = frozenset(("cnn1d_tcn_fusion", "handcraft_mlp"))
+IMPLICIT_GAS_HEAD_MODELS = frozenset(("handcraft_mlp",))
 # phase_window_tcn 上对 weighted_component_mse 放开的合法 head；
 # free-component 闘包类损失仍只允许 gas_head。
 RAW_PERCENTAGE_VALID_HEADS = frozenset(("raw4", "softmax100", "gas_head"))
@@ -201,6 +201,21 @@ def validate_loss_model_output(
             raise ValueError(
                 f"{loss_name} requires phase_window_tcn model_kwargs.output_mode "
                 f"in {sorted(RAW_PERCENTAGE_VALID_HEADS)}, got {output_mode!r}"
+            )
+        return
+    if model_name == "cnn1d_tcn_fusion":
+        output_mode = model_kwargs.get("output_mode", "gas_head")
+        if loss_name in FREE_COMPONENT_CLOSURE_LOSSES:
+            # free-component 闭包类损失靠 sum=100 补 N2，只能用 gas_head。
+            if output_mode != "gas_head":
+                raise ValueError(
+                    f"{loss_name} requires cnn1d_tcn_fusion model_kwargs.output_mode='gas_head'"
+                )
+            return
+        if output_mode not in {"raw4", "gas_head"}:
+            raise ValueError(
+                f"{loss_name} requires cnn1d_tcn_fusion model_kwargs.output_mode "
+                f"in ['gas_head', 'raw4'], got {output_mode!r}"
             )
         return
     if model_name in IMPLICIT_GAS_HEAD_MODELS:

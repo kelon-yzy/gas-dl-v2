@@ -250,6 +250,28 @@ class TestCNN1DTCNFusionRegressor:
         assert torch.allclose(out.sum(dim=-1), torch.full((3,), 100.0), atol=1e-5)
         assert model.input_format == "NTC"
         assert model.receptive_field == 5
+        assert model.output_mode == "gas_head"
+
+    def test_forward_shape_for_raw4_head(self):
+        model = CNN1DTCNFusionRegressor(
+            in_channels=14,
+            slow_channels=2,
+            ultrasonic_channels=5,
+            fiber_mic_channels=7,
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+            output_mode="raw4",
+        )
+
+        out = model(torch.randn(3, 6, 14))
+
+        assert out.shape == (3, 4)
+        # raw4 输出无 simplex 约束，不需要求和为 100
+        assert model.output_mode == "raw4"
 
     def test_forward_shape_for_transformed_coordinate_head(self):
         model = CNN1DTCNFusionRegressor(
@@ -269,6 +291,21 @@ class TestCNN1DTCNFusionRegressor:
         out = model(torch.randn(3, 6, 14))
 
         assert out.shape == (3, 3)
+
+    def test_raw4_rejects_out_dim_not_4(self):
+        try:
+            CNN1DTCNFusionRegressor(
+                in_channels=14,
+                out_dim=3,
+                slow_channels=2,
+                ultrasonic_channels=5,
+                fiber_mic_channels=7,
+                output_mode="raw4",
+            )
+        except ValueError as exc:
+            assert "raw4" in str(exc)
+        else:
+            raise AssertionError("raw4 with out_dim=3 should be rejected")
 
     def test_gradient_flows(self):
         model = CNN1DTCNFusionRegressor(

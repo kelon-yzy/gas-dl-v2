@@ -204,3 +204,51 @@ def test_weighted_component_mse_allows_non_gas_head():
 def test_build_unknown_loss_raises():
     with pytest.raises(ValueError, match="imaginary"):
         build_loss({"name": "imaginary"})
+
+
+def test_weighted_component_mse_allows_cnn1d_tcn_fusion_raw4():
+    # cnn1d_tcn_fusion + raw4 + weighted_component_mse 应为合法组合。
+    validate_loss_model_output(
+        WEIGHTED_COMPONENT_MSE_LOSS,
+        model_name="cnn1d_tcn_fusion",
+        model_kwargs={"output_mode": "raw4", "out_dim": 4},
+    )
+
+
+def test_cnn1d_tcn_fusion_free_component_mse_requires_gas_head():
+    # free_component_mse 是闭包类损失，要求 gas_head。
+    with pytest.raises(ValueError, match="output_mode='gas_head'"):
+        validate_loss_model_output(
+            FREE_COMPONENT_MSE_LOSS,
+            model_name="cnn1d_tcn_fusion",
+            model_kwargs={"output_mode": "raw4"},
+        )
+    # gas_head 应通过
+    validate_loss_model_output(
+        FREE_COMPONENT_MSE_LOSS,
+        model_name="cnn1d_tcn_fusion",
+        model_kwargs={"output_mode": "gas_head"},
+    )
+
+
+def test_cnn1d_tcn_fusion_weighted_free_component_requires_gas_head():
+    with pytest.raises(ValueError, match="output_mode='gas_head'"):
+        validate_loss_model_output(
+            WEIGHTED_FREE_COMPONENT_MSE_LOSS,
+            model_name="cnn1d_tcn_fusion",
+            model_kwargs={"output_mode": "raw4"},
+        )
+    validate_loss_model_output(
+        WEIGHTED_FREE_COMPONENT_MSE_LOSS,
+        model_name="cnn1d_tcn_fusion",
+        model_kwargs={"output_mode": "gas_head"},
+    )
+
+
+def test_cnn1d_tcn_fusion_rejects_unknown_output_mode():
+    with pytest.raises(ValueError, match="output_mode"):
+        validate_loss_model_output(
+            WEIGHTED_COMPONENT_MSE_LOSS,
+            model_name="cnn1d_tcn_fusion",
+            model_kwargs={"output_mode": "unknown"},
+        )
