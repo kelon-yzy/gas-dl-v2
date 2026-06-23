@@ -238,8 +238,8 @@ def _validate_training(value: object) -> dict[str, Any]:
     scheduler = value["scheduler"]
     if not isinstance(scheduler, dict):
         raise ValueError("training.scheduler must be a JSON object")
-    if scheduler.get("name") not in {"none", "reduce_on_plateau"}:
-        raise ValueError("training.scheduler.name must be one of ['none', 'reduce_on_plateau']")
+    if scheduler.get("name") not in {"none", "reduce_on_plateau", "cosine_annealing"}:
+        raise ValueError("training.scheduler.name must be one of ['none', 'reduce_on_plateau', 'cosine_annealing']")
     loss_name = loss_config_name(value["loss"])
     if loss_name not in LOSS_REGISTRY:
         raise ValueError(f"Unknown training.loss: {value['loss']!r}. Available: {sorted(LOSS_REGISTRY)}")
