@@ -139,6 +139,36 @@ class GasCoordinateHead(nn.Module):
         return self.linear(features)
 
 
+class PhaseStatMLP(nn.Module):
+    """MLP branch that processes precomputed phase-window statistics.
+
+    Expects input shape (B, phase_stat_dim) and projects to a fixed embedding
+    that is later concatenated with the TCN-pooled waveform features.
+    """
+
+    def __init__(
+        self,
+        phase_stat_dim: int,
+        hidden_dim: int = 128,
+        embedding_dim: int = 64,
+        dropout: float = 0.25,
+    ):
+        super().__init__()
+        if phase_stat_dim < 1:
+            raise ValueError("phase_stat_dim must be >= 1")
+        self.net = nn.Sequential(
+            nn.Linear(phase_stat_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, embedding_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, phase_stats: torch.Tensor) -> torch.Tensor:
+        return self.net(phase_stats)
+
+
 class CNN1DTCNFusionRegressor(BaseRegressor):
     """V4-compatible CNN1D-TCN fusion regressor.
 
@@ -172,6 +202,8 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         shared_hidden_dims: Sequence[int] = (128, 64),
         output_prior: Sequence[float] = (9.288469, 75.755157, 4.994778, 9.961745),
         output_mode: str = "gas_head",
+        phase_stat_dim: int = 0,
+        phase_stat_hidden: int = 128,
     ):
         if out_dim not in {3, 4}:
             raise ValueError("CNN1DTCNFusionRegressor requires out_dim=4 for raw percentages or out_dim=3 for log-ratio targets")
@@ -227,15 +259,25 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         self.tcn = nn.Sequential(*layers)
 
         pooled_features = current * 3
+        fusion_dim = pooled_features + phase_stat_dim
         h1, h2 = shared_hidden_dims
         self.shared_head = nn.Sequential(
-            nn.Linear(pooled_features, h1),
+            nn.Linear(fusion_dim, h1),
             nn.ReLU(),
             nn.Dropout(tcn_dropout),
             nn.Linear(h1, h2),
             nn.ReLU(),
             nn.Dropout(tcn_dropout),
         )
+        if phase_stat_dim > 0:
+            self.phase_stat_mlp = PhaseStatMLP(
+                phase_stat_dim,
+                hidden_dim=phase_stat_hidden,
+                embedding_dim=64,
+                dropout=tcn_dropout,
+            )
+        else:
+            self.phase_stat_mlp = None
         if output_mode == "gas_head":
             if out_dim == 4:
                 self.output_head = GasHeadNormalize(h2, output_prior=output_prior)
@@ -269,4 +311,14 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         )
         feats = self.tcn(fused.transpose(1, 2))
         pooled = torch.cat([feats[:, :, -1], feats.mean(dim=-1), feats.amax(dim=-1)], dim=-1)
+
+        phase_stats = kwargs.get("phase_stats")
+        if phase_stats is not None:
+            if self.phase_stat_mlp is None:
+                raise ValueError("model was not built with phase_stat_dim > 0")
+            if not isinstance(phase_stats, torch.Tensor):
+                raise TypeError("phase_stats must be a torch.Tensor")
+            phase_feat = self.phase_stat_mlp(phase_stats.float())
+            pooled = torch.cat([pooled, phase_feat], dim=-1)
+
         return self.output_head(self.shared_head(pooled))

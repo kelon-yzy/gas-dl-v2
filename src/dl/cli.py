@@ -153,6 +153,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
     modalities = _parse_modalities(args.modalities)
     input_format = args.input_format or _model_input_format(args.model)
+
+    # auto-detect phase statistics
+    default_phase_stats_path = args.dataset_dir / "features" / "phase_stats.npy"
+    phase_stats_path = default_phase_stats_path if default_phase_stats_path.is_file() else None
+
     train_dataset = _build_dataset(
         args.dataset_dir,
         split="train",
@@ -163,6 +168,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         phase_windows=args.phase_windows,
         dequantize_waveforms=args.dequantize_waveforms,
         lazy=True,
+        phase_stats_path=phase_stats_path,
     )
     sample_x, sample_y = train_dataset[0]
     in_channels, timesteps = _infer_input_shape(sample_x, input_format)
@@ -179,6 +185,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
 
     model_config = _build_model_config(args.model, args.model_kwargs, in_channels, out_dim, timesteps)
+    if phase_stats_path is not None and train_dataset.has_phase_stats:
+        model_config["phase_stat_dim"] = train_dataset.phase_stat_dim
     validate_loss_model_output(args.loss, model_name=args.model, model_kwargs=model_config)
     if target_transform is not None and int(model_config["out_dim"]) != 3:
         raise ValueError("DL target_transform requires model out_dim=3")
@@ -221,6 +229,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.pin_memory,
         args.persistent_workers,
         args.prefetch_factor,
+        phase_stats_path=phase_stats_path,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = args.output_dir / args.checkpoint_name
@@ -274,6 +283,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.pin_memory,
             args.persistent_workers,
             args.prefetch_factor,
+            phase_stats_path=phase_stats_path,
         )
         if loader is not None:
             evaluations[split] = _evaluation_payload(
@@ -450,7 +460,9 @@ def _model_input_format(model_name: str) -> str:
     return str(input_format)
 
 
-def _infer_input_shape(sample_x: torch.Tensor, input_format: str) -> tuple[int, int]:
+def _infer_input_shape(sample_x: torch.Tensor | dict[str, object], input_format: str) -> tuple[int, int]:
+    if isinstance(sample_x, dict):
+        sample_x = sample_x["x"]
     if input_format == "FEATURES":
         if sample_x.ndim != 1:
             raise ValueError(f"Expected one feature sample shaped (F,), got {tuple(sample_x.shape)}")
@@ -481,6 +493,7 @@ def _build_dataset(
     phase_windows: list[object] | tuple[object, ...] | None,
     dequantize_waveforms: bool,
     lazy: bool,
+    phase_stats_path: Path | None = None,
 ):
     if input_format == "FEATURES":
         return V4FeatureMatrixDataset(
@@ -501,6 +514,7 @@ def _build_dataset(
         phase_windows=phase_windows,
         dequantize_waveforms=dequantize_waveforms,
         lazy=lazy,
+        phase_stats_path=phase_stats_path,
     )
 
 
@@ -790,6 +804,7 @@ def _optional_loader(
     pin_memory: bool,
     persistent_workers: bool,
     prefetch_factor: int | None,
+    phase_stats_path: Path | None = None,
 ) -> DataLoader | None:
     dataset = _build_dataset(
         dataset_dir,
@@ -801,6 +816,7 @@ def _optional_loader(
         phase_windows=phase_windows,
         dequantize_waveforms=dequantize_waveforms,
         lazy=True,
+        phase_stats_path=phase_stats_path,
     )
     if len(dataset) == 0:
         return None

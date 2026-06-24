@@ -54,6 +54,7 @@ class V4BenchmarkDataset(Dataset):
         window: dict[str, object] | WindowConfig | None = None,
         phase_windows: tuple[dict[str, object] | WindowConfig | None, ...] | None = None,
         dequantize_waveforms: bool = False,
+        phase_stats_path: Path | str | None = None,
     ):
         dataset_dir = Path(dataset_dir)
         self._dataset_dir = dataset_dir
@@ -94,6 +95,9 @@ class V4BenchmarkDataset(Dataset):
         self._fiber_mic: np.ndarray | None = None
         self._fiber_mic_scale: np.ndarray | None = None
         self._labels: np.ndarray | None = None
+        self._phase_stats: np.ndarray | None = None
+        self._phase_stats_path = Path(phase_stats_path) if phase_stats_path is not None else None
+        self._has_phase_stats = self._phase_stats_path is not None and self._phase_stats_path.is_file()
 
         if not lazy:
             self._load_arrays()
@@ -107,7 +111,24 @@ class V4BenchmarkDataset(Dataset):
         src_idx = self.indices[idx]
         xs = self._build_input(src_idx)
         y = torch.from_numpy(self._labels[src_idx].copy())
+        if self._has_phase_stats:
+            if self._phase_stats is None:
+                self._load_arrays()
+            phase_vec = torch.from_numpy(self._phase_stats[src_idx].copy())
+            return {"x": xs, "phase_stats": phase_vec}, y
         return xs, y
+
+    @property
+    def has_phase_stats(self) -> bool:
+        return self._has_phase_stats
+
+    @property
+    def phase_stat_dim(self) -> int:
+        if not self._has_phase_stats:
+            return 0
+        if self._phase_stats is None:
+            self._load_arrays()
+        return int(self._phase_stats.shape[1])
 
     def __getstate__(self) -> dict[str, object]:
         state = self.__dict__.copy()
@@ -117,6 +138,7 @@ class V4BenchmarkDataset(Dataset):
         state["_fiber_mic"] = None
         state["_fiber_mic_scale"] = None
         state["_labels"] = None
+        state["_phase_stats"] = None
         state["_augment_rng"] = None
         return state
 
@@ -134,6 +156,8 @@ class V4BenchmarkDataset(Dataset):
             self._fiber_mic = np.load(seq_dir / "fiber_mic_int16.npy", mmap_mode="r")
             if self._dequantize_waveforms:
                 self._fiber_mic_scale = np.load(seq_dir / "fiber_mic_scale.npy", mmap_mode="r")
+        if self._has_phase_stats and self._phase_stats is None:
+            self._phase_stats = np.load(self._phase_stats_path, mmap_mode="r")
 
     def _ensure_augment_rng(self) -> np.random.Generator:
         # 多 worker DataLoader 下，每个 worker 进程按 worker_id 派生独立 RNG，

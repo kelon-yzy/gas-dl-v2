@@ -123,6 +123,29 @@ class Trainer:
             raise ValueError("Trainer target_transform epsilon must be resolved before training")
         self.history = TrainHistory()
 
+    @staticmethod
+    def _unpack_batch(
+        batch: tuple[object, torch.Tensor],
+        *,
+        device: torch.device,
+        non_blocking: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, object]]:
+        """Unpack a DataLoader batch, handling both tensor and dict inputs.
+
+        Moves all tensors to *device* and returns (x, y, extra_kwargs) where
+        *extra_kwargs* is a dict of additional inputs for model forward kwargs.
+        """
+        xb, yb = batch
+        if isinstance(xb, dict):
+            x = xb["x"].to(device, non_blocking=non_blocking)
+            kwargs = {
+                k: v.to(device, non_blocking=non_blocking)
+                for k, v in xb.items()
+                if k != "x"
+            }
+            return x, yb.to(device, non_blocking=non_blocking), kwargs
+        return xb.to(device, non_blocking=non_blocking), yb.to(device, non_blocking=non_blocking), {}
+
     def fit(
         self,
         train_loader: DataLoader,
@@ -161,13 +184,12 @@ class Trainer:
             loss_accum = torch.zeros((), dtype=torch.float64, device=self.device)
             n_batches = 0
             n_samples = 0
-            for xb, yb in train_loader:
-                xb = xb.to(self.device, non_blocking=non_blocking)
-                yb = yb.to(self.device, non_blocking=non_blocking)
+            for batch in train_loader:
+                xb, yb, model_kwargs = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
                 self.optimizer.zero_grad(set_to_none=True)
                 if amp.enabled:
                     with torch.autocast(device_type="cuda", dtype=amp_dtype):
-                        pred = self.model(xb)
+                        pred = self.model(xb, **model_kwargs)
                         loss = self.loss_fn(pred, self._loss_targets(yb))
                     scaler.scale(loss).backward()
                     if grad_clip_norm > 0.0:
@@ -176,7 +198,7 @@ class Trainer:
                     scaler.step(self.optimizer)
                     scaler.update()
                 else:
-                    pred = self.model(xb)
+                    pred = self.model(xb, **model_kwargs)
                     loss = self.loss_fn(pred, self._loss_targets(yb))
                     loss.backward()
                     if grad_clip_norm > 0.0:
@@ -255,15 +277,14 @@ class Trainer:
         all_targets: list[torch.Tensor] = []
         n_batches = 0
 
-        for xb, yb in data_loader:
-            xb = xb.to(self.device, non_blocking=non_blocking)
-            yb = yb.to(self.device, non_blocking=non_blocking)
+        for batch in data_loader:
+            xb, yb, model_kwargs = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
             if amp.enabled:
                 with torch.autocast(device_type="cuda", dtype=amp_dtype):
-                    pred = self.model(xb)
+                    pred = self.model(xb, **model_kwargs)
                     loss = self.loss_fn(pred, self._loss_targets(yb))
             else:
-                pred = self.model(xb)
+                pred = self.model(xb, **model_kwargs)
                 loss = self.loss_fn(pred, self._loss_targets(yb))
             loss_accum += loss.detach().double()
             all_preds.append(pred.cpu())
@@ -305,13 +326,13 @@ class Trainer:
         self.model.eval()
         preds: list[torch.Tensor] = []
         targets: list[torch.Tensor] = []
-        for xb, yb in data_loader:
-            xb = xb.to(self.device, non_blocking=non_blocking)
+        for batch in data_loader:
+            xb, yb, model_kwargs = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
             if amp.enabled:
                 with torch.autocast(device_type="cuda", dtype=amp_dtype):
-                    pred = self.model(xb)
+                    pred = self.model(xb, **model_kwargs)
             else:
-                pred = self.model(xb)
+                pred = self.model(xb, **model_kwargs)
             preds.append(self._metric_predictions(pred).cpu())
             targets.append(yb.cpu())
         self.model.train()
