@@ -507,8 +507,11 @@ def _resolve_phase_stats_path(value: object, dataset_dir: Path) -> Path | None:
     path_text = str(value)
     if not path_text:
         raise ValueError("phase-stats-path must not be empty")
-    path = dataset_dir / "features" / "phase_stats.npy" if path_text == "auto" else Path(path_text)
-    if not path.is_absolute():
+    if path_text == "auto":
+        path = dataset_dir / "features" / "phase_stats.npy"
+    else:
+        path = Path(path_text)
+    if path_text != "auto" and not path.is_absolute():
         path = dataset_dir / path
     if not path.is_file():
         raise FileNotFoundError(f"phase-stats-path not found: {path}")

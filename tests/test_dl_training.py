@@ -203,6 +203,15 @@ class TestDLCli:
         assert payload["model_config"]["phase_stat_dim"] == 4
         assert payload["phase_stats_path"] == str(features_dir / "phase_stats.npy")
 
+    def test_phase_stats_auto_resolves_to_dataset_features(self, tmp_path: Path):
+        dataset_dir = tmp_path / "dataset"
+        features_dir = dataset_dir / "features"
+        features_dir.mkdir(parents=True)
+        phase_stats_path = features_dir / "phase_stats.npy"
+        np.save(phase_stats_path, np.ones((2, 4), dtype=np.float32))
+
+        assert dl_cli._resolve_phase_stats_path("auto", dataset_dir) == phase_stats_path
+
     def test_cli_tcn_config_infers_target_timesteps(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-tcn-config")
         output_dir = tmp_path / "runs" / "tcn"
