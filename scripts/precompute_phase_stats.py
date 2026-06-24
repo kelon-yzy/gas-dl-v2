@@ -233,7 +233,7 @@ def _save_scaler(
     """Compute and save Z-score normalizer from train split only."""
     import json
     
-    from src.dl.data.splits import load_splits, resolve_split_indices
+    from dl.data.splits import load_splits, resolve_split_indices
     
     splits = load_splits(dataset_dir / "splits")
     train_indices = resolve_split_indices(splits, sequence_ids)["train"]
