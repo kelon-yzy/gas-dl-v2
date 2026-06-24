@@ -54,6 +54,7 @@
       "name": "cnn1d_tcn_fusion_raw4_phase_stat",
       "model": "cnn1d_tcn_fusion",
       "modalities": ["slow", "ultrasonic", "fiber_mic"],
+      "phase_stats_path": "auto",
       "loss": {"name": "weighted_component_mse", "weighting": "inverse_train_var"},
       "dequantize_waveforms": true,
       "model_kwargs": {

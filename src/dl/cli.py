@@ -36,6 +36,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "scaler_path": None,
     "window": None,
     "phase_windows": None,
+    "phase_stats_path": None,
     "dequantize_waveforms": False,
     "resume_from": None,
     "target_transform": None,
@@ -103,6 +104,12 @@ def build_parser() -> argparse.ArgumentParser:
         help='Optional JSON array of DL phase windows, e.g. [null, {"kind":"phase","value":"exposure"}].',
     )
     parser.add_argument(
+        "--phase-stats-path",
+        type=str,
+        default=None,
+        help="Optional precomputed phase statistics path. Use 'auto' for dataset_dir/features/phase_stats.npy.",
+    )
+    parser.add_argument(
         "--dequantize-waveforms",
         action="store_true",
         default=False,
@@ -154,10 +161,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     modalities = _parse_modalities(args.modalities)
     input_format = args.input_format or _model_input_format(args.model)
 
-    # auto-detect phase statistics
-    default_phase_stats_path = args.dataset_dir / "features" / "phase_stats.npy"
-    phase_stats_path = default_phase_stats_path if default_phase_stats_path.is_file() else None
-    phase_scaler_path = args.dataset_dir / "features" / "phase_stats_scaler.json"
+    phase_stats_path = _resolve_phase_stats_path(args.phase_stats_path, args.dataset_dir)
+    phase_scaler_path = phase_stats_path.with_name("phase_stats_scaler.json") if phase_stats_path is not None else None
 
     train_dataset = _build_dataset(
         args.dataset_dir,
@@ -188,8 +193,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     model_config = _build_model_config(args.model, args.model_kwargs, in_channels, out_dim, timesteps)
     if phase_stats_path is not None and train_dataset.has_phase_stats:
         model_config["phase_stat_dim"] = train_dataset.phase_stat_dim
-        if phase_scaler_path.is_file():
-            scaler = json.loads(phase_scaler_path.read_text())
+        if phase_scaler_path is not None and phase_scaler_path.is_file():
+            scaler = json.loads(phase_scaler_path.read_text(encoding="utf-8"))
             model_config["phase_stat_norm_mean"] = scaler["mean"]
             model_config["phase_stat_norm_std"] = scaler["std"]
     validate_loss_model_output(args.loss, model_name=args.model, model_kwargs=model_config)
@@ -311,6 +316,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "modalities": modalities,
         "window": window_to_payload(resolve_window_config(args.window)),
         "phase_windows": _phase_windows_payload(args.phase_windows),
+        "phase_stats_path": str(phase_stats_path) if phase_stats_path is not None else None,
         "dequantize_waveforms": args.dequantize_waveforms,
         "target_transform": asdict(target_transform) if target_transform is not None else None,
         "target_transform_audits": (
@@ -414,6 +420,14 @@ def _validate_run_args(args: argparse.Namespace) -> None:
         parser.error(f"dataset-dir must be a v4 benchmark root: {args.dataset_dir}")
     if args.resume_from is not None and not args.resume_from.is_file():
         parser.error(f"resume-from checkpoint not found: {args.resume_from}")
+    try:
+        phase_stats_path = _resolve_phase_stats_path(args.phase_stats_path, args.dataset_dir)
+    except (FileNotFoundError, ValueError) as exc:
+        parser.error(str(exc))
+    if phase_stats_path is not None and args.model != "cnn1d_tcn_fusion":
+        parser.error("phase-stats-path requires model='cnn1d_tcn_fusion'")
+    if phase_stats_path is not None and (args.input_format or _model_input_format(args.model)) == "FEATURES":
+        parser.error("phase-stats-path is only supported for sequence DL inputs")
     if args.epochs < 1:
         parser.error(f"epochs must be >= 1, got {args.epochs}")
     if args.batch_size < 1:
@@ -485,6 +499,20 @@ def _infer_input_shape(sample_x: torch.Tensor | dict[str, object], input_format:
     if input_format == "NCT":
         return int(sample_x.shape[0]), int(sample_x.shape[1])
     raise ValueError(f"input_format must be one of ['FEATURES', 'NCT', 'NTC'], got {input_format!r}")
+
+
+def _resolve_phase_stats_path(value: object, dataset_dir: Path) -> Path | None:
+    if value is None:
+        return None
+    path_text = str(value)
+    if not path_text:
+        raise ValueError("phase-stats-path must not be empty")
+    path = dataset_dir / "features" / "phase_stats.npy" if path_text == "auto" else Path(path_text)
+    if not path.is_absolute():
+        path = dataset_dir / path
+    if not path.is_file():
+        raise FileNotFoundError(f"phase-stats-path not found: {path}")
+    return path
 
 
 def _build_dataset(
@@ -894,6 +922,7 @@ def _run_config_payload(
         "resume_from": str(args.resume_from) if args.resume_from is not None else None,
         "window": window_to_payload(resolve_window_config(args.window)),
         "phase_windows": _phase_windows_payload(args.phase_windows),
+        "phase_stats_path": args.phase_stats_path,
         "dequantize_waveforms": args.dequantize_waveforms,
         "target_transform": args.target_transform,
         "resolved_target_transform": asdict(target_transform) if target_transform is not None else None,

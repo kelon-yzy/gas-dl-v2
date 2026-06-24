@@ -156,6 +156,7 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         resume_from=run_config.get("resume_from"),
         window=run_config.get("window"),
         phase_windows=run_config.get("phase_windows"),
+        phase_stats_path=run_config.get("phase_stats_path"),
         dequantize_waveforms=bool(run_config.get("dequantize_waveforms", False)),
         target_transform=run_config.get("target_transform"),
         epochs=training["epochs"],
@@ -238,6 +239,8 @@ def _planned_run_detail(kind: str, run_config: dict[str, Any], *, default_loss: 
         detail["windows"] = _feature_windows_payload(_resolve_feature_windows(run_config.get("windows")))
     if "phase_windows" in run_config:
         detail["phase_windows"] = _feature_windows_payload(_resolve_feature_windows(run_config.get("phase_windows")))
+    if kind == "dl" and "phase_stats_path" in run_config:
+        detail["phase_stats_path"] = run_config["phase_stats_path"]
     if kind == "dl" and "dequantize_waveforms" in run_config:
         detail["dequantize_waveforms"] = bool(run_config["dequantize_waveforms"])
     if default_loss is not None:

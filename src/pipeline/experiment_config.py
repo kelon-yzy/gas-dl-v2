@@ -324,6 +324,13 @@ def _validate_run_dict(run: dict[str, Any], *, kind: str) -> None:
                 resolve_window_config(window)
             except ValueError as exc:
                 raise ValueError(f"Invalid dl phase_windows[{index}] in run {run.get('name')!r}: {exc}") from exc
+    if "phase_stats_path" in run:
+        if kind != "dl":
+            raise ValueError(f"{kind} run {run.get('name')!r} cannot use phase_stats_path; DL-only")
+        if str(run["phase_stats_path"]) == "":
+            raise ValueError(f"dl run {run.get('name')!r} phase_stats_path must be a non-empty string")
+        if run.get("model") != "cnn1d_tcn_fusion":
+            raise ValueError(f"dl run {run.get('name')!r} phase_stats_path requires model='cnn1d_tcn_fusion'")
     if "dequantize_waveforms" in run:
         if kind != "dl":
             raise ValueError(f"{kind} run {run.get('name')!r} cannot use dequantize_waveforms; DL-only")

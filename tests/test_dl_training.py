@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 from torch import nn
@@ -133,6 +134,74 @@ class TestDLCli:
         assert len(payload["history"]) == 1
         assert set(payload["evaluations"]["val"]["component_metrics"]) == set(COMPONENT_FIELDS)
         assert set(payload["evaluations"]["val"]["conditional_metrics"]) == {"n2_bins", "ch4_bins"}
+
+    def test_cli_does_not_auto_enable_phase_stats_file(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-phase-file-disabled")
+        features_dir = dataset_dir / "features"
+        features_dir.mkdir()
+        sequence_count = len(np.load(dataset_dir / "metadata" / "sequence_ids.npy", allow_pickle=True))
+        np.save(features_dir / "phase_stats.npy", np.zeros((sequence_count, 4), dtype=np.float32))
+        output_dir = tmp_path / "runs" / "cnn1d-no-phase"
+        parser = build_dl_cli_parser()
+        args = parser.parse_args(
+            [
+                "--dataset-dir",
+                str(dataset_dir),
+                "--output-dir",
+                str(output_dir),
+                "--model",
+                "cnn1d",
+                "--model-kwargs",
+                '{"hidden_channels":[4],"kernel_size":3,"dropout":0.0}',
+                "--epochs",
+                "1",
+                "--batch-size",
+                "4",
+                "--eval-splits",
+                "val",
+            ]
+        )
+
+        payload = run_dl_cli(args)
+
+        assert "phase_stat_dim" not in payload["model_config"]
+        assert payload["phase_stats_path"] is None
+
+    def test_cli_explicit_phase_stats_auto_enables_fusion_branch(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-phase-auto", sequences=8)
+        features_dir = dataset_dir / "features"
+        features_dir.mkdir()
+        sequence_count = len(np.load(dataset_dir / "metadata" / "sequence_ids.npy", allow_pickle=True))
+        np.save(features_dir / "phase_stats.npy", np.ones((sequence_count, 4), dtype=np.float32))
+        output_dir = tmp_path / "runs" / "fusion-phase"
+        parser = build_dl_cli_parser()
+        args = parser.parse_args(
+            [
+                "--dataset-dir",
+                str(dataset_dir),
+                "--output-dir",
+                str(output_dir),
+                "--model",
+                "cnn1d_tcn_fusion",
+                "--model-kwargs",
+                '{"output_mode":"raw4","waveform_embedding_dim":4,"acoustic_channels":[2],"slow_hidden_dim":4,"slow_embedding_dim":4,"tcn_channels":[4],"shared_hidden_dims":[8,4],"acoustic_dropout":0.0,"tcn_dropout":0.0}',
+                "--modalities",
+                "slow,ultrasonic,fiber_mic",
+                "--phase-stats-path",
+                "auto",
+                "--epochs",
+                "1",
+                "--batch-size",
+                "2",
+                "--eval-splits",
+                "val",
+            ]
+        )
+
+        payload = run_dl_cli(args)
+
+        assert payload["model_config"]["phase_stat_dim"] == 4
+        assert payload["phase_stats_path"] == str(features_dir / "phase_stats.npy")
 
     def test_cli_tcn_config_infers_target_timesteps(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="dl-tcn-config")

@@ -273,6 +273,30 @@ class TestCNN1DTCNFusionRegressor:
         # raw4 输出无 simplex 约束，不需要求和为 100
         assert model.output_mode == "raw4"
 
+    def test_forward_with_phase_stat_branch(self):
+        model = CNN1DTCNFusionRegressor(
+            in_channels=14,
+            slow_channels=2,
+            ultrasonic_channels=5,
+            fiber_mic_channels=7,
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+            output_mode="raw4",
+            phase_stat_dim=3,
+        )
+
+        out = model(torch.randn(3, 6, 14), phase_stats=torch.randn(3, 3))
+        out.sum().backward()
+
+        assert out.shape == (3, 4)
+        assert model.phase_stat_mlp is not None
+        for name, param in model.phase_stat_mlp.named_parameters():
+            assert param.grad is not None, f"{name} has no gradient"
+
     def test_forward_shape_for_transformed_coordinate_head(self):
         model = CNN1DTCNFusionRegressor(
             in_channels=14,
