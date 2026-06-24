@@ -38,7 +38,7 @@
     "performance": {
       "cudnn_benchmark": true,
       "tf32": true,
-        "compile": false,
+        "compile": true,
       "compile_mode": "reduce-overhead"
     },
     "progress": {

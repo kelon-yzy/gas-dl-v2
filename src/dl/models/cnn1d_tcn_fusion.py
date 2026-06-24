@@ -259,7 +259,8 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         self.tcn = nn.Sequential(*layers)
 
         pooled_features = current * 3
-        fusion_dim = pooled_features + phase_stat_dim
+        phase_embed = 64 if phase_stat_dim > 0 else 0
+        fusion_dim = pooled_features + phase_embed
         h1, h2 = shared_hidden_dims
         self.shared_head = nn.Sequential(
             nn.Linear(fusion_dim, h1),
