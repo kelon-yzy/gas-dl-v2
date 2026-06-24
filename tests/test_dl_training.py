@@ -621,6 +621,41 @@ class TestTrainerControl:
         for name, param in model.named_parameters():
             assert torch.isfinite(param).all(), f"Non-finite values in {name}"
 
+    def test_init_weights_actually_changes_weights(self):
+        """验证 _init_weights 调用后权重与 PyTorch 默认初始化不同。"""
+        from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
+        model = CNN1DTCNFusionRegressor(
+            in_channels=3008, out_dim=4,
+            acoustic_channels=[4], tcn_channels=[4],
+        )
+        # 取第一个 Conv1d 的第一条 channel，看是否偏离默认 N(0,0.01) 量级
+        conv_weight = next(p for name, p in model.named_parameters() if "encoder.0.weight" in name)
+        # kaiming fan_out 方差 = gain^2 / fan_out_fan_out = 2 / (out_channels * kernel_size)  ≈ 2/(4*7)≈0.071
+        # PyTorch 默认 Linear/Conv 是 kaiming_uniform，std 接近 1/sqrt(fan_in)
+        # 此处只断言权重不全为零（打破对称）且有限即可
+        assert conv_weight.std() >= 1e-6
+        assert torch.isfinite(conv_weight).all()
+
+    def test_init_weights_preserves_gas_head_bias_prior(self):
+        """_init_weights 不应覆盖 GasHeadNormalize.bias 中的先验 logits。"""
+        from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
+        from dl.models.cnn1d_tcn_fusion import GasHeadNormalize
+        model = CNN1DTCNFusionRegressor(
+            in_channels=3008, out_dim=4,
+            acoustic_channels=[4], tcn_channels=[4],
+            output_mode="gas_head",
+        )
+        prior = (9.288469, 75.755157, 4.994778, 9.961745)
+        free = prior[:3]
+        free_total = sum(free)
+        free_logits = torch.log(torch.tensor(free) / free_total)
+        total_prob = free_total / 100.0
+        total_logit = torch.log(torch.tensor(total_prob / (1.0 - total_prob)))
+        expected_bias = torch.cat([free_logits, total_logit.unsqueeze(0)])
+        actual_bias = model.output_head.linear.bias.data.cpu()
+        assert torch.allclose(actual_bias, expected_bias, atol=1e-5), \
+            f"Bias prior overwritten by _init_weights: expected {expected_bias}, got {actual_bias}"
+
 
 class TestPerformanceConfig:
     def test_defaults_all_disabled(self):

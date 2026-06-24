@@ -622,6 +622,11 @@ def _performance_config(value: dict[str, Any]) -> dict[str, Any]:
 
 def _apply_performance_settings(performance: dict[str, Any], device: torch.device) -> None:
     # benchmark/TF32 是全局 CUDA backend 开关，CPU 设备下静默跳过。
+    # 复现性说明：seed 扩展（torch/cuda/np/random）只保证 CPU 路径和算子调度种子一致，
+    # 不强制 bit-exact。cudnn_benchmark=True 时 cuDNN 会按输入 shape 选最快内核，
+    # 不同进程/不同硬件下选出的内核可能不同，结果会有微小漂移；TF32 同样会损失低位精度。
+    # 多 seed 验证关注的是均值与方差而非 bit-exact，因此当前不强制 cudnn.deterministic=True。
+    # 若后续需要严格复现，再加 deterministic 开关并要求 cudnn_benchmark=False。
     if device.type != "cuda":
         return
     torch.set_float32_matmul_precision("high" if performance["tf32"] else "highest")

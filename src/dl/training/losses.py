@@ -27,7 +27,7 @@ GAS_HEAD_PERCENTAGE_LOSSES = RAW_PERCENTAGE_LOSSES
 FREE_COMPONENT_CLOSURE_LOSSES = frozenset((FREE_COMPONENT_MSE_LOSS, WEIGHTED_FREE_COMPONENT_MSE_LOSS))
 IMPLICIT_GAS_HEAD_MODELS = frozenset(("handcraft_mlp",))
 # phase_window_tcn 上对 weighted_component_mse 放开的合法 head；
-# free-component 闘包类损失仍只允许 gas_head。
+# free-component 闭包类损失仍只允许 gas_head。
 RAW_PERCENTAGE_VALID_HEADS = frozenset(("raw4", "softmax100", "gas_head"))
 
 

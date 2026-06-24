@@ -22,6 +22,12 @@ class BaseRegressor(nn.Module):
 
     @staticmethod
     def _init_weights(module: nn.Module) -> None:
+        # Conv1d/Linear: Kaiming Normal, fan_out + ReLU gain。
+        # 选 fan_out 保前向方差，对当前 Conv1d+BN+ReLU 主线网络合适；
+        # Transformer/PatchTST 实际激活是 GELU，gain 差异约 √2 vs ~1.39，量级相近未严格匹配，
+        # 若后续这两个模型出现训练异常再单独按 module 类型走 GELU gain。
+        # Linear.bias 故意不动：GasHeadNormalize._init_prior 已经在 __init__ 内写入先验 logits，
+        # self.apply(_init_weights) 在 __init__ 末尾递归只覆盖 weight 不覆盖 bias，保留先验。
         if isinstance(module, nn.Conv1d):
             nn.init.kaiming_normal_(module.weight, mode="fan_out", nonlinearity="relu")
         elif isinstance(module, nn.Linear):
