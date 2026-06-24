@@ -157,6 +157,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     # auto-detect phase statistics
     default_phase_stats_path = args.dataset_dir / "features" / "phase_stats.npy"
     phase_stats_path = default_phase_stats_path if default_phase_stats_path.is_file() else None
+    phase_scaler_path = args.dataset_dir / "features" / "phase_stats_scaler.json"
 
     train_dataset = _build_dataset(
         args.dataset_dir,
@@ -187,6 +188,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     model_config = _build_model_config(args.model, args.model_kwargs, in_channels, out_dim, timesteps)
     if phase_stats_path is not None and train_dataset.has_phase_stats:
         model_config["phase_stat_dim"] = train_dataset.phase_stat_dim
+        if phase_scaler_path.is_file():
+            scaler = json.loads(phase_scaler_path.read_text())
+            model_config["phase_stat_norm_mean"] = scaler["mean"]
+            model_config["phase_stat_norm_std"] = scaler["std"]
     validate_loss_model_output(args.loss, model_name=args.model, model_kwargs=model_config)
     if target_transform is not None and int(model_config["out_dim"]) != 3:
         raise ValueError("DL target_transform requires model out_dim=3")

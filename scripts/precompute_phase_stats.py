@@ -213,10 +213,44 @@ def precompute(dataset_dir: Path, *, force: bool = False) -> Path:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     np.save(out_path, stats)
+    
+    # Save Z-score normalizer computed on train split only
+    scaler_path = out_dir / "phase_stats_scaler.json"
+    _save_scaler(stats, sequence_ids, dataset_dir, scaler_path)
+    
     print(f"\nSaved: {out_path}")
     print(f"Shape: {stats.shape}  dtype: {stats.dtype}")
     print(f"Min: {stats.min():.6f}  Max: {stats.max():.6f}  Mean: {stats.mean():.6f}  Std: {stats.std():.6f}")
     return out_path
+
+
+def _save_scaler(
+    stats: NDArray[np.float32],
+    sequence_ids: list[str],
+    dataset_dir: Path,
+    scaler_path: Path,
+) -> None:
+    """Compute and save Z-score normalizer from train split only."""
+    import json
+    
+    from src.dl.data.splits import load_splits, resolve_split_indices
+    
+    splits = load_splits(dataset_dir / "splits")
+    train_indices = resolve_split_indices(splits, sequence_ids)["train"]
+    train_stats = stats[train_indices]
+    
+    mean = train_stats.mean(axis=0).tolist()
+    std = train_stats.std(axis=0).tolist()
+    
+    # Clip tiny std to avoid division by near-zero
+    eps = 1e-8
+    std = [max(s, eps) for s in std]
+    
+    scaler_path.write_text(json.dumps({"mean": mean, "std": std}, indent=2))
+    print(f"Saved scaler: {scaler_path}")
+    print(f"  Train samples: {len(train_indices)}")
+    print(f"  Mean range: [{np.min(mean):.4f}, {np.max(mean):.4f}]")
+    print(f"  Std range: [{np.min(std):.6f}, {np.max(std):.4f}]")
 
 
 def build_parser() -> argparse.ArgumentParser:

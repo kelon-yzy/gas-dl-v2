@@ -152,6 +152,8 @@ class PhaseStatMLP(nn.Module):
         hidden_dim: int = 128,
         embedding_dim: int = 64,
         dropout: float = 0.25,
+        norm_mean: Sequence[float] | None = None,
+        norm_std: Sequence[float] | None = None,
     ):
         super().__init__()
         if phase_stat_dim < 1:
@@ -164,8 +166,16 @@ class PhaseStatMLP(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout),
         )
+        if norm_mean is not None and norm_std is not None:
+            self.register_buffer("_norm_mean", torch.tensor(norm_mean, dtype=torch.float32))
+            self.register_buffer("_norm_std", torch.tensor(norm_std, dtype=torch.float32))
+        else:
+            self._norm_mean = None
+            self._norm_std = None
 
     def forward(self, phase_stats: torch.Tensor) -> torch.Tensor:
+        if self._norm_mean is not None and self._norm_std is not None:
+            phase_stats = (phase_stats.float() - self._norm_mean) / self._norm_std
         return self.net(phase_stats)
 
 
@@ -204,6 +214,8 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         output_mode: str = "gas_head",
         phase_stat_dim: int = 0,
         phase_stat_hidden: int = 128,
+        phase_stat_norm_mean: Sequence[float] | None = None,
+        phase_stat_norm_std: Sequence[float] | None = None,
     ):
         if out_dim not in {3, 4}:
             raise ValueError("CNN1DTCNFusionRegressor requires out_dim=4 for raw percentages or out_dim=3 for log-ratio targets")
@@ -276,6 +288,8 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
                 hidden_dim=phase_stat_hidden,
                 embedding_dim=64,
                 dropout=tcn_dropout,
+                norm_mean=phase_stat_norm_mean,
+                norm_std=phase_stat_norm_std,
             )
         else:
             self.phase_stat_mlp = None
