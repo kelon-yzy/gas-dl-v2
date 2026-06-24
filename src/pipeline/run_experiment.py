@@ -3,9 +3,13 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import warnings
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
+
+# 抑制 PyTorch Triton 编译器的逻辑运算符弃用警告
+warnings.filterwarnings('ignore', category=UserWarning, module='torch._inductor')
 
 from common.metrics import conditional_metrics_to_payload
 from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig, resolve_window_config, window_label, window_to_payload
