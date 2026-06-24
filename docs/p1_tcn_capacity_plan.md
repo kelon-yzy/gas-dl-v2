@@ -129,6 +129,7 @@
 - **配置文件**: `configs/experiment/dl_p1_tcn_capacity.json`
 - **输出目录**: `outputs/runs/dl_p1_tcn_capacity/`
 - **预计训练时间**: ~30-40 分钟 (80 epochs, batch_size=16)
+- **注意**: 需要先 `git pull` 确保服务器代码是最新版本（包含 `output_mode` 参数支持，commit 1e2c27f）
 
 ### 性能指标
 - **overall R²**: _待填写_
