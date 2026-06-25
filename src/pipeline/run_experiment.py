@@ -163,6 +163,8 @@ def _run_dl(config: ExperimentConfig, run_config: dict[str, Any], output_dir: Pa
         phase_stats_path=run_config.get("phase_stats_path"),
         dequantize_waveforms=bool(run_config.get("dequantize_waveforms", False)),
         target_transform=run_config.get("target_transform"),
+        augment=run_config.get("augment"),
+        augment_seed=run_config.get("augment_seed", 0),
         epochs=training["epochs"],
         batch_size=training["batch_size"],
         num_workers=training["num_workers"],

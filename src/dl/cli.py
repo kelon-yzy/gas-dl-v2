@@ -21,6 +21,7 @@ from common.composition import (
 from common.metrics import conditional_metrics_to_payload
 from common.windows import resolve_window_config, window_to_payload
 from common.splits import load_splits, resolve_split_indices
+from dl.data.augmentation import TimeSeriesAugmentConfig
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.data.feature_dataset import V4FeatureMatrixDataset
 from dl.models.registry import MODEL_REGISTRY, build_model
@@ -38,6 +39,8 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "phase_windows": None,
     "phase_stats_path": None,
     "dequantize_waveforms": False,
+    "augment": None,
+    "augment_seed": 0,
     "resume_from": None,
     "target_transform": None,
     "epochs": 50,
@@ -116,6 +119,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Load waveform inputs as int16 * scale instead of raw int16 values.",
     )
     parser.add_argument(
+        "--augment",
+        type=str,
+        default=None,
+        help='Optional JSON augment config applied to train split only. '
+             'Keys: jitter_std, window_fraction, max_shift, amplitude_scale_range '
+             '(list [lo, hi]), amplitude_apply_from_channel, gaussian_noise_std, apply_prob.',
+    )
+    parser.add_argument(
+        "--augment-seed",
+        type=int,
+        default=None,
+        help="Seed for per-worker augmentation RNG (default 0).",
+    )
+    parser.add_argument(
         "--target-transform",
         choices=("none", *TARGET_TRANSFORM_OPTIONS),
         default=None,
@@ -164,6 +181,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     phase_stats_path = _resolve_phase_stats_path(args.phase_stats_path, args.dataset_dir)
     phase_scaler_path = phase_stats_path.with_name("phase_stats_scaler.json") if phase_stats_path is not None else None
 
+    augment_config = _build_augment_config(args.augment, modalities)
     train_dataset = _build_dataset(
         args.dataset_dir,
         split="train",
@@ -175,6 +193,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         dequantize_waveforms=args.dequantize_waveforms,
         lazy=True,
         phase_stats_path=phase_stats_path,
+        augment_config=augment_config,
+        augment_seed=int(args.augment_seed),
     )
     sample_x, sample_y = train_dataset[0]
     in_channels, timesteps = _infer_input_shape(sample_x, input_format)
@@ -318,6 +338,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "phase_windows": _phase_windows_payload(args.phase_windows),
         "phase_stats_path": str(phase_stats_path) if phase_stats_path is not None else None,
         "dequantize_waveforms": args.dequantize_waveforms,
+        "augment": _augment_payload(augment_config, args.augment_seed),
         "target_transform": asdict(target_transform) if target_transform is not None else None,
         "target_transform_audits": (
             {split: asdict(audit) for split, audit in target_transform_audits.items()}
@@ -386,6 +407,14 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
             config["phase_windows"] = json.loads(config["phase_windows"])
         except json.JSONDecodeError as exc:
             raise ValueError(f"phase_windows must be a JSON array string: {exc}") from exc
+    if isinstance(config.get("augment"), str):
+        try:
+            config["augment"] = json.loads(config["augment"])
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"augment must be a JSON object string: {exc}") from exc
+    if config.get("augment") is not None and not isinstance(config["augment"], dict):
+        raise ValueError("augment must be a JSON object")
+    config["augment_seed"] = int(config.get("augment_seed") or 0)
     if config.get("prefetch_factor") is not None:
         config["prefetch_factor"] = int(config["prefetch_factor"])
     config["drop_last"] = bool(config.get("drop_last", False))
@@ -451,6 +480,7 @@ def _validate_run_args(args: argparse.Namespace) -> None:
             raise ValueError("window and phase_windows cannot be combined")
         target_transform = resolve_target_transform_spec(args.target_transform)
         validate_loss_target_transform(args.loss, None if target_transform is None else target_transform.name)
+        _build_augment_config(args.augment, _parse_modalities(args.modalities))
     except ValueError as exc:
         parser.error(str(exc))
 
@@ -530,6 +560,8 @@ def _build_dataset(
     dequantize_waveforms: bool,
     lazy: bool,
     phase_stats_path: Path | None = None,
+    augment_config: TimeSeriesAugmentConfig | None = None,
+    augment_seed: int = 0,
 ):
     if input_format == "FEATURES":
         return V4FeatureMatrixDataset(
@@ -551,7 +583,65 @@ def _build_dataset(
         dequantize_waveforms=dequantize_waveforms,
         lazy=lazy,
         phase_stats_path=phase_stats_path,
+        augment_config=augment_config,
+        augment_seed=augment_seed,
     )
+
+
+_AUGMENT_KEYS = frozenset(
+    (
+        "jitter_std",
+        "window_fraction",
+        "max_shift",
+        "amplitude_scale_range",
+        "amplitude_apply_from_channel",
+        "gaussian_noise_std",
+        "apply_prob",
+    )
+)
+
+
+def _build_augment_config(
+    raw: dict[str, Any] | None,
+    modalities: tuple[str, ...],
+) -> TimeSeriesAugmentConfig | None:
+    """从 raw dict 构造 TimeSeriesAugmentConfig；若所有字段为默认则返回 None。"""
+    if not raw:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("augment must be a JSON object")
+    unknown = set(raw) - _AUGMENT_KEYS
+    if unknown:
+        raise ValueError(f"Unknown augment keys: {sorted(unknown)}")
+
+    kwargs: dict[str, Any] = {}
+    if "jitter_std" in raw:
+        kwargs["jitter_std"] = float(raw["jitter_std"])
+    if "window_fraction" in raw:
+        kwargs["window_fraction"] = float(raw["window_fraction"])
+    if "max_shift" in raw:
+        kwargs["max_shift"] = int(raw["max_shift"])
+    if "amplitude_scale_range" in raw and raw["amplitude_scale_range"] is not None:
+        rng_val = raw["amplitude_scale_range"]
+        if not isinstance(rng_val, (list, tuple)) or len(rng_val) != 2:
+            raise ValueError("amplitude_scale_range must be a length-2 list [lo, hi]")
+        kwargs["amplitude_scale_range"] = (float(rng_val[0]), float(rng_val[1]))
+    if "amplitude_apply_from_channel" in raw:
+        kwargs["amplitude_apply_from_channel"] = int(raw["amplitude_apply_from_channel"])
+    elif "amplitude_scale_range" in kwargs:
+        # 用户未显式指定 apply_from：根据模态推断（含 slow 则跳过前 8 列，否则 0）。
+        kwargs["amplitude_apply_from_channel"] = 8 if "slow" in modalities else 0
+    if "gaussian_noise_std" in raw:
+        kwargs["gaussian_noise_std"] = float(raw["gaussian_noise_std"])
+    if "apply_prob" in raw:
+        kwargs["apply_prob"] = float(raw["apply_prob"])
+
+    config = TimeSeriesAugmentConfig(**kwargs)
+    # 全部为默认值时视为关闭。
+    default = TimeSeriesAugmentConfig()
+    if config == default:
+        return None
+    return config
 
 
 def _target_transform_audits(
@@ -927,6 +1017,8 @@ def _run_config_payload(
         "phase_windows": _phase_windows_payload(args.phase_windows),
         "phase_stats_path": args.phase_stats_path,
         "dequantize_waveforms": args.dequantize_waveforms,
+        "augment": args.augment,
+        "augment_seed": int(args.augment_seed),
         "target_transform": args.target_transform,
         "resolved_target_transform": asdict(target_transform) if target_transform is not None else None,
         "epochs": args.epochs,
@@ -969,6 +1061,20 @@ def _phase_windows_payload(value: object) -> list[dict[str, object] | None] | No
     if windows is None:
         return None
     return [window_to_payload(resolve_window_config(window)) for window in windows]
+
+
+def _augment_payload(
+    config: TimeSeriesAugmentConfig | None,
+    augment_seed: int,
+) -> dict[str, Any] | None:
+    if config is None:
+        return None
+    payload = asdict(config)
+    if payload.get("amplitude_scale_range") is not None:
+        lo, hi = payload["amplitude_scale_range"]
+        payload["amplitude_scale_range"] = [lo, hi]
+    payload["augment_seed"] = int(augment_seed)
+    return payload
 
 
 def _print_summary(payload: dict[str, Any]) -> None:

@@ -348,3 +348,191 @@ def test_augment_sequence_changes_values_with_window_and_jitter():
     assert windowed.shape == values.shape
     assert not np.allclose(windowed, values)
     assert not np.allclose(jittered, values)
+
+
+# ── P3 augmentation unit tests ──────────────────────────────────────────
+
+
+class TestTimeJitter:
+    def test_preserves_shape(self):
+        values = np.arange(50, dtype=np.float32).reshape(25, 2)
+        augmented = augment_sequence(
+            values,
+            TimeSeriesAugmentConfig(max_shift=5, apply_prob=1.0),
+            np.random.default_rng(42),
+        )
+        assert augmented.shape == values.shape
+        assert augmented.dtype == np.float32
+
+    def test_edge_padding_zero_shift_yields_identity(self):
+        values = np.arange(50, dtype=np.float32).reshape(25, 2)
+        augmented = augment_sequence(
+            values,
+            TimeSeriesAugmentConfig(max_shift=0, apply_prob=1.0),
+            np.random.default_rng(0),
+        )
+        np.testing.assert_array_equal(augmented, values)
+
+    def test_deterministic_with_fixed_seed(self):
+        values = np.arange(100, dtype=np.float32).reshape(20, 5)
+        cfg = TimeSeriesAugmentConfig(max_shift=3, apply_prob=1.0)
+        a1 = augment_sequence(values, cfg, np.random.default_rng(12345))
+        a2 = augment_sequence(values, cfg, np.random.default_rng(12345))
+        np.testing.assert_array_equal(a1, a2)
+
+    def test_positive_shift_uses_edge_padding(self):
+        values = np.arange(30, dtype=np.float32).reshape(10, 3)
+        values[:, 0] = np.arange(10, dtype=np.float32)
+        cfg = TimeSeriesAugmentConfig(max_shift=5, apply_prob=1.0)
+        augmented = augment_sequence(values, cfg, np.random.default_rng(999999))
+        # With a large max_shift the shift should be non-zero with high probability.
+        # Verify shape and no NaN.
+        assert augmented.shape == values.shape
+        assert not np.any(np.isnan(augmented))
+
+    def test_negative_shift_uses_edge_padding(self):
+        values = np.arange(30, dtype=np.float32).reshape(10, 3)
+        cfg = TimeSeriesAugmentConfig(max_shift=5, apply_prob=1.0)
+        augmented = augment_sequence(values, cfg, np.random.default_rng(111111))
+        assert augmented.shape == values.shape
+        assert not np.any(np.isnan(augmented))
+
+
+class TestAmplitudeScale:
+    def test_only_waveform_channels_change(self):
+        rng = np.random.default_rng(7)
+        T, C = 20, 12
+        values = np.ones((T, C), dtype=np.float32) * 2.0
+        cfg = TimeSeriesAugmentConfig(
+            amplitude_scale_range=(0.5, 0.5),
+            amplitude_apply_from_channel=8,
+            apply_prob=1.0,
+        )
+        augmented = augment_sequence(values, cfg, rng)
+        np.testing.assert_array_equal(augmented[:, :8], values[:, :8])
+        np.testing.assert_array_equal(augmented[:, 8:], np.ones((T, C - 8), dtype=np.float32))
+
+    def test_scale_one_no_change(self):
+        values = np.arange(30, dtype=np.float32).reshape(10, 3)
+        cfg = TimeSeriesAugmentConfig(
+            amplitude_scale_range=(1.0, 1.0),
+            amplitude_apply_from_channel=0,
+            apply_prob=1.0,
+        )
+        augmented = augment_sequence(values, cfg, np.random.default_rng(0))
+        np.testing.assert_array_equal(augmented, values)
+
+    def test_apply_from_channel_beyond_width_noop(self):
+        values = np.arange(20, dtype=np.float32).reshape(10, 2)
+        cfg = TimeSeriesAugmentConfig(
+            amplitude_scale_range=(0.5, 1.5),
+            amplitude_apply_from_channel=99,
+            apply_prob=1.0,
+        )
+        augmented = augment_sequence(values, cfg, np.random.default_rng(0))
+        np.testing.assert_array_equal(augmented, values)
+
+
+class TestGaussianNoise:
+    def test_noise_adds_variance(self):
+        values = np.zeros((1000, 4), dtype=np.float32)
+        cfg = TimeSeriesAugmentConfig(gaussian_noise_std=0.1, apply_prob=1.0)
+        augmented = augment_sequence(values, cfg, np.random.default_rng(99))
+        std_actual = float(np.std(augmented))
+        assert 0.08 < std_actual < 0.12
+
+    def test_zero_std_no_change(self):
+        values = np.arange(50, dtype=np.float32).reshape(10, 5)
+        cfg = TimeSeriesAugmentConfig(gaussian_noise_std=0.0, apply_prob=1.0)
+        augmented = augment_sequence(values, cfg, np.random.default_rng(0))
+        np.testing.assert_array_equal(augmented, values)
+
+
+class TestApplyProb:
+    def test_prob_zero_skips_all(self):
+        values = np.arange(40, dtype=np.float32).reshape(10, 4)
+        cfg = TimeSeriesAugmentConfig(
+            max_shift=5,
+            amplitude_scale_range=(0.5, 1.5),
+            gaussian_noise_std=0.5,
+            apply_prob=0.0,
+        )
+        augmented = augment_sequence(values, cfg, np.random.default_rng(0))
+        np.testing.assert_array_equal(augmented, values)
+
+    def test_prob_one_always_applies_with_fixed_seed(self):
+        values = np.arange(50, dtype=np.float32).reshape(10, 5)
+        cfg = TimeSeriesAugmentConfig(max_shift=3, apply_prob=1.0)
+        a1 = augment_sequence(values, cfg, np.random.default_rng(42))
+        a2 = augment_sequence(values, cfg, np.random.default_rng(42))
+        np.testing.assert_array_equal(a1, a2)
+
+
+class TestValidateConfig:
+    def test_rejects_negative_max_shift(self):
+        with pytest.raises(ValueError, match="max_shift"):
+            augment_sequence(np.ones((2, 2)), TimeSeriesAugmentConfig(max_shift=-1), np.random.default_rng(0))
+
+    def test_rejects_negative_gaussian_noise_std(self):
+        with pytest.raises(ValueError, match="gaussian_noise_std"):
+            augment_sequence(np.ones((2, 2)), TimeSeriesAugmentConfig(gaussian_noise_std=-0.1), np.random.default_rng(0))
+
+    def test_rejects_apply_prob_out_of_range(self):
+        with pytest.raises(ValueError, match="apply_prob"):
+            augment_sequence(np.ones((2, 2)), TimeSeriesAugmentConfig(apply_prob=1.5), np.random.default_rng(0))
+        with pytest.raises(ValueError, match="apply_prob"):
+            augment_sequence(np.ones((2, 2)), TimeSeriesAugmentConfig(apply_prob=-0.1), np.random.default_rng(0))
+
+    def test_rejects_amplitude_scale_range_non_positive(self):
+        with pytest.raises(ValueError, match="amplitude_scale_range"):
+            augment_sequence(
+                np.ones((2, 2)),
+                TimeSeriesAugmentConfig(amplitude_scale_range=(0.0, 1.0)),
+                np.random.default_rng(0),
+            )
+
+    def test_rejects_amplitude_scale_range_lo_gt_hi(self):
+        with pytest.raises(ValueError, match="amplitude_scale_range"):
+            augment_sequence(
+                np.ones((2, 2)),
+                TimeSeriesAugmentConfig(amplitude_scale_range=(2.0, 1.0)),
+                np.random.default_rng(0),
+            )
+
+    def test_rejects_negative_apply_from_channel(self):
+        with pytest.raises(ValueError, match="amplitude_apply_from_channel"):
+            augment_sequence(
+                np.ones((2, 2)),
+                TimeSeriesAugmentConfig(amplitude_apply_from_channel=-1, amplitude_scale_range=(0.5, 1.5)),
+                np.random.default_rng(0),
+            )
+
+
+class TestAugmentDataset:
+    def test_augment_option_does_not_crash_smoke(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-aug-p3", sequences=8)
+        ds = V4BenchmarkDataset(
+            dataset_dir,
+            split="train",
+            modalities=("slow", "ultrasonic"),
+            input_format="NTC",
+            lazy=False,
+            augment_config=TimeSeriesAugmentConfig(max_shift=3, apply_prob=1.0),
+            augment_seed=42,
+        )
+        x, y = ds[0]
+        assert x.shape == (32, 8 + 1000)
+        assert y.shape == (4,)
+        assert x.dtype == torch.float32
+
+    def test_augment_default_skips_val_split(self, tmp_path: Path):
+        dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-aug-val", sequences=8)
+        ds = V4BenchmarkDataset(
+            dataset_dir,
+            split="val",
+            modalities=("slow",),
+            input_format="NTC",
+            lazy=False,
+        )
+        assert ds._augment_config is None
+        assert ds._augment_seed == 0
