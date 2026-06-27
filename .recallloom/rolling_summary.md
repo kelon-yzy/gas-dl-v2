@@ -1,37 +1,36 @@
 <!-- recallloom:file=rolling_summary version=1.0 lang=zh-CN -->
-<!-- last-writer: [Claude Code] | 2026-06-25 -->
-<!-- file-state: revision=87 | updated-at=2026-06-25T17:00:00+08:00 | writer-id=Claude Code | base-workspace-revision=170 -->
+<!-- last-writer: [Claude Code] | 2026-06-27 -->
+<!-- file-state: revision=88 | updated-at=2026-06-27T14:12:00+08:00 | writer-id=Claude Code | base-workspace-revision=171 -->
 
 <!-- section: current_state -->
-- 阶段状态：**P3 消融实验完成，发现重大意外结果**。gaussian_noise 单独使用 Test R² = **+0.5907**（P0-P3 历史最高，突破 0.51/0.53 目标），H₂=+0.83/CH₄=+0.66 均为历史最高。但 CO₂ 毁灭（+0.27→-0.23）。time_jitter 全面退化（+0.31），amplitude_scale 完全失败（-0.64）。
-- **根本发现：消融实验推翻了 Full Aug 分析的多个假设**：(1) H₂/CH₄ 并非"已饱和"——之前没找到正确的正则化方法，gaussian_noise 独用时 H₂ 从 +0.78→+0.83，CH₄ 从 +0.43→+0.66；(2) Full Aug 中 CO₂ +0.36 是三种策略的交互效应，任何单一策略无法复现；(3) amplitude_scale 是 Full Aug 中破坏性最强的策略，将 gaussian_noise 的正则化收益从 +0.59 抵消至 +0.50。
-- **合成气适配（新工程分支）**：Phase A 编码准备就绪。文献检索已完成（4 份报告 + 7 项决策）。与 P3 实验并行不冲突。
-- 训练过程特征：80 epochs 无过拟合（val_loss < train_loss，gap=-0.07），val R²=+0.532 > test R²=+0.500 说明泛化良好。CO₂ 在 epoch 40→79 持续改进（+0.0195/epoch），从 -0.38 逆转至 +0.38，验证时序扰动增强了 CO₂ 特征鲁棒性。
-- 训练配置缺陷：Early Stopping 应在 epoch 79 触发但未生效（最后 10 epochs 无改进），LR 始终 0.00015 未衰减（ReduceLROnPlateau patience=8 过宽）。
+- **合成气 Stage Ⅱ ablation 全部完成（27/27 runs，2026-06-27）**。三组消融在 `sg4-formal`（Ⅱ-1/Ⅱ-3）与新生成的 `sg4-formal-crosstalk`（Ⅱ-2）上展开，结果已写入 `docs/syngas/stage_ii_ablation_results.md`，相关文档（experiment_roadmap / stage_ii_ablation_plan / adaptation_plan / co_crosstalk_design / syngas/README）已同步更新。全量测试 462 passed（hg 零回归）。
+- **Ⅱ-1 物理证据**：移除 V_NDIR_CO 通道，x_CO R² 从 0.954 → 0.484（TCN/Ridge 同向 0.470），损失约 50% 而非原预期的 ~0；仅保留 V_NDIR_CO+环境可恢复 0.93-0.94。结论修正：CO 主导依赖光学通道，残留 ~50% 可学性来自闭包约束 / V_TCS 弱热导差 / 可能的 CO₂ NDIR 弱串扰。
+- **Ⅱ-2 鲁棒性**：3×3 CO₂↔CO 光学串扰为确定性线性变换，模型可学到逆映射，所有组分 R² 与无串扰持平（|Δ| ≤ 0.006），不出现原预期 0.01-0.05 下降。sim-to-real gap 不在串扰矩阵层面，应在 Stage Ⅲ 硬件层面验证。
+- **Ⅱ-3 方法学**：weighted_component_mse(inverse_train_var) 切换至任一未加权 loss（mse/mae/huber/smooth_l1），x_CH4 R² 从 0.827 跌至 0.39-0.44（-0.4），其他组分几乎不变。逆方差加权对低浓度组分是论文核心方法学贡献。
+- **掺氢天然气 P3 状态保留**：gaussian_noise 单独使用 Test R²=+0.5907（P0-P3 历史最高）但 CO₂ 毁灭（-0.23），noise_std=0.005 调优待跑。两条工程线（hg 噪声调优 + syngas Stage Ⅲ）独立推进，不互相阻塞。
 
 <!-- section: active_judgments -->
-- **gaussian_noise 是 P3 最大发现**：+0.5907 是 P0-P3 所有实验最佳结果，证明高斯噪声是强力正则化器的关键。但 CO₂ 在噪声下毁灭（-0.23），需要参数调优找到 CO₂ 可容忍的噪声强度。**CH₄ 是高噪声下的主要受益者**（+0.43→+0.66），幅度缩放单独使用时 CH₄ 也是受伤最重的（-1.22），说明 CH₄ 特征对信号扰动极其敏感。
-- **Full Aug 的交互效应本质**：amplitude_scale"中和"了 gaussian_noise 的过强正则化，同时与其他策略叠加为 CO₂ 创造了更多样的扰动，帮助 CO₂ 学习鲁棒特征。CO₂ +0.36 是"幸存者偏差"——CH₄/H₂ 在交互中被抑制，CO₂ 反而受益。
-- **调整后的策略优先级**：gaussian_noise_std 从 0.01 降至 0.005（预期保留 H₂/CH₄ 增益 + 减轻 CO₂ 破坏）；gaussian_noise + time_jitter（去 amplitude_scale）作为修正版组合；apply_prob 和 noise_std 扫描精细调优。
-- **训练配置需修复**：early_stopping.patience 从 10 提升至 15，scheduler.patience 从 8 降至 5，下次实验应用。
-- **N₂ 不可学本质未改变**：所有实验 N₂ R² 均为 0 或负，验证纯端到端方法无法学习 N₂。
+- **syngas 阶段 Ⅱ 三大结论可写入论文**：(1) V_NDIR_CO 支配 CO 检测（跨 TCN/Ridge 一致）；(2) 线性串扰对模型可学性无影响；(3) inverse_train_var 加权让 CH₄ R² 翻倍。论文叙事重心：Ⅱ-1 + Ⅱ-3 是科学/方法学贡献，Ⅱ-2 作为 informative 负结果反衬 Stage Ⅲ 硬件验证的必要性。
+- **syngas baseline 排序确认**：TCN ≈ Ridge ≈ 0.96 ≥ PatchTST/CNN1D/LSTM ≈ 0.93，慢通道+手工统计量在该规模（6000 序列）接近性能上限，深度模型边际收益有限。
+- **gaussian_noise CO₂ 毁灭仍未解决（hg）**：+0.5907 整体最佳以 CO₂ -0.23 为代价。noise_std=0.005 / apply_prob 扫描尚未启动，与 syngas Stage Ⅱ 并行不冲突。
+- **N₂ 不可学本质未变（hg）**：所有 P0-P3 实验 N₂ R² 均为 0 或负。
 
 <!-- section: risks_open_questions -->
-- **gaussian_noise CO₂ 毁灭问题**：+0.5907 的历史最佳整体 R² 以 CO₂ 完全不可学（-0.23）为代价。核心问题是找到 CO₂ 可容忍的最大噪声强度，不损失 H₂/CH₄ 正则化收益。noise_std 从 0.01→0.005 是最直接尝试。
-- **amplitude_scale 破坏性本质不明**：±5% 的幅值变化就导致模型完全崩溃（R²=-0.64），可能涉及 ultrasonic 通道的幅值量级关系被破坏。为何与 noise+jitter 配合时破坏性消失？需要在 Full Aug 中去掉 amplitude_scale 验证。
-- **参数调优过拟合风险**：gaussian_noise 的参数扫描（noise_std/apply_prob）需要 3-4 个实验点，可能又花 6-12 小时 GPU 时间，需谨慎选择扫描范围和分辨率。
-- **P4 Multi-scale 可行性未知**：即使 gaussian_noise 调优后 CO₂ 转正，整体 R² 突破 0.60 仍有难度。多尺度架构能否在 100K 内进一步提升 H₂/CH₄ 仍不确定。
-- **DL vs Ridge 差距缩小但仍在**：gaussian_noise 将差距从 0.23 缩小至 0.12（+0.59 vs +0.71），但仍有明显差距。N₂ 组分根本无法学习的问题未解决。
-- **合成气 Phase A 与 P3 噪声调优可并行**：编码工作不占用 GPU，两者可同时推进。
+- **Ⅱ-1 残留 50% CO 可学性的物理来源未量化**：闭包约束 + V_TCS 热导 + 可能的 CO₂ NDIR 弱串扰，三因素相对贡献需要后续 ablation（B 组在 sg4-formal-crosstalk 上重复 / B 组再去 V_TCS）。
+- **Ⅱ-2 与 sim-to-real 关系待落地**：仿真层面证明线性串扰不构成学习难度，但真实硬件的非线性 / 时变 / 标定漂移因素需要 Stage Ⅲ 实测数据验证。Stage Ⅲ 路线未启动。
+- **gaussian_noise CO₂ 毁灭问题（hg）**：noise_std=0.005 + apply_prob 扫描待跑，6-12h GPU。
+- **DL vs Ridge 差距（hg）**：缩小但仍在 0.12，超声/光纤麦克风模态尚未接入 syngas 训练，未验证多模态能否拉开 DL 与 Ridge。
+- **PatchTST AMP 敏感性与 LSTM seed 不收敛**：已记录、不阻塞主结论。
 
 <!-- section: next_step -->
-- **P3 噪声参数调优**（优先级 P0，GPU 6-12h）：先跑 `gaussian_noise_std=0.005`（减半噪声）和 `gaussian_noise_only + apply_prob=0.7`（更高增强比例），观察 CO₂ 是否转正且不损失整体 R²。若 CO₂ 仍为负→继续降 noise_std 至 0.002；若 CO₂ 转正→扫描 apply_prob 确认最优比例。
-- **修正版组合实验**（优先级 P1）：`gaussian_noise + time_jitter`（去 amplitude_scale），验证是否能在保留 H₂/CH₄ 增益的同时让 CO₂ 受益（预期整体 R² 0.52-0.56）。
-- **Phase A 编码**（优先级 P1，CPU 编码）：按 `docs/stateful-prancing-papert.md` 顺序修改 6 个核心文件。
-- **分析报告**：消融实验分析报告已保存至 `outputs/reports/p3_ablation_analysis.md` + 数据 JSON。
+- **Stage Ⅲ 真实硬件 sim-to-real 测试规划**（优先级 P0，论文工程闭环）：需要先确认硬件可用性、数据采集协议、对标传感器型号。Ⅱ-2 持平结论说明仿真已不是 gap 主因。
+- **Ⅱ 后续可选 ablation**（优先级 P1）：(1) B 组在 sg4-formal-crosstalk 上重复（验证 CO₂ NDIR 弱串扰假设）；(2) B 组再去 V_TCS（量化热导贡献）；(3) 接入 ultrasonic / fiber_mic 后重做 Ⅱ-1（验证多模态恢复 CO）。
+- **hg P3 噪声调优**（优先级 P1，GPU 6-12h）：先跑 `gaussian_noise_std=0.005` 和 `gaussian_noise_only + apply_prob=0.7`，观察 CO₂ 是否转正。
+- **论文初稿启动**（优先级 P2）：以 Ⅰ-3 + Ⅱ 的 27 runs 数据为基础，结构对齐 IMRaD，重点突出 Ⅱ-1 物理证据 + Ⅱ-3 方法学贡献。
 
 <!-- section: recent_pivots -->
-- 2026-06-25：**P3 消融实验结果颠覆性发现**。gaussian_noise 单独使用 R²=+0.5907（P0-P3 历史最高，突破所有目标线），但 CO₂ 毁灭（-0.23）。time_jitter 全面退化（+0.31），amplitude_scale 完全失败（-0.64）。推翻"H₂/CH₄ 饱和"和"CO₂ 是主要受益者"的 Full Aug 分析结论。新主线：gaussian_noise 参数调优，目标在保留 H₂/CH₄ 增益的同时让 CO₂ 转正。
-- 2026-06-25：**合成气适配文献检索完成 + 7 项决策落地**。检测目标切换到 CO/CO₂/CH₄/H₂。LHS 两轮采样，CO NDIR 完整四气体串扰设计。Phase A 编码准备就绪。RecallLoom 侧车修复完成。
-- 2026-06-25：**P3 数据增强实验（Full Aug）完成，⚠️ 轻微改进但未达标**。Test R² +0.4998，CO₂ 显著改进 +34%，H₂/CH₄ 改进 <2%。决策：执行消融实验定位 CO₂ 改进来源。
-- 2026-06-24：**P1 TCN 容量扩张实验失败**（test R²: +0.48 → -0.34）。放弃容量扩张路线（P1/P2），P3 数据增强提升至最高优先级。
+- 2026-06-27：**syngas Stage Ⅱ ablation 全部完成（27 runs）**。三组消融结论清晰，文档全栈同步（stage_ii_ablation_results 新建 + experiment_roadmap/stage_ii_ablation_plan/adaptation_plan/co_crosstalk_design/syngas-README 联动更新）。下一步主线转向 Stage Ⅲ 硬件 sim-to-real 与论文写作。
+- 2026-06-26：syngas Stage Ⅰ-3 基线训练完成（5 模型 × 3 seeds = 15 runs），TCN ≈ Ridge ≈ 0.96，CNN1D/LSTM/PatchTST ≈ 0.93。PatchTST 配置修复 + trainer AMP bf16 兼容 + 编排脚本 LSTM 退出码兼容三项配套修复落地。
+- 2026-06-25：P3 消融实验结果颠覆性发现。gaussian_noise 单独使用 R²=+0.5907（P0-P3 历史最高），CO₂ 毁灭 -0.23，time_jitter +0.31，amplitude_scale -0.64。
+- 2026-06-25：合成气适配文献检索完成 + 7 项决策落地。CO/CO₂/CH₄/H₂ 检测目标确认，Phase A 编码准备就绪。
+- 2026-06-24：P1 TCN 容量扩张实验失败（test R²: +0.48 → -0.34）。放弃容量扩张路线（P1/P2），P3 数据增强提升至最高优先级。

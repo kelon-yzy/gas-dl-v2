@@ -24,6 +24,7 @@ DEFAULT_ML_CONFIG: dict[str, Any] = {
     "mc_noise_std": 0.02,
     "baseline_error_constant": 1e-6,
     "modalities": "slow",
+    "slow_channels": None,
     "sequence_statistics": "mean,std,min,max,last,delta,slope",
     "waveform_frame_features": "mean,std,mean_abs,max_abs,energy,peak_index",
     "scaler_path": None,
@@ -65,6 +66,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Comma-separated modalities: slow,ultrasonic,fiber_mic (default: slow).",
+    )
+    parser.add_argument(
+        "--slow-channels",
+        type=str,
+        default=None,
+        help="Comma-separated slow channel names to keep (default: all). For channel ablation.",
     )
     parser.add_argument("--sequence-statistics", type=str, default=None)
     parser.add_argument(
@@ -111,6 +118,17 @@ def _parse_comma(value: str) -> tuple[str, ...]:
     return tuple(s.strip() for s in value.split(",") if s.strip())
 
 
+def _parse_slow_channels(value: object) -> tuple[str, ...] | None:
+    """解析保留的 slow 通道名（channel ablation）；None 表示保留全部。"""
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        items = tuple(str(item).strip() for item in value if str(item).strip())
+    else:
+        items = _parse_comma(str(value))
+    return items or None
+
+
 def _parse_float_comma(value: str) -> tuple[float, ...]:
     values = tuple(float(s) for s in _parse_comma(value))
     for fraction in values:
@@ -146,6 +164,7 @@ def run(args: argparse.Namespace) -> None:
         sequence_statistics=_parse_comma(args.sequence_statistics),
         waveform_frame_features=_parse_comma(args.waveform_frame_features),
         slow_scaler_path=args.scaler_path,
+        slow_channels=_parse_slow_channels(args.slow_channels),
     )
 
     model_config: str | dict[str, Any]
@@ -253,6 +272,7 @@ def _training_payload(result: MLTrainingResult) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "feature_config": {
             "modalities": result.feature_config.modalities,
+            "slow_channels": result.feature_config.slow_channels,
             "sequence_statistics": result.feature_config.sequence_statistics,
             "waveform_frame_features": result.feature_config.waveform_frame_features,
         },

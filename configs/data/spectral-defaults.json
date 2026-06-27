@@ -14,6 +14,7 @@
     "target_vendor_model": "TraceGas-HC-NDIR (Shenzhen Trace Gas Sensing Technology Co., Ltd.) — actual datasheet pending",
     "ch4_reference": "InfraTec LIM-262 pyroelectric methane detector NBP filter, CWL 3.3 um, FWHM 160 nm (~147 cm-1 at 3.3 um). Cited in MDPI Sensors 2012, doi:10.3390/s120912729.",
     "co2_reference": "InfraTec standard CO2 NBP filter, CWL 4.26-4.27 um, HPBW 170 nm (~93 cm-1 at 4.26 um). InfraTec gas analysis docs (infratec-infrared.com).",
+    "co_reference": "InfraTec I (NBP 4.66 um / 180 nm FWHM, CO centered), cross-verified with Boston Electronics HIS-E222-F3.91/4.64 (4.64 um / 180 nm) and MicroHybrid MTS4SENS44-3C-1 (4.65 um / 180 nm). CWL 4.66 um -> 2145.92 cm-1, FWHM 180 nm @ 4.66 um -> 82.89 cm-1. Source: https://www.infratec.eu/sensor-division/ir-filters/ ; https://shop.boselec.com/products/his-e222-f3-91-4-64-g4300-dual-integrated-thermopile-sensor",
     "replace_before_formal_benchmark": true
   },
   "hitran_grids": {
@@ -32,10 +33,36 @@
       "pressure_atm": 1.0
     }
   },
+  "syngas": {
+    "gas_specs": [
+      {"gas": "CO", "table_name": "CO", "molecule_id": 5, "isotopologue_id": 1}
+    ],
+    "filters": {
+      "co": {"channel": "co", "center_cm1": 2145.92, "fwhm_cm1": 82.89}
+    },
+    "hitran_grids": {
+      "co": {
+        "wavenumber_min_cm1": 1980.0,
+        "wavenumber_max_cm1": 2310.0,
+        "wavenumber_step_cm1": 0.1,
+        "temperature_k": 296.0,
+        "pressure_atm": 1.0
+      }
+    },
+    "channel_gas_specs": {
+      "ch4": ["CH4", "CO2", "H2O"],
+      "co2": ["CH4", "CO2", "H2O"],
+      "co":  ["CO", "CO2", "H2O"]
+    }
+  },
   "notes": [
     "Filter center_cm1 and fwhm_cm1 are industry-reference placeholders, not the actual datasheet of the target TraceGas-HC-NDIR series sensor.",
-    "ch4 fwhm_cm1=147 derives from InfraTec LIM-262 NBP filter 3.3 um / 160 nm FWHM; co2 fwhm_cm1=93 derives from InfraTec standard CO2 NBP filter 4.26 um / 170 nm HPBW.",
+    "ch4 fwhm_cm1=147 derives from InfraTec LIM-262 NBP filter 3.3 um / 160 nm FWHM; co2 fwhm_cm1=93 derives from InfraTec standard CO2 NBP filter 4.26 um / 170 nm HPBW; co fwhm_cm1=82.89 derives from InfraTec I 4.66 um / 180 nm (CO basic fundamental band 2143 cm-1).",
     "Replace center_cm1 / fwhm_cm1 with the vendor datasheet of the actual sensor (e.g., TraceGas-HC-NDIR) before any formal benchmark or publication run.",
-    "hitran_grids now cover at least center +/- FWHM for the current industry-reference filters. Re-run HITRAN precompute after this grid change because previous local cache windows were narrower."
+    "hitran_grids now cover at least center +/- FWHM for the current industry-reference filters. Re-run HITRAN precompute after this grid change because previous local cache windows were narrower.",
+    "syngas.* keeps the syngas (4-component) HITRAN configuration isolated from hg. Top-level gas_specs / filters / hitran_grids remain hg-only and unchanged. hg DEFAULT_HITRAN_GAS_SPECS stays (CH4, CO2, H2O) so hg cache requirements do not expand.",
+    "syngas.channel_gas_specs declares which gases participate in each NDIR channel forward model. ch4/co2 channels stay hg-compatible; co channel uses (CO, CO2, H2O) so CH4 (no fundamental absorption in [1980, 2310]) is not required.",
+    "syngas co grid [1980, 2310] cm-1 covers the CO fundamental band (P/R branches 2000-2230 cm-1) plus CO2 4.3 um band lower wing for 3x3 crosstalk. Spectral cache files are keyed by (gas, wmin, wmax, step) so hg ch4/co2 caches are unaffected.",
+    "HAPI fetch validation: fetch('CO', 5, 1, 1980, 2310) should return ~1344 main-isotope lines with Smax ~4.56e-19 cm/molec at 296 K."
   ]
 }

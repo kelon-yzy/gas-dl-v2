@@ -25,7 +25,13 @@ from dl.data.augmentation import TimeSeriesAugmentConfig
 from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
 from dl.data.feature_dataset import V4FeatureMatrixDataset
 from dl.models.registry import MODEL_REGISTRY, build_model
-from dl.training.losses import LOSS_REGISTRY, build_loss, validate_loss_model_output, validate_loss_target_transform
+from dl.training.losses import (
+    LOSS_REGISTRY,
+    build_loss,
+    validate_loss_composition_scheme,
+    validate_loss_model_output,
+    validate_loss_target_transform,
+)
 from dl.training.trainer import AmpConfig, EarlyStoppingConfig, OPTIMIZER_REGISTRY, Trainer, build_optimizer
 
 DEFAULT_EVAL_SPLITS = ("val", "test", "extrapolation")
@@ -33,6 +39,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "model": "cnn1d",
     "model_kwargs": {},
     "modalities": "slow",
+    "slow_channels": None,
     "input_format": None,
     "scaler_path": None,
     "window": None,
@@ -85,6 +92,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Comma-separated modalities: slow,ultrasonic,fiber_mic (default: slow).",
+    )
+    parser.add_argument(
+        "--slow-channels",
+        type=str,
+        default=None,
+        help="Comma-separated slow channel names to keep (default: all). For channel ablation, e.g. drop V_NDIR_CO.",
     )
     parser.add_argument(
         "--input-format",
@@ -172,10 +185,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     np.random.seed(args.seed)
     random.seed(args.seed)
 
+    composition_scheme, component_names = _load_composition_scheme(args.dataset_dir)
+    validate_loss_composition_scheme(args.loss, composition_scheme)
     performance = _performance_config(args.performance)
     _apply_performance_settings(performance, torch.device(args.device))
 
     modalities = _parse_modalities(args.modalities)
+    slow_channels = _parse_slow_channels(args.slow_channels)
     input_format = args.input_format or _model_input_format(args.model)
 
     phase_stats_path = _resolve_phase_stats_path(args.phase_stats_path, args.dataset_dir)
@@ -195,6 +211,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         phase_stats_path=phase_stats_path,
         augment_config=augment_config,
         augment_seed=int(args.augment_seed),
+        slow_channels=slow_channels,
     )
     sample_x, sample_y = train_dataset[0]
     in_channels, timesteps = _infer_input_shape(sample_x, input_format)
@@ -217,7 +234,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             scaler = json.loads(phase_scaler_path.read_text(encoding="utf-8"))
             model_config["phase_stat_norm_mean"] = scaler["mean"]
             model_config["phase_stat_norm_std"] = scaler["std"]
-    validate_loss_model_output(args.loss, model_name=args.model, model_kwargs=model_config)
+    validate_loss_model_output(
+        args.loss,
+        model_name=args.model,
+        model_kwargs=model_config,
+        composition_scheme=composition_scheme,
+    )
     if target_transform is not None and int(model_config["out_dim"]) != 3:
         raise ValueError("DL target_transform requires model out_dim=3")
     model = build_model(model_config)
@@ -230,7 +252,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "weight_decay": args.weight_decay,
         },
     )
-    trainer = Trainer(model=model, optimizer=optimizer, loss_fn=loss_fn, device=args.device, target_transform=target_transform)
+    trainer = Trainer(
+        model=model,
+        optimizer=optimizer,
+        loss_fn=loss_fn,
+        device=args.device,
+        target_transform=target_transform,
+        component_names=component_names,
+        composition_scheme=composition_scheme,
+    )
     if performance["compile"]:
         trainer.model = torch.compile(trainer.model, mode=performance["compile_mode"])
 
@@ -260,6 +290,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.persistent_workers,
         args.prefetch_factor,
         phase_stats_path=phase_stats_path,
+        slow_channels=slow_channels,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = args.output_dir / args.checkpoint_name
@@ -314,6 +345,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.persistent_workers,
             args.prefetch_factor,
             phase_stats_path=phase_stats_path,
+            slow_channels=slow_channels,
         )
         if loader is not None:
             evaluations[split] = _evaluation_payload(
@@ -334,6 +366,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "model_config": model_config,
         "input_format": input_format,
         "modalities": modalities,
+        "slow_channels": list(slow_channels) if slow_channels is not None else None,
         "window": window_to_payload(resolve_window_config(args.window)),
         "phase_windows": _phase_windows_payload(args.phase_windows),
         "phase_stats_path": str(phase_stats_path) if phase_stats_path is not None else None,
@@ -371,7 +404,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     }
     (args.output_dir / "metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     (args.output_dir / "run_config.json").write_text(
-        json.dumps(_run_config_payload(args, model_config, input_format, modalities, target_transform), indent=2),
+        json.dumps(_run_config_payload(args, model_config, input_format, modalities, target_transform, slow_channels), indent=2),
         encoding="utf-8",
     )
 
@@ -497,6 +530,17 @@ def _parse_modalities(value: str) -> tuple[str, ...]:
     return modalities
 
 
+def _parse_slow_channels(value: object) -> tuple[str, ...] | None:
+    """解析保留的 slow 通道名（channel ablation）；None 表示保留全部。"""
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        items = tuple(str(item).strip() for item in value if str(item).strip())
+    else:
+        items = _parse_comma(str(value))
+    return items or None
+
+
 def _parse_comma(value: str) -> tuple[str, ...]:
     return tuple(s.strip() for s in value.split(",") if s.strip())
 
@@ -562,8 +606,11 @@ def _build_dataset(
     phase_stats_path: Path | None = None,
     augment_config: TimeSeriesAugmentConfig | None = None,
     augment_seed: int = 0,
+    slow_channels: tuple[str, ...] | None = None,
 ):
     if input_format == "FEATURES":
+        if slow_channels is not None:
+            raise ValueError("slow_channels is only supported for sequence DL inputs")
         return V4FeatureMatrixDataset(
             dataset_dir,
             split=split,
@@ -585,6 +632,7 @@ def _build_dataset(
         phase_stats_path=phase_stats_path,
         augment_config=augment_config,
         augment_seed=augment_seed,
+        slow_channels=slow_channels,
     )
 
 
@@ -680,6 +728,28 @@ def _split_labels(dataset_dir: Path, split: str) -> np.ndarray:
 def _load_str_array(path: Path) -> list[str]:
     values = np.load(path, allow_pickle=True)
     return [str(value) for value in values.tolist()]
+
+
+def _load_composition_scheme(dataset_dir: Path) -> tuple[str, tuple[str, ...]]:
+    """Read composition_scheme and label_names from benchmark manifest/metadata.
+
+    Falls back to hydrogen_ng defaults for legacy datasets that pre-date the
+    syngas adaptation (manifest.composition_scheme absent).
+    """
+    manifest_path = dataset_dir / "manifest.json"
+    composition_scheme = "hydrogen_ng"
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        composition_scheme = str(manifest.get("composition_scheme", "hydrogen_ng"))
+    label_names_path = dataset_dir / "metadata" / "label_names.npy"
+    if label_names_path.is_file():
+        component_names = tuple(_load_str_array(label_names_path))
+    else:
+        # Fallback：legacy 数据集没有 label_names.npy 时，用 hg 默认
+        from sim.core.schema import COMPONENT_FIELDS
+
+        component_names = tuple(COMPONENT_FIELDS)
+    return composition_scheme, component_names
 
 
 def _build_model_config(
@@ -931,6 +1001,7 @@ def _optional_loader(
     persistent_workers: bool,
     prefetch_factor: int | None,
     phase_stats_path: Path | None = None,
+    slow_channels: tuple[str, ...] | None = None,
 ) -> DataLoader | None:
     dataset = _build_dataset(
         dataset_dir,
@@ -943,6 +1014,7 @@ def _optional_loader(
         dequantize_waveforms=dequantize_waveforms,
         lazy=True,
         phase_stats_path=phase_stats_path,
+        slow_channels=slow_channels,
     )
     if len(dataset) == 0:
         return None
@@ -1004,6 +1076,7 @@ def _run_config_payload(
     input_format: str,
     modalities: tuple[str, ...],
     target_transform: object | None,
+    slow_channels: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     return {
         "dataset_dir": str(args.dataset_dir),
@@ -1011,6 +1084,7 @@ def _run_config_payload(
         "model_config": model_config,
         "input_format": input_format,
         "modalities": modalities,
+        "slow_channels": list(slow_channels) if slow_channels is not None else None,
         "scaler_path": str(args.scaler_path) if args.scaler_path is not None else None,
         "resume_from": str(args.resume_from) if args.resume_from is not None else None,
         "window": window_to_payload(resolve_window_config(args.window)),

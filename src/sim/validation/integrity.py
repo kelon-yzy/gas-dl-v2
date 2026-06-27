@@ -4,7 +4,12 @@ from collections import Counter
 
 import numpy as np
 
-from sim.core.schema import COMPONENT_FIELDS, LEGACY_CONDITION_FIELDS, SLOW_CHANNELS, SPLIT_NAMES
+from sim.core.schema import (
+    COMPONENT_FIELDS as DEFAULT_COMPONENT_FIELDS,
+    LEGACY_CONDITION_FIELDS,
+    SLOW_CHANNELS as DEFAULT_SLOW_CHANNELS,
+    SPLIT_NAMES,
+)
 
 
 def validate_benchmark_assets(
@@ -12,14 +17,38 @@ def validate_benchmark_assets(
     split_rows: dict[str, list[dict[str, str]]],
     arrays: dict[str, object] | None = None,
     labels: np.ndarray | None = None,
+    *,
+    component_fields: tuple[str, ...] = DEFAULT_COMPONENT_FIELDS,
+    slow_channels: tuple[str, ...] = DEFAULT_SLOW_CHANNELS,
+    background_fields: tuple[str, ...] = (),
+    require_sum_100: bool = True,
 ) -> dict[str, object]:
+    """Validate benchmark assets.
+
+    component_fields / slow_channels / background_fields:
+        Override defaults to support alternative composition schemes
+        (e.g. syngas where COMPONENT_FIELDS = (x_H2, x_CH4, x_CO2, x_CO) and
+        BACKGROUND_FIELDS = (x_N2,)).
+    require_sum_100:
+        When True (default), COMPONENT_FIELDS + BACKGROUND_FIELDS must sum
+        to 100%. For hydrogen_ng, BACKGROUND_FIELDS is empty so this checks
+        COMPONENT_FIELDS = 100% (closed composition). For syngas, the total
+        sums to 100% only when x_N2 is included (background).
+    """
     _validate_no_legacy_fields(conditions)
     _validate_unique_ids(conditions, "sequence_id")
     _validate_unique_ids(conditions, "mixture_id")
-    _validate_component_sums(conditions)
+    if require_sum_100:
+        _validate_component_sums(conditions, component_fields=component_fields, background_fields=background_fields)
     _validate_split_coverage(conditions, split_rows)
     if arrays is not None and labels is not None:
-        _validate_array_shapes(conditions, arrays, labels)
+        _validate_array_shapes(
+            conditions,
+            arrays,
+            labels,
+            component_fields=component_fields,
+            slow_channels=slow_channels,
+        )
     return {
         "status": "pass",
         "sequence_count": len(conditions),
@@ -42,11 +71,17 @@ def _validate_unique_ids(conditions: list[dict[str, str]], field: str) -> None:
         raise ValueError(f"{field} must be unique")
 
 
-def _validate_component_sums(conditions: list[dict[str, str]]) -> None:
+def _validate_component_sums(
+    conditions: list[dict[str, str]],
+    *,
+    component_fields: tuple[str, ...],
+    background_fields: tuple[str, ...],
+) -> None:
+    all_fields = (*component_fields, *background_fields)
     for row in conditions:
-        total = sum(float(row[name]) for name in COMPONENT_FIELDS)
+        total = sum(float(row[name]) for name in all_fields)
         if abs(total - 100.0) > 1e-5:
-            raise ValueError("component total must equal 100")
+            raise ValueError(f"component+background total must equal 100, got {total} for fields {all_fields}")
 
 
 def _validate_split_coverage(
@@ -59,14 +94,21 @@ def _validate_split_coverage(
         raise ValueError("split rows must cover every sequence exactly once")
 
 
-def _validate_array_shapes(conditions: list[dict[str, str]], arrays: dict[str, object], labels: np.ndarray) -> None:
+def _validate_array_shapes(
+    conditions: list[dict[str, str]],
+    arrays: dict[str, object],
+    labels: np.ndarray,
+    *,
+    component_fields: tuple[str, ...],
+    slow_channels: tuple[str, ...],
+) -> None:
     sequence_count = len(conditions)
     slow = arrays["slow"]
     if slow.shape[0] != sequence_count:
         raise ValueError("slow array sequence axis must match condition rows")
-    if slow.shape[2] != len(SLOW_CHANNELS):
+    if slow.shape[2] != len(slow_channels):
         raise ValueError("slow channel axis must match slow channel schema")
-    if labels.shape != (sequence_count, len(COMPONENT_FIELDS)):
+    if labels.shape != (sequence_count, len(component_fields)):
         raise ValueError("label array shape must match condition rows and labels")
     for name in ("ultrasonic", "fiber_mic", "ultrasonic_scale", "fiber_mic_scale"):
         if arrays[name].shape[0] != sequence_count:

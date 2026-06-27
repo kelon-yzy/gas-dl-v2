@@ -38,24 +38,33 @@ def conditional_component_metrics(
     component_names: tuple[str, ...] = COMPONENT_FIELDS,
     *,
     bin_count: int = 4,
+    bin_components: tuple[str, ...] | None = None,
 ) -> dict[str, dict[str, object]]:
-    """Compute N2- and CH4-binned regression metrics from raw percent targets."""
-    return {
-        "n2_bins": _binned_component_metrics(
+    """Compute conditional regression metrics binned by selected components.
+
+    Parameters
+    ----------
+    bin_components:
+        Components to bin by. Defaults to ("x_N2", "x_CH4") for hydrogen_ng
+        compatibility. For syngas the caller should pass ("x_CO", "x_CH4").
+        The returned dict key convention strips the ``"x_"`` prefix and adds
+        ``"_bins"`` (e.g. ``"x_CO"`` → ``"co_bins"``).
+    """
+    if bin_components is None:
+        bin_components = ("x_N2", "x_CH4")
+    result: dict[str, dict[str, object]] = {}
+    for component_name in bin_components:
+        if not component_name.startswith("x_"):
+            raise ValueError(f"bin component name must start with 'x_', got {component_name!r}")
+        group_key = f"{component_name[2:].lower()}_bins"
+        result[group_key] = _binned_component_metrics(
             y_pred,
             y_true,
             component_names,
-            component_name="x_N2",
+            component_name=component_name,
             bin_count=bin_count,
-        ),
-        "ch4_bins": _binned_component_metrics(
-            y_pred,
-            y_true,
-            component_names,
-            component_name="x_CH4",
-            bin_count=bin_count,
-        ),
-    }
+        )
+    return result
 
 
 def conditional_metrics_to_payload(value: dict[str, dict[str, object]]) -> dict[str, object]:

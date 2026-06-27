@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sim.core.schema import SCHEMA_VERSION
+from sim.core.schema import SCHEMA_VERSION as DEFAULT_SCHEMA_VERSION
 
 
 def build_manifest(
@@ -23,9 +23,22 @@ def build_manifest(
     labels: tuple[str, ...],
     optical_absorption_metadata: dict[str, object] | None = None,
     acoustic_model_metadata: dict[str, object] | None = None,
+    schema_version: str = DEFAULT_SCHEMA_VERSION,
+    composition_scheme: str = "hydrogen_ng",
+    background_fields: tuple[str, ...] = (),
 ) -> dict[str, object]:
+    """Build a benchmark manifest.
+
+    composition_scheme:
+        "hydrogen_ng" (default, sum=100% closure) or "syngas" (sum<100%, N2 as
+        background). Downstream loaders use this to switch label semantics.
+    background_fields:
+        Components that participate in physics but are not predicted (e.g.
+        ("x_N2",) for syngas). Empty tuple for hydrogen_ng.
+    """
     manifest = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": schema_version,
+        "composition_scheme": composition_scheme,
         "dataset_slug": dataset_slug,
         "sequence_count": int(sequence_count),
         "seed": int(seed),
@@ -45,6 +58,7 @@ def build_manifest(
         "shapes": shapes,
         "slow_channels": list(slow_channels),
         "labels": list(labels),
+        "background_fields": list(background_fields),
     }
     if optical_absorption_metadata is not None:
         manifest.update(optical_absorption_metadata)

@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
 from sim.generation.acoustic_physics import hidden_attenuation_v2, hidden_sound_speed_v2
+
+
+# 物理后端注入：syngas 场景需要 6 参数声速/衰减（多 x_co）。默认使用
+# hydrogen_ng 5 参数实现，保持向后兼容。
+SoundSpeedFn = Callable[..., float]
+AttenuationFn = Callable[..., dict[str, float]]
 
 
 CENTER_FREQUENCY_HZ = 40000.0
@@ -137,6 +144,46 @@ def transducer_response_pulse(spec: WaveformSpec) -> np.ndarray:
     return (shaped / peak).astype(np.float32)
 
 
+def _compute_physics(
+    x_h2: float,
+    x_ch4: float,
+    x_co2: float,
+    x_n2: float,
+    t_c: float,
+    p_mpa: float,
+    h_rh: float,
+    *,
+    f_hz: float,
+    sound_speed_fn: SoundSpeedFn | None = None,
+    attenuation_fn: AttenuationFn | None = None,
+    extra_gas_kwargs: dict[str, float] | None = None,
+) -> tuple[float, dict[str, float]]:
+    """Compute sound speed and attenuation via the injected or default backend.
+
+    When ``extra_gas_kwargs`` is provided, positional gas arguments are
+    forwarded together with the extra kwargs; otherwise the hydrogen_ng
+    5-parameter positional call is used for backward compatibility.
+    """
+    extra = extra_gas_kwargs or {}
+    speed_fn = sound_speed_fn or hidden_sound_speed_v2
+    atten_fn = attenuation_fn or hidden_attenuation_v2
+    if extra:
+        c_sound = speed_fn(x_h2, x_ch4, x_co2, x_n2, t_c=t_c, **extra)
+        attenuation = atten_fn(
+            x_h2, x_ch4, x_co2, x_n2,
+            **extra,
+            t_c=t_c, p_mpa=p_mpa, h_rh=h_rh,
+            c_mix=c_sound, f_hz=f_hz,
+        )
+    else:
+        c_sound = speed_fn(x_h2, x_ch4, x_co2, x_n2, t_c)
+        attenuation = atten_fn(
+            x_h2, x_ch4, x_co2, x_n2, t_c, p_mpa, h_rh,
+            c_mix=c_sound, f_hz=f_hz,
+        )
+    return c_sound, attenuation
+
+
 def simulate_waveform_measurement(
     *,
     x_h2: float,
@@ -149,12 +196,27 @@ def simulate_waveform_measurement(
     l_m: float,
     seed: int,
     spec: WaveformSpec,
+    sound_speed_fn: SoundSpeedFn | None = None,
+    attenuation_fn: AttenuationFn | None = None,
+    extra_gas_kwargs: dict[str, float] | None = None,
 ) -> dict[str, object]:
+    """Ultrasonic waveform simulation.
+
+    To support alternative physics backends (e.g. syngas with x_co), callers
+    may inject ``sound_speed_fn`` / ``attenuation_fn`` plus ``extra_gas_kwargs``
+    that are forwarded to those functions. When omitted, the hydrogen_ng
+    backend (5-component without x_co) is used.
+    """
     if l_m <= 0.0:
         raise ValueError("l_m must be > 0")
     rng = random.Random(seed)
-    c_sound = hidden_sound_speed_v2(x_h2, x_ch4, x_co2, x_n2, t_c)
-    attenuation = hidden_attenuation_v2(x_h2, x_ch4, x_co2, x_n2, t_c, p_mpa, h_rh, c_mix=c_sound, f_hz=spec.center_frequency_hz)
+    c_sound, attenuation = _compute_physics(
+        x_h2, x_ch4, x_co2, x_n2, t_c, p_mpa, h_rh,
+        f_hz=spec.center_frequency_hz,
+        sound_speed_fn=sound_speed_fn,
+        attenuation_fn=attenuation_fn,
+        extra_gas_kwargs=extra_gas_kwargs,
+    )
     alpha_true_npm = float(attenuation["alpha_true_v2"])
     tof_true_s = float(l_m) / c_sound
     trigger_jitter_s = rng.gauss(0.0, spec.trigger_jitter_std_s)
@@ -200,12 +262,20 @@ def simulate_fiber_mic_measurement(
     l_m: float,
     seed: int,
     spec: FiberMicSpec,
+    sound_speed_fn: SoundSpeedFn | None = None,
+    attenuation_fn: AttenuationFn | None = None,
+    extra_gas_kwargs: dict[str, float] | None = None,
 ) -> dict[str, object]:
     if l_m <= 0.0:
         raise ValueError("l_m must be > 0")
     rng = random.Random(seed)
-    c_sound = hidden_sound_speed_v2(x_h2, x_ch4, x_co2, x_n2, t_c)
-    attenuation = hidden_attenuation_v2(x_h2, x_ch4, x_co2, x_n2, t_c, p_mpa, h_rh, c_mix=c_sound, f_hz=spec.center_frequency_hz)
+    c_sound, attenuation = _compute_physics(
+        x_h2, x_ch4, x_co2, x_n2, t_c, p_mpa, h_rh,
+        f_hz=spec.center_frequency_hz,
+        sound_speed_fn=sound_speed_fn,
+        attenuation_fn=attenuation_fn,
+        extra_gas_kwargs=extra_gas_kwargs,
+    )
     alpha_true_npm = float(attenuation["alpha_true_v2"])
     probe = spec.probe
     l_probe = float(l_m) * float(probe.probe_path_length_factor)

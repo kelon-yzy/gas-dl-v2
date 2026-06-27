@@ -24,6 +24,24 @@ Regressor = MeanRegressor | RidgeRegressor | DynamicStackingSVRRegressor
 """Concrete regressor type alias. Use Protocol only when 5+ regressor types exist (KARPATHY_REVIEW 2.4)."""
 
 
+def _default_bin_components(label_names: tuple[str, ...]) -> tuple[str, ...]:
+    """Pick conditional-metric bin components based on which composition the
+    labels describe. hydrogen_ng labels include ``x_N2`` (sum=100% closure);
+    syngas labels do not (``x_N2`` is background, ``x_CO`` replaces it as the
+    fourth target). Falls back to the last component plus ``x_CH4`` when the
+    expected names are absent.
+    """
+    primary = (
+        "x_N2"
+        if "x_N2" in label_names
+        else ("x_CO" if "x_CO" in label_names else label_names[-1])
+    )
+    bins = [primary]
+    if "x_CH4" in label_names and "x_CH4" != primary:
+        bins.append("x_CH4")
+    return tuple(bins)
+
+
 @dataclass(frozen=True, slots=True)
 class SplitEvaluation:
     """Predictions and metrics for one evaluated split."""
@@ -33,7 +51,7 @@ class SplitEvaluation:
     component_metrics: dict[str, RegressionMetrics]
     compositional_metrics: CompositionalMetrics | None
     conditional_metrics: dict[str, dict[str, object]]
-    sum_abs_error: float
+    sum_abs_error: float | None
     predictions: np.ndarray
     targets: np.ndarray
     sequence_ids: tuple[str, ...]
@@ -75,13 +93,23 @@ def evaluate_regressor(
     compositional_metrics = (
         _compositional_metrics(predictions, matrix.y, target_transform) if target_transform is not None else None
     )
-    sum_abs_error = float(np.mean(np.abs(predictions.sum(axis=1) - 100.0)))
+    # sum=100% 闭包对 hg labels (含 x_N2) 才有意义；syngas labels 是 4 列 sum<100，
+    # 强算会得到约 |sum - x_N2 - 100| 的无意义数值，置为 None 跳过。
+    if "x_N2" in matrix.label_names:
+        sum_abs_error: float | None = float(np.mean(np.abs(predictions.sum(axis=1) - 100.0)))
+    else:
+        sum_abs_error = None
     return SplitEvaluation(
         split=split,
         metrics=regression_metrics(predictions, matrix.y),
         component_metrics=component_regression_metrics(predictions, matrix.y, matrix.label_names),
         compositional_metrics=compositional_metrics,
-        conditional_metrics=conditional_component_metrics(predictions, matrix.y, matrix.label_names),
+        conditional_metrics=conditional_component_metrics(
+            predictions,
+            matrix.y,
+            matrix.label_names,
+            bin_components=_default_bin_components(matrix.label_names),
+        ),
         sum_abs_error=sum_abs_error,
         predictions=predictions.astype(np.float32, copy=False),
         targets=matrix.y.astype(np.float32, copy=False),

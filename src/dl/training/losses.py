@@ -25,6 +25,16 @@ GAS_HEAD_PERCENTAGE_LOSSES = RAW_PERCENTAGE_LOSSES
 # free-component 闭包类损失只监督前 3 列 (H2/CH4/CO2)，N2 靠 sum=100 闭包补全，
 # 必须搭配 gas_head；只有监督全 4 列的 weighted_component_mse 不依赖闭包。
 FREE_COMPONENT_CLOSURE_LOSSES = frozenset((FREE_COMPONENT_MSE_LOSS, WEIGHTED_FREE_COMPONENT_MSE_LOSS))
+# 这些 loss 假设 4 列预测目标 sum=100%（hydrogen_ng 场景）。syngas 场景下
+# 第 4 列是 x_CO 而非 x_N2，sum<100，闭包假设不成立，必须拒绝。
+CLOSURE_DEPENDENT_LOSSES = frozenset(
+    (
+        COMPOSITIONAL_MSE_LOSS,
+        ILR_MSE_LOSS,
+        FREE_COMPONENT_MSE_LOSS,
+        WEIGHTED_FREE_COMPONENT_MSE_LOSS,
+    )
+)
 IMPLICIT_GAS_HEAD_MODELS = frozenset(("handcraft_mlp",))
 # phase_window_tcn 上对 weighted_component_mse 放开的合法 head；
 # free-component 闭包类损失仍只允许 gas_head。
@@ -174,18 +184,52 @@ def validate_loss_target_transform(loss_config: str | dict[str, object], target_
         raise ValueError(f"{loss_name} requires raw percentage targets without target_transform")
 
 
+def validate_loss_composition_scheme(
+    loss_config: str | dict[str, object],
+    composition_scheme: str,
+) -> None:
+    """Reject closure-dependent losses on open-composition (syngas) datasets.
+
+    syngas 场景下 4 列预测目标 sum<100（x_N2 是背景，不在 labels 里），
+    闭包类 loss（compositional_mse / ilr_mse / free_component_mse /
+    weighted_free_component_mse）的物理假设不成立，必须拒绝。
+    """
+    loss_name = loss_config_name(loss_config)
+    if loss_name not in LOSS_REGISTRY:
+        raise ValueError(f"Unknown loss name: {loss_name!r}. Available: {sorted(LOSS_REGISTRY)}")
+    if composition_scheme == "syngas" and loss_name in CLOSURE_DEPENDENT_LOSSES:
+        raise ValueError(
+            f"loss {loss_name!r} assumes sum=100 closure (hydrogen_ng) and is "
+            f"incompatible with composition_scheme='syngas'. Use 'mse', "
+            f"'weighted_component_mse', 'mae', 'smooth_l1', or 'huber' instead."
+        )
+
+
 def validate_loss_model_output(
     loss_config: str | dict[str, object],
     *,
     model_name: str,
     model_kwargs: object,
+    composition_scheme: str = "hydrogen_ng",
 ) -> None:
+    """Check that the loss is compatible with the model's output head.
+
+    composition_scheme:
+        For "syngas", the open-composition target (4 columns sum<100) does not
+        need gas-head closure, so weighted_component_mse / mse / etc. are
+        allowed on any model. Closure-dependent losses are rejected earlier
+        via ``validate_loss_composition_scheme``.
+    """
     loss_name = loss_config_name(loss_config)
     if loss_name not in GAS_HEAD_PERCENTAGE_LOSSES:
         return
     if not isinstance(model_kwargs, dict):
         raise ValueError(f"model_kwargs must be a JSON object when using {loss_name}")
     _validate_gas_head_out_dim(model_kwargs, loss_name=loss_name)
+    if composition_scheme == "syngas":
+        # syngas 4 列预测目标 sum<100，没有 N2 闭包要求；weighted_component_mse
+        # 直接监督全 4 列即可，不需要 gas-head。out_dim 已经校验为 4。
+        return
     if model_name == "phase_window_tcn":
         output_mode = model_kwargs.get("output_mode")
         if loss_name in FREE_COMPONENT_CLOSURE_LOSSES:

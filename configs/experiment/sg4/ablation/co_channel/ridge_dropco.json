@@ -1,0 +1,8 @@
+{
+  "model": "ridge",
+  "alpha": 1.0,
+  "modalities": "slow",
+  "slow_channels": ["V_NDIR_CH4", "V_NDIR_CO2", "V_TCS", "T_C", "P_MPa", "H_RH", "L_m", "piston_position_m"],
+  "sequence_statistics": "mean,std,min,max,last,delta,slope",
+  "dataset_dir": "data/sg4-formal"
+}

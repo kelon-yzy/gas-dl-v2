@@ -55,6 +55,7 @@ class V4BenchmarkDataset(Dataset):
         phase_windows: tuple[dict[str, object] | WindowConfig | None, ...] | None = None,
         dequantize_waveforms: bool = False,
         phase_stats_path: Path | str | None = None,
+        slow_channels: tuple[str, ...] | None = None,
     ):
         dataset_dir = Path(dataset_dir)
         self._dataset_dir = dataset_dir
@@ -71,6 +72,10 @@ class V4BenchmarkDataset(Dataset):
             raise ValueError("window and phase_windows cannot be combined")
 
         _validate_modalities(self._modalities)
+        self._slow_channels = tuple(slow_channels) if slow_channels is not None else None
+        self._slow_channel_indices = _resolve_slow_channel_indices(
+            dataset_dir, self._slow_channels, self._modalities
+        )
         if self._input_format not in {"NTC", "NCT"}:
             raise ValueError(f"input_format must be 'NTC' or 'NCT', got {self._input_format!r}")
 
@@ -183,6 +188,8 @@ class V4BenchmarkDataset(Dataset):
             if self._scaler is not None:
                 sl = apply_scaler(sl, self._scaler)
             sl = self._apply_window(sl, src_idx, window_masks)
+            if self._slow_channel_indices is not None:
+                sl = sl[:, self._slow_channel_indices]
             parts.append(sl)
         if self._ultrasonic is not None:
             parts.append(
@@ -241,6 +248,34 @@ def _validate_modalities(modalities: tuple[str, ...]) -> None:
     for m in modalities:
         if m not in MODALITY_OPTIONS:
             raise ValueError(f"Unknown modality: {m!r}. Available: {MODALITY_OPTIONS}")
+
+
+def _resolve_slow_channel_indices(
+    dataset_dir: Path,
+    slow_channels: tuple[str, ...] | None,
+    modalities: tuple[str, ...],
+) -> list[int] | None:
+    """将保留的 slow 通道名解析为列索引（channel ablation 用）。
+
+    slow_channels 为 None 时返回 None（保留全部通道，行为不变）。
+    """
+    if slow_channels is None:
+        return None
+    if "slow" not in modalities:
+        raise ValueError("slow_channels requires 'slow' in modalities")
+    if not slow_channels:
+        raise ValueError("slow_channels must not be empty")
+    names_path = dataset_dir / "metadata" / "slow_channel_names.npy"
+    if not names_path.is_file():
+        raise FileNotFoundError(f"slow_channel_names metadata not found: {names_path}")
+    all_names = [str(name) for name in np.load(names_path, allow_pickle=True).tolist()]
+    name_to_index = {name: index for index, name in enumerate(all_names)}
+    indices: list[int] = []
+    for channel in slow_channels:
+        if channel not in name_to_index:
+            raise ValueError(f"Unknown slow channel: {channel!r}. Available: {all_names}")
+        indices.append(name_to_index[channel])
+    return indices
 
 
 def _load_sequence_ids(dataset_dir: Path) -> list[str]:

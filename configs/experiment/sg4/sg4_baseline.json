@@ -1,0 +1,59 @@
+{
+  "dataset_dir": "data/sg4-formal",
+  "output_dir": "outputs/sg4_baseline",
+  "model": "cnn1d",
+  "model_kwargs": {
+    "hidden_channels": [16, 32, 32],
+    "kernel_size": 5,
+    "dropout": 0.1
+  },
+  "modalities": "slow",
+  "epochs": 50,
+  "batch_size": 16,
+  "num_workers": 2,
+  "pin_memory": true,
+  "persistent_workers": false,
+  "prefetch_factor": 2,
+  "seed": 20260626,
+  "device": "cuda",
+  "loss": {
+    "name": "weighted_component_mse",
+    "weighting": "inverse_train_var",
+    "component_count": 4
+  },
+  "optimizer": "adamw",
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "grad_clip_norm": 1.0,
+  "eval_splits": "val,test",
+  "checkpoint_name": "checkpoint.pt",
+  "early_stopping": {
+    "enabled": true,
+    "monitor": "val_loss",
+    "patience": 10,
+    "min_delta": 0.0,
+    "mode": "min"
+  },
+  "scheduler": {
+    "name": "reduce_on_plateau",
+    "factor": 0.5,
+    "patience": 5,
+    "min_lr": 1e-6
+  },
+  "amp": {
+    "enabled": true,
+    "dtype": "float16"
+  },
+  "performance": {
+    "cudnn_benchmark": true,
+    "tf32": true,
+    "compile": false,
+    "compile_mode": "default"
+  },
+  "progress": {
+    "enabled": true,
+    "stdout": true,
+    "jsonl": true,
+    "jsonl_name": "metrics_live.jsonl"
+  }
+}

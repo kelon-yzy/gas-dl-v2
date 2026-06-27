@@ -21,6 +21,11 @@ from common.composition import (
 )
 from common.metrics import CompositionalMetrics, conditional_component_metrics
 from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
+from sim.core.schema import COMPONENT_FIELDS as DEFAULT_COMPONENT_FIELDS
+
+HYDROGEN_NG_SCHEME = "hydrogen_ng"
+SYNGAS_SCHEME = "syngas"
+_VALID_SCHEMES = (HYDROGEN_NG_SCHEME, SYNGAS_SCHEME)
 
 OPTIMIZER_REGISTRY: dict[str, type[optim.Optimizer]] = {
     "adam": optim.Adam,
@@ -109,7 +114,19 @@ class Trainer:
         loss_fn: nn.Module,
         device: torch.device | str = "cpu",
         target_transform: str | dict[str, Any] | TargetTransformSpec | None = None,
+        *,
+        component_names: tuple[str, ...] = DEFAULT_COMPONENT_FIELDS,
+        composition_scheme: str = HYDROGEN_NG_SCHEME,
     ):
+        if composition_scheme not in _VALID_SCHEMES:
+            raise ValueError(
+                f"composition_scheme must be one of {_VALID_SCHEMES}, got {composition_scheme!r}"
+            )
+        if composition_scheme == SYNGAS_SCHEME and target_transform is not None:
+            raise ValueError(
+                "syngas composition_scheme is incompatible with target_transform "
+                "(ILR/ALR assume sum=100 closure)"
+            )
         self.model = model.to(device)
         self.optimizer = optimizer
         self.loss_fn = loss_fn
@@ -121,6 +138,8 @@ class Trainer:
         )
         if self.target_transform is not None and isinstance(self.target_transform.epsilon, str):
             raise ValueError("Trainer target_transform epsilon must be resolved before training")
+        self.component_names = tuple(component_names)
+        self.composition_scheme = composition_scheme
         self.history = TrainHistory()
 
     @staticmethod
@@ -295,13 +314,24 @@ class Trainer:
         y_true = torch.cat(all_targets)
         y_pred_raw = self._metric_predictions(y_pred)
         metrics = regression_metrics(y_pred_raw, y_true)
-        comp_metrics = component_regression_metrics(y_pred_raw, y_true)
-        compositional_metrics = self._compositional_metrics(y_pred_raw, y_true)
-        conditional_metrics = conditional_component_metrics(
-            y_pred_raw.detach().cpu().numpy(),
-            y_true.detach().cpu().numpy(),
+        comp_metrics = component_regression_metrics(
+            y_pred_raw, y_true, component_names=self.component_names
         )
-        sum_abs_error = float(torch.mean(torch.abs(y_pred_raw.sum(dim=1) - 100.0)).item())
+        compositional_metrics = self._compositional_metrics(y_pred_raw, y_true)
+        bin_components = self._conditional_bin_components()
+        # 转 float32 后再 → numpy：autocast 下 AMP bfloat16 输出不支持直接 .numpy()。
+        conditional_metrics = conditional_component_metrics(
+            y_pred_raw.detach().float().cpu().numpy(),
+            y_true.detach().float().cpu().numpy(),
+            component_names=self.component_names,
+            bin_components=bin_components,
+        )
+        # sum_abs_error 只在 sum=100% 闭包场景有意义；syngas 下 4 列 sum<100，
+        # 强行计算会得到约 |sum - x_N2 - 100| 的无意义数值，置为 None 跳过。
+        if self.composition_scheme == HYDROGEN_NG_SCHEME:
+            sum_abs_error = float(torch.mean(torch.abs(y_pred_raw.sum(dim=1) - 100.0)).item())
+        else:
+            sum_abs_error = None
 
         self.model.train()
         return {
@@ -360,6 +390,23 @@ class Trainer:
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.history = checkpoint.get("history", TrainHistory())
 
+    def _conditional_bin_components(self) -> tuple[str, ...]:
+        """Pick conditional-metric bin components per composition scheme.
+
+        hydrogen_ng → ("x_N2", "x_CH4") to match the historical N2-improvement
+        analysis tooling. syngas → ("x_CO", "x_CH4") since x_N2 is not in
+        labels (it is background, computed as 100 - sum). Falls back to the
+        last component plus x_CH4 when names are unrecognised.
+        """
+        if self.composition_scheme == SYNGAS_SCHEME:
+            primary = "x_CO" if "x_CO" in self.component_names else self.component_names[-1]
+        else:
+            primary = "x_N2" if "x_N2" in self.component_names else self.component_names[-1]
+        bins = [primary]
+        if "x_CH4" in self.component_names and "x_CH4" != primary:
+            bins.append("x_CH4")
+        return tuple(bins)
+
     def _loss_targets(self, y_raw: torch.Tensor) -> torch.Tensor:
         if self.target_transform is None:
             return y_raw
@@ -377,8 +424,9 @@ class Trainer:
     def _metric_predictions(self, predictions: torch.Tensor) -> torch.Tensor:
         if self.target_transform is None:
             return predictions
+        # 转 float32 后再 → numpy：AMP bfloat16/float16 输出不支持直接 .numpy()。
         raw = inverse_transform_composition_targets(
-            predictions.detach().cpu().numpy(),
+            predictions.detach().float().cpu().numpy(),
             self.target_transform,
         )
         return torch.from_numpy(raw).to(predictions.device)
@@ -391,8 +439,8 @@ class Trainer:
         if self.target_transform is None:
             return None
         distances = aitchison_distance(
-            y_pred_raw.detach().cpu().numpy(),
-            y_true_raw.detach().cpu().numpy(),
+            y_pred_raw.detach().float().cpu().numpy(),
+            y_true_raw.detach().float().cpu().numpy(),
             epsilon=self.target_transform.epsilon,
         )
         return CompositionalMetrics(

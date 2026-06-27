@@ -25,6 +25,7 @@ class MLFeatureConfig:
     sequence_statistics: tuple[str, ...] = DEFAULT_SEQUENCE_STATISTICS
     waveform_frame_features: tuple[str, ...] = DEFAULT_WAVEFORM_FRAME_FEATURES
     slow_scaler_path: Path | str | None = None
+    slow_channels: tuple[str, ...] | None = None
     phase_filter: str | None = None
     early_fraction: float | None = None
     feature_windows: tuple[WindowConfig | None, ...] | None = None
@@ -56,6 +57,8 @@ def load_feature_matrix(
     dataset_dir = Path(dataset_dir)
     config = config or MLFeatureConfig()
     _validate_modalities(config.modalities)
+    if config.slow_channels is not None and "slow" not in config.modalities:
+        raise ValueError("slow_channels requires 'slow' in modalities")
     _validate_window_config(config)
     if config.feature_windows is not None:
         return _load_multiwindow_feature_matrix(dataset_dir, split=split, config=config)
@@ -75,6 +78,8 @@ def load_feature_matrix(
         if config.slow_scaler_path is not None:
             slow = apply_scaler(slow, load_scaler(config.slow_scaler_path)).astype(np.float32)
         slow_channel_names = tuple(_load_str_array(dataset_dir / "metadata" / "slow_channel_names.npy"))
+        if config.slow_channels is not None:
+            slow, slow_channel_names = _select_slow_channels(slow, slow_channel_names, config.slow_channels)
         slow_features, slow_names = sequence_stat_features(
             slow,
             channel_names=slow_channel_names,
@@ -271,6 +276,26 @@ def _validate_modalities(modalities: tuple[str, ...]) -> None:
     for modality in modalities:
         if modality not in MODALITY_OPTIONS:
             raise ValueError(f"Unknown modality: {modality!r}. Available: {MODALITY_OPTIONS}")
+
+
+def _select_slow_channels(
+    slow: np.ndarray,
+    channel_names: tuple[str, ...],
+    keep: tuple[str, ...],
+) -> tuple[np.ndarray, tuple[str, ...]]:
+    """按保留通道名过滤 slow 张量的通道维（channel ablation）。
+
+    slow 形状 (N, T, C)；返回过滤后的张量与对应通道名。
+    """
+    if not keep:
+        raise ValueError("slow_channels must not be empty")
+    name_to_index = {name: index for index, name in enumerate(channel_names)}
+    indices: list[int] = []
+    for channel in keep:
+        if channel not in name_to_index:
+            raise ValueError(f"Unknown slow channel: {channel!r}. Available: {list(channel_names)}")
+        indices.append(name_to_index[channel])
+    return slow[:, :, indices], tuple(channel_names[index] for index in indices)
 
 
 def _validate_window_config(config: MLFeatureConfig) -> None:
