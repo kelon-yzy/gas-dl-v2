@@ -27,7 +27,46 @@
 - 传统 ML 与协议评估：`src/ml` 支持 Mean/Ridge baseline、full/per-phase/early-window 特征窗口，以及 `full + exposure + recovery` 多窗口特征拼接；`ridge_multiwindow_all_modalities` 是当前正式 phase-aware ML 主线。
 - 实验编排：`src/pipeline/experiment_config.py` 与 `src/pipeline/run_experiment.py` 支持 JSON 实验配置、ML/DL run 列表、`phase_windows`、dry-run、summary CSV 和 Markdown report。当前 PhaseWindowTCN 结构消融首批和 followup 配置已落地。
 - 存储策略：正式大规模数据集默认推荐 `storage=memmap`，下游 ML/DL 已能直接读取 `.npy`/memmap。若需要兼容压缩包，生成后用 `python -m pipeline.bundle_waveform_sequence --dataset-dir <dataset>` 单独打包 `sequences/waveform_sequence.npz`；`storage=npz/both` 保留兼容，但不作为大规模主路径。
-- 验证基线：核心依赖为 `numpy/scipy/torch/pytest/hitran-api`；`python -m pytest` 当前为 187 passed。
+- 验证基线：核心依赖为 `numpy/scipy/torch/pytest/hitran-api`；`python -m pytest` 当前为 462 passed（hydrogen_ng 353 + syngas 109，含 Stage Ⅱ ablation 18 个新增测试）。
+
+## 合成气适配（已落地，2026-06-26）
+
+> 详细方案见 `docs/syngas/adaptation_plan.md`，文档导航见 `docs/syngas/README.md`，物理常数见 `docs/syngas/physics_references.md`。
+
+**目标**：新增合成气检测场景（H₂/CH₄/CO₂/CO，N₂ 为背景气，sum<100%），与现有掺氢天然气场景并存。
+
+**实施策略**：采用**分支隔离**，syngas 走独立 schema 与子包，hydrogen_ng 路径完全保留；共用 packaging / waveforms / validation / dl trainer 等只做向后兼容的可选参数化改造。
+
+**已落地的核心入口**：
+
+- `src/sim/core/syngas_schema.py` — syngas 专用 schema：`COMPONENT_FIELDS = ("x_H2","x_CH4","x_CO2","x_CO")`，`BACKGROUND_FIELDS = ("x_N2",)`，9 个 SLOW_CHANNELS（含 `V_NDIR_CO`）。
+- `src/sim/generation/syngas/` 子包：`conditions.py`（方案 B + 条件顺序采样）、`acoustic_physics.py`（CO 声速 / 弛豫衰减 / 热导 / 吸收）、`optical_crosstalk.py`（3×3 矩阵，Step 1/2 切换）、`slow.py`（含 V_NDIR_CO 慢通道）、`benchmark.py`（独立 benchmark 编排）。
+- `src/pipeline/generate_syngas_benchmark.py` — CLI 入口，默认 `empirical_v1` 光学后端。
+- `configs/experiment/sg4/sg4_baseline.json` — DL baseline 配置：`cnn1d` + `weighted_component_mse` + `weighting=inverse_train_var`。
+- `tests/test_syngas_{sampling,acoustic_physics,benchmark_generation,dl_training,ablation}.py` — 109 个新测试（91 个基础 + 18 个 Stage Ⅱ ablation）。
+
+**共用代码兼容性改造**（默认行为不变）：
+
+- `src/sim/generation/waveforms.py` — `simulate_waveform_measurement` / `simulate_fiber_mic_measurement` 新增可选 `sound_speed_fn` / `attenuation_fn` / `extra_gas_kwargs` 注入；syngas 走 syngas 物理后端，hg 调用方完全不感知。
+- `src/sim/packaging/manifest.py` — `build_manifest` 新增 `schema_version` / `composition_scheme` / `background_fields` 可选参数，默认值匹配 hg 行为。
+- `src/sim/validation/integrity.py` — `validate_benchmark_assets` 接受 `component_fields` / `slow_channels` / `background_fields` / `require_sum_100`，默认走 hg schema。
+- `src/common/metrics.py` — `conditional_component_metrics` 新增 `bin_components` 可选参数，syngas 传 `("x_CO", "x_CH4")`，hg 默认 `("x_N2", "x_CH4")`。
+- `src/dl/training/losses.py` — 新增 `validate_loss_composition_scheme()`，syngas 自动拒绝闭包类 loss；`validate_loss_model_output` 接受 `composition_scheme` 放开 syngas 对 gas-head 模型的限制。
+- `src/dl/training/trainer.py` — `Trainer` 构造接受 `component_names` / `composition_scheme`；syngas 拒绝 `target_transform`；evaluate 按 scheme 决定分箱（`co_bins` vs `n2_bins`）、是否计算 `sum_abs_error` / `compositional_metrics`。
+- `src/dl/cli.py` — 自动从 `manifest.json` 读 `composition_scheme`、从 `metadata/label_names.npy` 读 label_names，注入 trainer 与 loss 校验；旧 wv4 manifest 无该字段时 fallback 到 hg。
+
+**Manifest 契约扩展**：
+
+- 新增字段：`schema_version`（"v4-syngas-1" or "v4-benchmark-1"）、`composition_scheme`（"syngas" or "hydrogen_ng"）、`background_fields`（syngas: `["x_N2"]`）。
+- 旧 wv4 manifest 无 `composition_scheme` 字段时 CLI 自动 fallback 到 "hydrogen_ng"。
+
+**已知物理限制**：CO 与 N₂ 摩尔质量相同（28 g/mol），声速差 <1 m/s，超声波和热导通道对 CO 几乎不敏感。CO 的可观测性主要依赖 NDIR 光学通道。**Stage Ⅱ-1 实测确认**（详见 `docs/syngas/stage_ii_ablation_results.md`）：移除 V_NDIR_CO 后 x_CO R² 从 0.954 跌至 0.484（损失 ~50%，TCN/Ridge 同向），仅保留 V_NDIR_CO + 环境通道即可恢复 0.93-0.94。结论修正：CO **主导依赖** NDIR 光学（非完全依赖），残留 ~50% 可学性来自闭包约束 / V_TCS 热导差异 / 可能的 CO₂ NDIR 弱串扰。
+
+**未完成**：
+
+- HITRAN syngas 后端（阶段 3c）：`syngas.slow.build_sequence_arrays` 在 `optical_absorption_backend="hitran_hapi_v1"` 时抛 `NotImplementedError`；需要联网拉取 CO/CO₂/H₂O 在 [1980, 2310] cm⁻¹ 谱线，并扩展 `optical_backend` 支持三气体通道。
+- `run_experiment` 多 run 编排尚未接入 syngas（当前 syngas DL 走 `dl.cli` 单 run）。
+- CO 改进分析工具（对标 `analyze_n2_improvement.py`）按需后续补。
 
 ## 未迁移
 

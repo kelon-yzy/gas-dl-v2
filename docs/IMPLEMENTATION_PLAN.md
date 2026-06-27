@@ -1,7 +1,7 @@
 # v4 正式实验 实施计划
 
 > 基于 `新项目PLAN.md` 6 项改进要求 + `docs/新项目目标架构说明.md` 目标架构，当前状态评估后制定。
-> 2026-06-15 补充：本文件保留阶段实施脉络，最新实验状态请先读 `docs/AI_CONTEXT_GUIDE.md` 和 `docs/PhaseWindowTCN结构消融实验方案.md`。
+> 2026-06-15 补充：本文件保留阶段实施脉络，最新实验状态请先读 `docs/AI_CONTEXT_GUIDE.md` 和 `docs/DL相位统计稳定提取与保留方案.md`（旧 PhaseWindowTCN 方案见 `docs/整理归档/dl_iteration_plans/PhaseWindowTCN结构消融实验方案.md`）。
 
 ## 2026-06-15 最新覆盖说明
 
@@ -22,14 +22,14 @@
 | `src/pipeline`    | layout + generate_benchmark 并行生成 + HITRAN benchmark cache 并行预计算/对照 CLI + 外部谱表 sanity check CLI + waveform bundle CLI + experiment_config/run_experiment | 58% |
 | `configs/`        | 已新增 spectral defaults、formal_full、ML phase-aware、multiwindow_n2、PhaseWindowTCN MVP/improvement/ablation 配置 | 45%  |
 | `experiments/`    | 仅有 `.gitkeep`                                                   | 0%  |
-| `tests/`          | 全量 187 个测试通过，覆盖 sim + ml + dl + pipeline | 78% |
+| `tests/`          | 全量 462 个测试通过（hydrogen_ng 353 + syngas 109，含 Stage Ⅱ ablation 18 个），覆盖 sim + ml + dl + pipeline + syngas | 90% |
 
 ## 环境与依赖基线
 
 - 依赖入口已版本化：`pyproject.toml` 声明运行依赖，`requirements.txt` 提供普通 pip 安装入口。
 - Python 版本范围固定为 `>=3.10,<3.14`；当前不使用 Python 3.14 作为主环境，避免科学计算和深度学习 wheel 暂未稳定覆盖时安装失败。
 - 新机器已验证 Python 3.12.10 虚拟环境可用，核心包版本为 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3`、`hitran-api 1.3.0.0`。
-- 当前验证命令：`python -m pytest`，全量结果为 187 passed。
+- 当前验证命令：`python -m pytest`，全量结果为 462 passed（2026-06-27 合成气 Stage Ⅱ ablation 落地后；历史 hg 基线为 353 passed，syngas 增量 109）。
 
 ## PLAN 6 项问题对照
 

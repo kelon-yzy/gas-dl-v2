@@ -1,10 +1,10 @@
 # 正式实验 v4
 
-本项目是 `V3_正式实验` 的目标架构重构版。当前主线已经从第一阶段的核心契约固定，推进到可运行的 benchmark 生成、传统 ML baseline、DL 数据/模型/轻量训练闭环和长时序协议验证阶段。正式大规模实验、跨 run 汇总和真实硬件/谱表标定仍待完成。
+本项目是 `V3_正式实验` 的目标架构重构版。当前主线已经从第一阶段的核心契约固定，推进到可运行的 benchmark 生成、传统 ML baseline、DL 数据/模型/轻量训练闭环和长时序协议验证阶段。2026-06-26 完成合成气 / 煤气化制气场景的分支隔离落地（H₂/CH₄/CO₂/CO，N₂ 为背景气）。正式大规模实验、跨 run 汇总和真实硬件/谱表标定仍待完成。
 
 ## 当前状态
 
-> 2026-06-15 最新实验导读见 `docs/AI_CONTEXT_GUIDE.md`。若 README 中的历史状态与该导读或 `docs/PhaseWindowTCN结构消融实验方案.md` 冲突，以最新导读和活跃实验方案为准。
+> 2026-06-15 最新实验导读见 `docs/AI_CONTEXT_GUIDE.md`。若 README 中的历史状态与该导读或 `docs/DL相位统计稳定提取与保留方案.md` 冲突，以最新导读和活跃实验方案为准（旧 PhaseWindowTCN 方案归档于 `docs/整理归档/dl_iteration_plans/PhaseWindowTCN结构消融实验方案.md`）。
 
 - 已建立 `src/sim/core`：定义 benchmark、mixture、sequence 的核心 ID 语义。
 - 已建立 `src/sim/generation`：提供正式 benchmark 生成的最小垂直切片，默认使用拉丁超立方采样（LHS），NDIR 默认走 `hitran_hapi_v1` cache-only 光谱积分；HITRAN 主线只计算 TCS 热导慢变量，不再顺带跑 empirical NDIR；`empirical_v1` 保留为显式兼容/对照路径。
@@ -14,13 +14,14 @@
 - 已建立 `src/dl/data`：`V4BenchmarkDataset` 消费 v4 benchmark，支持慢变量/超声/光纤三模态、NTC/NCT 格式、split 加载、真正 lazy memmap（取单条样本时才转 float32）、scaler 归一化；训练期增强通过显式 `TimeSeriesAugmentConfig` 开启，默认关闭。
 - 已建立 `src/dl/models`：模型注册表 `MODEL_REGISTRY` + `build_model` 工厂，已落地 `CNN1DRegressor`、`TCNRegressor`、`CNN1DTCNFusionRegressor`、`LSTMRegressor`、`TransformerRegressor` 和 `PatchTSTRegressor`。CNN/TCN 支持 `mean/last/attention` 聚合，TCN 支持按 `target_timesteps` 自动扩展感受野；`cnn1d_tcn_fusion` 支持 slow/ultrasonic/fiber_mic 三路编码、TCN 融合与 bounded simplex 输出约束。
 - 已建立 `src/dl/training`：提供 loss、metrics、轻量 `Trainer`、optimizer 构造、evaluate/predict 和 checkpoint 保存/加载；`python -m dl.cli` 已支持单数据集训练、checkpoint、run_config 与 metrics JSON 输出。当前仍没有 LR scheduler 或 early stopping。
-- 已建立 PhaseWindowTCN 多窗口 DL 实验链路：`phase_windows` 支持 `full + exposure + recovery` 真实多窗口输入，`PhaseWindowTCNRegressor` 支持 `share_window_encoder`、`gas_head` 和更深 TCN 结构消融；当前活跃方案见 `docs/PhaseWindowTCN结构消融实验方案.md`。
+- 已建立 PhaseWindowTCN 多窗口 DL 实验链路：`phase_windows` 支持 `full + exposure + recovery` 真实多窗口输入，`PhaseWindowTCNRegressor` 支持 `share_window_encoder`、`gas_head` 和更深 TCN 结构消融；旧方案归档见 `docs/整理归档/dl_iteration_plans/PhaseWindowTCN结构消融实验方案.md`，当前主线为 `docs/DL相位统计稳定提取与保留方案.md`。
 - 当前实验结论：ML 多窗口 `ridge_multiwindow_all_modalities` 是正式 phase-aware 主线；PhaseWindowTCN 的 `gas_head` 已修复闭包误差，但 `free_component_mse` 未使 N2 转正，因此下一步只做 `share_window_encoder=false` 和更深 TCN 的结构消融。
 - 已建立 `src/pipeline/layout.py`：定义顶层目录、配置分组和输出分区。
 - 已建立 `src/pipeline/generate_benchmark.py`：正式 benchmark 生成入口，CLI 默认按 CPU 自动启用 sequence chunk 多进程生成。
 - 已建立 `src/pipeline/precompute_hitran_spectra.py`、`src/pipeline/precompute_hitran_benchmark_cache.py`、`src/pipeline/compare_optical_backends.py`、`src/pipeline/sanity_check_tabulated_spectra.py` 和 `src/pipeline/bundle_waveform_sequence.py`：HITRAN 谱缓存预计算、benchmark 专用 cache 预计算、empirical/HITRAN 小规模对照、外部定量谱表 sanity check、生成后 waveform 压缩包打包入口；本地已用真实 HAPI 下载 CH4/CO2/H2O 两个 NDIR 窗口谱线缓存。
 - 已建立长时序协议：支持 `short/standard/long/xlong` 时间轴预设、显式 `timesteps/dt_s` 覆盖、动态 `PhaseSchedule`、`stage_jitter`、`standard_exposure/variable_onset/fast_transient/incomplete_recovery/multi_pulse` 阶段 profile，相关溯源写入 `manifest.json` 和 `metadata/waveform_spec.json`。
-- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline）。当前全量验证为 187 passed。
+- 已建立合成气 / 煤气化制气场景（H₂/CH₄/CO₂/CO，N₂ 背景，sum<100%）：分支隔离落地，syngas 独立 schema (`src/sim/core/syngas_schema.py`) 与子包 (`src/sim/generation/syngas/`)；hydrogen_ng 路径完全保留。`python -m pipeline.generate_syngas_benchmark` 可生成 sg4-formal（empirical 后端，6000 序列），`python -m dl.cli --config configs/experiment/sg4/sg4_baseline.json` 可跑 DL 基线；HITRAN 后端尚未实现。Stage Ⅰ 基线 14/15 收敛（TCN ≈ Ridge pool R²≈0.96）+ Stage Ⅱ ablation 27/27 完成（V_NDIR_CO 支配 CO 检测、3×3 串扰可学、inverse_train_var 加权对 CH₄ 翻倍）。详见 `docs/syngas/README.md`。
+- 已建立测试入口：`python -m pytest tests`（覆盖 sim + ml + dl + pipeline + syngas）。当前全量验证为 462 passed（hydrogen_ng 353 + syngas 109，含 Stage Ⅱ 18 个 ablation 测试）。
 
 ## 给其他 AI 的快速入口
 
@@ -28,7 +29,7 @@
 
 1. `AGENTS.md`
 2. `docs/AI_CONTEXT_GUIDE.md`
-3. `docs/PhaseWindowTCN结构消融实验方案.md`
+3. `docs/DL相位统计稳定提取与保留方案.md`（旧 PhaseWindowTCN 方案见 `docs/整理归档/dl_iteration_plans/`）
 
 当前 PhaseWindowTCN 结构消融第一批配置：
 
@@ -73,7 +74,7 @@ py -3.12 -m venv .venv
 
 `data/hitran_cache*/` 与 `outputs/runs/*` 是本地缓存和实验产物，已被 `.gitignore` 排除，不会随远程仓库同步。新机器需要从旧机器复制这些目录，或按下面的 HITRAN 预计算命令重新生成缓存。
 
-当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 当前全量通过 187 个测试。
+当前新机器已验证的可用环境为 Python 3.12.10 虚拟环境，核心依赖包括 `numpy 2.4.6`、`scipy 1.17.1`、`torch 2.12.0+cpu`、`pytest 9.0.3` 和 `hitran-api 1.3.0.0`；`.\.venv\Scripts\python -m pytest tests` 当前全量通过 462 个测试（hydrogen_ng 353 + syngas 109，含 Stage Ⅱ ablation 18 个新增测试）。
 
 ## 核心语义
 

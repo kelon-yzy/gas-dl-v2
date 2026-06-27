@@ -37,7 +37,7 @@ def compare_configs() -> None:
     print("  --dataset-dir data/wv4-formal-hitran-standard-6000 \\")
     print("  --output-root outputs")
     print()
-    print("详细方案: docs/训练配置优化方案.md")
+    print("详细方案: docs/整理归档/runtime_tuning/训练配置优化方案.md")
     print("=" * 80)
 
 

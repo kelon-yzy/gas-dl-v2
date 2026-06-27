@@ -41,7 +41,7 @@ def main() -> None:
     print("   - torch.compile: reduce-overhead, 单 run")
     print("   - batch_size: 20 -> 24 -> 32")
     print()
-    print("详细方案: docs/训练配置优化方案.md")
+    print("详细方案: docs/整理归档/runtime_tuning/训练配置优化方案.md")
     print("=" * 70)
 
 
