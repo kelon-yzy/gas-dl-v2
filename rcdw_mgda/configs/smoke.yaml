@@ -1,9 +1,40 @@
 data:
+  dataset_root: "data/rcdw-smoke"
+  window: 8
+  seed: 42
+  train_modalities: ["slow", "ultrasonic"]
+  # 旧字段(Phase 4 移除):
   n_train: 1400
   n_val: 300
   n_test: 300
-  window: 8
+
+generation:
+  sequence_count: 64                # 比 default 小 30 倍
   seed: 42
+  timesteps: 32                     # v1.2 仅用 STANDARD_EXPOSURE(4 段),32 充裕
+  dt_s: 0.5
+  storage: "memmap"
+  multi_path_phase: "steady"
+  stage_profile: "standard_exposure"
+  stage_jitter: 0.0
+  sampling_strategy: "lhs"
+  path_lms: [0.20, 0.30, 0.40]
+  optical_absorption_backend: "hitran_hapi_v1"
+  hitran_cache_root: "data/hitran_cache"
+
+spectral:
+  config_path: "configs/spectral-defaults.json"
+
+phases:
+  default_schedule: "standard_exposure"
+
+splits:
+  ratios: { train: 0.70, val: 0.15, test: 0.15 }
+  group_field: "mixture_id"
+
+scalers:
+  transform_target: "slow"
+  modal_groups_from_schema: true
 
 model:
   single_modal:
@@ -14,7 +45,7 @@ model:
     beta: 8.0
     alpha_min: 0.1
     alpha_max: 0.9
-    tau_alpha: 0.05
+    tau_a: 0.05
     s_min: 0.05
     s_max: 0.40
     tau_s: 0.05
