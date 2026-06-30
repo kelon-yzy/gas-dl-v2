@@ -1,0 +1,49 @@
+"""RCDW 数据生成的 schema / ID 契约层。"""
+
+from .ids import (
+    BenchmarkDatasetId,
+    MixtureId,
+    SequenceId,
+    make_mixture_id,
+    make_sequence_id,
+)
+from .schema import (
+    COMPONENT_FIELDS,
+    CONDITION_GRID_FIELDS,
+    LEGACY_CONDITION_FIELDS,
+    MULTI_PATH_PHASES,
+    PHASE_NAMES,
+    SCHEMA_VERSION,
+    SEQUENCE_INDEX_FIELDS,
+    SEQUENCE_LABEL_FIELDS,
+    SLOW_CHANNELS,
+    SLOW_DYNAMIC_CHANNELS,
+    SLOW_MODAL_GROUPS,
+    SLOW_SEQUENCE_FIELDS,
+    SPLIT_FIELDS,
+    SPLIT_NAMES,
+    VALID_STORAGE_FORMATS,
+)
+
+__all__ = [
+    "BenchmarkDatasetId",
+    "MixtureId",
+    "SequenceId",
+    "make_mixture_id",
+    "make_sequence_id",
+    "COMPONENT_FIELDS",
+    "CONDITION_GRID_FIELDS",
+    "LEGACY_CONDITION_FIELDS",
+    "MULTI_PATH_PHASES",
+    "PHASE_NAMES",
+    "SCHEMA_VERSION",
+    "SEQUENCE_INDEX_FIELDS",
+    "SEQUENCE_LABEL_FIELDS",
+    "SLOW_CHANNELS",
+    "SLOW_DYNAMIC_CHANNELS",
+    "SLOW_MODAL_GROUPS",
+    "SLOW_SEQUENCE_FIELDS",
+    "SPLIT_FIELDS",
+    "SPLIT_NAMES",
+    "VALID_STORAGE_FORMATS",
+]
