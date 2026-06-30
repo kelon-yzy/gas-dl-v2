@@ -8,6 +8,7 @@
 - 禁止无依据的防御性编程和隐式兜底逻辑。
 - 新正式主线不得把 `mixture_id` 回退或重写为 `sequence_id`。
 - 新正式 benchmark 不依赖 `base_condition_id`、`noise_seed_index`、`noise_seed`。
+- `rcdw_mgda` 子工程遵循上述同一组不变量；其独立 schema_version 为 `rcdw-benchmark-1`，ID 前缀 `RCDW-M/Q`，与主线 `wv4-*` / `sg4-*` 命名空间隔离。
 - 文件修改使用 `functions.apply_patch`；命令执行使用当前会话可用 shell 工具，并显式设置 `workdir`。
 
 ## 提示词与协作规则

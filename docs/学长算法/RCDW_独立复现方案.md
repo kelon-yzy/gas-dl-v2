@@ -6,6 +6,13 @@
 
 > **实施状态（2026-06-29）**：完整实施手册见 [RCDW_实施指南.md](RCDW_实施指南.md)；落地代码位于 [`rcdw_mgda/`](../../rcdw_mgda/)；完成情况见 [RCDW_实施完成情况.md](RCDW_实施完成情况.md)（35 tests pass + 数值对齐 + smoke 训练+ 扰动实验全部通过）。
 
+> ⚠️ **数据集形态升级（2026-06-30 v1.2）**：本方案 §3 描述的 toy 数据接口（6 维 `(B, L, 6)`）已被重构为 **12 维 benchmark 形态**：
+> slow（7 维 V_NDIR_CO2/V_TCS/T_C/P_MPa/H_RH/L_m/piston_position_m）+
+> ultrasonic 元数据（5 维 tof_observed/sound_speed_estimated/peak_index/tof_quality/tof_accepted）。
+> 模型 W_base (3,3) 与 Stage A/B/扰动三阶段框架不变，仅通道索引重映射。
+> 详见 [RCDW_数据集主线对齐改动方案.md](RCDW_数据集主线对齐改动方案.md) v1.2 + [RCDW_数据集主线对齐_完成情况.md](RCDW_数据集主线对齐_完成情况.md)。
+> 本方案 §12 末尾附 12 维新布局下的扰动通道索引重映射表（方案 §9.1）。
+
 ---
 
 ## 一、与学长框架的目标对齐表
@@ -502,6 +509,29 @@ def inject(x: torch.Tensor, kind: str, level: float, rng=None) -> torch.Tensor:
 - 超声异常下，US 权重下降，NDIR / TCD 补偿上升；
 - 温度突变下，所有模态误差上升，但超声（v ∝ √T）和热导（λ 温度依赖）受影响最大，NDIR 相对稳定；
 - 退化硬抑制在 level ≥ 0.09 时触发，把异常模态压到 4%。
+
+### 附录：12 维新布局下的扰动通道索引重映射（v1.2 升级补充）
+
+数据集主线对齐 v1.2（详见 [RCDW_数据集主线对齐改动方案.md §9.1](RCDW_数据集主线对齐改动方案.md)）将输入张量从 6 维升级到 12 维：
+
+```
+新布局 (B, L, 12) = slow(7) + ultrasonic 元数据(5)
+索引: 0=V_NDIR_CO2, 1=V_TCS, 2=T_C, 3=P_MPa, 4=H_RH, 5=L_m, 6=piston_position_m,
+      7=ultrasonic_tof_observed_s, 8=ultrasonic_sound_speed_estimated_m_per_s,
+      9=ultrasonic_peak_index, 10=ultrasonic_tof_quality, 11=ultrasonic_tof_accepted
+```
+
+5 类扰动的通道索引迁移：
+
+| 扰动类型 | 旧目标索引（6 维） | 新目标索引（12 维） | 常量符号 | 语义变化 |
+|----------|------------------|-------------------|---------|---------|
+| `optical_atten` | `x[..., 0]` (S_ndir) | `x[..., 0]` | `IDX_NDIR_CO2` | 真实 V 量级（玩具→物理） |
+| `optical_scat` | `x[..., 0]` (S_ndir) | `x[..., 0]` | `IDX_NDIR_CO2` | 真实 V 量级 |
+| `thermal` | `x[..., 1]` (S_tc) | `x[..., 1]` | `IDX_TCS` | 真实 V 量级 |
+| `ultrasonic` | `x[..., 2]` (S_us) | `x[..., 8]` | `IDX_US_SPEED` | **量级变化**：声速 m/s ~340-360（旧 toy 归一化） |
+| `temperature` | `x[..., 4]` (T) | `x[..., 2]` | `IDX_T_C` | 单位变化：°C（旧 K） |
+
+最新 `inject` 实现见 [`rcdw_mgda/rcdw/perturbation/inject.py`](../../rcdw_mgda/rcdw/perturbation/inject.py)。旧 6 维输入会被显式拒绝（抛 `ValueError`），防止误用历史数据。
 
 ---
 

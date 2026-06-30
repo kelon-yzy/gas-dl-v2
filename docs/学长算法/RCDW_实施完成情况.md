@@ -1,9 +1,17 @@
 # RCDW-MGDA 实施完成情况
 
-> 更新日期：2026-06-29
+> 更新日期：2026-06-30（v1.2 数据集主线对齐落地）
 > 对应实施手册：[RCDW_实施指南.md](RCDW_实施指南.md)
 > 对应顶层方案：[RCDW_独立复现方案.md](RCDW_独立复现方案.md)
 > 实施目录：[`rcdw_mgda/`](../../rcdw_mgda/)（项目根下独立子工程，与 `src/` 完全隔离）
+
+> ⚠️ **数据集已切换为 benchmark 形态（2026-06-30）**：
+> 本文档 §1–§6 描述的是 M0-M5 toy 阶段（35 tests，旧 `synth.py` 6 维数据）。
+> 数据契约已升级到 `schema_version="rcdw-benchmark-1"`，12 维通道布局，
+> 与 HG 主线 `src/sim/` 同质量的数据生成管线。详见
+> [RCDW_数据集主线对齐改动方案.md](RCDW_数据集主线对齐改动方案.md) v1.2 +
+> [RCDW_数据集主线对齐_完成情况.md](RCDW_数据集主线对齐_完成情况.md)。
+> 最新状态：**198 tests pass / 5 个 Phase 全部完成 / 旧 ckpt 必须重训**。
 
 ## 1. 完成状态总览
 
@@ -114,3 +122,66 @@ rcdw_mgda/
     ├── stage_b/rcdw.pt
     └── perturb/*.png  (10 张)
 ```
+
+---
+
+## 7. 数据集主线对齐（2026-06-30 v1.2 升级）
+
+§1–§6 是 M0-M5 toy 阶段（旧 `synth.py` 6 维输入 + Dirichlet 玩具浓度）；2026-06-30 完成
+**数据集主线对齐**，将 RCDW 数据生成管线升级到与 HG 主线 `src/sim/` 同质量，但保持完全隔离（独立 schema、独立 ID 前缀、独立 HITRAN cache）。
+
+### 7.1 升级要点
+
+| 维度 | toy v1（旧） | benchmark v1.2（新） |
+|------|------------|-------------------|
+| 数据生成入口 | `rcdw.data.synth.synth_timeseries` | `scripts.generate_benchmark` 全流程编排 |
+| 通道布局 | 6 维 `[S_ndir, S_tc, S_us, P, T, RH]` | **12 维** slow(7) + ultrasonic 元数据(5) |
+| 标签语义 | Dirichlet([2,1,6]) toy 分布 | HITRAN 物理建模 + LHS d=2 simplex 采样 |
+| Schema version | 无 | `rcdw-benchmark-1` |
+| ID 前缀 | 无 | `RCDW-M{:06d}` / `RCDW-Q{:06d}` |
+| baseline | toy 随机 | **100% N₂ 纯背景气** |
+| PhaseSchedule | 无 | `STANDARD_EXPOSURE`（v1.2 YAGNI 仅一种） |
+| 切分 | 时序顺序切分 | **mixture_id 分层 70/15/15**（不含 extrapolation） |
+| Scaler | 无 | train-only Z-score + 异质通道 passthrough |
+| Validation | 4 项 toy 不变量 | **10 项**（含 LEGACY 黑名单、组分和=100、scaler passthrough 标记） |
+| 测试数 | 35 | **198**（+163 涵盖 6 个 Phase） |
+
+### 7.2 commit 序列
+
+| commit | Phase | 文件 | 测试 |
+|--------|-------|------|------|
+| `7671e7f` | Phase 1+2：schema 骨架 + 物理栈 | 27 新增 | 79 |
+| `da5cddc` | Phase 3：slow + packaging + benchmark 端到端 | 17 新增 + 2 修改 | 59 |
+| `5eb8001` | Phase 4+5：Dataset + 12 维通道 + 扰动重映射 | 4 新增 + 11 修改 + 2 删除 | 60 |
+| **累计** | **5 个 Phase 全部完成** | **48 新增 / 13 修改 / 2 删除** | **198 全过** |
+
+### 7.3 历史 ckpt 废弃
+
+**§2 smoke 训练产生的 `runs/stage_a/*.pt` 与 `runs/stage_b/rcdw.pt`（基于旧 toy `synth.py` 6 维输入）与新数据契约完全不兼容**。新通道布局 6→12、标签语义 toy→HITRAN、scaler 重新拟合、baseline=100% N₂ 物理化，必须删除旧 ckpt → 按新数据生成 → Stage A 重训 → Stage B 重训。
+
+### 7.4 新流程命令
+
+```bash
+cd rcdw_mgda
+
+# 1) 生成 benchmark（empirical 后端不联网；HITRAN 后端需先预热 cache）
+python -m scripts.generate_benchmark --config configs/smoke.yaml \
+    --dataset-slug rcdw-smoke --output-root data
+
+# 2) 训练（自动从 data/rcdw-smoke 加载 BenchmarkDataset）
+python -m scripts.train --config configs/smoke.yaml
+
+# 3) 评测
+python -m scripts.eval --ckpt runs/stage_b/rcdw.pt --config configs/smoke.yaml --split test
+
+# 4) 扰动评测（5 类 × 2 张图 = 10 张 PNG）
+python -m scripts.perturb --ckpt runs/stage_b/rcdw.pt --config configs/smoke.yaml
+```
+
+### 7.5 详细落地记录
+
+见 [RCDW_数据集主线对齐_完成情况.md](RCDW_数据集主线对齐_完成情况.md)：
+- 每 Phase 文件清单 + 测试覆盖
+- 17 项验证清单
+- 与方案的偏差（如 benchmark.py 暂为单进程、`--precompute-cache-only` 未实现等）
+- 后续 Phase 6+ 建议
