@@ -7,7 +7,7 @@
 已落地两个检测场景，可并存：
 
 - **掺氢天然气（hydrogen_ng）**：H₂/CH₄/CO₂/N₂，sum=100% 闭包。benchmark `wv4-*`。
-- **合成气 / 煤气化制气（syngas，2026-06-26 完成阶段 1–4）**：H₂/CH₄/CO₂/CO，N₂ 为背景气，sum<100%。benchmark `sg4-*`，独立模块路径，HITRAN 后端待补。
+- **合成气 / 煤气化制气（syngas）**：H₂/CH₄/CO₂/CO，N₂ 为背景气，sum<100%。Stage Ⅰ 基线 + Stage Ⅱ ablation 完成，benchmark `sg4-smoke` / `sg4-formal`（empirical 后端，6000 序列）可用，HITRAN 后端待补。独立模块路径。
 
 ## 代码结构
 
@@ -21,7 +21,7 @@ src/
 │   └── validation/  # 数据完整性校验（可注入 component_fields / background_fields）
 ├── dl/           # 深度学习
 │   ├── data/     #   dataset.py（manifest 驱动，自动兼容两场景）
-│   ├── models/   #   CNN1D / TCN / PhaseWindowTCN / LSTM / Transformer / PatchTST
+│   ├── models/   #   CNN1D / TCN / CNN1DTCNFusion / PhaseWindowTCN / LSTM / Transformer / PatchTST
 │   └── training/ #   losses.py / trainer.py / metrics.py（按 composition_scheme 切换分箱/loss 校验）
 ├── ml/           # 传统 ML (Ridge / Mean baseline)
 ├── pipeline/     # CLI 编排、实验运行、benchmark 生成
@@ -36,7 +36,7 @@ src/
 - `python -m pipeline.precompute_hitran_benchmark_cache` — hg HITRAN 谱线缓存预计算
 - `python -m dl.cli --config <json>` — DL 训练（manifest 自动决定走 hg 还是 sg 路径）
 - `python -m pipeline.run_experiment --config <json>` — hg 多 run 实验编排（sg 暂未接入）
-- `python -m pytest` — 全量测试（当前 444 passed = hg 353 + sg 91）
+- `python -m pytest` — 全量测试（以实际通过数为准；当前主线 462 passed = hg 353 + sg 109，含 Stage Ⅱ ablation 18 个）
 
 ## 核心概念
 
@@ -61,8 +61,8 @@ syngas 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动�
 
 ### Benchmark 命名
 
-- `wv4-smoke` / `wv4-formal*` — 掺氢天然气
-- `sg4-smoke` — 合成气 smoke test（empirical 后端可用）
+- `wv4-smoke` / `wv4-formal*` — 掺氢天然气；正式 6000 序列集 `wv4-formal-hitran-standard-6000` 可通过 `--experiment-preset formal-hitran-standard-6000` 一键固定。
+- `sg4-smoke` / `sg4-formal` — 合成气 smoke / 正式集（empirical 后端，6000 序列）
 
 ## 开发注意事项
 
@@ -82,12 +82,14 @@ syngas 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动�
 
 ### 测试
 
-修改 `src/` 下代码后必须运行 `python -m pytest`，确认 444 tests 全部通过。新增 syngas 功能在 `tests/test_syngas_*.py` 系列。修改共用文件（waveforms / manifest / validation / metrics / losses / trainer / cli）前后都要对两个场景的测试都跑一遍。
+修改 `src/` 下代码后必须运行 `python -m pytest`，以实际通过数为准（当前主线 462）。新增 syngas 功能在 `tests/test_syngas_*.py` 系列。修改共用文件（waveforms / manifest / validation / metrics / losses / trainer / cli）前后都要对两个场景的测试都跑一遍。
 
 ## 相关文档
 
 | 文档 | 位置 | 内容 |
 |------|------|------|
+| 当前实验导读 | `docs/AI_CONTEXT_GUIDE.md` | 比 ARCHITECTURE.md 更接近当前状态的动态主线导读 |
+| 当前 DL 主线 | `docs/DL相位统计稳定提取与保留方案.md` | 当前活跃的 DL 方案；旧 PhaseWindowTCN 归档于 `docs/整理归档/dl_iteration_plans/` |
 | 架构说明 | `docs/ARCHITECTURE.md` | 已落地的 v4 架构契约 |
 | 合成气文档导航 | `docs/syngas/README.md` | 新四组分文档索引、阅读顺序与迁移说明 |
 | 合成气适配方案 | `docs/syngas/adaptation_plan.md` | 整合审查修正的完整实施方案 |
@@ -99,10 +101,11 @@ syngas 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动�
 | CO 光学参数 | `docs/syngas/references/co_optical_hitran.md` | HITRAN 谱线/NDIR 滤光片/串扰 |
 | 组分分布 | `docs/syngas/references/syngas_composition_ranges.md` | LHS 采样区间文献支撑 |
 | 传感器综述 | `docs/syngas/references/syngas_sensing_survey.md` | 商用系统对比 + 可行性评估 |
+| 学长 RCDW 复现 | `docs/学长算法/RCDW_实施完成情况.md` | 独立子工程 `rcdw_mgda/` 的端到端落地状态（与主线 src/ 完全隔离，互不影响主线 462 tests） |
 | 工作原则 | `AGENTS.md` | AI 协作规则与边界 |
 
 ## 环境
 
-- Python 3.10–3.13（排除 3.14）
+- Python 3.10–3.13（排除 3.14）；当前已验证环境为 Python 3.12 虚拟环境
 - 核心依赖：numpy, scipy, scikit-learn, torch, hitran-api, pytest
-- 安装：`pip install -e .[dev]`
+- 安装：优先 `pip install -r requirements.txt`；开发用 `pip install -e .[dev]`

@@ -1,0 +1,58 @@
+data:
+  n_train: 1400
+  n_val: 300
+  n_test: 300
+  window: 8
+  seed: 42
+
+model:
+  single_modal:
+    hidden: 32
+  error_net:
+    hidden: 32
+  fusion:
+    beta: 8.0
+    alpha_min: 0.1
+    alpha_max: 0.9
+    tau_alpha: 0.05
+    s_min: 0.05
+    s_max: 0.40
+    tau_s: 0.05
+  W_base:
+    - [0.05, 0.70, 0.05]
+    - [0.50, 0.15, 0.45]
+    - [0.45, 0.15, 0.50]
+
+training:
+  stage_a:
+    epochs: 20
+    batch_size: 16
+    lr: 1.0e-3
+    weight_decay: 1.0e-4
+    patience: 10
+    ndir_loss_weights: [0.1, 1.0, 0.1]
+  stage_b:
+    epochs: 20
+    batch_size: 16
+    lr: 1.0e-3
+    weight_decay: 1.0e-4
+    patience: 10
+    lambda_error: 1.0
+    lambda_sum: 0.1
+    freeze_single_modal: true
+
+perturbation:
+  kinds:
+    - optical_atten
+    - optical_scat
+    - thermal
+    - ultrasonic
+    - temperature
+  levels: [0, 0.01, 0.03, 0.05, 0.07, 0.09, 0.11]
+
+degradation:
+  ratio: 4.0
+  cap: 0.04
+
+eval:
+  basis: dry

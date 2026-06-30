@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "rcdw-mgda"
+version = "0.1.0"
+description = "RCDW-MGDA: Reliability-Constrained Dynamic Weighting for Multi-Gas Detection"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "torch>=2.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "pyyaml>=6.0",
+    "pytest>=7.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["rcdw*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

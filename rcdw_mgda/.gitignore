@@ -1,0 +1,10 @@
+# 训练 / 评测 / 扰动实验产物（可通过 scripts 重新生成）
+runs/stage_a/*.pt
+runs/stage_b/*.pt
+runs/perturb/*.png
+
+# pytest / 缓存
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/

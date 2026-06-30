@@ -1,0 +1,38 @@
+"""组分归一化与湿/干基换算。"""
+from __future__ import annotations
+
+import torch
+
+
+def rh_to_water_vol(RH: torch.Tensor, T: torch.Tensor | None = None) -> torch.Tensor:
+    """将相对湿度（0~1）近似转换为水汽体积分数。
+
+    简化模型：假设 T=300K, P=1atm 下饱和水汽压 ~3.6 kPa。
+    C_H2O ≈ RH * 3.6 / 101.325 ≈ RH * 0.0355
+    """
+    return RH * 0.0355
+
+
+def normalize_composition(
+    C: torch.Tensor,
+    RH: torch.Tensor | None = None,
+    *,
+    basis: str = "dry",
+) -> torch.Tensor:
+    """对 O₂/CO₂/N₂ 浓度归一化。
+
+    Args:
+        C:     (B, 3) 或 (N, 3) 浓度
+        RH:    (B,) 相对湿度（仅 basis="wet" 时使用）
+        basis: "dry" → sum=1.0; "wet" → sum=1.0-C_H2O
+    Returns:
+        归一化后的浓度，与 C 同 shape
+    """
+    eps = 1e-6
+    if basis == "wet" and RH is not None:
+        C_total = 1.0 - rh_to_water_vol(RH)
+        if C_total.dim() == 1:
+            C_total = C_total.unsqueeze(-1)  # (B, 1)
+    else:
+        C_total = 1.0
+    return C / (C.sum(dim=-1, keepdim=True) + eps) * C_total
