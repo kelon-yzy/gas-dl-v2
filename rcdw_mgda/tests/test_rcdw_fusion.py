@@ -107,3 +107,48 @@ def test_numerical_alignment(W_base):
 def test_w_base_shape_assertion():
     with pytest.raises(AssertionError):
         RCDWFusion(torch.rand(3, 4))  # 错误 shape
+
+
+def test_rcdw_mgda_fusion_kwargs_passthrough():
+    """配置中的 fusion 超参必须真实传到 RCDWFusion，不能被静默忽略。"""
+    from rcdw.models.rcdw import RCDW_MGDA
+
+    W_base = torch.tensor([
+        [0.05, 0.70, 0.05],
+        [0.50, 0.15, 0.45],
+        [0.45, 0.15, 0.50],
+    ], dtype=torch.float32)
+
+    fusion_kwargs = {
+        "beta": 2.0,
+        "alpha_min": 0.2,
+        "alpha_max": 0.7,
+        "tau_a": 0.1,
+        "s_min": 0.02,
+        "s_max": 0.30,
+        "tau_s": 0.08,
+    }
+    model = RCDW_MGDA(W_base, hidden=32, fusion_kwargs=fusion_kwargs)
+
+    assert model.fuse.beta == 2.0
+    assert model.fuse.a_min == 0.2
+    assert model.fuse.a_max == 0.7
+    assert model.fuse.tau_a == 0.1
+    assert model.fuse.s_min == 0.02
+    assert model.fuse.s_max == 0.30
+    assert model.fuse.tau_s == 0.08
+
+
+def test_rcdw_mgda_default_fusion_kwargs():
+    """fusion_kwargs=None 时使用 RCDWFusion 默认值。"""
+    from rcdw.models.rcdw import RCDW_MGDA
+
+    W_base = torch.tensor([
+        [0.05, 0.70, 0.05],
+        [0.50, 0.15, 0.45],
+        [0.45, 0.15, 0.50],
+    ], dtype=torch.float32)
+
+    model = RCDW_MGDA(W_base, hidden=32)
+    assert model.fuse.beta == 8.0
+    assert model.fuse.tau_a == 0.05

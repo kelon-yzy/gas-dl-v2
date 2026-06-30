@@ -45,3 +45,16 @@ def test_cap_value():
         # 模态 1 在 O2 通道的权重应比模态 0/2 显著小
         assert (W_out[:, 1, 0] < W_out[:, 0, 0]).all()
         assert (W_out[:, 1, 0] < W_out[:, 2, 0]).all()
+
+
+def test_rejects_grad_inputs():
+    """hard_suppress 不可微，输入若 requires_grad 必须抛 AssertionError。"""
+    W = (torch.ones(4, 3, 3) / 3).requires_grad_(True)
+    E = torch.ones(4, 3, 3) * 0.05
+    with pytest.raises(AssertionError):
+        hard_suppress(W, E)
+
+    W2 = torch.ones(4, 3, 3) / 3
+    E2 = (torch.ones(4, 3, 3) * 0.05).requires_grad_(True)
+    with pytest.raises(AssertionError):
+        hard_suppress(W2, E2)

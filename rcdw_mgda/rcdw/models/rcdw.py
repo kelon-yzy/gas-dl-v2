@@ -90,32 +90,47 @@ class RCDWFusion(nn.Module):
 class RCDW_MGDA(nn.Module):
     """完整的 RCDW-MGDA 模型。
 
-    输入: (B, L=8, 6)
+    输入: (B, L=8, 12)  — v1.2 §8.2 12 维通道布局
     输出: dict with C, Y_modal, E_pred, W
     """
 
-    def __init__(self, W_base: torch.Tensor, hidden: int = 32):
+    def __init__(
+        self,
+        W_base: torch.Tensor,
+        hidden: int = 32,
+        window: int = 8,
+        fusion_kwargs: dict | None = None,
+    ):
+        """构造 RCDW-MGDA 模型。
+
+        Args:
+            W_base: (M=3, G=3) 基线权重，每列 sum=1.0
+            hidden: 单模态网络与 ErrorNet 的隐藏维
+            window: 滑窗长度 L（FeatureExtractor 内部使用）
+            fusion_kwargs: 透传给 RCDWFusion 的超参（beta/alpha_min/alpha_max/
+                tau_a/s_min/s_max/tau_s）。None 时使用 RCDWFusion 默认值。
+        """
         super().__init__()
         self.ndir = NDIRNet(in_dim=4, hidden=hidden)
         self.tcd = TCDNet(in_dim=4, hidden=hidden)
         self.usn = USNet(in_dim=4, hidden=hidden)
-        self.feat = FeatureExtractor(window=8)
+        self.feat = FeatureExtractor(window=window)
         self.err = ErrorNet(in_dim=13, n_gas=3, hidden=hidden)
-        self.fuse = RCDWFusion(W_base)
+        self.fuse = RCDWFusion(W_base, **(fusion_kwargs or {}))
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         """
         Args:
-            x: (B, L=8, 6) 滑窗输入
+            x: (B, L=8, 12) 滑窗输入（v1.2 12 维布局）
         Returns:
             {"C": (B,3), "Y_modal": (B,3,3), "E_pred": (B,3,3), "W": (B,3,3)}
         """
-        # 单模态反演：取窗口最后时刻
-        x_last = x[:, -1, :]  # (B, 6)
+        # 单模态反演：取窗口最后时刻 (B, 12)
+        x_last = x[:, -1, :]
 
         y_nd = self.ndir(extract_modal_input(x_last, "ndir"))  # (B, 3)
         y_tc = self.tcd(extract_modal_input(x_last, "tcd"))    # (B, 3)
-        y_us = self.usn(extract_modal_input(x_last, "us"))     # (B, 3)
+        y_us = self.usn(extract_modal_input(x_last, "usn"))    # (B, 3)
         Y_modal = torch.stack([y_nd, y_tc, y_us], dim=1)       # (B, M=3, G=3)
 
         # 特征提取：用完整滑窗

@@ -1,17 +1,20 @@
-"""13 维扰动感知特征提取器。
+"""13 维扰动感知特征提取器（适配 v1.2 §8.4 12 维通道布局）。
 
-输入始终为滑窗 (B, L=8, 6)。
-输出 (B, M=3, F=13)。
+输入: (B, L=8, 12) — 12 维新通道布局，参见 rcdw.models.single_modal。
+输出: (B, M=3, F=13)
 
-特征列表:
+传感器信号取自 IDX_NDIR_CO2 / IDX_TCS / IDX_US_SPEED；
+环境取自 ENV_INDICES = [IDX_T_C, IDX_P_MPa, IDX_H_RH]。
+
+13 维特征定义（与旧版一致）:
   0  CV_m        滑窗变异系数 std/mean
   1  D_m         群体中位偏离 (跨气体平均)
   2  G_m         一阶差分能量 mean((S_k - S_{k-1})^2)
   3  Q_m         信号质量比 snr_m / sum(snr)
   4  B_m         群体偏差 (跨气体平均)
-  5  delta_T     |T_k - T_{k-1}|
-  6  delta_P     |P_k - P_{k-1}|
-  7  delta_RH    |RH_k - RH_{k-1}|
+  5  delta_T     |T_k - T_{k-1}|   (env[:, 0] = T_C)
+  6  delta_P     |P_k - P_{k-1}|   (env[:, 1] = P_MPa)
+  7  delta_RH    |RH_k - RH_{k-1}| (env[:, 2] = H_RH)
   8  dev_max     |Y_m - mean(Y)| 跨气体 max
   9  dev_mean    |Y_m - mean(Y)| 跨气体 mean
   10 snr_proxy   |mu| / sigma
@@ -22,6 +25,17 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
+
+from rcdw.models.single_modal import (
+    ENV_INDICES,
+    IDX_NDIR_CO2,
+    IDX_TCS,
+    IDX_US_SPEED,
+)
+
+
+# 传感器通道索引（NDIR / TCD / US 顺序，与 W_base 行顺序一致）
+_SENSOR_INDICES = (IDX_NDIR_CO2, IDX_TCS, IDX_US_SPEED)
 
 
 class FeatureExtractor(nn.Module):
@@ -42,29 +56,33 @@ class FeatureExtractor(nn.Module):
     ) -> torch.Tensor:
         """
         Args:
-            x:       (B, L, 6)   滑窗传感器数据
+            x:       (B, L, 12)  滑窗传感器数据（v1.2 12 维布局）
             Y_modal: (B, M=3, G=3) 单模态浓度候选
         Returns:
             (B, M=3, F=13) 扰动感知特征
         """
-        B, L, _ = x.shape
+        B, L, C = x.shape
+        if C != 12:
+            raise ValueError(
+                f"FeatureExtractor expects 12-channel input, got {C}. "
+                f"参见 rcdw.models.single_modal docstring。"
+            )
         M, G = 3, 3
         eps = 1e-8
         device = x.device
         dtype = x.dtype
 
-        # 传感器信号: (B, L, 3) = S_ndir, S_tc, S_us
-        S = x[:, :, :3]
-        # 环境: (B, L, 3) = P, T, RH
-        env = x[:, :, 3:]
+        # 传感器信号: (B, L, 3) = [V_NDIR_CO2, V_TCS, US_speed]
+        S = x[:, :, _SENSOR_INDICES]
+        # 环境: (B, L, 3) = [T_C, P_MPa, H_RH]
+        env = x[:, :, ENV_INDICES]
 
         feats = torch.zeros(B, M, 13, device=device, dtype=dtype)
 
-        # --- 环境变化率（所有模态共享） ---
-        # delta_T, delta_P, delta_RH: 最后两步之差
-        delta_T = (env[:, -1, 1] - env[:, -2, 1]).abs()    # (B,)  T=env[:,1]
-        delta_P = (env[:, -1, 0] - env[:, -2, 0]).abs()    # (B,)  P=env[:,0]
-        delta_RH = (env[:, -1, 2] - env[:, -2, 2]).abs()   # (B,)  RH=env[:,2]
+        # --- 环境变化率（所有模态共享，env 顺序 = T, P, RH）---
+        delta_T = (env[:, -1, 0] - env[:, -2, 0]).abs()   # env[:, 0] = T_C
+        delta_P = (env[:, -1, 1] - env[:, -2, 1]).abs()   # env[:, 1] = P_MPa
+        delta_RH = (env[:, -1, 2] - env[:, -2, 2]).abs()  # env[:, 2] = H_RH
 
         # --- 跨模态统计 ---
         Y_median = Y_modal.median(dim=1).values  # (B, G)
@@ -85,15 +103,15 @@ class FeatureExtractor(nn.Module):
             Y_m = Y_modal[:, m, :]  # (B, G)
 
             # 0: CV_m = std / |mean|
-            mu = s_m.mean(dim=1)         # (B,)
-            sigma = s_m.std(dim=1)       # (B,)
+            mu = s_m.mean(dim=1)
+            sigma = s_m.std(dim=1)
             feats[:, m, 0] = sigma / (mu.abs() + eps)
 
             # 1: D_m = |Y_m - median(Y)|, 跨气体平均
             feats[:, m, 1] = (Y_m - Y_median).abs().mean(dim=-1)
 
             # 2: G_m = gradient energy
-            diffs_sq = (s_m[:, 1:] - s_m[:, :-1]) ** 2  # (B, L-1)
+            diffs_sq = (s_m[:, 1:] - s_m[:, :-1]) ** 2
             feats[:, m, 2] = diffs_sq.mean(dim=1)
 
             # 3: Q_m = snr_m / sum(snr)
@@ -121,9 +139,10 @@ class FeatureExtractor(nn.Module):
             feats[:, m, 10] = mu.abs() / (sigma + eps)
 
             # 11: drift = 线性拟合斜率
-            s_centered = s_m - s_m.mean(dim=1, keepdim=True)  # (B, L)
-            # slope = sum(t_centered * s_centered) / t_var
-            slope = (self._t_centered.unsqueeze(0) * s_centered).sum(dim=1) / (self._t_var + eps)
+            s_centered = s_m - s_m.mean(dim=1, keepdim=True)
+            slope = (
+                self._t_centered.unsqueeze(0) * s_centered
+            ).sum(dim=1) / (self._t_var + eps)
             feats[:, m, 11] = slope
 
             # 12: dt = 固定常数

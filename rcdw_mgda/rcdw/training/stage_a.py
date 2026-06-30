@@ -106,13 +106,13 @@ def run_stage_a(
     models = {
         "ndir": NDIRNet(in_dim=4, hidden=hidden),
         "tcd": TCDNet(in_dim=4, hidden=hidden),
-        "us": USNet(in_dim=4, hidden=hidden),
+        "usn": USNet(in_dim=4, hidden=hidden),
     }
 
     loss_weights_map = {
         "ndir": sa["ndir_loss_weights"],   # [0.1, 1.0, 0.1]
         "tcd": [1.0, 1.0, 1.0],
-        "us": [1.0, 1.0, 1.0],
+        "usn": [1.0, 1.0, 1.0],
     }
 
     trained = {}

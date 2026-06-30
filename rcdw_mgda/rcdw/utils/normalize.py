@@ -9,6 +9,13 @@ def rh_to_water_vol(RH: torch.Tensor, T: torch.Tensor | None = None) -> torch.Te
 
     简化模型：假设 T=300K, P=1atm 下饱和水汽压 ~3.6 kPa。
     C_H2O ≈ RH * 3.6 / 101.325 ≈ RH * 0.0355
+
+    ⚠️ 局限性
+        T 参数当前不参与计算，硬编码 300K 假设。
+        synth_timeseries 中 T 范围 260K–340K，饱和水汽压随 T 强非线性变化
+        （T=260K → ~0.2 kPa，T=340K → ~27 kPa），最大可达 6× 误差。
+        当前仅 basis="dry" 路径在使用，wet basis 切换前需要补全 T 依赖
+        （例如使用 Magnus 或 Antoine 公式）。
     """
     return RH * 0.0355
 
