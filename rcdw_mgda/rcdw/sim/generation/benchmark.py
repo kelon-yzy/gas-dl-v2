@@ -145,9 +145,7 @@ def generate_benchmark_dataset(
             optical_absorption_backend=spec.optical_absorption_backend,
             hitran_cache_root=spec.hitran_cache_root,
         )
-        validation_summary = validate_benchmark_assets(
-            conditions, split_rows, arrays, labels
-        )
+        validate_benchmark_assets(conditions, split_rows, arrays, labels)
 
         sequence_ids = [row["sequence_id"] for row in conditions]
         shapes = write_arrays(
@@ -210,6 +208,14 @@ def generate_benchmark_dataset(
             channel_names=SLOW_CHANNELS,
             modal_groups=SLOW_MODAL_GROUPS,
             skip_channels=DEFAULT_PASSTHROUGH_CHANNELS,
+        )
+        validation_summary = validate_benchmark_assets(
+            conditions,
+            split_rows,
+            arrays,
+            labels,
+            scaler=slow_scaler,
+            expected_passthrough_channels=DEFAULT_PASSTHROUGH_CHANNELS,
         )
         write_json(
             staging_dir / "scalers" / "scaler_slow_sequence.json", slow_scaler

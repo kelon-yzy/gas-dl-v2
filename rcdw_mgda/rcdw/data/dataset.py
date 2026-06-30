@@ -91,6 +91,11 @@ class BenchmarkDataset(Dataset):
         self.split = split
         self.window = int(window)
         self.modalities = tuple(modalities)
+        if self.window < 2:
+            raise ValueError(
+                f"window must be >= 2, got {self.window}; "
+                f"FeatureExtractor 需要至少两个时刻计算环境变化率。"
+            )
 
         # ---- 解析 manifest 与 split CSV ----
         manifest_path = self.data_root / "manifest.json"

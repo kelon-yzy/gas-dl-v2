@@ -131,6 +131,7 @@ def test_validation_scaler_passthrough_check_passes():
         ),
     )
     assert summary["status"] == "pass"
+    assert summary["scaler_passthrough_status"] == "pass"
 
 
 def test_validation_scaler_passthrough_missing_raises():
@@ -144,6 +145,25 @@ def test_validation_scaler_passthrough_missing_raises():
         ]
     }
     with pytest.raises(ValueError, match="must be marked strategy='passthrough'"):
+        validate_benchmark_assets(
+            conds,
+            splits,
+            scaler=scaler_bad,
+            expected_passthrough_channels=("ultrasonic_peak_index",),
+        )
+
+
+def test_validation_scaler_passthrough_skip_channels_missing_raises():
+    """默认 ultrasonic passthrough 通道即使不在 slow channel_entries 中,也必须记录到 skip_channels。"""
+    conds = generate_condition_rows(3, seed=1)
+    splits = build_default_split_rows(conds, seed=1)
+    scaler_bad = {
+        "channel_entries": [
+            {"channel": "V_NDIR_CO2", "strategy": "z_score", "mean": 1.0, "std": 0.1},
+        ],
+        "skip_channels": [],
+    }
+    with pytest.raises(ValueError, match="skip_channels"):
         validate_benchmark_assets(
             conds,
             splits,

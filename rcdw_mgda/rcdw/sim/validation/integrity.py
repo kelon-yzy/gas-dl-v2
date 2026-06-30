@@ -78,8 +78,10 @@ def validate_benchmark_assets(
             component_fields=component_fields,
             slow_channels=slow_channels,
         )
+    scaler_passthrough_status = "not_checked"
     if scaler is not None and expected_passthrough_channels:
         _validate_scaler_passthrough(scaler, expected_passthrough_channels)
+        scaler_passthrough_status = "pass"
 
     return {
         "status": "pass",
@@ -88,6 +90,7 @@ def validate_benchmark_assets(
         "split_counts": {
             name: len(split_rows.get(name, [])) for name in SPLIT_NAMES
         },
+        "scaler_passthrough_status": scaler_passthrough_status,
     }
 
 
@@ -199,15 +202,13 @@ def _validate_scaler_passthrough(
 ) -> None:
     """v1.2 §6.5 不变量：跳过归一化的通道必须在 scaler 输出中显式标记。"""
     entries = scaler.get("channel_entries", [])
-    if not entries:
-        return  # 老版 scaler 无 channel_entries，向后兼容
+    skip_channels = set(scaler.get("skip_channels", []))
     passthrough_in_scaler = {
         entry["channel"]
         for entry in entries
         if isinstance(entry, dict) and entry.get("strategy") == "passthrough"
     }
     for channel in expected_passthrough_channels:
-        # 仅在通道确实存在于 scaler 输出中时才要求 passthrough 标记
         present = any(
             isinstance(entry, dict) and entry.get("channel") == channel
             for entry in entries
@@ -216,4 +217,9 @@ def _validate_scaler_passthrough(
             raise ValueError(
                 f"channel {channel!r} must be marked strategy='passthrough' "
                 f"in scaler output (v1.2 §6.5)"
+            )
+        if not present and channel not in skip_channels:
+            raise ValueError(
+                f"expected passthrough channel {channel!r} must be listed in "
+                f"scaler skip_channels or channel_entries."
             )

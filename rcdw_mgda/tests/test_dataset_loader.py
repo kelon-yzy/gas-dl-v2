@@ -156,6 +156,13 @@ def test_dataset_window_too_large_rejected(smoke_benchmark):
         BenchmarkDataset(smoke_benchmark, split="train", window=999)
 
 
+@pytest.mark.parametrize("bad_window", [0, 1])
+def test_dataset_window_too_small_rejected(smoke_benchmark, bad_window):
+    """window < 2 会导致 FeatureExtractor 无法计算最后两步差分,应在 Dataset 层拒收。"""
+    with pytest.raises(ValueError, match="window must be >= 2"):
+        BenchmarkDataset(smoke_benchmark, split="train", window=bad_window)
+
+
 def test_dataset_load_dataloader_pytorch_compatible(smoke_benchmark):
     """可以塞进 torch DataLoader,batch 后 shape 正确。"""
     from torch.utils.data import DataLoader

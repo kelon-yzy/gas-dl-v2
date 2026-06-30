@@ -133,6 +133,7 @@ def test_smoke_validation_summary_passes(tmp_path):
     )
     assert summary["status"] == "pass"
     assert summary["sequence_count"] == 8
+    assert summary["scaler_passthrough_status"] == "pass"
     # SPLIT_NAMES 仅 train/val/test (无 extrapolation)
     assert set(summary["split_counts"].keys()) == {"train", "val", "test"}
 
