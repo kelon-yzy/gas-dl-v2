@@ -6,6 +6,7 @@ import torch
 
 from rcdw.models.single_modal import (
     IDX_NDIR_CO2,
+    IDX_P_MPa,
     IDX_TCS,
     IDX_T_C,
     IDX_US_SPEED,
@@ -34,7 +35,7 @@ def test_inject_rejects_legacy_6_channel():
 
 def test_zero_level_unchanged(sample_input):
     """level=0 时输出与输入相同（确定性扰动）。"""
-    for kind in ["optical_atten", "temperature"]:
+    for kind in ["optical_atten", "temperature", "pressure_drift"]:
         out = inject(sample_input, kind, 0.0)
         torch.testing.assert_close(out, sample_input)
 
@@ -77,6 +78,16 @@ def test_temperature_shift_on_t_c(sample_input):
     assert diff.item() == pytest.approx(expected_shift, abs=0.01)
     # 其他通道不变
     for idx in [IDX_NDIR_CO2, IDX_TCS, IDX_US_SPEED]:
+        torch.testing.assert_close(out[..., idx], sample_input[..., idx])
+
+
+def test_pressure_drift_targets_p_mpa(sample_input):
+    """Phase 6E: pressure_drift 仅对 P_MPa 输入通道施加确定性偏移。"""
+    out = inject(sample_input, "pressure_drift", 0.1)
+    expected_shift = 0.1 * 2.0
+    diff = (out[..., IDX_P_MPa] - sample_input[..., IDX_P_MPa]).mean()
+    assert diff.item() == pytest.approx(expected_shift, abs=1e-6)
+    for idx in [IDX_NDIR_CO2, IDX_TCS, IDX_T_C, IDX_US_SPEED]:
         torch.testing.assert_close(out[..., idx], sample_input[..., idx])
 
 

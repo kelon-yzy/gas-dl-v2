@@ -3,10 +3,6 @@ data:
   window: 8
   seed: 42
   train_modalities: ["slow", "ultrasonic"]
-  # 旧字段(Phase 4 移除):
-  n_train: 1400
-  n_val: 300
-  n_test: 300
 
 generation:
   sequence_count: 64                # 比 default 小 30 倍
@@ -24,17 +20,6 @@ generation:
 
 spectral:
   config_path: "configs/spectral-defaults.json"
-
-phases:
-  default_schedule: "standard_exposure"
-
-splits:
-  ratios: { train: 0.70, val: 0.15, test: 0.15 }
-  group_field: "mixture_id"
-
-scalers:
-  transform_target: "slow"
-  modal_groups_from_schema: true
 
 model:
   single_modal:

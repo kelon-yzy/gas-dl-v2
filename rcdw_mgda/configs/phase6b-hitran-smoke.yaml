@@ -1,20 +1,20 @@
 data:
-  dataset_root: "data/rcdw-formal"
+  dataset_root: "data/rcdw-hitran-smoke-64"
   window: 8
   seed: 42
   train_modalities: ["slow", "ultrasonic"]
 
 generation:
-  sequence_count: 2000
+  sequence_count: 64                # 比 default 小 30 倍
   seed: 42
-  timesteps: 128
+  timesteps: 32                     # v1.2 仅用 STANDARD_EXPOSURE(4 段),32 充裕
   dt_s: 0.5
   storage: "memmap"
   multi_path_phase: "steady"
   stage_profile: "standard_exposure"
   stage_jitter: 0.0
   sampling_strategy: "lhs"
-  path_lms: [0.20, 0.25, 0.30, 0.35, 0.40]
+  path_lms: [0.20, 0.30, 0.40]
   optical_absorption_backend: "hitran_hapi_v1"
   hitran_cache_root: "data/hitran_cache"
 
@@ -34,8 +34,6 @@ model:
     s_min: 0.05
     s_max: 0.40
     tau_s: 0.05
-  # W_base: 行=模态(NDIR/TCD/US), 列=气体(O2/CO2/N2)
-  # 每列 sum=1.0
   W_base:
     - [0.05, 0.70, 0.05]
     - [0.50, 0.15, 0.45]
@@ -43,19 +41,18 @@ model:
 
 training:
   stage_a:
-    epochs: 200
+    epochs: 20
     batch_size: 16
     lr: 1.0e-3
     weight_decay: 1.0e-4
-    patience: 30
-    # NDIR 对 O2/N2 的 loss 降权
+    patience: 10
     ndir_loss_weights: [0.1, 1.0, 0.1]
   stage_b:
-    epochs: 200
+    epochs: 20
     batch_size: 16
     lr: 1.0e-3
     weight_decay: 1.0e-4
-    patience: 30
+    patience: 10
     lambda_error: 1.0
     lambda_sum: 0.1
     freeze_single_modal: true

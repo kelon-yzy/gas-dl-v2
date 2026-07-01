@@ -28,6 +28,101 @@ DEFAULT_PASSTHROUGH_CHANNELS: tuple[str, ...] = (
     "ultrasonic_tof_accepted",
 )
 
+# ---- 12 维消费布局 input scaler（H1 修复：真正作用到模型输入的标准化） ----
+#
+# 与 rcdw.data.dataset 的 12 维拼接顺序严格一致：slow(7) + ultrasonic 元数据(5)。
+# 与上面的 slow-only scaler 不同，此 scaler 覆盖 **全部 12 个消费通道**，
+# 关键是把 US 主信号 ``ultrasonic_sound_speed_estimated_m_per_s`` (~346 m/s)
+# 也纳入标准化——它是 USNet 的主输入，却不在 SLOW_CHANNELS 内。
+INPUT_CHANNEL_ORDER: tuple[str, ...] = (
+    "V_NDIR_CO2",
+    "V_TCS",
+    "T_C",
+    "P_MPa",
+    "H_RH",
+    "L_m",
+    "piston_position_m",
+    "ultrasonic_tof_observed_s",
+    "ultrasonic_sound_speed_estimated_m_per_s",
+    "ultrasonic_peak_index",
+    "ultrasonic_tof_quality",
+    "ultrasonic_tof_accepted",
+)
+
+# 默认 passthrough：布尔门控通道（clean 数据零方差），保留 0/1 语义并规避除零。
+# 其余零方差通道由 ``fit_input_channel_scaler`` 的 std<=eps 兜底自动转 passthrough。
+INPUT_PASSTHROUGH_CHANNELS: tuple[str, ...] = ("ultrasonic_tof_accepted",)
+
+INPUT_SCALER_VERSION = "rcdw-input-scaler-1"
+
+
+def fit_input_channel_scaler(
+    train_values: dict[str, np.ndarray],
+    *,
+    channel_order: tuple[str, ...] = INPUT_CHANNEL_ORDER,
+    skip_channels: tuple[str, ...] = INPUT_PASSTHROUGH_CHANNELS,
+) -> dict[str, object]:
+    """对 12 维消费布局逐通道拟合 train-only Z-score（H1 修复的核心）。
+
+    Args:
+        train_values: ``{channel_name: 1D float ndarray}``，每个数组是该通道在
+            **train split** 上展平后的取值（由 benchmark 编排层按 train_indexes 收集）。
+        channel_order: 通道顺序，必须与 ``rcdw.data.dataset`` 的 12 维拼接顺序一致。
+        skip_channels: 显式 passthrough 的通道；此外 ``std<=Z_SCORE_STD_EPSILON``
+            的通道也会自动转 passthrough（transform 时恒等，避免除零）。
+
+    Returns:
+        JSON 友好的 scaler 字典：``channel_names`` / ``channel_entries``
+        （每项 ``strategy=z_score`` 带 ``mean``/``std``，或 ``strategy=passthrough``）/
+        对齐的 ``mean``/``std`` 列表（passthrough 位为 ``None``）。
+    """
+    skip_set = set(skip_channels)
+    entries: list[dict[str, object]] = []
+    mean_list: list[float | None] = []
+    std_list: list[float | None] = []
+    for name in channel_order:
+        if name not in train_values:
+            raise ValueError(
+                f"fit_input_channel_scaler: missing train values for channel {name!r}"
+            )
+        if name in skip_set:
+            entries.append(
+                {"channel": name, "strategy": "passthrough", "reason": "declared_skip"}
+            )
+            mean_list.append(None)
+            std_list.append(None)
+            continue
+        vals = np.asarray(train_values[name], dtype=np.float64).ravel()
+        if vals.size == 0:
+            raise ValueError(f"channel {name!r} has no train values to fit")
+        mean = float(vals.mean())
+        std = float(vals.std())
+        if std <= Z_SCORE_STD_EPSILON:
+            entries.append(
+                {"channel": name, "strategy": "passthrough", "reason": "std<=eps"}
+            )
+            mean_list.append(None)
+            std_list.append(None)
+        else:
+            entries.append(
+                {"channel": name, "strategy": "z_score", "mean": mean, "std": std}
+            )
+            mean_list.append(mean)
+            std_list.append(std)
+
+    return {
+        "method": "z_score",
+        "fit_scope": "train_split_only",
+        "coverage": "input_12ch",
+        "version": INPUT_SCALER_VERSION,
+        "channel_axis": -1,
+        "channel_names": list(channel_order),
+        "channel_entries": entries,
+        "mean": mean_list,
+        "std": std_list,
+        "skip_channels": list(skip_channels),
+    }
+
 
 def fit_z_score_scalers(
     matrix: np.ndarray,

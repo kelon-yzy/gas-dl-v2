@@ -22,8 +22,10 @@ from rcdw.sim.generation.optical_backend import (
     collect_hitran_cache_requirements,
     compute_hitran_optical_absorption,
     hitran_manifest_metadata,
+    precompute_hitran_benchmark_cache,
     validate_hitran_benchmark_cache,
 )
+
 from rcdw.sim.generation.optical_crosstalk import (
     DEFAULT_OPTICAL_CROSSTALK_SPEC,
     apply_optical_crosstalk,
@@ -253,6 +255,68 @@ def test_validate_missing_cache_raises(tmp_path):
     conditions = [_sample_condition(1)]
     with pytest.raises(MissingHitranBenchmarkCacheError):
         validate_hitran_benchmark_cache(conditions, cache_root=tmp_path)
+
+
+def test_precompute_hitran_benchmark_cache_all_cached(tmp_path):
+    conditions = [_sample_condition(1)]
+    _write_synthetic_cache(tmp_path)
+
+    stats = precompute_hitran_benchmark_cache(conditions, cache_root=tmp_path)
+
+    assert stats == {
+        "total": 2,
+        "cached": 2,
+        "filled": 0,
+        "cache_root": str(tmp_path),
+    }
+
+
+def test_precompute_hitran_benchmark_cache_fills_missing(tmp_path, monkeypatch):
+    conditions = [_sample_condition(1)]
+    requirements = collect_hitran_cache_requirements(conditions, cache_root=tmp_path)
+    existing = requirements[0]
+    missing = requirements[1]
+    wn = np.linspace(
+        existing.grid_spec.wavenumber_min_cm1,
+        existing.grid_spec.wavenumber_max_cm1,
+        20,
+        dtype=np.float64,
+    )
+    write_cached_spectrum(
+        tmp_path,
+        existing.key,
+        wavenumber_cm1=wn,
+        absorption_coeff_cm1=np.full_like(wn, 1.0e-22),
+    )
+
+    def fake_precompute_spectrum_cache(*, gas_spec, grid_spec, cache_root):
+        key = hitran_cache_key(gas_spec, grid_spec)
+        wn_local = np.linspace(
+            grid_spec.wavenumber_min_cm1,
+            grid_spec.wavenumber_max_cm1,
+            20,
+            dtype=np.float64,
+        )
+        write_cached_spectrum(
+            cache_root,
+            key,
+            wavenumber_cm1=wn_local,
+            absorption_coeff_cm1=np.full_like(wn_local, 2.0e-22),
+        )
+        return False
+
+    monkeypatch.setattr(
+        "rcdw.sim.generation.optical_backend.precompute_spectrum_cache",
+        fake_precompute_spectrum_cache,
+    )
+
+    stats = precompute_hitran_benchmark_cache(conditions, cache_root=tmp_path)
+
+    assert stats["total"] == 2
+    assert stats["cached"] == 1
+    assert stats["filled"] == 1
+    assert read_cached_spectrum(tmp_path, missing.key) is not None
+    assert len(validate_hitran_benchmark_cache(conditions, cache_root=tmp_path)) == 2
 
 
 def test_hitran_manifest_metadata_keys(tmp_path):

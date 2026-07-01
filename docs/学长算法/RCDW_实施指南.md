@@ -11,6 +11,7 @@
 > 数据生成管线已重构为 **benchmark 形态**（`scripts.generate_benchmark` + 12 维通道布局 + HITRAN 物理建模），
 > 实施完成情况见 [RCDW_数据集主线对齐改动方案.md](RCDW_数据集主线对齐改动方案.md) v1.2 +
 > [RCDW_数据集主线对齐_完成情况.md](RCDW_数据集主线对齐_完成情况.md)。
+> Phase 6 后续路线见 [RCDW_数据集主线对齐_Phase6路线.md](RCDW_数据集主线对齐_Phase6路线.md)。
 > 本指南 M1 §1.1 中的 `synth.py` 已被删除替换为 `BenchmarkDataset`，但 M1–M5 的模型/训练/扰动框架结构整体保留。
 > 新流程命令见完成情况 §7.4。
 

@@ -1,4 +1,4 @@
-"""评价指标：MAE / RMSE / MRE / ARE。"""
+"""评价指标：MAE / RMSE / MRE / MaxRE。"""
 from __future__ import annotations
 
 import torch
@@ -13,7 +13,7 @@ def compute_metrics(
         pred: (N, G=3) 预测浓度
         ref:  (N, G=3) 真值浓度
     Returns:
-        {"MAE": ..., "RMSE": ..., "MRE": ..., "ARE": ...}
+        {"MAE": ..., "RMSE": ..., "MRE": ..., "MaxRE": ...}
     """
     e = (pred - ref).abs()
     re = e / (ref.abs() + eps)
@@ -21,7 +21,7 @@ def compute_metrics(
         "MAE": e.mean().item(),
         "RMSE": ((pred - ref) ** 2).mean().sqrt().item(),
         "MRE": re.mean().item() * 100.0,
-        "ARE": re.max().item() * 100.0,
+        "MaxRE": re.max().item() * 100.0,
     }
 
 

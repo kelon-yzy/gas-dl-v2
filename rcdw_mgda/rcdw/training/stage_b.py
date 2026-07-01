@@ -17,10 +17,11 @@ def run_stage_b(
     val_loader: DataLoader,
     cfg: dict,
     device: str = "cpu",
+    save_dir: str = "runs/stage_b",
 ) -> RCDW_MGDA:
     """运行阶段 B 联合训练。"""
     sb = cfg["training"]["stage_b"]
-    save_path = Path("runs/stage_b")
+    save_path = Path(save_dir)
     save_path.mkdir(parents=True, exist_ok=True)
 
     model = model.to(device)

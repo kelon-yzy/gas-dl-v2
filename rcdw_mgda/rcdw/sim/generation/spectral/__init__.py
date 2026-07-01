@@ -32,6 +32,7 @@ from rcdw.sim.generation.spectral.hitran_backend import (
     compute_hitran_ndir_absorbance,
     convert_hitran_coeff_to_per_percent_m,
     hitran_cache_key,
+    precompute_spectrum_cache,
 )
 from rcdw.sim.generation.spectral.integration import integrate_channel_absorbance
 from rcdw.sim.generation.spectral.tabulated_backend import (
@@ -70,6 +71,7 @@ __all__ = [
     "hitran_cache_key",
     "integrate_channel_absorbance",
     "prepare_tabulated_spectra",
+    "precompute_spectrum_cache",
     "read_cached_spectrum",
     "write_cached_spectrum",
 ]

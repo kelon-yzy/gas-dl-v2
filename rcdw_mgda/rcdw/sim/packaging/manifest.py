@@ -30,6 +30,7 @@ def build_manifest(
     optical_absorption_metadata: dict[str, object] | None = None,
     acoustic_model_metadata: dict[str, object] | None = None,
     scaler_metadata: dict[str, object] | None = None,
+    input_normalization: dict[str, object] | None = None,
     schema_version: str = DEFAULT_SCHEMA_VERSION,
     composition_scheme: str = "rcdw_o2_co2_n2",
     background_fields: tuple[str, ...] = (),
@@ -66,4 +67,6 @@ def build_manifest(
         manifest.update(acoustic_model_metadata)
     if scaler_metadata is not None:
         manifest["scaler_metadata"] = scaler_metadata
+    if input_normalization is not None:
+        manifest["input_normalization"] = input_normalization
     return manifest

@@ -24,3 +24,8 @@ package-lock.json
 package.json
 nul
 outputs/
+.slim/deepwork/
+
+# rcdw_mgda 生成产物（可通过 scripts 重新生成）
+rcdw_mgda/data/
+rcdw_mgda/runs/

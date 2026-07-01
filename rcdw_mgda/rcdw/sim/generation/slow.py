@@ -245,10 +245,12 @@ def build_sequence_arrays(
                     channels=SLOW_DYNAMIC_CHANNELS,
                 )
 
-            # 环境通道直接取基线值（不参与动力学）。
-            current["T_C"] = float(condition["T_C_base"])
-            current["P_MPa"] = float(condition["P_MPa_base"])
-            current["H_RH"] = float(condition["H_RH_base"])
+            # 环境通道：基线值 + 传感器测量噪声（M2 修复）。
+            # 噪声使 FeatureExtractor 的 delta_T/P/RH 不再恒为零，
+            # 同时物理量级 << 基线值，不影响声学/光学计算。
+            current["T_C"] = float(condition["T_C_base"]) + sequence_rng.gauss(0, 0.05)
+            current["P_MPa"] = float(condition["P_MPa_base"]) + sequence_rng.gauss(0, 0.0005)
+            current["H_RH"] = float(condition["H_RH_base"]) + sequence_rng.gauss(0, 0.1)
             current["L_m"] = current_l_m
             current["piston_position_m"] = current_l_m
 
@@ -502,6 +504,10 @@ def _multi_tau_channel_step(
 
     上升用 tau_rise，下降用 tau_decay；alpha = w*fast + (1-w)*slow，
     下降时 target 注入 recovery_floor 残余。
+
+    注意：``tau_*_system_s`` 名义单位为秒，但 ``exp(-1/tau)`` 中
+    隐含 dt=1（即 1 时间步 = 1 单位），实际单位为**时间步**。
+    改变 ``dt_s`` 仅影响时间戳标注，不改变动力学响应。
     """
     tau_key = "tau_rise_system_s" if target >= previous else "tau_decay_system_s"
     base_tau = params[tau_key]

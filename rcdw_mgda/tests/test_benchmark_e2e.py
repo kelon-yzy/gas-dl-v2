@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -220,7 +221,6 @@ def test_smoke_invalid_stage_profile_rejected(tmp_path):
     with pytest.raises(ValueError, match="stage_profile"):
         generate_benchmark_dataset(tmp_path / "output", bad_spec)
 
-
 def test_smoke_reproducibility(tmp_path):
     """同 seed 应产生相同 slow.npy (memmap 落盘)。"""
     spec_a, _ = _smoke_spec(tmp_path, dataset_slug="rcdw-a")
@@ -230,3 +230,147 @@ def test_smoke_reproducibility(tmp_path):
     slow_a = np.load(Path(res_a["output_dir"]) / "sequences" / "slow.npy")
     slow_b = np.load(Path(res_b["output_dir"]) / "sequences" / "slow.npy")
     np.testing.assert_array_equal(slow_a, slow_b)
+
+
+
+def _small_empirical_spec(dataset_slug: str) -> BenchmarkGenerationSpec:
+    return BenchmarkGenerationSpec(
+        dataset_slug=dataset_slug,
+        sequence_count=5,
+        seed=77,
+        timesteps=12,
+        dt_s=0.5,
+        storage="memmap",
+        multi_path_phase="steady",
+        stage_profile="standard_exposure",
+        stage_jitter=0.0,
+        sampling_strategy="lhs",
+        path_lms=(0.2, 0.3, 0.4),
+        optical_absorption_backend="empirical_v1",
+    )
+
+
+def _small_hitran_spec(
+    tmp_path: Path, dataset_slug: str, *, num_workers: int = 1, chunk_size: int = 0
+) -> BenchmarkGenerationSpec:
+    cache_root = tmp_path / "hitran_cache_parallel"
+    conditions = generate_condition_rows(4, seed=91)
+    _write_synthetic_cache_for_conditions(cache_root, conditions)
+    return BenchmarkGenerationSpec(
+        dataset_slug=dataset_slug,
+        sequence_count=4,
+        seed=91,
+        timesteps=8,
+        dt_s=0.5,
+        storage="memmap",
+        multi_path_phase="steady",
+        stage_profile="standard_exposure",
+        stage_jitter=0.0,
+        sampling_strategy="lhs",
+        path_lms=(0.2, 0.3),
+        optical_absorption_backend="hitran_hapi_v1",
+        hitran_cache_root=str(cache_root),
+        num_workers=num_workers,
+        chunk_size=chunk_size,
+    )
+
+
+def _load_json(path: Path) -> dict[str, object]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _load_csv_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def _assert_common_outputs_equal(dir_a: Path, dir_b: Path) -> None:
+    np.testing.assert_array_equal(
+        np.load(dir_a / "sequences" / "slow.npy"),
+        np.load(dir_b / "sequences" / "slow.npy"),
+    )
+    np.testing.assert_array_equal(
+        np.load(dir_a / "sequences" / "ultrasonic_sound_speed_estimated_m_per_s.npy"),
+        np.load(dir_b / "sequences" / "ultrasonic_sound_speed_estimated_m_per_s.npy"),
+    )
+    np.testing.assert_array_equal(
+        np.load(dir_a / "labels" / "y.npy"),
+        np.load(dir_b / "labels" / "y.npy"),
+    )
+    for split_name in ("train", "val", "test"):
+        assert _load_csv_text(dir_a / "splits" / f"{split_name}.csv") == _load_csv_text(
+            dir_b / "splits" / f"{split_name}.csv"
+        )
+    manifest_a = _load_json(dir_a / "manifest.json")
+    manifest_b = _load_json(dir_b / "manifest.json")
+    for key in (
+        "schema_version",
+        "composition_scheme",
+        "sequence_count",
+        "seed",
+        "timesteps",
+        "dt_s",
+        "multi_path_phase",
+        "stage_profile",
+        "sampling_strategy",
+        "optical_absorption_backend",
+        "shapes",
+        "primary_key",
+        "instance_key",
+    ):
+        assert manifest_a[key] == manifest_b[key]
+    summary_a = _load_json(dir_a / "quality" / "validation_summary.json")
+    summary_b = _load_json(dir_b / "quality" / "validation_summary.json")
+    assert summary_a == summary_b
+
+
+def test_parallel_empirical_generation_matches_single_worker(tmp_path):
+    single_spec = _small_empirical_spec("rcdw-empirical-single")
+    parallel_spec = replace(
+        single_spec,
+        dataset_slug="rcdw-empirical-parallel",
+        num_workers=2,
+        chunk_size=3,
+    )
+
+    single = generate_benchmark_dataset(tmp_path / "output", single_spec)
+    parallel = generate_benchmark_dataset(tmp_path / "output", parallel_spec)
+
+    _assert_common_outputs_equal(
+        Path(single["output_dir"]), Path(parallel["output_dir"])
+    )
+
+
+def test_parallel_hitran_generation_matches_single_worker(tmp_path):
+    single_spec = _small_hitran_spec(tmp_path, "rcdw-hitran-single")
+    parallel_spec = _small_hitran_spec(
+        tmp_path, "rcdw-hitran-parallel", num_workers=2, chunk_size=3
+    )
+
+    single = generate_benchmark_dataset(tmp_path / "output", single_spec)
+    parallel = generate_benchmark_dataset(tmp_path / "output", parallel_spec)
+
+    _assert_common_outputs_equal(
+        Path(single["output_dir"]), Path(parallel["output_dir"])
+    )
+
+
+def test_benchmark_generation_spec_parallel_defaults_and_single_worker_succeeds(tmp_path):
+    spec = _small_empirical_spec("rcdw-default-worker")
+    assert spec.num_workers == 1
+    assert spec.chunk_size == 0
+
+    result = generate_benchmark_dataset(tmp_path / "output", spec)
+
+    assert Path(result["output_dir"]).is_dir()
+
+
+def test_invalid_num_workers_rejected(tmp_path):
+    spec = replace(_small_empirical_spec("rcdw-bad-workers"), num_workers=0)
+    with pytest.raises(ValueError, match="num_workers"):
+        generate_benchmark_dataset(tmp_path / "output", spec)
+
+
+def test_invalid_chunk_size_rejected(tmp_path):
+    spec = replace(_small_empirical_spec("rcdw-bad-chunk"), chunk_size=-1)
+    with pytest.raises(ValueError, match="chunk_size"):
+        generate_benchmark_dataset(tmp_path / "output", spec)

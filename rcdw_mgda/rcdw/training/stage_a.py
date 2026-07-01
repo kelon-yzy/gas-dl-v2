@@ -47,7 +47,7 @@ def train_single_modal(
         train_count = 0
         for x_w, y in train_loader:
             x_w, y = x_w.to(device), y.to(device)
-            x_last = x_w[:, -1, :]  # (B, 6)
+            x_last = x_w[:, -1, :]  # (B, 12)
             inp = extract_modal_input(x_last, modality)  # (B, 4)
             pred = model(inp)  # (B, 3)
             loss = criterion(pred, y)
@@ -98,6 +98,7 @@ def run_stage_a(
     val_loader: DataLoader,
     cfg: dict,
     device: str = "cpu",
+    save_dir: str = "runs/stage_a",
 ) -> dict[str, nn.Module]:
     """运行完整的阶段 A：训练 3 个单模态网络。"""
     sa = cfg["training"]["stage_a"]
@@ -128,6 +129,7 @@ def run_stage_a(
             lr=sa["lr"],
             weight_decay=sa["weight_decay"],
             patience=sa["patience"],
+            save_path=save_dir,
             device=device,
         )
 

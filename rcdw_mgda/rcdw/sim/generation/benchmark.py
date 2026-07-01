@@ -11,8 +11,10 @@
 
 from __future__ import annotations
 
+import math
 import shutil
 import uuid
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -45,7 +47,7 @@ from rcdw.sim.generation.optical_backend import (
     validate_hitran_benchmark_cache,
 )
 from rcdw.sim.generation.phases import PHASE_SCHEDULES, resolve_phase_schedule
-from rcdw.sim.generation.slow import build_sequence_arrays
+from rcdw.sim.generation.slow import build_sequence_arrays, build_sequence_arrays_chunk
 from rcdw.sim.generation.waveforms import FiberMicSpec, WaveformSpec
 from rcdw.sim.packaging.arrays import write_arrays
 from rcdw.sim.packaging.index import build_sequence_index_rows
@@ -53,6 +55,10 @@ from rcdw.sim.packaging.io import write_csv, write_json
 from rcdw.sim.packaging.manifest import build_manifest
 from rcdw.sim.packaging.scalers import (
     DEFAULT_PASSTHROUGH_CHANNELS,
+    INPUT_CHANNEL_ORDER,
+    INPUT_PASSTHROUGH_CHANNELS,
+    INPUT_SCALER_VERSION,
+    fit_input_channel_scaler,
     fit_z_score_scalers,
 )
 from rcdw.sim.packaging.splits import build_default_split_rows
@@ -81,6 +87,8 @@ class BenchmarkGenerationSpec:
     optical_absorption_backend: str = HITRAN_ABSORPTION_BACKEND
     hitran_cache_root: str = DEFAULT_HITRAN_CACHE_ROOT
     train_modalities: tuple[str, ...] = ("slow", "ultrasonic")
+    num_workers: int = 1
+    chunk_size: int = 0
 
 
 def generate_benchmark_dataset(
@@ -131,19 +139,11 @@ def generate_benchmark_dataset(
         acoustic_metadata = _acoustic_model_metadata_for_manifest(
             ultrasonic_spec, fiber_mic_spec
         )
-        arrays = build_sequence_arrays(
+        arrays = _build_sequence_arrays_for_spec(
             conditions,
-            timesteps=spec.timesteps,
-            dt_s=spec.dt_s,
-            seed=spec.seed,
-            multi_path_phase=spec.multi_path_phase,
+            spec=spec,
             ultrasonic_spec=ultrasonic_spec,
             fiber_mic_spec=fiber_mic_spec,
-            path_lms=spec.path_lms,
-            phase_schedule=phase_schedule,
-            stage_jitter=spec.stage_jitter,
-            optical_absorption_backend=spec.optical_absorption_backend,
-            hitran_cache_root=spec.hitran_cache_root,
         )
         validate_benchmark_assets(conditions, split_rows, arrays, labels)
 
@@ -225,11 +225,28 @@ def generate_benchmark_dataset(
             slow_modal_scaler,
         )
 
+        # 12 维 input scaler（H1 修复）：覆盖模型实际消费的全部 12 通道，
+        # train-only 拟合，是唯一真正作用到模型输入的标准化产物。
+        input_scaler = fit_input_channel_scaler(
+            _collect_input_train_values(arrays, train_indexes)
+        )
+        write_json(staging_dir / "scalers" / "input_scaler.json", input_scaler)
+
         # Manifest
         scaler_metadata = {
             "passthrough_channels": list(DEFAULT_PASSTHROUGH_CHANNELS),
             "peak_index_strategy": "skip",
             "transform_target": "slow",
+        }
+        input_normalization = {
+            "applied": True,
+            "coverage": "input_12ch",
+            "artifact": "scalers/input_scaler.json",
+            "method": "z_score",
+            "fit_scope": "train_split_only",
+            "version": INPUT_SCALER_VERSION,
+            "channel_order": list(INPUT_CHANNEL_ORDER),
+            "passthrough_channels": list(INPUT_PASSTHROUGH_CHANNELS),
         }
         manifest = build_manifest(
             dataset_slug=str(dataset_id),
@@ -251,6 +268,7 @@ def generate_benchmark_dataset(
             optical_absorption_metadata=optical_metadata,
             acoustic_model_metadata=acoustic_metadata,
             scaler_metadata=scaler_metadata,
+            input_normalization=input_normalization,
             train_modalities=spec.train_modalities,
         )
 
@@ -327,6 +345,12 @@ def _validate_spec(spec: BenchmarkGenerationSpec) -> None:
             f"{list(VALID_OPTICAL_ABSORPTION_BACKENDS)}, "
             f"got {spec.optical_absorption_backend!r}"
         )
+    if spec.num_workers < 1:
+        raise ValueError("num_workers must be >= 1")
+    if spec.chunk_size < 0:
+        raise ValueError("chunk_size must be >= 0")
+    if spec.chunk_size != 0 and spec.chunk_size <= 0:
+        raise ValueError("chunk_size must be 0 for auto or > 0")
     if (
         spec.optical_absorption_backend == HITRAN_ABSORPTION_BACKEND
         and not str(spec.hitran_cache_root).strip()
@@ -334,6 +358,77 @@ def _validate_spec(spec: BenchmarkGenerationSpec) -> None:
         raise ValueError(
             "hitran_cache_root must be non-empty when optical_absorption_backend is hitran_hapi_v1"
         )
+
+
+def _build_sequence_arrays_for_spec(
+    conditions: list[dict[str, str]],
+    *,
+    spec: BenchmarkGenerationSpec,
+    ultrasonic_spec: WaveformSpec,
+    fiber_mic_spec: FiberMicSpec,
+) -> dict[str, object]:
+    if spec.num_workers <= 1 or len(conditions) <= 1:
+        return build_sequence_arrays(
+            conditions,
+            timesteps=spec.timesteps,
+            dt_s=spec.dt_s,
+            seed=spec.seed,
+            multi_path_phase=spec.multi_path_phase,
+            ultrasonic_spec=ultrasonic_spec,
+            fiber_mic_spec=fiber_mic_spec,
+            path_lms=spec.path_lms,
+            phase_schedule=resolve_phase_schedule(spec.stage_profile),
+            stage_jitter=spec.stage_jitter,
+            optical_absorption_backend=spec.optical_absorption_backend,
+            hitran_cache_root=spec.hitran_cache_root,
+        )
+
+    chunk_size = spec.chunk_size or max(1, math.ceil(len(conditions) / spec.num_workers))
+    chunks = [
+        (start, conditions[start : start + chunk_size])
+        for start in range(0, len(conditions), chunk_size)
+    ]
+    with ProcessPoolExecutor(max_workers=spec.num_workers) as executor:
+        futures = [
+            executor.submit(
+                build_sequence_arrays_chunk,
+                chunk_conditions,
+                timesteps=spec.timesteps,
+                dt_s=spec.dt_s,
+                seed=spec.seed,
+                multi_path_phase=spec.multi_path_phase,
+                ultrasonic_spec=ultrasonic_spec,
+                fiber_mic_spec=fiber_mic_spec,
+                path_lms=spec.path_lms,
+                phase_schedule=spec.stage_profile,
+                stage_jitter=spec.stage_jitter,
+                optical_absorption_backend=spec.optical_absorption_backend,
+                hitran_cache_root=spec.hitran_cache_root,
+                start_sequence_index=start,
+            )
+            for start, chunk_conditions in chunks
+        ]
+        chunk_arrays = [future.result() for future in futures]
+    return _merge_sequence_array_chunks(chunk_arrays)
+
+
+def _merge_sequence_array_chunks(chunks: list[dict[str, object]]) -> dict[str, object]:
+    if not chunks:
+        raise ValueError("chunks must not be empty")
+    merged: dict[str, object] = {}
+    for key, first_value in chunks[0].items():
+        if key == "slow_rows":
+            rows: list[dict[str, str]] = []
+            for chunk in chunks:
+                rows.extend(chunk[key])  # type: ignore[arg-type]
+            merged[key] = rows
+        elif isinstance(first_value, np.ndarray):
+            merged[key] = np.concatenate(
+                [np.asarray(chunk[key]) for chunk in chunks], axis=0
+            )
+        else:
+            raise TypeError(f"unsupported sequence array chunk key {key!r}")
+    return merged
 
 
 def _optical_absorption_metadata(
@@ -376,6 +471,36 @@ def _label_array(conditions: list[dict[str, str]]) -> np.ndarray:
         [[float(row[name]) for name in COMPONENT_FIELDS] for row in conditions],
         dtype=np.float32,
     )
+
+
+# Input scaler 收集顺序：ultrasonic 元数据紧跟 SLOW_CHANNELS 之后，
+# 与 INPUT_CHANNEL_ORDER[7:] 及 rcdw.data.dataset 的拼接顺序一致。
+_INPUT_ULTRASONIC_CHANNELS = (
+    "ultrasonic_tof_observed_s",
+    "ultrasonic_sound_speed_estimated_m_per_s",
+    "ultrasonic_peak_index",
+    "ultrasonic_tof_quality",
+    "ultrasonic_tof_accepted",
+)
+
+
+def _collect_input_train_values(
+    arrays: dict[str, object], train_indexes: list[int]
+) -> dict[str, np.ndarray]:
+    """按 train_indexes 收集 12 维消费布局各通道的 train-only 展平取值。
+
+    slow(7) 取自 ``arrays["slow"][train, :, i]``；ultrasonic(5) 取自各自的
+    ``(N, T)`` 数组。返回 dict 供 ``fit_input_channel_scaler`` 逐通道拟合。
+    """
+    slow = np.asarray(arrays["slow"])  # (N, T, 7)
+    train_slow = slow[train_indexes]   # (n, T, 7)
+    values: dict[str, np.ndarray] = {}
+    for index, channel in enumerate(SLOW_CHANNELS):
+        values[channel] = train_slow[:, :, index].astype(np.float64).ravel()
+    for channel in _INPUT_ULTRASONIC_CHANNELS:
+        arr = np.asarray(arrays[channel])  # (N, T)
+        values[channel] = arr[train_indexes].astype(np.float64).ravel()
+    return values
 
 
 def _split_summary(

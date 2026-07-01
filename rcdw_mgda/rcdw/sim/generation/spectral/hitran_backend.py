@@ -102,6 +102,31 @@ def compute_hitran_ndir_absorbance(
     return result | {"backend": HITRAN_ABSORPTION_BACKEND}
 
 
+def precompute_spectrum_cache(
+    *,
+    gas_spec: HitranGasSpec,
+    grid_spec: HitranGridSpec,
+    cache_root: Path | str,
+    hapi_module: object | None = None,
+    allow_fetch: bool = True,
+) -> bool:
+    """Precompute one HITRAN gas/grid cache entry if it is missing.
+
+    Returns ``True`` when the cache entry already existed before this call, and
+    ``False`` when this call filled the missing cache entry.
+    """
+    key = _cache_key(gas_spec, grid_spec)
+    already_cached = read_cached_spectrum(cache_root, key) is not None
+    _spectrum_for_gas(
+        gas_spec=gas_spec,
+        grid_spec=grid_spec,
+        cache_root=cache_root,
+        hapi_module=hapi_module,
+        allow_fetch=allow_fetch,
+    )
+    return already_cached
+
+
 def _spectrum_for_gas(
     *,
     gas_spec: HitranGasSpec,

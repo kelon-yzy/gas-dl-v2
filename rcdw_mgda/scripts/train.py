@@ -10,8 +10,10 @@
 from __future__ import annotations
 
 import argparse
+import random
 from pathlib import Path
 
+import numpy as np
 import torch
 import yaml
 from torch.utils.data import DataLoader
@@ -34,6 +36,14 @@ def main():
     with open(args.config, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
+    # --- 可复现性（M4 修复）---
+    seed = int(cfg["data"].get("seed", 42))
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
     # --- 数据 ---
     dc = cfg["data"]
     data_root = dc.get("dataset_root")
@@ -44,14 +54,33 @@ def main():
         )
     window = int(dc.get("window", 8))
     modalities = tuple(dc.get("train_modalities", ("slow", "ultrasonic")))
+    apply_input_scaler = dc.get("apply_input_scaler")
 
-    train_ds = BenchmarkDataset(data_root, split="train", window=window, modalities=modalities)
-    val_ds = BenchmarkDataset(data_root, split="val", window=window, modalities=modalities)
+    train_ds = BenchmarkDataset(
+        data_root,
+        split="train",
+        window=window,
+        modalities=modalities,
+        apply_input_scaler=apply_input_scaler,
+    )
+    val_ds = BenchmarkDataset(
+        data_root,
+        split="val",
+        window=window,
+        modalities=modalities,
+        apply_input_scaler=apply_input_scaler,
+    )
+    sa_save_dir = cfg["training"]["stage_a"].get("save_dir", "runs/stage_a")
+    sb_save_dir = cfg["training"]["stage_b"].get("save_dir", "runs/stage_b")
     print(f"[train] data_root={data_root}")
+    print(f"[train] apply_input_scaler={apply_input_scaler}")
+    print(f"[train] stage_a_save_dir={sa_save_dir}")
+    print(f"[train] stage_b_save_dir={sb_save_dir}")
     print(f"[train] train windows={len(train_ds)}, val windows={len(val_ds)}")
 
     bs = cfg["training"]["stage_a"]["batch_size"]
-    train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True)
+    g = torch.Generator().manual_seed(seed)
+    train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, generator=g)
     val_loader = DataLoader(val_ds, batch_size=bs)
 
     device = args.device
@@ -64,7 +93,7 @@ def main():
         print("\n" + "=" * 60)
         print("STAGE A: Single-modal pretraining")
         print("=" * 60)
-        run_stage_a(train_loader, val_loader, cfg, device=device)
+        run_stage_a(train_loader, val_loader, cfg, device=device, save_dir=sa_save_dir)
 
     # --- Stage B ---
     if args.stage in ("b", "both"):
@@ -81,7 +110,7 @@ def main():
 
         # 加载 Stage A checkpoint（磁盘文件名 == 子模块名）
         for name in ["ndir", "tcd", "usn"]:
-            ckpt_path = Path(f"runs/stage_a/{name}.pt")
+            ckpt_path = Path(sa_save_dir) / f"{name}.pt"
             if ckpt_path.exists():
                 getattr(model, name).load_state_dict(
                     torch.load(ckpt_path, weights_only=True)
@@ -90,7 +119,7 @@ def main():
             else:
                 print(f"  WARNING: {ckpt_path} not found, using random init")
 
-        run_stage_b(model, train_loader, val_loader, cfg, device=device)
+        run_stage_b(model, train_loader, val_loader, cfg, device=device, save_dir=sb_save_dir)
 
     print("\n=== Training complete ===")
 

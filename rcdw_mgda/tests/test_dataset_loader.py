@@ -110,8 +110,13 @@ def test_dataset_labels_sum_to_one(smoke_benchmark):
 
 
 def test_dataset_channel_layout_matches_slow_then_ultrasonic(smoke_benchmark):
-    """v1.2 §8.2: 前 7 维应等于 slow.npy 对应窗口,后 5 维等于 ultrasonic 元数据。"""
-    ds = BenchmarkDataset(smoke_benchmark, split="train", window=8)
+    """v1.2 §8.2: 前 7 维应等于 slow.npy 对应窗口,后 5 维等于 ultrasonic 元数据。
+
+    校验的是**原始拼接布局**，故显式关闭 input scaler（apply_input_scaler=False）。
+    """
+    ds = BenchmarkDataset(
+        smoke_benchmark, split="train", window=8, apply_input_scaler=False
+    )
     slow_all = np.load(smoke_benchmark / "sequences" / "slow.npy")
     us_speed = np.load(
         smoke_benchmark / "sequences"

@@ -19,8 +19,8 @@ def test_degradation_trigger():
     E = torch.ones(10, 3, 3) * 0.01
     E[:, 0, :] = 0.05  # 模态 0 误差 5x
     W_out, degraded = hard_suppress(W, E, ratio=4.0, cap=0.04)
-    assert degraded[0, :].all()  # 模态 0 对所有气体退化
-    # cap 是归一化前的上限；归一化后退化模态权重应远小于正常模态
+    # 逐样本判定：所有样本的模态 0 均应被标记退化
+    assert degraded[:, 0, :].all()
     assert (W_out[:, 0, :] < W_out[:, 1, :]).all()
     assert (W_out[:, 0, :] < W_out[:, 2, :]).all()
 
@@ -41,7 +41,7 @@ def test_cap_value():
     E = torch.ones(10, 3, 3) * 0.01
     E[:, 1, 0] = 0.2  # 模态 1 对 O2 退化
     W_out, degraded = hard_suppress(W, E, ratio=4.0, cap=0.04)
-    if degraded[1, 0]:
+    if degraded[:, 1, 0].any():
         # 模态 1 在 O2 通道的权重应比模态 0/2 显著小
         assert (W_out[:, 1, 0] < W_out[:, 0, 0]).all()
         assert (W_out[:, 1, 0] < W_out[:, 2, 0]).all()

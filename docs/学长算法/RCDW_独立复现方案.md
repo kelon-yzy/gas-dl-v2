@@ -11,6 +11,7 @@
 > ultrasonic 元数据（5 维 tof_observed/sound_speed_estimated/peak_index/tof_quality/tof_accepted）。
 > 模型 W_base (3,3) 与 Stage A/B/扰动三阶段框架不变，仅通道索引重映射。
 > 详见 [RCDW_数据集主线对齐改动方案.md](RCDW_数据集主线对齐改动方案.md) v1.2 + [RCDW_数据集主线对齐_完成情况.md](RCDW_数据集主线对齐_完成情况.md)。
+> Phase 6 后续路线见 [RCDW_数据集主线对齐_Phase6路线.md](RCDW_数据集主线对齐_Phase6路线.md)。
 > 本方案 §12 末尾附 12 维新布局下的扰动通道索引重映射表（方案 §9.1）。
 
 ---

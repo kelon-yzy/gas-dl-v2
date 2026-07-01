@@ -39,9 +39,17 @@ def main():
         raise ValueError("configs/*.yaml 必须含 data.dataset_root 字段。")
     window = int(dc.get("window", 8))
     modalities = tuple(dc.get("train_modalities", ("slow", "ultrasonic")))
+    apply_input_scaler = dc.get("apply_input_scaler")
 
-    ds = BenchmarkDataset(data_root, split=args.split, window=window, modalities=modalities)
+    ds = BenchmarkDataset(
+        data_root,
+        split=args.split,
+        window=window,
+        modalities=modalities,
+        apply_input_scaler=apply_input_scaler,
+    )
     loader = DataLoader(ds, batch_size=64, shuffle=False)
+    print(f"[eval] apply_input_scaler={apply_input_scaler}")
     print(f"[eval] {args.split} windows: {len(ds)}")
 
     W_base = torch.tensor(cfg["model"]["W_base"], dtype=torch.float32)
@@ -75,13 +83,13 @@ def main():
     results = compute_per_gas_metrics(pred, ref)
 
     print(f"\n=== Evaluation on {args.split} set ({len(pred)} samples) ===\n")
-    print(f"{'Gas':<10} {'MAE':>8} {'RMSE':>8} {'MRE%':>8} {'ARE%':>8}")
-    print("-" * 44)
+    print(f"{'Gas':<10} {'MAE':>8} {'RMSE':>8} {'MRE%':>8} {'MaxRE%':>8}")
+    print("-" * 46)
     for gas in ["O2", "CO2", "N2", "overall"]:
         m = results[gas]
         print(
             f"{gas:<10} {m['MAE']:8.5f} {m['RMSE']:8.5f} "
-            f"{m['MRE']:8.2f} {m['ARE']:8.2f}"
+            f"{m['MRE']:8.2f} {m['MaxRE']:8.2f}"
         )
 
 

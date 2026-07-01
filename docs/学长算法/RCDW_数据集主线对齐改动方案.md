@@ -1557,6 +1557,7 @@ training:
   - `docs/学长算法/RCDW_独立复现方案.md`（不变；本方案与其互补）
   - `docs/学长算法/RCDW_实施指南.md`（不变；本方案落地后需在该文档追加「数据集已替换为 benchmark 形态」说明）
   - `docs/学长算法/RCDW_实施完成情况.md`（不变；Phase 落地后追加完成情况）
+  - `docs/学长算法/RCDW_数据集主线对齐_Phase6路线.md`（Phase 1-5 完成后的后续路线入口）
 
 ### 14.2 实施完成后需要更新的 docs
 
@@ -1567,6 +1568,7 @@ training:
 | `docs/学长算法/RCDW_独立复现方案.md` | 在「12. 扰动实验」之后追加附录：「通道布局从 6 维升级到 12 维后，扰动通道索引重映射表」 |
 | `AGENTS.md` | 第二段「禁止 mixture_id 回退」条目下追加：「`rcdw_mgda` 子工程同样遵循该不变量；其独立 schema_version 为 `rcdw-benchmark-1`」 |
 | `docs/学长算法/RCDW_数据集主线对齐_完成情况.md` | **新建**（Phase 5 收口时）：记录 Phase 1-5 实际产出、与本方案的偏差、TBD 参数的最终取值 |
+| `docs/学长算法/RCDW_数据集主线对齐_Phase6路线.md` | **新建**（Phase 6 规划时）：收敛 HITRAN cache、HITRAN smoke、并行化、12 维 scaler、扰动扩展、O2 参数和多 profile 的优先级路线 |
 
 ### 14.3 recallloom 写入条目（仅指明需要更新，不写入实际内容）
 

@@ -58,6 +58,13 @@ ULTRASONIC_META_FILES: tuple[tuple[str, str], ...] = (
     ("ultrasonic_tof_accepted", "ultrasonic_tof_accepted.npy"),
 )
 
+# 12 维消费布局的通道顺序（slow(7) + ultrasonic 元数据(5)）。
+# 作为 input scaler 对齐校验的单一真源：__getitem__ 的拼接顺序即为此。
+_INPUT_CHANNEL_ORDER: tuple[str, ...] = (
+    *SLOW_CHANNEL_ORDER,
+    *(sem for sem, _f in ULTRASONIC_META_FILES),
+)
+
 
 class BenchmarkDataset(Dataset):
     """从磁盘 benchmark 目录加载窗口张量与组分标签。"""
@@ -68,6 +75,8 @@ class BenchmarkDataset(Dataset):
         split: str,
         window: int = 8,
         modalities: tuple[str, ...] = ("slow", "ultrasonic"),
+        *,
+        apply_input_scaler: bool | None = None,
     ):
         """
         Args:
@@ -77,6 +86,10 @@ class BenchmarkDataset(Dataset):
             window: 滑窗长度 L（默认 8）。
             modalities: 加载模态白名单；当前实现要求至少包含 ``"slow"``
                 与 ``"ultrasonic"``（fiber_mic 永远不读取）。
+            apply_input_scaler: 是否对 12 维输入应用 train-only Z-score
+                标准化。``None``（默认）跟随 ``manifest.input_normalization.applied``
+                （旧数据集无该字段 → 不标准化，保持向后兼容）；``True`` 强制应用
+                （数据集未拟合则报错）；``False`` 强制返回原始物理量纲。
         """
         if split not in ("train", "val", "test"):
             raise ValueError(
@@ -171,6 +184,62 @@ class BenchmarkDataset(Dataset):
             )
         self.total_windows = len(self.split_indexes) * self.n_windows_per_seq
 
+        # ---- input scaler（H1 修复）：按 manifest 标志位决定是否标准化 ----
+        self._scale_mean: np.ndarray | None = None
+        self._scale_std: np.ndarray | None = None
+        self._resolve_input_scaler(apply_input_scaler)
+
+    def _resolve_input_scaler(self, apply_input_scaler: bool | None) -> None:
+        """决定是否加载 input scaler。
+
+        - ``None``：跟随 ``manifest.input_normalization.applied``（旧数据集无 → 不应用）。
+        - ``True`` ：强制应用；若数据集未在生成时拟合则报错。
+        - ``False``：强制不应用（返回原始量纲，供 layout/调试测试使用）。
+        """
+        norm_meta = self.manifest.get("input_normalization")
+        flag_applied = bool(norm_meta and norm_meta.get("applied"))
+        want = flag_applied if apply_input_scaler is None else bool(apply_input_scaler)
+        if not want:
+            return
+        if not flag_applied:
+            raise ValueError(
+                "apply_input_scaler=True 但 manifest 无 input_normalization.applied；"
+                "该数据集未在生成时拟合 input scaler。"
+            )
+        self._load_input_scaler(norm_meta)
+
+    def _load_input_scaler(self, norm_meta: dict) -> None:
+        artifact = norm_meta.get("artifact", "scalers/input_scaler.json")
+        scaler_path = self.data_root / artifact
+        if not scaler_path.is_file():
+            raise FileNotFoundError(
+                f"input scaler 缺失: {scaler_path}"
+                "（manifest 声明 input_normalization.applied 但产物不存在）。"
+            )
+        scaler = json.loads(scaler_path.read_text(encoding="utf-8"))
+        channel_names = list(scaler.get("channel_names", []))
+        expected = list(_INPUT_CHANNEL_ORDER)
+        if channel_names != expected:
+            raise ValueError(
+                "input scaler channel_names 与 Dataset 12 维拼接顺序不一致；"
+                f"scaler={channel_names} expected={expected}"
+            )
+        entries = scaler.get("channel_entries", [])
+        if len(entries) != len(expected):
+            raise ValueError(
+                f"input scaler channel_entries 长度 {len(entries)} != {len(expected)}"
+            )
+        mean = np.zeros(len(expected), dtype=np.float32)
+        std = np.ones(len(expected), dtype=np.float32)
+        for i, entry in enumerate(entries):
+            if entry.get("strategy") == "z_score":
+                mean[i] = np.float32(entry["mean"])
+                s = float(entry["std"])
+                # passthrough / 退化通道保持 identity；z_score 通道 std 已 > eps。
+                std[i] = np.float32(s) if s > 0.0 else np.float32(1.0)
+        self._scale_mean = mean.reshape(1, len(expected))
+        self._scale_std = std.reshape(1, len(expected))
+
     def __len__(self) -> int:
         return self.total_windows
 
@@ -205,6 +274,11 @@ class BenchmarkDataset(Dataset):
                 f"unexpected window shape: {x_window.shape}, expected "
                 f"({self.window}, 12)"
             )
+
+        # input scaler（H1 修复）：逐通道 (x - mean) / std；passthrough 通道恒等。
+        if self._scale_mean is not None:
+            x_window = (x_window - self._scale_mean) / self._scale_std
+            x_window = x_window.astype(np.float32, copy=False)
 
         y = self.labels[seq_offset].astype(np.float32)  # (3,)
         return torch.from_numpy(x_window), torch.from_numpy(y)

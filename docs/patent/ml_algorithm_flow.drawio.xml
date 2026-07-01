@@ -1,0 +1,235 @@
+<mxfile host="app.diagrams.net" modified="2026-06-15T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="ml-main" name="ML 主流程">
+    <mxGraphModel dx="1400" dy="980" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="2" value="入口&#xa;pipeline / ml.cli" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="40" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="解析 config&#xa;构造 MLFeatureConfig&#xa;构造 model_config" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="140" width="260" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="load_feature_matrix(train)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="260" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="feature_windows ?&#xa;phase / early / multi-window" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="70" y="360" width="200" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="单窗口特征&#xa;slow stat / waveform stat" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="330" y="350" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="multi-window 特征&#xa;full + phase + early 拼接" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="330" y="450" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="target_transform ?&#xa;resolve / fit targets" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="70" y="580" width="200" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="9" value="transform_composition_targets&#xa;并记录 audit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="330" y="595" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="build_regressor(model_config)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="740" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="model.name ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="80" y="840" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="MeanRegressor.fit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="20" y="970" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="RidgeRegressor.fit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="230" y="970" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="DynamicStackingSVRRegressor.fit&#xa;见第 2 页" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="440" y="960" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="15" value="evaluate_regressor&#xa;train / val / test / extrapolation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1080" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="16" value="inverse_transform_composition_targets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1080" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="17" value="metrics&#xa;MAE / RMSE / R2&#xa;component_metrics / conditional_metrics&#xa;Aitchison" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="700" y="1080" width="300" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="18" value="MLTrainingResult&#xa;JSON / table / report" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="1080" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="19" value="protocol=true&#xa;run_baseline_protocol&#xa;full + per_phase + early" style="shape=note;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="620" y="120" width="250" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="20" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="2" target="3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="21" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="3" target="4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="22" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="4" target="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="23" value="否" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="5" target="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="24" value="是" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="5" target="7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="25" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="6" target="8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="26" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="7" target="8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="27" value="否" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="8" target="10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="28" value="是" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="8" target="9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="29" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="9" target="10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="30" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="10" target="11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="31" value="mean" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="11" target="12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="32" value="ridge" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="11" target="13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="33" value="dynamic_stacking_svr" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="11" target="14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="34" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="12" target="15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="35" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="13" target="15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="36" style="endArrow=block;html=1;strokeColor=#666666;dashed=1;" edge="1" parent="1" source="14" target="15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="37" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="15" target="16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="38" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="16" target="17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="39" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="17" target="18">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="40" style="endArrow=block;html=1;strokeColor=#666666;dashed=1;" edge="1" parent="1" source="3" target="19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="ml-dssvr" name="dynamic_stacking_svr">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="2" value="DynamicStackingSVRRegressor.fit / predict" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="60" y="40" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="3" value="按 feature_names 切分模态视图" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="140" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="acoustic&#xa;ultrasonic / fiber_mic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="40" y="240" width="190" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="optical&#xa;V_NDIR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="250" y="240" width="170" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="thermal&#xa;V_TCS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="440" y="240" width="170" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="每视图 StandardScaler" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="360" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="每视图 RBF-SVR&#xa;MultiOutputRegressor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="310" y="360" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="9" value="base_predictions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="60" y="470" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="MC 噪声扰动&#xa;z-score 空间采样" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="300" y="470" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="drift = mean((pred_noisy - base)^2)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="580" y="470" width="290" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="12" value="inverse uncertainty&#xa;1 / (drift + baseline_error_constant)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="300" y="570" width="320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="13" value="归一化权重&#xa;weights = sum-normalized inverse uncertainty" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="660" y="570" width="300" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="14" value="base_pred * weight&#xa;拼接为 meta features" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="300" y="680" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="15" value="RidgeRegressor(meta learner)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="600" y="680" width="250" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="16" value="predict() / predict_with_diagnostics()&#xa;输出最终预测 + 权重" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="900" y="680" width="320" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="20" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="2" target="3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="21" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="3" target="4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="22" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="3" target="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="23" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="3" target="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="24" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="4" target="7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="25" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="5" target="7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="26" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="6" target="7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="27" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="7" target="8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="28" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="8" target="9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="29" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="8" target="10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="30" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="9" target="11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="31" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="10" target="11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="32" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="11" target="12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="33" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="12" target="13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="34" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="13" target="14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="35" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="14" target="15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="36" style="endArrow=block;html=1;rounded=0;strokeColor=#666666;" edge="1" parent="1" source="15" target="16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

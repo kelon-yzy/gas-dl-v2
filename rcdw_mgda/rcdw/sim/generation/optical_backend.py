@@ -32,6 +32,7 @@ from rcdw.sim.generation.spectral import (
     get_default_hitran_grid,
     get_default_ndir_filter,
     hitran_cache_key,
+    precompute_spectrum_cache,
     prepare_tabulated_spectra,
     read_cached_spectrum,
 )
@@ -140,6 +141,35 @@ def validate_hitran_benchmark_cache(
     if missing:
         raise MissingHitranBenchmarkCacheError(missing)
     return requirements
+
+
+def precompute_hitran_benchmark_cache(
+    conditions: list[dict[str, str]], *, cache_root: Path | str
+) -> dict[str, object]:
+    """Precompute missing HITRAN cache entries required by benchmark conditions."""
+    requirements = collect_hitran_cache_requirements(conditions, cache_root=cache_root)
+    cached = 0
+    filled = 0
+    for requirement in requirements:
+        if read_cached_spectrum(cache_root, requirement.key) is not None:
+            cached += 1
+            continue
+        was_cached = precompute_spectrum_cache(
+            gas_spec=requirement.gas_spec,
+            grid_spec=requirement.grid_spec,
+            cache_root=cache_root,
+        )
+        if was_cached:
+            cached += 1
+        else:
+            filled += 1
+    validate_hitran_benchmark_cache(conditions, cache_root=cache_root)
+    return {
+        "total": len(requirements),
+        "cached": cached,
+        "filled": filled,
+        "cache_root": str(Path(cache_root)),
+    }
 
 
 def compute_hitran_optical_absorption(
