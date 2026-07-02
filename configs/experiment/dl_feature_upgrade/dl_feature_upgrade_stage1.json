@@ -59,7 +59,7 @@
       "model_kwargs": {
         "output_mode": "gas_head",
         "waveform_embedding_dim": 64,
-        "waveform_int16_scale": 5.0,
+        "waveform_adc_scale": 5.0,
         "acoustic_channels": [16, 32, 64, 64],
         "acoustic_kernel_size": 7,
         "acoustic_dropout": 0.15,
@@ -80,7 +80,7 @@
       "model_kwargs": {
         "output_mode": "raw4",
         "waveform_embedding_dim": 64,
-        "waveform_int16_scale": 5.0,
+        "waveform_adc_scale": 5.0,
         "acoustic_channels": [16, 32, 64, 64],
         "acoustic_kernel_size": 7,
         "acoustic_dropout": 0.15,

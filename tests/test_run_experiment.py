@@ -474,7 +474,7 @@ def test_run_experiment_writes_phase_window_dl_summary(tmp_path: Path):
             "model_kwargs": {
                 "window_count": 3,
                 "waveform_embedding_dim": 4,
-                "waveform_int16_scale": 5.0,
+                "waveform_adc_scale": 5.0,
                 "acoustic_channels": [2, 4],
                 "slow_hidden_dim": 4,
                 "slow_embedding_dim": 4,
@@ -500,7 +500,7 @@ def test_run_experiment_writes_phase_window_dl_summary(tmp_path: Path):
     ]
     assert run_config["loss"] == FREE_COMPONENT_MSE_LOSS
     assert run_config["model_config"]["output_mode"] == "gas_head"
-    assert run_config["model_config"]["waveform_int16_scale"] == 5.0
+    assert run_config["model_config"]["waveform_adc_scale"] == 5.0
     assert run_config["dequantize_waveforms"] is True
     assert metrics["loss"] == FREE_COMPONENT_MSE_LOSS
     assert metrics["evaluations"]["val"]["sum_abs_error"] < 1e-4

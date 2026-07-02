@@ -638,7 +638,7 @@ model:
     in_channels: 3008
     out_dim: 4
     waveform_embedding_dim: 64
-    waveform_int16_scale: 32767.0
+    waveform_adc_scale: 524287.0
     acoustic_channels: [16, 32, 64, 64]
     acoustic_kernel_size: 7
     acoustic_dropout: 0.15
