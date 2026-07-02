@@ -30,7 +30,7 @@ PROCESSING_PARAMS_V2 = {
     "f_relax_n2_per_atm": 65000.0,
     "alpha_lambda_max_h2o": 0.01,
     "f_relax_h2o_per_atm": 100000.0,
-    "acoustic_excitation_frequency_hz": 40000.0,
+    "acoustic_excitation_frequency_hz": 200000.0,
 }
 
 _PRESSURE_MPA_TO_ATM = 1.0 / 0.101325
@@ -164,6 +164,7 @@ def main_sensor_features(
     rng,
     *,
     optical_absorption: dict[str, object] | None = None,
+    f_hz: float | None = None,
 ) -> dict[str, float | bool | object]:
     x_h2 = float(condition["x_H2"])
     x_ch4 = float(condition["x_CH4"])
@@ -174,11 +175,13 @@ def main_sensor_features(
     h_rh = float(condition["H_RH"])
     l_m = float(condition["L_m"])
 
+    if f_hz is None:
+        f_hz = PROCESSING_PARAMS_V2["acoustic_excitation_frequency_hz"]
     sound_speed = hidden_sound_speed_v2(x_h2, x_ch4, x_co2, x_n2, t_c)
-    attenuation = hidden_attenuation_v2(x_h2, x_ch4, x_co2, x_n2, t_c, p_mpa, h_rh, c_mix=sound_speed)
+    attenuation = hidden_attenuation_v2(x_h2, x_ch4, x_co2, x_n2, t_c, p_mpa, h_rh, c_mix=sound_speed, f_hz=f_hz)
     tof = l_m / sound_speed + PROCESSING_PARAMS["t_delay_s"] + rng.gauss(0.0, 0.000003)
     amp = max(0.005, math.exp(-attenuation["alpha_true_v2"] * l_m) + rng.gauss(0.0, 0.0008))
-    f_peak = 40000.0 + 23.0 * x_h2 - 18.0 * x_co2 + 2.0 * (t_c - 20.0) + rng.gauss(0.0, 65.0)
+    f_peak = f_hz + 23.0 * x_h2 - 18.0 * x_co2 + 2.0 * (t_c - 20.0) + rng.gauss(0.0, 65.0)
     a_fft_max = amp * (900.0 + rng.gauss(0.0, 20.0))
 
     if optical_absorption is None:
@@ -248,6 +251,10 @@ def _hidden_absorption_co2(x_co2: float, h_rh: float, p_mpa: float, t_c: float) 
 
 
 def _hidden_lambda_mix(x_h2: float, x_co2: float, t_c: float) -> float:
+    # TCS205 热导率线性经验拟合（W/(m·K)）：以 N2 25°C 的 λ≈0.034 为基准，
+    # H2 贡献系数 0.00155/% 与真实 H2-N2 混合（λ 从 0.026→0.180，斜率约 0.00154/%）一致，
+    # CO2 系数 -0.00011/% 反映其低热导率（λ≈0.016），T 修正 0.00002/K。
+    # 未用真实物性表加权（Wassiljewa/Chung），TCS205 的 ΔT/功率/几何因子 G 未显式建模。
     return 0.034 + 0.00155 * x_h2 - 0.00011 * x_co2 + 0.00002 * (t_c - 25.0)
 
 

@@ -16,12 +16,14 @@ SoundSpeedFn = Callable[..., float]
 AttenuationFn = Callable[..., dict[str, float]]
 
 
-CENTER_FREQUENCY_HZ = 40000.0
+CENTER_FREQUENCY_HZ = 200000.0
 BURST_CYCLES = 8
-SAMPLE_RATE_HZ = 200000
+SAMPLE_RATE_HZ = 1000000
 ULTRASONIC_MEASUREMENT_WINDOW_S = 0.005
 FIBER_MIC_MEASUREMENT_WINDOW_S = 0.010
-ADC_MAX_INT16 = 32767
+DEFAULT_DAQ_BITS = 20
+DEFAULT_WAVEFORM_DTYPE = "int32"
+ADC_MAX_INT16 = 32767  # 旧常量保留供向后兼容引用；新代码用 WaveformSpec.adc_max
 DEFAULT_NOISE_STD_V = 1e-3
 CALIBRATION_STATUS = "pending"
 ACOUSTIC_ATTENUATION_MODEL = "semi_empirical_multigas_relaxation_proxy_v2"
@@ -33,6 +35,13 @@ FIBER_MIC_ACOUSTIC_FIELD_MODEL = "probe_pressure_with_optional_reflections_v1"
 FIBER_OPTICAL_DEMODULATION_MODEL = "linear_phase_demodulation_proxy_v1"
 
 
+def adc_max_from_bits(daq_bits: int) -> int:
+    """由 ADC 位深推导有符号整数的满量程最大值（2**(bits-1) - 1）。"""
+    if daq_bits < 2:
+        raise ValueError(f"daq_bits must be >= 2, got {daq_bits}")
+    return (1 << (daq_bits - 1)) - 1
+
+
 @dataclass(frozen=True, slots=True)
 class WaveformSpec:
     model_name: str = ULTRASONIC_MODEL_NAME
@@ -40,8 +49,9 @@ class WaveformSpec:
     center_frequency_hz: float = CENTER_FREQUENCY_HZ
     burst_cycles: int = BURST_CYCLES
     measurement_window_s: float = ULTRASONIC_MEASUREMENT_WINDOW_S
-    adc_max_int16: int = ADC_MAX_INT16
-    daq_full_scale_v: float = 5.0
+    daq_bits: int = DEFAULT_DAQ_BITS
+    waveform_dtype: str = DEFAULT_WAVEFORM_DTYPE
+    daq_full_scale_v: float = 2.5  # NI-6453 量程，Phase 0 推荐分辨率最优档（超声峰值 ≤1.0V）
     noise_std_v: float = DEFAULT_NOISE_STD_V
     acoustic_attenuation_model: str = ACOUSTIC_ATTENUATION_MODEL
     system_delay_model: str = ULTRASONIC_SYSTEM_DELAY_MODEL
@@ -50,9 +60,14 @@ class WaveformSpec:
     delay_correction_s: float = 8.2e-5
     trigger_jitter_std_s: float = 3.0e-6
     transducer_response_model: str = ULTRASONIC_TRANSDUCER_RESPONSE_MODEL
-    transducer_bandwidth_hz: float = 12000.0
+    transducer_bandwidth_hz: float = 20000.0  # PSC200K datasheet 未给出带宽，按典型压电陶瓷 ~10% 中心频率估计
     transducer_ringdown_cycles: float = 4.0
     calibration_status: str = CALIBRATION_STATUS
+
+    @property
+    def adc_max(self) -> int:
+        """ADC 满量程最大整数值，由 ``daq_bits`` 推导。"""
+        return adc_max_from_bits(self.daq_bits)
 
     @property
     def waveform_samples(self) -> int:
@@ -60,6 +75,7 @@ class WaveformSpec:
 
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
+        payload["adc_max"] = self.adc_max
         payload["waveform_samples"] = self.waveform_samples
         return payload
 
@@ -91,7 +107,8 @@ class FiberMicSpec:
     center_frequency_hz: float = CENTER_FREQUENCY_HZ
     burst_cycles: int = BURST_CYCLES
     measurement_window_s: float = FIBER_MIC_MEASUREMENT_WINDOW_S
-    adc_max_int16: int = ADC_MAX_INT16
+    daq_bits: int = DEFAULT_DAQ_BITS
+    waveform_dtype: str = DEFAULT_WAVEFORM_DTYPE
     acoustic_attenuation_model: str = ACOUSTIC_ATTENUATION_MODEL
     acoustic_field_model: str = FIBER_MIC_ACOUSTIC_FIELD_MODEL
     fiber_optical_demodulation_model: str = FIBER_OPTICAL_DEMODULATION_MODEL
@@ -101,11 +118,17 @@ class FiberMicSpec:
     calibration_status: str = CALIBRATION_STATUS
 
     @property
+    def adc_max(self) -> int:
+        """ADC 满量程最大整数值，由 ``daq_bits`` 推导。"""
+        return adc_max_from_bits(self.daq_bits)
+
+    @property
     def waveform_samples(self) -> int:
         return int(round(self.sample_rate_hz * self.measurement_window_s))
 
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
+        payload["adc_max"] = self.adc_max
         payload["waveform_samples"] = self.waveform_samples
         return payload
 
@@ -235,7 +258,7 @@ def simulate_waveform_measurement(
     corrected_tof_s = max(tof_observed_s - spec.delay_correction_s, 1.0 / float(spec.sample_rate_hz))
     sound_speed_estimated = float(l_m) / corrected_tof_s
     tof_quality = _tof_quality(signal_peak_abs_v, spec.noise_std_v, clipped)
-    return _digitize_waveform(waveform, spec.adc_max_int16, spec.daq_full_scale_v) | {
+    return _digitize_waveform(waveform, spec.adc_max, spec.daq_full_scale_v, spec.waveform_dtype) | {
         "tof_s": tof_true_s,
         "tof_true_s": tof_true_s,
         "tof_observed_s": tof_observed_s,
@@ -313,7 +336,7 @@ def simulate_fiber_mic_measurement(
         demod_voltage = demod_voltage + noise_rng.normal(0.0, noise_std, size=demod_voltage.shape).astype(np.float32)
     waveform = np.clip(demod_voltage, -float(probe.voltage_saturation_v), float(probe.voltage_saturation_v)).astype(np.float32)
     phase_peak_rad = float(np.max(np.abs(delta_phase))) if delta_phase.size else 0.0
-    return _digitize_waveform(waveform, spec.adc_max_int16, probe.daq_full_scale_v) | {
+    return _digitize_waveform(waveform, spec.adc_max, probe.daq_full_scale_v, spec.waveform_dtype) | {
         "tof_direct_s": float(tof_probe_s),
         "probe_tof_s": float(tof_probe_s),
         "t_round_s": float(t_round_s),
@@ -338,17 +361,18 @@ def _add_pulse_at_peak(buffer: np.ndarray, pulse: np.ndarray, peak_index: int, a
     _add_pulse(buffer, pulse, peak_index - pulse_peak_offset, amplitude)
 
 
-def _digitize_waveform(waveform: np.ndarray, adc_max_int16: int, daq_full_scale_v: float) -> dict[str, object]:
+def _digitize_waveform(waveform: np.ndarray, adc_max: int, daq_full_scale_v: float, waveform_dtype: str) -> dict[str, object]:
     if daq_full_scale_v <= 0.0:
         raise ValueError("daq_full_scale_v must be > 0")
     peak_abs_v = float(np.max(np.abs(waveform))) if waveform.size else 0.0
     if peak_abs_v <= 0.0:
         raise ValueError("peak_abs_v must be > 0")
-    scale_factor = float(daq_full_scale_v) / float(adc_max_int16)
-    waveform_int16 = np.clip(np.round(waveform / scale_factor), -adc_max_int16, adc_max_int16).astype(np.int16)
+    np_dtype = np.dtype(waveform_dtype)
+    scale_factor = float(daq_full_scale_v) / float(adc_max)
+    waveform_int = np.clip(np.round(waveform / scale_factor), -adc_max, adc_max).astype(np_dtype)
     return {
         "waveform_float": waveform.astype(np.float32),
-        "waveform_int16": waveform_int16,
+        "waveform_int": waveform_int,
         "scale_factor": float(scale_factor),
         "peak_abs_v": peak_abs_v,
     }

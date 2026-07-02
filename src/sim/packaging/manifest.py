@@ -23,6 +23,7 @@ def build_manifest(
     labels: tuple[str, ...],
     optical_absorption_metadata: dict[str, object] | None = None,
     acoustic_model_metadata: dict[str, object] | None = None,
+    sim_revision: dict[str, object] | None = None,
     schema_version: str = DEFAULT_SCHEMA_VERSION,
     composition_scheme: str = "hydrogen_ng",
     background_fields: tuple[str, ...] = (),
@@ -64,4 +65,6 @@ def build_manifest(
         manifest.update(optical_absorption_metadata)
     if acoustic_model_metadata is not None:
         manifest.update(acoustic_model_metadata)
+    if sim_revision is not None:
+        manifest["sim_revision"] = sim_revision
     return manifest

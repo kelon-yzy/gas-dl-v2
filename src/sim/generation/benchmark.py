@@ -44,7 +44,7 @@ from sim.packaging.splits import build_default_split_rows
 from sim.validation.integrity import validate_benchmark_assets
 
 
-DEFAULT_WAVEFORM_PATH_LMS = (0.20, 0.25, 0.30, 0.35, 0.40)
+DEFAULT_WAVEFORM_PATH_LMS = (0.18, 0.20, 0.22, 0.25, 0.28)  # 200kHz 声程上限 0.3m 约束下的 5 档多光程扫描
 DEFAULT_HITRAN_CACHE_ROOT = "data/hitran_cache"
 DEFAULT_MAX_WORKERS = 24
 ARRAY_KEYS = (
@@ -136,7 +136,15 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
         )
         validation_summary = validate_benchmark_assets(conditions, split_rows, arrays, labels)
         sequence_ids = [row["sequence_id"] for row in conditions]
-        shapes = write_arrays(staging_dir, arrays, labels, sequence_ids, SLOW_CHANNELS, COMPONENT_FIELDS, spec.storage)
+        shapes = write_arrays(staging_dir, arrays, labels, sequence_ids, SLOW_CHANNELS, COMPONENT_FIELDS, spec.storage, ultrasonic_dtype=ultrasonic_spec.waveform_dtype, fiber_dtype=fiber_mic_spec.waveform_dtype)
+        sim_revision = {
+            "ultrasonic_center_frequency_hz": float(ultrasonic_spec.center_frequency_hz),
+            "sample_rate_hz": int(ultrasonic_spec.sample_rate_hz),
+            "daq_bits": int(ultrasonic_spec.daq_bits),
+            "waveform_dtype": str(ultrasonic_spec.waveform_dtype),
+            "l_m_range": [0.2, 0.3],
+            "tag": "v5-200khz-20bit-L03",
+        }
         manifest = build_manifest(
             dataset_slug=str(dataset_id),
             sequence_count=spec.sequence_count,
@@ -156,6 +164,7 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
             labels=COMPONENT_FIELDS,
             optical_absorption_metadata=optical_metadata,
             acoustic_model_metadata=acoustic_metadata,
+            sim_revision=sim_revision,
         )
 
         write_csv(staging_dir / "condition_grid_sequence.csv", CONDITION_GRID_FIELDS, conditions)

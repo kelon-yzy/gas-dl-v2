@@ -36,7 +36,7 @@ def test_ultrasonic_waveform_uses_observed_tof_and_delay_correction():
     assert result["peak_index"] == round(result["tof_observed_s"] * spec.sample_rate_hz)
     assert result["tof_quality"] > 0.99
     assert result["tof_accepted"] == 1
-    assert result["scale_factor"] == pytest.approx(spec.daq_full_scale_v / spec.adc_max_int16)
+    assert result["scale_factor"] == pytest.approx(spec.daq_full_scale_v / spec.adc_max)
 
 
 def test_fiber_mic_waveform_runs_probe_pressure_to_phase_demod_chain():
@@ -47,6 +47,6 @@ def test_fiber_mic_waveform_runs_probe_pressure_to_phase_demod_chain():
     assert result["probe_pressure_peak_pa"] > 0.0
     assert result["phase_peak_rad"] == pytest.approx(result["probe_pressure_peak_pa"] * spec.probe.pressure_sensitivity_rad_per_pa)
     assert result["demod_peak_v"] > 0.0
-    assert result["scale_factor"] == pytest.approx(spec.probe.daq_full_scale_v / spec.adc_max_int16)
+    assert result["scale_factor"] == pytest.approx(spec.probe.daq_full_scale_v / spec.adc_max)
     assert spec.model_name == "fiber_interferometric_proxy_v1"
     assert spec.fiber_optical_demodulation_model == "linear_phase_demodulation_proxy_v1"

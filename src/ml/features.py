@@ -9,6 +9,7 @@ import numpy as np
 
 from common.scalers import apply_scaler, load_scaler
 from common.splits import load_splits, resolve_split_indices
+from common.waveform import waveform_array_path
 from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig
 
 
@@ -189,7 +190,7 @@ def waveform_stat_features(
     if modality not in {"ultrasonic", "fiber_mic"}:
         raise ValueError(f"Unsupported waveform modality: {modality!r}")
     dataset_dir = Path(dataset_dir)
-    waveform = np.load(dataset_dir / "sequences" / f"{modality}_int16.npy", mmap_mode="r")[split_indices]
+    waveform = np.load(waveform_array_path(dataset_dir, modality), mmap_mode="r")[split_indices]
     scale = np.load(dataset_dir / "sequences" / f"{modality}_scale.npy", mmap_mode="r")[split_indices]
     frames, frame_names = _waveform_frame_descriptors(waveform, scale, frame_features, prefix=modality)
     return sequence_stat_features(frames, channel_names=frame_names, statistics=sequence_statistics, prefix=modality, masks=masks)

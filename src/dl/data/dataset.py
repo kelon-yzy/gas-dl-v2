@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, get_worker_info
 
+from common.waveform import waveform_array_path
 from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig, resolve_window_config
 from dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
 from dl.data.scalers import apply_scaler, load_scaler
@@ -154,11 +155,11 @@ class V4BenchmarkDataset(Dataset):
         if "slow" in self._modalities:
             self._slow = np.load(seq_dir / "slow.npy", mmap_mode="r")
         if "ultrasonic" in self._modalities:
-            self._ultrasonic = np.load(seq_dir / "ultrasonic_int16.npy", mmap_mode="r")
+            self._ultrasonic = np.load(waveform_array_path(self._dataset_dir, "ultrasonic"), mmap_mode="r")
             if self._dequantize_waveforms:
                 self._ultrasonic_scale = np.load(seq_dir / "ultrasonic_scale.npy", mmap_mode="r")
         if "fiber_mic" in self._modalities:
-            self._fiber_mic = np.load(seq_dir / "fiber_mic_int16.npy", mmap_mode="r")
+            self._fiber_mic = np.load(waveform_array_path(self._dataset_dir, "fiber_mic"), mmap_mode="r")
             if self._dequantize_waveforms:
                 self._fiber_mic_scale = np.load(seq_dir / "fiber_mic_scale.npy", mmap_mode="r")
         if self._has_phase_stats and self._phase_stats is None:
