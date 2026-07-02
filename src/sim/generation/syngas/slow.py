@@ -95,7 +95,7 @@ def build_sequence_arrays(
 
     sequence_count = len(conditions)
     slow = np.zeros((sequence_count, timesteps, len(SLOW_CHANNELS)), dtype=np.float32)
-    ultrasonic = np.zeros((sequence_count, timesteps, ultrasonic_spec.waveform_samples), dtype=np.int16)
+    ultrasonic = np.zeros((sequence_count, timesteps, ultrasonic_spec.waveform_samples), dtype=np.dtype(ultrasonic_spec.waveform_dtype))
     ultrasonic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_s = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_observed_s = np.zeros((sequence_count, timesteps), dtype=np.float32)
@@ -105,7 +105,7 @@ def build_sequence_arrays(
     ultrasonic_alpha = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_quality = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_accepted = np.zeros((sequence_count, timesteps), dtype=np.int8)
-    fiber_mic = np.zeros((sequence_count, timesteps, fiber_mic_spec.waveform_samples), dtype=np.int16)
+    fiber_mic = np.zeros((sequence_count, timesteps, fiber_mic_spec.waveform_samples), dtype=np.dtype(fiber_mic_spec.waveform_dtype))
     fiber_mic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
     slow_rows = []
     base_schedule = resolve_phase_schedule(phase_schedule)
@@ -131,12 +131,12 @@ def build_sequence_arrays(
             l_m=float(condition["L_m_base"]),
         )
         baseline_main = (
-            main_sensor_features(baseline_condition, condition_rng, enable_co_crosstalk=enable_co_crosstalk)
+            main_sensor_features(baseline_condition, condition_rng, enable_co_crosstalk=enable_co_crosstalk, f_hz=ultrasonic_spec.center_frequency_hz)
             if is_empirical
             else thermal_conductivity_sensor_feature(baseline_condition, condition_rng)
         )
         target_main = (
-            main_sensor_features(target_condition, condition_rng, enable_co_crosstalk=enable_co_crosstalk)
+            main_sensor_features(target_condition, condition_rng, enable_co_crosstalk=enable_co_crosstalk, f_hz=ultrasonic_spec.center_frequency_hz)
             if is_empirical
             else thermal_conductivity_sensor_feature(target_condition, condition_rng)
         )
@@ -238,7 +238,7 @@ def build_sequence_arrays(
                 attenuation_fn=hidden_attenuation_v2,
                 extra_gas_kwargs=extra_gas,
             )
-            ultrasonic[seq_index, timestep, :] = ultrasonic_result["waveform_int16"]
+            ultrasonic[seq_index, timestep, :] = ultrasonic_result["waveform_int"]
             ultrasonic_scale[seq_index, timestep] = ultrasonic_result["scale_factor"]
             ultrasonic_tof_s[seq_index, timestep] = float(ultrasonic_result["tof_s"])
             ultrasonic_tof_observed_s[seq_index, timestep] = float(ultrasonic_result["tof_observed_s"])
@@ -248,7 +248,7 @@ def build_sequence_arrays(
             ultrasonic_alpha[seq_index, timestep] = float(ultrasonic_result["alpha_true_npm"])
             ultrasonic_tof_quality[seq_index, timestep] = float(ultrasonic_result["tof_quality"])
             ultrasonic_tof_accepted[seq_index, timestep] = int(ultrasonic_result["tof_accepted"])
-            fiber_mic[seq_index, timestep, :] = fiber_result["waveform_int16"]
+            fiber_mic[seq_index, timestep, :] = fiber_result["waveform_int"]
             fiber_mic_scale[seq_index, timestep] = fiber_result["scale_factor"]
             slow_rows.append(_slow_row(condition["sequence_id"], timestep, dt_s, phase_id, current))
 

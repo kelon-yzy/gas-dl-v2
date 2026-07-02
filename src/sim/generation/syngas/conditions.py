@@ -86,7 +86,7 @@ def generate_syngas_condition_rows(
                 "T_C_base": _fmt(rng.uniform(15.0, 35.0), 4),
                 "P_MPa_base": _fmt(rng.uniform(0.10, 0.709), 4),
                 "H_RH_base": _fmt(rng.uniform(20.0, 80.0), 4),
-                "L_m_base": _fmt(rng.uniform(0.2, 1.8), 4),
+                "L_m_base": _fmt(rng.uniform(0.2, 0.3), 4),  # 200kHz 下长声程信号被 CH4/CO2 弛豫吸收淹没，上限压缩到 0.3m（见 Phase0 核对记录）
                 "status": "synthetic_measurement",
             }
         )

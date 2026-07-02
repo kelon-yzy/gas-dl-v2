@@ -703,7 +703,7 @@ class TestTrainerControl:
         """验证 _init_weights 调用后权重与 PyTorch 默认初始化不同。"""
         from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
         model = CNN1DTCNFusionRegressor(
-            in_channels=3008, out_dim=4,
+            in_channels=15008, out_dim=4,
             acoustic_channels=[4], tcn_channels=[4],
         )
         # 取第一个 Conv1d 的第一条 channel，看是否偏离默认 N(0,0.01) 量级
@@ -719,7 +719,7 @@ class TestTrainerControl:
         from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
         from dl.models.cnn1d_tcn_fusion import GasHeadNormalize
         model = CNN1DTCNFusionRegressor(
-            in_channels=3008, out_dim=4,
+            in_channels=15008, out_dim=4,
             acoustic_channels=[4], tcn_channels=[4],
             output_mode="gas_head",
         )

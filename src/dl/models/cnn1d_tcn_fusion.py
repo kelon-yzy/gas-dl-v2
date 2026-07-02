@@ -20,7 +20,7 @@ class DeepAcousticEncoder1D(nn.Module):
         channels: Sequence[int] = (16, 32, 64, 64),
         kernel_size: int = 7,
         dropout: float = 0.15,
-        waveform_int16_scale: float = 32767.0,
+        waveform_adc_scale: float = 524287.0,
     ):
         super().__init__()
         if waveform_length < 1:
@@ -29,11 +29,11 @@ class DeepAcousticEncoder1D(nn.Module):
             raise ValueError("channels must contain at least one layer")
         if kernel_size < 2:
             raise ValueError("kernel_size must be >= 2")
-        if waveform_int16_scale <= 0.0:
-            raise ValueError("waveform_int16_scale must be > 0")
+        if waveform_adc_scale <= 0.0:
+            raise ValueError("waveform_adc_scale must be > 0")
 
         self.waveform_length = waveform_length
-        self.waveform_int16_scale = waveform_int16_scale
+        self.waveform_adc_scale = waveform_adc_scale
 
         layers: list[nn.Module] = []
         current = 1
@@ -61,7 +61,7 @@ class DeepAcousticEncoder1D(nn.Module):
 
         batch_size, timesteps, waveform_length = waveform.shape
         # Keep the input scale explicit so raw-int16 and dequantized-voltage ablations are traceable.
-        flat = waveform.reshape(batch_size * timesteps, 1, waveform_length).float() / self.waveform_int16_scale
+        flat = waveform.reshape(batch_size * timesteps, 1, waveform_length).float() / self.waveform_adc_scale
         encoded = self.encoder(flat)
         avg = nn.functional.adaptive_avg_pool1d(encoded, 1).squeeze(-1)
         mx = nn.functional.adaptive_max_pool1d(encoded, 1).squeeze(-1)
@@ -194,13 +194,13 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
 
     def __init__(
         self,
-        in_channels: int = 3008,
+        in_channels: int = 15008,
         out_dim: int = 4,
         slow_channels: int = 8,
-        ultrasonic_channels: int = 1000,
-        fiber_mic_channels: int = 2000,
+        ultrasonic_channels: int = 5000,
+        fiber_mic_channels: int = 10000,
         waveform_embedding_dim: int = 64,
-        waveform_int16_scale: float = 32767.0,
+        waveform_adc_scale: float = 524287.0,
         acoustic_channels: Sequence[int] = (16, 32, 64, 64),
         acoustic_kernel_size: int = 7,
         acoustic_dropout: float = 0.15,
@@ -241,7 +241,7 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         self.ultrasonic_encoder = DeepAcousticEncoder1D(
             ultrasonic_channels,
             embedding_dim=waveform_embedding_dim,
-            waveform_int16_scale=waveform_int16_scale,
+            waveform_adc_scale=waveform_adc_scale,
             channels=acoustic_channels,
             kernel_size=acoustic_kernel_size,
             dropout=acoustic_dropout,
@@ -249,7 +249,7 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         self.fiber_mic_encoder = DeepAcousticEncoder1D(
             fiber_mic_channels,
             embedding_dim=waveform_embedding_dim,
-            waveform_int16_scale=waveform_int16_scale,
+            waveform_adc_scale=waveform_adc_scale,
             channels=acoustic_channels,
             kernel_size=acoustic_kernel_size,
             dropout=acoustic_dropout,

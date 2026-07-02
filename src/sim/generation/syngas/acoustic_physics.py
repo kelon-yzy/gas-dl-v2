@@ -49,7 +49,7 @@ PROCESSING_PARAMS_V2 = {
     "alpha_lambda_max_co": 0.025,        # 中置信；类比 N2/CH4，建议 ablation 0.015-0.040
     "f_relax_co_per_atm": 12000.0,       # 高置信；CO 在 dry N2 背景 (Qiao 2022)
     "k_h2o_to_f_relax_co": 0.30,         # 中置信；线性近似，实际为非线性饱和
-    "acoustic_excitation_frequency_hz": 40000.0,
+    "acoustic_excitation_frequency_hz": 200000.0,
 }
 
 _PRESSURE_MPA_TO_ATM = 1.0 / 0.101325
@@ -222,6 +222,7 @@ def main_sensor_features(
     *,
     optical_absorption: dict[str, object] | None = None,
     enable_co_crosstalk: bool = False,
+    f_hz: float | None = None,
 ) -> dict[str, float | bool | object]:
     """合成气主特征生成。
 
@@ -240,14 +241,16 @@ def main_sensor_features(
     h_rh = float(condition["H_RH"])
     l_m = float(condition["L_m"])
 
+    if f_hz is None:
+        f_hz = PROCESSING_PARAMS_V2["acoustic_excitation_frequency_hz"]
     sound_speed = hidden_sound_speed_v2(x_h2, x_ch4, x_co2, x_n2, x_co, t_c)
     attenuation = hidden_attenuation_v2(
-        x_h2, x_ch4, x_co2, x_n2, x_co, t_c, p_mpa, h_rh, c_mix=sound_speed
+        x_h2, x_ch4, x_co2, x_n2, x_co, t_c, p_mpa, h_rh, c_mix=sound_speed, f_hz=f_hz
     )
     tof = l_m / sound_speed + PROCESSING_PARAMS["t_delay_s"] + rng.gauss(0.0, 0.000003)
     amp = max(0.005, math.exp(-attenuation["alpha_true_v2"] * l_m) + rng.gauss(0.0, 0.0008))
     # f_peak: CO 在声速上接近 N2，不引入显式系数；仍保留 H2 与 CO2 的主导
-    f_peak = 40000.0 + 23.0 * x_h2 - 18.0 * x_co2 + 2.0 * (t_c - 20.0) + rng.gauss(0.0, 65.0)
+    f_peak = f_hz + 23.0 * x_h2 - 18.0 * x_co2 + 2.0 * (t_c - 20.0) + rng.gauss(0.0, 65.0)
     a_fft_max = amp * (900.0 + rng.gauss(0.0, 20.0))
 
     if optical_absorption is None:

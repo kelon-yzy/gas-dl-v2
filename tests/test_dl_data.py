@@ -171,8 +171,8 @@ class TestV4BenchmarkDataset:
 
         assert isinstance(ds._ultrasonic, np.memmap)
         assert isinstance(ds._fiber_mic, np.memmap)
-        assert ds._ultrasonic.dtype == np.int16
-        assert ds._fiber_mic.dtype == np.int16
+        assert ds._ultrasonic.dtype == np.int32
+        assert ds._fiber_mic.dtype == np.int32
         x, _ = ds[0]
         assert x.dtype == torch.float32
 
@@ -189,7 +189,7 @@ class TestV4BenchmarkDataset:
 
         x, _ = ds[0]
         src_idx = ds.indices[0]
-        raw = np.load(dataset_dir / "sequences" / "ultrasonic_int16.npy", mmap_mode="r")[src_idx].astype(np.float32)
+        raw = np.load(dataset_dir / "sequences" / "ultrasonic_int32.npy", mmap_mode="r")[src_idx].astype(np.float32)
         scale = np.load(dataset_dir / "sequences" / "ultrasonic_scale.npy", mmap_mode="r")[src_idx].astype(np.float32)
 
         np.testing.assert_allclose(x.numpy(), raw * scale[:, np.newaxis], rtol=1e-6, atol=1e-6)
@@ -204,7 +204,7 @@ class TestV4BenchmarkDataset:
             lazy=False,
         )
         x, _ = ds[0]
-        assert x.shape[1] == 8 + 1000  # slow channels + ultrasonic waveform samples
+        assert x.shape[1] == 8 + 5000  # slow channels + ultrasonic waveform samples
 
     def test_rejects_invalid_modality(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="ds-bad")
@@ -521,7 +521,7 @@ class TestAugmentDataset:
             augment_seed=42,
         )
         x, y = ds[0]
-        assert x.shape == (32, 8 + 1000)
+        assert x.shape == (32, 8 + 5000)
         assert y.shape == (4,)
         assert x.dtype == torch.float32
 

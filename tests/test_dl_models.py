@@ -557,7 +557,7 @@ class TestEndToEndWithDataset:
             lazy=False,
         )
         model = CNN1DTCNFusionRegressor(
-            in_channels=3008,
+            in_channels=15008,
             waveform_embedding_dim=4,
             acoustic_channels=[2, 4],
             slow_hidden_dim=4,
@@ -583,7 +583,7 @@ class TestEndToEndWithDataset:
             lazy=False,
         )
         model = PhaseWindowTCNRegressor(
-            in_channels=3008,
+            in_channels=15008,
             waveform_embedding_dim=4,
             acoustic_channels=[2, 4],
             slow_hidden_dim=4,

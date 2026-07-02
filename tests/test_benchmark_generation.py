@@ -37,7 +37,7 @@ def test_generate_benchmark_dataset_writes_v4_assets(tmp_path):
     assert len(index_rows) == 16
     assert len(label_rows) == 16
     assert manifest["schema_version"] == "v4-benchmark-1"
-    assert manifest["path_lms"] == [0.2, 0.25, 0.3, 0.35, 0.4]
+    assert manifest["path_lms"] == [0.18, 0.2, 0.22, 0.25, 0.28]
     assert manifest["stage_profile"] == "standard_exposure"
     assert manifest["stage_jitter"] == 0.0
     assert manifest["phase_schedule"]["name"] == "standard_exposure"
@@ -174,7 +174,7 @@ def test_generate_benchmark_dataset_writes_npz_storage_arrays_and_metadata(tmp_p
     slow_channel_names = np.load(dataset_dir / "metadata" / "slow_channel_names.npy", allow_pickle=True)
     label_names = np.load(dataset_dir / "metadata" / "label_names.npy", allow_pickle=True)
     slow = np.load(dataset_dir / "sequences" / "slow.npy")
-    ultrasonic = np.load(dataset_dir / "sequences" / "ultrasonic_int16.npy")
+    ultrasonic = np.load(dataset_dir / "sequences" / "ultrasonic_int32.npy")
     ultrasonic_tof_s = np.load(dataset_dir / "sequences" / "ultrasonic_tof_s.npy")
     ultrasonic_tof_observed_s = np.load(dataset_dir / "sequences" / "ultrasonic_tof_observed_s.npy")
     ultrasonic_peak_index = np.load(dataset_dir / "sequences" / "ultrasonic_peak_index.npy")
@@ -183,7 +183,7 @@ def test_generate_benchmark_dataset_writes_npz_storage_arrays_and_metadata(tmp_p
     ultrasonic_alpha = np.load(dataset_dir / "sequences" / "ultrasonic_alpha_true_npm.npy")
     ultrasonic_tof_quality = np.load(dataset_dir / "sequences" / "ultrasonic_tof_quality.npy")
     ultrasonic_tof_accepted = np.load(dataset_dir / "sequences" / "ultrasonic_tof_accepted.npy")
-    fiber_mic = np.load(dataset_dir / "sequences" / "fiber_mic_int16.npy")
+    fiber_mic = np.load(dataset_dir / "sequences" / "fiber_mic_int32.npy")
     bundle = np.load(dataset_dir / "sequences" / "waveform_sequence.npz")
 
     assert manifest["storage"] == "npz"
@@ -341,7 +341,7 @@ def test_generate_benchmark_dataset_writes_memmap_storage_arrays_without_npz(tmp
     dataset_dir = tmp_path / "wv4-memmap"
 
     assert (dataset_dir / "sequences" / "slow.npy").is_file()
-    assert (dataset_dir / "sequences" / "ultrasonic_int16.npy").is_file()
+    assert (dataset_dir / "sequences" / "ultrasonic_int32.npy").is_file()
     assert (dataset_dir / "sequences" / "ultrasonic_tof_s.npy").is_file()
     assert (dataset_dir / "sequences" / "ultrasonic_tof_observed_s.npy").is_file()
     assert (dataset_dir / "sequences" / "ultrasonic_peak_index.npy").is_file()
@@ -350,7 +350,7 @@ def test_generate_benchmark_dataset_writes_memmap_storage_arrays_without_npz(tmp
     assert (dataset_dir / "sequences" / "ultrasonic_alpha_true_npm.npy").is_file()
     assert (dataset_dir / "sequences" / "ultrasonic_tof_quality.npy").is_file()
     assert (dataset_dir / "sequences" / "ultrasonic_tof_accepted.npy").is_file()
-    assert (dataset_dir / "sequences" / "fiber_mic_int16.npy").is_file()
+    assert (dataset_dir / "sequences" / "fiber_mic_int32.npy").is_file()
     assert not (dataset_dir / "sequences" / "waveform_sequence.npz").exists()
 
 
@@ -465,12 +465,12 @@ def test_parallel_generation_is_stable_across_chunk_sizes(tmp_path):
     assert _read_csv(chunk_1_dir / "sequences" / "slow_sequence_long.csv") == _read_csv(chunk_3_dir / "sequences" / "slow_sequence_long.csv")
     np.testing.assert_allclose(np.load(chunk_1_dir / "sequences" / "slow.npy"), np.load(chunk_3_dir / "sequences" / "slow.npy"))
     np.testing.assert_array_equal(
-        np.load(chunk_1_dir / "sequences" / "ultrasonic_int16.npy"),
-        np.load(chunk_3_dir / "sequences" / "ultrasonic_int16.npy"),
+        np.load(chunk_1_dir / "sequences" / "ultrasonic_int32.npy"),
+        np.load(chunk_3_dir / "sequences" / "ultrasonic_int32.npy"),
     )
     np.testing.assert_array_equal(
-        np.load(chunk_1_dir / "sequences" / "fiber_mic_int16.npy"),
-        np.load(chunk_3_dir / "sequences" / "fiber_mic_int16.npy"),
+        np.load(chunk_1_dir / "sequences" / "fiber_mic_int32.npy"),
+        np.load(chunk_3_dir / "sequences" / "fiber_mic_int32.npy"),
     )
     np.testing.assert_allclose(np.load(chunk_1_dir / "labels" / "y.npy"), np.load(chunk_3_dir / "labels" / "y.npy"))
 
@@ -498,7 +498,7 @@ def test_bundle_waveform_sequence_builds_npz_after_memmap_generation(tmp_path):
 
     assert summary["dataset_dir"] == str(dataset_dir)
     assert bundle["slow"].shape == np.load(dataset_dir / "sequences" / "slow.npy").shape
-    assert bundle["ultrasonic"].shape == np.load(dataset_dir / "sequences" / "ultrasonic_int16.npy").shape
+    assert bundle["ultrasonic"].shape == np.load(dataset_dir / "sequences" / "ultrasonic_int32.npy").shape
     assert bundle["y"].shape == np.load(dataset_dir / "labels" / "y.npy").shape
 
 

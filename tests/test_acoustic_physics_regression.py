@@ -90,7 +90,8 @@ _ATTEN_CASE_3_EXPECTED = {
     ],
 )
 def test_hidden_attenuation_v2_regression(inputs, expected):
-    result = hidden_attenuation_v2(*inputs)
+    # 显式 pin f_hz=40000：回归测试验证物理公式不变，与生产默认载波频率解耦
+    result = hidden_attenuation_v2(*inputs, f_hz=40000.0)
     for key, expected_val in expected.items():
         assert result[key] == pytest.approx(expected_val, rel=1e-12), f"mismatch on {key}"
 
@@ -183,6 +184,7 @@ _FEAT_3_EXPECTED = {
 )
 def test_main_sensor_features_regression(condition, seed, expected):
     rng = random.Random(seed)
-    result = main_sensor_features(condition, rng)
+    # 显式 pin f_hz=40000：回归测试验证物理公式不变，与生产默认载波频率解耦
+    result = main_sensor_features(condition, rng, f_hz=40000.0)
     for key, expected_val in expected.items():
         assert result[key] == pytest.approx(expected_val, rel=1e-12), f"mismatch on {key}"
