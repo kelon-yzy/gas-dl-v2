@@ -15,6 +15,10 @@ outputs/*.zip
 !outputs/archive/.gitkeep
 data/hitran_cache*/
 data/sg4-*/
+data/_archived_pre_200khz/
+# wv4-smoke 波形数组（int32/20-bit 采样点 ×5 后单文件超 GitHub 100MB 限制），本地生成不进 git
+data/wv4-smoke/sequences/*.npy
+data/wv4-smoke/sequences/*.npz
 logs/
 .ace-tool/
 .claude/settings.local.json

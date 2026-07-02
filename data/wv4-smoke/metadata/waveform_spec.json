@@ -1,12 +1,13 @@
 {
   "ultrasonic": {
     "model_name": "tof_observed_transducer_proxy_v1",
-    "sample_rate_hz": 200000,
-    "center_frequency_hz": 40000.0,
+    "sample_rate_hz": 1000000,
+    "center_frequency_hz": 200000.0,
     "burst_cycles": 8,
     "measurement_window_s": 0.005,
-    "adc_max_int16": 32767,
-    "daq_full_scale_v": 5.0,
+    "daq_bits": 20,
+    "waveform_dtype": "int32",
+    "daq_full_scale_v": 2.5,
     "noise_std_v": 0.001,
     "acoustic_attenuation_model": "semi_empirical_multigas_relaxation_proxy_v2",
     "system_delay_model": "fixed_delay_plus_trigger_jitter_v1",
@@ -15,18 +16,20 @@
     "delay_correction_s": 8.2e-05,
     "trigger_jitter_std_s": 3e-06,
     "transducer_response_model": "second_order_resonant_bandpass_proxy_v1",
-    "transducer_bandwidth_hz": 12000.0,
+    "transducer_bandwidth_hz": 20000.0,
     "transducer_ringdown_cycles": 4.0,
     "calibration_status": "pending",
-    "waveform_samples": 1000
+    "adc_max": 524287,
+    "waveform_samples": 5000
   },
   "fiber_mic": {
     "model_name": "fiber_interferometric_proxy_v1",
-    "sample_rate_hz": 200000,
-    "center_frequency_hz": 40000.0,
+    "sample_rate_hz": 1000000,
+    "center_frequency_hz": 200000.0,
     "burst_cycles": 8,
     "measurement_window_s": 0.01,
-    "adc_max_int16": 32767,
+    "daq_bits": 20,
+    "waveform_dtype": "int32",
     "acoustic_attenuation_model": "semi_empirical_multigas_relaxation_proxy_v2",
     "acoustic_field_model": "probe_pressure_with_optional_reflections_v1",
     "fiber_optical_demodulation_model": "linear_phase_demodulation_proxy_v1",
@@ -51,7 +54,8 @@
     "acoustic_reflection_coef": 0.08,
     "max_reflections": 3,
     "calibration_status": "pending",
-    "waveform_samples": 2000
+    "adc_max": 524287,
+    "waveform_samples": 10000
   },
   "slow_channels": [
     "V_NDIR_CH4",
@@ -71,12 +75,43 @@
   ],
   "timesteps": 128,
   "dt_s": 0.5,
+  "stage_profile": "standard_exposure",
+  "stage_jitter": 0.0,
+  "phase_schedule": {
+    "name": "standard_exposure",
+    "segments": [
+      {
+        "name": "baseline",
+        "duration_frac": 0.25,
+        "blend_shape": "hold0",
+        "blend_floor": 0.0
+      },
+      {
+        "name": "exposure",
+        "duration_frac": 0.25,
+        "blend_shape": "ramp_up",
+        "blend_floor": 0.0
+      },
+      {
+        "name": "steady",
+        "duration_frac": 0.25,
+        "blend_shape": "hold1",
+        "blend_floor": 0.0
+      },
+      {
+        "name": "recovery",
+        "duration_frac": 0.25,
+        "blend_shape": "ramp_down",
+        "blend_floor": 0.0
+      }
+    ]
+  },
   "path_lms": [
+    0.18,
     0.2,
+    0.22,
     0.25,
-    0.3,
-    0.35,
-    0.4
+    0.28
   ],
   "optical_absorption_backend": "hitran_hapi_v1",
   "ultrasonic_model": "tof_observed_transducer_proxy_v1",
@@ -86,7 +121,7 @@
   "ultrasonic_delay_correction_s": 8.2e-05,
   "ultrasonic_trigger_jitter_std_s": 3e-06,
   "ultrasonic_transducer_response_model": "second_order_resonant_bandpass_proxy_v1",
-  "ultrasonic_transducer_bandwidth_hz": 12000.0,
+  "ultrasonic_transducer_bandwidth_hz": 20000.0,
   "fiber_mic_model": "fiber_interferometric_proxy_v1",
   "fiber_mic_acoustic_field_model": "probe_pressure_with_optional_reflections_v1",
   "fiber_optical_demodulation_model": "linear_phase_demodulation_proxy_v1",

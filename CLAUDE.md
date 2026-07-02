@@ -61,6 +61,8 @@ syngas 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动�
 
 ### Benchmark 命名
 
+> **2026-07-02 仿真链路对齐**：超声载波 40kHz→200kHz（PSC200K）、采样率 200k→1MS/s、ADC 16-bit→20-bit（NI-6453）、L_m 范围 0.2~1.8m→0.2~0.3m（200kHz 下长声程信号被 CH₄/CO₂ 弛豫吸收淹没，见 `docs/Phase0_物理可行性核对记录.md`）。旧 benchmark 已归档至 `data/_archived_pre_200khz/`，**不可用于新链路训练**。manifest 新增 `sim_revision` 字段标记链路版本（`v5-200khz-20bit-L03`）。`wv4-smoke` / `sg4-smoke` 已按新链路重生成；formal 集（`wv4-formal-hitran-standard-6000`、`sg4-formal`、`sg4-formal-crosstalk`、`sg4-hitran-smoke`）需用原参数重生成后才能使用。
+
 - `wv4-smoke` / `wv4-formal*` — 掺氢天然气；正式 6000 序列集 `wv4-formal-hitran-standard-6000` 可通过 `--experiment-preset formal-hitran-standard-6000` 一键固定。
 - `sg4-smoke` / `sg4-formal` — 合成气 smoke / 正式集（empirical 后端，6000 序列）
 
