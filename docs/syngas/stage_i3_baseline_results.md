@@ -1,5 +1,7 @@
 # 阶段 Ⅰ-3 基线训练结果（2026-06-26）
 
+> ⚠️ **2026-06-27 已废弃**：sg4 系列正式数据集 timesteps 已从 128 改为 512（与 hg `wv4-formal-hitran-standard-6000` 一致）。本文档记录的 15 个 run 全部基于 sg4-formal (128 步)，**已废弃，待 512 步重跑**。下方所有 R²/MAE/RMSE 数字保留为历史事实，**不可作为论文最终结论引用**。
+
 > 5 模型 × 3 seeds (`42 / 123 / 2026`) = 15 runs，在 `data/sg4-formal`（6000 序列 / 128 时步 / 9 慢通道）上训练。
 > 数据：empirical 光学后端，`enable_co_crosstalk=False`，split 4200/900/600/300。
 > 训练参数：epochs=50，AdamW lr=1e-3，weight_decay=1e-4，AMP fp16，ReduceOnPlateau，early_stopping patience=10。

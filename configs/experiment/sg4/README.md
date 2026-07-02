@@ -7,7 +7,7 @@
 | 文件 | 模型 | 用途 |
 |---|---|---|
 | `sg4_baseline.json` | CNN1D | DL 基线：`python -m dl.cli --config configs/experiment/sg4/sg4_baseline.json` |
-| `sg4_tcn.json` | TCN | 时序卷积基线，target_timesteps=128 |
+| `sg4_tcn.json` | TCN | 时序卷积基线，target_timesteps=512 |
 | `sg4_lstm.json` | LSTM | 循环网络基线，hidden=64 / num_layers=2 |
 | `sg4_patchtst.json` | PatchTST | Patch-based Transformer 基线，patch_len=16 / stride=8 |
 | `sg4_ridge.json` | Ridge | 传统 ML 基线（闭式解），`python -m ml.cli --config configs/experiment/sg4/sg4_ridge.json` |
@@ -24,12 +24,12 @@ python -m pipeline.generate_syngas_benchmark `
     --timesteps 32 --dt-s 0.5 --optical-absorption-backend empirical_v1 --workers 1
 ```
 
-`sg4-formal` benchmark（正式实验数据，6000 序列）：
+`sg4-formal` benchmark（正式实验数据，6000 序列 / 512 时步，与 hg `wv4-formal-hitran-standard-6000` 时间轴对齐）：
 
 ```powershell
 python -m pipeline.generate_syngas_benchmark `
     --output-root data --dataset sg4-formal --sequences 6000 --seed 20260626 `
-    --timesteps 128 --dt-s 0.5 --optical-absorption-backend empirical_v1 `
+    --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 `
     --storage memmap --workers 24
 ```
 

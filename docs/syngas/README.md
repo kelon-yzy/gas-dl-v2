@@ -3,6 +3,8 @@
 > 本目录统一管理合成气 / 煤气化制气新四组分适配相关文档。
 > 新四组分指 `H₂ / CH₄ / CO₂ / CO`，其中 `N₂` 作为背景气参与物理仿真，但不作为预测目标。
 
+> ⚠️ **2026-06-27 时间轴对齐变更**：sg4 系列正式数据集 timesteps 已从 128 改为 512（与 hg `wv4-formal-hitran-standard-6000` 一致）。当前的 `data/sg4-formal` (128 步) 与基于它产出的 Stage Ⅰ-3 / Stage Ⅱ 全部 41 个 run 结果**已废弃，待 512 步重跑**。所有正式 benchmark 生成命令、TCN 配置 `target_timesteps`、PatchTST attention cost 等均已同步更新；历史结果文档保留原数字，顶部标注废弃状态。
+
 ## 实施状态（截至 2026-06-26）
 
 阶段 1–4 已完成；阶段 Ⅰ 正式实验已启动：
@@ -18,11 +20,11 @@ pipeline.generate_syngas_benchmark  →  data/sg4-formal/ (6000 seq)  →  dl.cl
 | 3a/3b | slow + benchmark + CLI（empirical 后端） | ✅ 15 测试通过 |
 | 3c | HITRAN 后端 + CO/CO₂/H₂O 三气体缓存 | ⏳ 留位（HITRAN backend raise NotImplementedError） |
 | 4 | DL 训练适配 | ✅ 9 测试通过 |
-| **Ⅰ-1** | sg4-formal benchmark 生成 | ✅ 6000 序列 / 128 时步 / 9 慢通道，validation pass |
+| **Ⅰ-1** | sg4-formal benchmark 生成 | ⚠️ 6000 序列 / 128 时步 / 9 慢通道，validation pass — **已废弃，待 512 时步重跑** |
 | **Ⅰ-2** | 实验配置矩阵（CNN1D / TCN / LSTM / PatchTST / Ridge） | ✅ 5 配置就绪 |
-| **Ⅰ-3** | 基线训练（5 模型 × 3 seeds = 15 runs，PatchTST 重跑 +3） | ✅ 14/15 收敛（TCN≈Ridge pool R²≈0.96，PatchTST/CNN1D/LSTM ≈ 0.93），见 [stage_i3_baseline_results.md](stage_i3_baseline_results.md) |
+| **Ⅰ-3** | 基线训练（5 模型 × 3 seeds = 15 runs，PatchTST 重跑 +3） | ⚠️ 14/15 收敛（TCN≈Ridge pool R²≈0.96，PatchTST/CNN1D/LSTM ≈ 0.93），见 [stage_i3_baseline_results.md](stage_i3_baseline_results.md) — **基于 128 步，已废弃，待 512 步重跑** |
 | Ⅰ-3 配套修复 | 编排脚本 LSTM 退出码兼容 + trainer AMP bf16 兼容（全量 444 测试通过，hg 零回归） | ✅ |
-| **Ⅱ** | ablation 实验（CO 通道 / 串扰 / Loss，27 runs） | ✅ 全部成功，V_NDIR_CO 支配 CO 检测、串扰可学、CH₄ 受 loss 加权决定，见 [stage_ii_ablation_results.md](stage_ii_ablation_results.md) |
+| **Ⅱ** | ablation 实验（CO 通道 / 串扰 / Loss，27 runs） | ⚠️ 全部成功，V_NDIR_CO 支配 CO 检测、串扰可学、CH₄ 受 loss 加权决定，见 [stage_ii_ablation_results.md](stage_ii_ablation_results.md) — **基于 128 步，已废弃，待 512 步重跑** |
 | Ⅱ 配套代码 | channel 子集选择（DL+Ridge）+ crosstalk CLI 四层透传 + 测试（全量 462 测试通过，hg 零回归） | ✅ |
 
 全量回归 462 passed（baseline 353 + syngas 增量 109，含 Stage Ⅱ ablation 18 个测试）。
@@ -91,10 +93,10 @@ python -m pipeline.generate_syngas_benchmark `
     --output-root data --dataset sg4-smoke --sequences 32 --seed 20260626 `
     --timesteps 32 --dt-s 0.5 --optical-absorption-backend empirical_v1 --workers 1
 
-# 1b. 生成 sg4-formal benchmark（6000 序列 / 128 时步 / 24 workers，约 90 秒）
+# 1b. 生成 sg4-formal benchmark（6000 序列 / 512 时步 / 24 workers，约 6–8 分钟，与 hg `wv4-formal-hitran-standard-6000` 时间轴对齐）
 python -m pipeline.generate_syngas_benchmark `
     --output-root data --dataset sg4-formal --sequences 6000 --seed 20260626 `
-    --timesteps 128 --dt-s 0.5 --optical-absorption-backend empirical_v1 `
+    --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 `
     --storage memmap --workers 24
 
 # 2. DL 基线训练（cnn1d + weighted_component_mse，单 seed）

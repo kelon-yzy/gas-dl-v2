@@ -4,6 +4,8 @@
 > 阶段 Ⅰ 已完成 14/15 runs（TCN ≈ Ridge pool R²≈0.96，PatchTST 修复后 0.935），详见 [stage_i3_baseline_results.md](stage_i3_baseline_results.md)。
 > 阶段 Ⅱ 已完成 27/27 runs，三组 ablation 结论见 [stage_ii_ablation_results.md](stage_ii_ablation_results.md)。
 
+> ⚠️ **2026-06-27 时间轴对齐变更**：sg4 系列正式数据集 timesteps 从 128 改为 512（与 hg `wv4-formal-hitran-standard-6000` 一致）。下方"当前状态"与"阶段 Ⅰ/Ⅱ 执行记录"中描述的 sg4-formal (128 步) 与 41 个 run 结果**已废弃，待 512 步重跑**；"阶段 Ⅰ — 正式 benchmark + 基线实验"章节往后是 512 步下的新计划，命令模板与产物 shape 已同步更新。
+
 ---
 
 ## 当前状态
@@ -78,7 +80,7 @@ python -m pipeline.generate_syngas_benchmark `
 | 配置 | 模型 | 关键参数 |
 |---|---|---|
 | `sg4_baseline.json` | CNN1D | `hidden=[16,32,32]`，kernel=5，dropout=0.1 |
-| `sg4_tcn.json` | TCN | `target_timesteps=128`，kernel=3，dropout=0.1 |
+| `sg4_tcn.json` | TCN | `target_timesteps=128`（Stage Ⅰ-3 实测值，**当前已更新为 512**），kernel=3，dropout=0.1 |
 | `sg4_lstm.json` | LSTM | `hidden=64`，`num_layers=2`，单向 |
 | `sg4_patchtst.json` | PatchTST | `patch_len=16`，`stride=8`，`d_model=64`，`nhead=4` |
 | `sg4_ridge.json` | Ridge | `alpha=1.0`，slow modality，7 个 sequence statistics |
@@ -198,7 +200,7 @@ manifest `optical_crosstalk_policy=syngas_empirical_3x3_step2_co2_co_crosstalk`�
 
 ### Ⅰ-1. 生成正式规模 benchmark
 
-参考 hg `wv4-formal-hitran-standard-6000` 的规模（6000 序列）。
+参考 hg `wv4-formal-hitran-standard-6000` 的规模（6000 序列 / 512 时步），完整对齐时间轴。
 
 ```powershell
 python -m pipeline.generate_syngas_benchmark `
@@ -206,7 +208,7 @@ python -m pipeline.generate_syngas_benchmark `
     --dataset sg4-formal `
     --sequences 6000 `
     --seed 20260626 `
-    --timesteps 128 `
+    --timesteps 512 `
     --dt-s 0.5 `
     --optical-absorption-backend empirical_v1 `
     --storage memmap `
@@ -219,7 +221,7 @@ python -m pipeline.generate_syngas_benchmark `
 |--------|------|
 | `manifest.json` → `composition_scheme` | `"syngas"` |
 | `labels/y.npy` shape | `(6000, 4)` |
-| `sequences/slow.npy` shape | `(6000, 128, 9)` |
+| `sequences/slow.npy` shape | `(6000, 512, 9)` |
 | `metadata/label_names.npy` | `["x_H2", "x_CH4", "x_CO2", "x_CO"]` |
 | `condition_grid_sequence.csv` 含 `x_N2` 列 | 是 |
 | `quality/validation_summary.json` → `status` | `"pass"` |

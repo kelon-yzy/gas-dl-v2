@@ -4,6 +4,8 @@
 > 所有审查修正项已直接合并到对应章节，以 `[审查修正]` 标记。
 > 文献常数已从 `docs/syngas/references/` 同步，以 `[文献确认]` 标记。
 
+> ⚠️ **2026-06-27 时间轴对齐变更**：sg4 系列正式数据集 timesteps 已从 128 改为 512（与 hg `wv4-formal-hitran-standard-6000` 一致）。下文"实施进度"中描述的 sg4-formal (128 步) 数据集与 Stage Ⅰ-3 / Stage Ⅱ 基于它的 41 个 run 结果**已废弃，待 512 步重跑**。文中具体命令、shape 记录保留为历史事实。新生成命令以 `configs/experiment/sg4/README.md` 与 `docs/syngas/README.md` 顶部为准。
+
 ---
 
 ## 实施进度（截至 2026-06-27）

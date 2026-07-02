@@ -1,5 +1,7 @@
 # 阶段 Ⅱ 关键 ablation 实验实施计划
 
+> ⚠️ **2026-06-27 已废弃**：sg4 系列正式数据集 timesteps 已从 128 改为 512（与 hg `wv4-formal-hitran-standard-6000` 一致）。本文档"实施进度"中记录的 27 个 run 全部基于 sg4-formal / sg4-formal-crosstalk (128 步)，**已废弃，待 512 步重跑**。下方原始实施细节保留为历史事实，命令模板中的 `--timesteps 128` 在 512 步重跑时需替换。
+
 > 本文档从 `.claude/plans/tidy-yawning-stearns.md`（已批准的实施计划）复制到项目文档目录，并在开头补充实施进度。
 > 计划主体见下方「## Context」起的原始内容，未作改动。
 

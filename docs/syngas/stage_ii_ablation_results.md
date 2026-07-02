@@ -1,5 +1,7 @@
 # 阶段 Ⅱ ablation 实验结果（2026-06-27）
 
+> ⚠️ **2026-06-27 已废弃**：sg4 系列正式数据集 timesteps 已从 128 改为 512（与 hg `wv4-formal-hitran-standard-6000` 一致）。本文档记录的 27 个 run 全部基于 sg4-formal / sg4-formal-crosstalk (128 步)，**已废弃，待 512 步重跑**。下方所有 R²/MAE/RMSE 数字、结论（V_NDIR_CO 主导 / 串扰可学 / loss 加权对 CH₄ 翻倍）保留为历史事实，**不可作为论文最终结论引用**，但是结论方向可作为 512 步重跑的预期参考。
+
 > 三组 ablation 共 27 runs，全部在 `data/sg4-formal`（6000 序列 / 128 时步 / 9 慢通道，empirical 后端，`enable_co_crosstalk=False`，split 4200/900/600/300）上展开，仅 Ⅱ-2 使用同参数 `enable_co_crosstalk=True` 重新生成的 `data/sg4-formal-crosstalk`（6000 / 128，optical_crosstalk_policy=`syngas_empirical_3x3_step2_co2_co_crosstalk`）。
 > 训练参数：epochs=50，AdamW lr=1e-3，weight_decay=1e-4，AMP fp16，ReduceOnPlateau（factor=0.5 / patience=5 / min_lr=1e-6），early_stopping patience=10。
 > Loss：除 Ⅱ-3 外均为 `weighted_component_mse`（inverse_train_var）。
