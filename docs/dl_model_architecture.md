@@ -49,14 +49,14 @@
 ### 架构总览
 
 ```
-输入 (B, T, 3008)
+输入 (B, T, 15008)
     ↓
 ┌───────────────────────────────────────────────────────────┐
 │  第一阶段: 多模态特征编码                                     │
 ├───────────────────────────────────────────────────────────┤
 │  slow (8-d) → SlowFeatureEncoder → (B, T, 64)             │
-│  ultrasonic (1000-d) → DeepAcousticEncoder1D → (B, T, 64) │
-│  fiber_mic (2000-d) → DeepAcousticEncoder1D → (B, T, 64)  │
+│  ultrasonic (5000-d) → DeepAcousticEncoder1D → (B, T, 64) │
+│  fiber_mic (10000-d) → DeepAcousticEncoder1D → (B, T, 64) │
 └───────────────────────────────────────────────────────────┘
     ↓ concat
   (B, T, 192)
@@ -111,8 +111,8 @@
 #### 输入预处理
 
 ```python
-# int16 原始波形 → 归一化
-waveform_normalized = waveform.float() / 32767.0
+# int32 原始波形（20-bit ADC）→ 归一化
+waveform_normalized = waveform.float() / 524287.0
 ```
 
 #### 1D CNN 特征提取
@@ -457,7 +457,7 @@ def _init_weights(module):
 ### 8.1 分层编码哲学
 
 ```
-原始信号空间 (3008-d 波形)
+原始信号空间 (15008-d 波形)
     ↓ CNN
 嵌入空间 (192-d 语义特征)
     ↓ TCN
@@ -533,7 +533,7 @@ def _init_weights(module):
 ### 10.3 已知瓶颈
 
 1. **N₂ 闭包残差**: gas_head 硬约束导致 N₂ 成为误差累积器
-2. **小样本困境**: 4000 样本支撑 3008 维输入，数据效率低
+2. **小样本困境**: 4000 样本支撑 15008 维输入，数据效率低
 3. **波形编码容量**: CNN 可能未充分提取声学模式
 4. **固定感受野**: TCN RF=29 可能不足以捕获长距离依赖
 5. **架构搜索空间**: 未尝试 Transformer / Attention 机制
