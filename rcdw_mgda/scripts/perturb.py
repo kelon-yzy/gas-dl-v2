@@ -162,15 +162,16 @@ def _summarize_model_outputs(
     gas_names: list[str],
 ) -> tuple[dict[str, object], torch.Tensor]:
     """计算 raw fusion、hard-suppress fusion、权重与退化统计。"""
-    raw_metrics = compute_per_gas_metrics(out["C"], y_ref)
+    raw_metrics = compute_per_gas_metrics(out["C"], y_ref, gas_names=gas_names)
     W_final, degraded = hard_suppress(
         out["W"],
         out["E_pred"],
         ratio=deg_cfg["ratio"],
         cap=deg_cfg["cap"],
+        absolute_threshold=deg_cfg.get("absolute_threshold"),
     )
     C_hs = (W_final * out["Y_modal"]).sum(dim=1)
-    hs_metrics = compute_per_gas_metrics(C_hs, y_ref)
+    hs_metrics = compute_per_gas_metrics(C_hs, y_ref, gas_names=gas_names)
 
     degraded_rate = degraded.float().mean(dim=0)
     payload: dict[str, object] = {
@@ -246,6 +247,9 @@ def main():
     model = RCDW_MGDA(
         W_base,
         hidden=cfg["model"]["single_modal"]["hidden"],
+        err_hidden=cfg["model"].get("error_net", {}).get(
+            "hidden", cfg["model"]["single_modal"]["hidden"]
+        ),
         window=window,
         fusion_kwargs=fusion_kwargs,
     )
@@ -255,7 +259,7 @@ def main():
     kinds = cfg["perturbation"]["kinds"]
     levels = cfg["perturbation"]["levels"]
     deg_cfg = cfg["degradation"]
-    gas_names = ["O2", "CO2", "N2"]
+    gas_names = list(test_ds.label_display_names)
     modal_names = ["NDIR", "TCD", "US"]
 
     report: dict[str, object] | None = None

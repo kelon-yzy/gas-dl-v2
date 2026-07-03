@@ -57,6 +57,9 @@ def main():
     model = RCDW_MGDA(
         W_base,
         hidden=cfg["model"]["single_modal"]["hidden"],
+        err_hidden=cfg["model"].get("error_net", {}).get(
+            "hidden", cfg["model"]["single_modal"]["hidden"]
+        ),
         window=window,
         fusion_kwargs=fusion_kwargs,
     )
@@ -71,7 +74,11 @@ def main():
         for x_w, y in loader:
             out = model(x_w)
             W, _ = hard_suppress(
-                out["W"], out["E_pred"], ratio=deg["ratio"], cap=deg["cap"]
+                out["W"],
+                out["E_pred"],
+                ratio=deg["ratio"],
+                cap=deg["cap"],
+                absolute_threshold=deg.get("absolute_threshold"),
             )
             C = (W * out["Y_modal"]).sum(dim=1)
             C = normalize_composition(C, basis=cfg["eval"]["basis"])
@@ -80,12 +87,12 @@ def main():
 
     pred = torch.cat(all_pred)
     ref = torch.cat(all_ref)
-    results = compute_per_gas_metrics(pred, ref)
+    results = compute_per_gas_metrics(pred, ref, gas_names=ds.label_display_names)
 
     print(f"\n=== Evaluation on {args.split} set ({len(pred)} samples) ===\n")
     print(f"{'Gas':<10} {'MAE':>8} {'RMSE':>8} {'MRE%':>8} {'MaxRE%':>8}")
     print("-" * 46)
-    for gas in ["O2", "CO2", "N2", "overall"]:
+    for gas in list(ds.label_display_names) + ["overall"]:
         m = results[gas]
         print(
             f"{gas:<10} {m['MAE']:8.5f} {m['RMSE']:8.5f} "

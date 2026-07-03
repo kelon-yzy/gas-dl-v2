@@ -142,7 +142,7 @@ def generate_benchmark_dataset(output_root: Path | str, spec: BenchmarkGeneratio
             "sample_rate_hz": int(ultrasonic_spec.sample_rate_hz),
             "daq_bits": int(ultrasonic_spec.daq_bits),
             "waveform_dtype": str(ultrasonic_spec.waveform_dtype),
-            "l_m_range": [0.2, 0.3],
+            "l_m_range": [float(min(spec.path_lms)), float(max(spec.path_lms))],
             "physics_backend": "ideal_gas_wms_fracdelay",
             "tag": "v6-phys-strict",
         }

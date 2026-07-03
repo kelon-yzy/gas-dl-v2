@@ -57,7 +57,8 @@ def run_stage_b(
         for x_w, y in train_loader:
             x_w, y = x_w.to(device), y.to(device)
             out = model(x_w)
-            loss, _ = criterion(out["C"], y, out["E_pred"], out["Y_modal"])
+            y_modal = out["Y_modal"].detach()
+            loss, _ = criterion(out["C"], y, out["E_pred"], y_modal)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -75,7 +76,8 @@ def run_stage_b(
             for x_w, y in val_loader:
                 x_w, y = x_w.to(device), y.to(device)
                 out = model(x_w)
-                loss, _ = criterion(out["C"], y, out["E_pred"], out["Y_modal"])
+                y_modal = out["Y_modal"].detach()
+                loss, _ = criterion(out["C"], y, out["E_pred"], y_modal)
                 val_loss_sum += loss.item() * len(y)
                 val_count += len(y)
                 all_pred.append(out["C"].cpu())

@@ -152,8 +152,8 @@
     "daq_bits": 20,
     "waveform_dtype": "int32",
     "l_m_range": [
-      0.2,
-      0.3
+      0.18,
+      0.28
     ],
     "physics_backend": "ideal_gas_wms_fracdelay",
     "tag": "v6-phys-strict"

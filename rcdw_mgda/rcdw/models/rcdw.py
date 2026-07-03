@@ -98,6 +98,7 @@ class RCDW_MGDA(nn.Module):
         self,
         W_base: torch.Tensor,
         hidden: int = 32,
+        err_hidden: int | None = None,
         window: int = 8,
         fusion_kwargs: dict | None = None,
     ):
@@ -105,7 +106,8 @@ class RCDW_MGDA(nn.Module):
 
         Args:
             W_base: (M=3, G=3) 基线权重，每列 sum=1.0
-            hidden: 单模态网络与 ErrorNet 的隐藏维
+            hidden: 单模态网络隐藏维
+            err_hidden: ErrorNet 隐藏维；None 时沿用 hidden 以兼容旧调用。
             window: 滑窗长度 L（FeatureExtractor 内部使用）
             fusion_kwargs: 透传给 RCDWFusion 的超参（beta/alpha_min/alpha_max/
                 tau_a/s_min/s_max/tau_s）。None 时使用 RCDWFusion 默认值。
@@ -115,7 +117,7 @@ class RCDW_MGDA(nn.Module):
         self.tcd = TCDNet(in_dim=4, hidden=hidden)
         self.usn = USNet(in_dim=4, hidden=hidden)
         self.feat = FeatureExtractor(window=window)
-        self.err = ErrorNet(in_dim=13, n_gas=3, hidden=hidden)
+        self.err = ErrorNet(in_dim=13, n_gas=3, hidden=err_hidden or hidden)
         self.fuse = RCDWFusion(W_base, **(fusion_kwargs or {}))
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:

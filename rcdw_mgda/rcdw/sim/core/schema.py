@@ -11,6 +11,7 @@ SCHEMA_VERSION = "rcdw-benchmark-1"
 
 # 三组分闭包：O2 / CO2 / N2，sum = 100%；自由度 d = 2。
 COMPONENT_FIELDS = ("x_O2", "x_CO2", "x_N2")
+GAS_DISPLAY_NAMES = tuple(name.removeprefix("x_") for name in COMPONENT_FIELDS)
 
 # 7 个慢通道。与 HG 主线相比：删除 V_NDIR_CH4（RCDW 无 CH4）。
 SLOW_CHANNELS = (

@@ -178,3 +178,9 @@ def test_dataset_load_dataloader_pytorch_compatible(smoke_benchmark):
     assert batch_x.shape[1:] == (8, 12)
     assert batch_y.shape[1] == 3
     assert batch_x.shape[0] <= 4
+
+
+def test_dataset_label_names_follow_manifest(smoke_benchmark):
+    ds = BenchmarkDataset(smoke_benchmark, split="train", window=8)
+    assert ds.label_names == ("x_O2", "x_CO2", "x_N2")
+    assert ds.label_display_names == ("O2", "CO2", "N2")

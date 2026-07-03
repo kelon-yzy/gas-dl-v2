@@ -58,3 +58,11 @@ def test_rejects_grad_inputs():
     E2 = (torch.ones(4, 3, 3) * 0.05).requires_grad_(True)
     with pytest.raises(AssertionError):
         hard_suppress(W2, E2)
+
+
+def test_absolute_threshold_catches_uniform_degradation():
+    """所有模态误差都超过绝对阈值时，也应触发硬抑制。"""
+    W = torch.ones(4, 3, 3) / 3
+    E = torch.ones(4, 3, 3) * 0.20
+    _W_out, degraded = hard_suppress(W, E, absolute_threshold=0.15)
+    assert degraded.all()

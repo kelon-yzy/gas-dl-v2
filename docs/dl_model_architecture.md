@@ -1,10 +1,10 @@
 # DL 最佳模型算法框架
 
-**模型名称**: CNN1DTCNFusionRegressor (P0-B 配置)
+**模型名称**: CNN1DTCNFusionRegressor (P0-B raw4 配置)
 
 **当前性能**: Overall R²=+0.4844 (test)
 
-**最后更新**: 2026-06-24
+**最后更新**: 2026-07-03
 
 ---
 
@@ -90,11 +90,11 @@
 │    Linear(192, 128) → ReLU → Dropout(0.25)               │
 │    Linear(128, 64) → ReLU → Dropout(0.25)                │
 │                                                           │
-│  GasHeadNormalize (output_mode="gas_head"):              │
-│    Linear(64, 4) → 特殊约束变换                            │
-│    - 前3维 → Softmax → 自由组分比例                         │
-│    - 第4维 → Sigmoid → 自由组分总和 (0-100%)                │
-│    - N₂ = 100 - sum(H₂, CH₄, CO₂)                        │
+│  Raw4 Head (output_mode="raw4"):                         │
+│    Linear(64, 4) → [H₂, CH₄, CO₂, N₂]                    │
+│    - 直接回归四个组分百分比                                  │
+│    - 不施加强闭包，sum_abs_error 作为评估指标跟踪              │
+│    - 搭配 weighted_component_mse 监督全 4 列                 │
 └───────────────────────────────────────────────────────────┘
     ↓
 输出 (B, 4) — [H₂%, CH₄%, CO₂%, N₂%]
@@ -312,9 +312,22 @@ shared_head = Sequential(
 )
 ```
 
-### 6.2 输出头：GasHeadNormalize
+### 6.2 当前输出头：raw4
 
 **P0-B 最佳配置使用的输出头**
+
+当前 P0-B run 为 `cnn1d_tcn_fusion_raw4_p0b_ch4co2_mild`，使用 `output_mode="raw4"`：
+
+```python
+output_head = Linear(64, 4)
+pred = output_head(features)  # (B, 4), [H2, CH4, CO2, N2]
+```
+
+raw4 不在模型内部强制 `sum(components)=100%`，但直接监督全部 4 个组分，避免 `GasHeadNormalize` 把 N₂ 固定为前三组分残差后形成误差累积器。闭包误差通过 `sum_abs_error` 在评估中显式跟踪。
+
+### 6.3 可用闭包输出头：GasHeadNormalize
+
+**历史/备选配置使用的输出头，当前 P0-B 不使用**
 
 #### 核心约束机制
 
@@ -365,11 +378,12 @@ def _init_prior(self, output_prior):
     self.linear.bias.data = concat([free_logits, [total_logit]])
 ```
 
-### 6.3 备选输出模式 (未使用)
+### 6.4 输出模式状态
 
 | 模式                    | 结构                      | 约束      | 状态                  |
 | --------------------- | ----------------------- | ------- | ------------------- |
-| **raw4**              | Linear(64, 4)           | 无       | 可用但性能略低             |
+| **raw4**              | Linear(64, 4)           | 无       | 当前 P0-B 最佳配置       |
+| **GasHeadNormalize**  | Linear(64, 4) + softmax/sigmoid 闭包 | sum=100 | 可用，但 N₂ 为残差，非当前主线 |
 | **GasCoordinateHead** | Linear(64, 3) + ILR 逆变换 | ILR 空间  | 完全不可训练              |
 | **softmax100**        | Linear + Softmax × 100  | sum=100 | 仅 PhaseWindowTCN 支持 |
 
@@ -379,33 +393,38 @@ def _init_prior(self, output_prior):
 
 ### 7.1 损失函数 (P0-B 配置)
 
-**WeightedFreeComponentMSELoss**
+**WeightedComponentMSELoss**
 
 ```python
-loss = WeightedFreeComponentMSELoss(
-    component_weights=[1.0, 2.0, 3.0],  # [H₂, CH₄, CO₂]
-    free_components=3,
+loss = WeightedComponentMSELoss(
+    component_weights=[
+        0.009596459567546844,  # H₂
+        0.012899556197226048,  # CH₄
+        0.16206371784210205,   # CO₂
+        0.029976364225149155,  # N₂
+    ],
 )
 
-# 只监督前 3 个组分，N₂ 通过闭包隐式约束
-error = pred[:, :3] - target[:, :3]  # (B, 3)
-weights = torch.tensor([1.0, 2.0, 3.0])
+# 监督全部 4 个组分
+error = pred[:, :4] - target[:, :4]  # (B, 4)
+weights = torch.tensor([0.00959646, 0.01289956, 0.16206372, 0.02997636])
 loss = mean(error² × weights)
 ```
 
 **权重设计原理**:
 
-- **CH₄ × 2**: 主要组分，基线表现中等 (R²=+0.43)
-- **CO₂ × 3**: 最难预测组分，baseline R²=-0.4 → P0-B 首次转正 +0.27
-- **H₂ × 1**: 已经表现优秀 (R²=+0.78)，不需要额外权重
+- 权重来自 `inverse_train_var × [1, 2, 3, 1]`，保持与 baseline 方差权重量级一致。
+- **CH₄ × 2**: 主要组分，基线表现中等 (R²=+0.43)。
+- **CO₂ × 3**: 最难预测组分，baseline R²=-0.4 → P0-B 首次转正 +0.27。
+- **H₂/N₂ × 1**: 不额外放大；N₂ 仍直接监督，避免闭包残差头的不可学问题。
 
 ### 7.2 优化器
 
 ```python
 optimizer = AdamW(
     model.parameters(),
-    lr=1e-3,
-    weight_decay=1e-5,
+    lr=1.5e-4,
+    weight_decay=1e-4,
     betas=(0.9, 0.999),
 )
 ```
@@ -418,9 +437,10 @@ optimizer = AdamW(
 # 简单 ReduceLROnPlateau
 scheduler = ReduceLROnPlateau(
     optimizer,
-    mode='max',
+    mode='min',  # monitor val_loss
     factor=0.5,
-    patience=5,
+    patience=8,
+    min_lr=1e-6,
 )
 ```
 
@@ -431,7 +451,7 @@ scheduler = ReduceLROnPlateau(
 | **Dropout**       | 0.15 | Acoustic 编码器 |
 | **Dropout**       | 0.25 | TCN, MLP 头   |
 | **BatchNorm**     | -    | 所有卷积层        |
-| **Weight Decay**  | 1e-5 | AdamW        |
+| **Weight Decay**  | 1e-4 | AdamW        |
 | **Gradient Clip** | 1.0  | 全局梯度范数       |
 
 ### 7.5 权重初始化
@@ -482,17 +502,17 @@ def _init_weights(module):
 - 在 **嵌入空间融合**，保留各自特征空间语义
 - 优势: 避免早期融合的信息干扰
 
-### 8.4 闭包约束输出
+### 8.4 raw4 直接监督输出
 
 ```
 优势:
-✅ 硬约束 sum = 100%，不依赖后处理
-✅ 降低优化难度 (4维空间 → 3维自由流形)
-✅ 物理可解释性强
+✅ 四个组分全部直接监督，N₂ 不再只是前三组分误差残差
+✅ 避免 gas_head 闭包参数化下 N₂ 不可独立学习的问题
+✅ 与 inverse_train_var 权重量级兼容，便于做温和组分加权
 
 劣势:
-❌ N₂ 不可独立学习 (R²=-0.01)
-❌ 误差累积在 N₂ 上
+❌ 不硬保证 sum = 100%，需要用 sum_abs_error 跟踪闭包误差
+❌ 输出可能需要评估后处理或额外闭包约束实验
 ```
 
 ---
@@ -501,10 +521,11 @@ def _init_weights(module):
 
 | 方向                     | 配置                                 | 结果                 | 原因分析            |
 | ---------------------- | ---------------------------------- | ------------------ | --------------- |
+| **gas_head 闭包残差头**   | output_mode="gas_head"             | N₂ R² 近 0，非当前主线   | N₂ 由前三组分残差补全，误差累积 |
 | **gas_head (ILR坐标)**   | output_mode="gas_head" + out_dim=3 | 完全不可训练             | 对数比空间非线性压缩，梯度病态 |
 | **PhaseWindowTCN**     | 多窗口架构                              | R²=+0.227          | 容量分散，未超过单窗口     |
 | **P3-A phase-stat 分支** | 接入 420-d Ridge 特征                  | R²=-0.085 (退化2.7×) | 统计特征引入噪声，容量不足   |
-| **P0-A CO₂×2 单组分**     | component_weights=[1, 1, 2, 0]     | R²=-0.403 (崩溃)     | 单组分过度加权破坏训练平衡   |
+| **P0-A CO₂×2 单组分**     | inverse_train_var × [1,1,2,1]     | 低于 P0-B             | CO₂ 转正但整体收益不足    |
 | **Cosine annealing**   | CosineAnnealingLR                  | 性能退化               | 末期低学习率困于局部最优    |
 
 ---
@@ -532,7 +553,7 @@ def _init_weights(module):
 
 ### 10.3 已知瓶颈
 
-1. **N₂ 闭包残差**: gas_head 硬约束导致 N₂ 成为误差累积器
+1. **N₂ 仍弱**: raw4 已直接监督 N₂，但 N₂ R² 仍接近 0，说明可观测信息或特征提取仍不足
 2. **小样本困境**: 4000 样本支撑 15008 维输入，数据效率低
 3. **波形编码容量**: CNN 可能未充分提取声学模式
 4. **固定感受野**: TCN RF=29 可能不足以捕获长距离依赖
@@ -546,21 +567,21 @@ def _init_weights(module):
 
 | 模块                     | 参数量       | 占比   |
 | ---------------------- | --------- | ---- |
-| **Ultrasonic Encoder** | ~24K      | 20%  |
-| **Fiber_mic Encoder**  | ~24K      | 20%  |
-| **Slow Encoder**       | ~2K       | 2%   |
-| **TCN (3层)**           | ~73K      | 60%  |
-| **MLP 头**              | ~18K      | 15%  |
+| **Ultrasonic Encoder** | 55,376    | 21.5% |
+| **Fiber_mic Encoder**  | 55,376    | 21.5% |
+| **Slow Encoder**       | 2,400     | 0.9% |
+| **TCN (3层)**           | 111,360   | 43.2% |
+| **MLP 头**              | 32,960    | 12.8% |
 | **输出头**                | ~260      | <1%  |
-| **总计**                 | **~122K** | 100% |
+| **总计**                 | **257,732** | 100% |
 
 ### 11.2 容量扩张对比
 
 | 配置           | TCN 通道          | 总参数量 | 感受野 |
 | ------------ | --------------- | ---- | --- |
-| **Baseline** | [64, 64, 64]    | 122K | 29  |
-| **P1 扩张**    | [128, 128, 128] | 340K | 29  |
-| **P2 扩展**    | [64] × 6        | 180K | 125 |
+| **Baseline** | [64, 64, 64]    | 257,732 | 29  |
+| **P1 扩张**    | [128, 128, 128] | 516,548 | 29  |
+| **P2 扩展**    | [64] × 6        | 332,228 | 253 |
 
 ---
 
@@ -723,9 +744,9 @@ LHS 维度 d=3（H₂/CO₂/N₂ 三个自由度，CH₄ 为闭合余项），`_
 
 ### 13.5 声学物理（acoustic_physics.py）
 
-**声速** `hidden_sound_speed_v2`（`acoustic_physics.py:45`）：组分声速加权 + 温度修正 `0.6*(t_c-25)`，下限 200 m/s。常数：H₂=1306、CH₄=446、CO₂=268、N₂=353 m/s。
+**声速** `hidden_sound_speed_v2`（`acoustic_physics.py:48`）：理想气体混合公式 `c=sqrt(γ_mix·R·T/M_mix)`，M_mix/cp_mix 按摩尔分数加权，γ_mix=cp_mix/(cp_mix−R)，温度依赖内建（T_K=t_c+273.15），下限 200 m/s。纯组分常数（NIST @298.15K）：M={H₂:0.002016, CH₄:0.01604, CO₂:0.04401, N₂:0.02801} kg/mol，cp={H₂:28.84, CH₄:35.64, CO₂:37.13, N₂:29.12} J/mol/K。替代旧纯组分声速线性加权 + 0.6·(t_c−25) 温度修正（旧查表常数 H₂=1306 等约对应 293K，已移除，详见 `docs/物理模型严格化实施计划.md` §2.2）。
 
-**衰减** `hidden_attenuation_v2`（`acoustic_physics.py:60`）：返回 `alpha_true_v2`（Np/m）及分量分解：
+**衰减** `hidden_attenuation_v2`（`acoustic_physics.py:72`）：返回 `alpha_true_v2`（Np/m）及分量分解：
 
 | 分量 | 机制 | 关键常数 |
 |---|---|---|
@@ -738,9 +759,9 @@ LHS 维度 d=3（H₂/CO₂/N₂ 三个自由度，CH₄ 为闭合余项），`_
 
 **200kHz 物理约束**：CH₄/CO₂ 弛豫峰在 P=0.5MPa 下上移至 ~140kHz，载波落在峰附近，CH₄ 主导气样在 L≥0.5m 信号被吸收淹没。这是 L_m 上限压缩到 0.3m 的根因（见 `docs/Phase0_物理可行性核对记录.md`）。
 
-**主特征** `main_sensor_features`（`acoustic_physics.py:162`）：输出 TOF（含 80µs 系统延迟 + 3µs 触发抖动）、Amp（`exp(-αL)`）、f_peak（载波 + 组分偏移）、A_fft_max、V_NDIR_CH4/CO2（Beer-Lambert `baseline·exp(-A)`）、V_TCS（热导线性模型）、饱和标志、光学/热漂移。`f_hz` 参数化（Phase 1 改造），消除原硬编码 40000。
+**主特征** `main_sensor_features`（`acoustic_physics.py:174`）：输出 TOF（含 80µs 系统延迟 + 3µs 触发抖动）、Amp（`exp(-αL)`）、f_peak（载波 + 组分偏移）、A_fft_max、V_NDIR_CH4/CO2（Beer-Lambert `baseline·exp(-A)`）、V_TCS（WMS 热导模型）、饱和标志、光学/热漂移。`f_hz` 参数化（v5 链路对齐改造），消除原硬编码 40000。
 
-**TCS 热导**：`_hidden_lambda_mix` 经验线性 `λ=0.034+0.00155·x_H2-0.00011·x_CO2+...`，`_tcs_voltage` 映射到电压。HITRAN 模式下 `thermal_conductivity_sensor_feature` 仅算 TCS。
+**TCS 热导**：`_hidden_lambda_mix` Wassiljewa-Mason-Saxena 混合规则 `λ_m=Σ_i(y_i·λ_i(T)/Σ_j y_j·φ_ij)`，φ_ij 用 Wilke 粘度混合形式；逐组分幂律温度修正 `λ_i(T)=λ_i(298)·(T/298)^n_i`（H₂ 0.78、CH₄ 0.82、CO₂ 0.87、N₂ 0.77）。纯组分常数 @298.15K：λ={H₂:0.1858, CH₄:0.0340, CO₂:0.0166, N₂:0.0258} W/(m·K)，η={H₂:8.90e-6, CH₄:1.108e-5, CO₂:1.491e-5, N₂:1.781e-5} Pa·s。`_tcs_voltage` 映射到电压。HITRAN 模式下 `thermal_conductivity_sensor_feature` 仅算 TCS。替代旧线性经验公式（详见实施计划 §4）。
 
 ### 13.6 波形仿真（waveforms.py）
 
@@ -765,8 +786,9 @@ LHS 维度 d=3（H₂/CO₂/N₂ 三个自由度，CH₄ 为闭合余项），`_
 1. `_compute_physics`（声速 + 衰减，`f_hz=spec.center_frequency_hz`）
 2. `tof_true_s = l_m / c_sound`，加系统延迟/电缆延迟/触发抖动
 3. `transducer_response_pulse`：burst pulse（Hanning 窗正弦）与二阶谐振核卷积，归一化
-4. `_add_pulse_at_peak`：按 `exp(-αL)` 幅度缩放置于 TOF 位置
-5. 加高斯噪声 → `_digitize_waveform` 量化（int32）→ TOF quality 评分
+4. `_add_pulse_at_peak`：按 `exp(-αL)` 幅度缩放置于 `round(tof·fs)` 整数样本位置
+5. `_lagrange_fractional_shift`：Lagrange 5 阶分数延迟 FIR 实现亚样本 TOF 定位（精度 <0.002 采样 = 0.002μs）；整数部分 `_zero_pad_shift` 零填充移位（不环绕），分数部分 `np.convolve(mode="same")` Lagrange 核卷积
+6. 加高斯噪声 → `_digitize_waveform` 量化（int32）→ TOF quality 评分
 
 **光纤麦克风** `simulate_fiber_mic_measurement`（`waveforms.py:276`）：直接脉冲 + 多次反射（最多 3 次，反射系数 0.08）→ 光学相位解调（压力灵敏度或位移灵敏度两路径）→ 光电噪声 → 量化。窗口 10ms → 10000 采样点。
 
@@ -796,7 +818,7 @@ HITRAN 后端位于 `src/sim/generation/spectral/`：`hitran_backend.py`（HAPI 
 - `waveform_sequence.npz`（可选压缩包）
 - 文件名 dtype 后缀由 `common/waveform.py::waveform_array_filename` 统一拼接，读写端共用
 
-**manifest.py** `build_manifest`：schema_version、composition_scheme、dataset 参数、shapes、通道列表、labels、background_fields、optical/acoustic metadata、**sim_revision**（链路版本 `v5-200khz-20bit-L03`）。
+**manifest.py** `build_manifest`：schema_version、composition_scheme、dataset 参数、shapes、通道列表、labels、background_fields、optical/acoustic metadata、**sim_revision**（链路版本 `v6-phys-strict`，`physics_backend: ideal_gas_wms_fracdelay`，`l_m_range` 从 `spec.path_lms` 的 min/max 派生）。
 
 **scalers.py** `fit_z_score_scalers`：z_score，在 train 序列上拟合，输出 `sequence_scaler`（逐通道全局）+ `modal_scaler`（按 optical/thermal/environment 分组）。`Z_SCORE_STD_EPSILON` 防除零。
 
@@ -829,7 +851,7 @@ HITRAN 后端位于 `src/sim/generation/spectral/`：`hitran_backend.py`（HAPI 
 | SLOW_CHANNELS | 8 | 9 (+V_NDIR_CO) |
 | schema_version | v4-benchmark-1 | v4-syngas-1 |
 | conditions 采样 | LHS d=3（H₂/CO₂/N₂） | 顺序采样 d=4（CO→H₂→CO₂→CH₄，方案 B 煤气化全谱） |
-| 声学物理 | 5 参数 | 6 参数（+x_CO，CO 声速 352 ≈ N₂ 353，**声学近简并**） |
+| 声学物理 | 5 参数（H₂/CH₄/CO₂/N₂） | 6 参数（+x_CO）；均用理想气混合公式，CO 与 N₂ 的 M/γ 几乎相同（28g/mol, γ≈1.399），**声学近简并**（声速差 <1 m/s） |
 | 衰减 | 5 分量 | +CO V-T 弛豫（f_relax=12kHz/atm, λ_max=0.025） |
 | NDIR 通道 | CH₄/CO₂ | +CO（独立网格 1980~2310cm⁻¹，Step 1 无串扰 / Step 2 CO₂↔CO 互扰） |
 | HITRAN 缓存 | data/hitran_cache | data/hitran_cache_syngas（隔离） |
@@ -839,7 +861,7 @@ syngas 的 CO 与 N₂ 摩尔质量均为 28，声速差 <1 m/s，声学通道�
 
 ### 13.11 链路版本与历史对齐
 
-2026-07-02 仿真链路对齐实际硬件型号（见 `docs/传感器仿真对齐改造计划.md`）：
+**v5 链路对齐（2026-07-02）**：对齐实际硬件型号（见 `docs/传感器仿真对齐改造计划.md`）：
 
 | 项 | 旧值 | 新值 | 依据 |
 |---|---|---|---|
@@ -852,7 +874,15 @@ syngas 的 CO 与 N₂ 摩尔质量均为 28，声速差 <1 m/s，声学通道�
 | DL in_channels | 3008 | 15008 | 波形采样点 ×5 |
 | 模型归一化 | waveform_int16_scale=32767 | waveform_adc_scale=524287 | adc_max 同步 |
 
-manifest 的 `sim_revision` 字段标记链路版本，旧 benchmark（`data/_archived_pre_200khz/`）不可用于新链路。
+**v6 物理严格化（2026-07-03）**：三个物理子模型从工程代理升级为严格物理公式（见 `docs/物理模型严格化实施计划.md`）：
+
+| 子模型 | 旧实现 | 新实现 | sim_revision 字段 |
+|---|---|---|---|
+| 声速 | 纯组分声速线性加权 + 0.6·(t_c−25) | 理想气混合 c=sqrt(γ_mix·R·T/M_mix) | `physics_backend` 新增 |
+| 波形 TOF | int(round(tof·fs)) 整数量化 | Lagrange 5 阶分数延迟 FIR（亚样本 <0.002μs） | `ideal_gas_wms_fracdelay` |
+| 热导 | 线性经验 λ=0.034+0.00155·x_H2−... | Wassiljewa-Mason-Saxena 混合 + 逐组分幂律温度修正 | `tag: v6-phys-strict` |
+
+manifest 的 `sim_revision` 字段标记链路版本：旧 v5 benchmark 归档至 `data/_archived_pre_200khz/`，v5→v6 过渡期的旧 v6（物理严格化前）benchmark 归档至 `data/_archived_pre_phys_strict/`，均不可用于当前链路训练。`wv4-smoke` / `sg4-smoke` 已按 v6 重生成。
 
 ## 附录 A: 代码路径索引
 
@@ -890,7 +920,7 @@ model:
     in_channels: 15008
     out_dim: 4
     waveform_embedding_dim: 64
-    waveform_adc_scale: 524287.0
+    waveform_adc_scale: 5.0
     acoustic_channels: [16, 32, 64, 64]
     acoustic_kernel_size: 7
     acoustic_dropout: 0.15
@@ -898,23 +928,34 @@ model:
     tcn_kernel_size: 3
     tcn_dropout: 0.25
     shared_hidden_dims: [128, 64]
-    output_mode: "gas_head"
-    output_prior: [9.288469, 75.755157, 4.994778, 9.961745]
+    output_mode: "raw4"
 
 loss:
-  name: weighted_free_component_mse
-  component_weights: [1.0, 2.0, 3.0]
+  name: weighted_component_mse
+  component_weights:
+    - 0.009596459567546844
+    - 0.012899556197226048
+    - 0.16206371784210205
+    - 0.029976364225149155
+
+data:
+  dequantize_waveforms: true
 
 training:
-  epochs: 50
-  batch_size: 32
-  lr: 1e-3
-  weight_decay: 1e-5
-  gradient_clip: 1.0
+  epochs: 80
+  batch_size: 16
+  lr: 1.5e-4
+  weight_decay: 1e-4
+  grad_clip_norm: 1.0
+  scheduler:
+    name: reduce_on_plateau
+    factor: 0.5
+    patience: 8
+    min_lr: 1e-6
 ```
 
 ---
 
-**文档版本**: v1.1（新增 §13 仿真框架，同步 200kHz/20-bit 链路参数）
+**文档版本**: v1.2（§13 同步 v6-phys-strict 物理严格化链路：理想气声速 + Lagrange 分数延迟 + WMS 热导）
 **最后更新**: 2026-07-03
 **维护者**: DL 团队

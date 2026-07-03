@@ -13,8 +13,8 @@
 
 注意:
 - ``ultrasonic`` 扰动从旧 toy S_us 改为真实 m/s 量级声速（~340-360 m/s）。
-  level * scale * randn 中 scale = x.abs().mean() 会自适应量级,数值上不会
-  出错,但相同 level 对应的绝对扰动幅度比旧版大。详见方案 §13 Phase 5 风险。
+  level * scale * randn 中 scale 为每个样本自身窗口内声速均值，避免扰动幅度
+  随 batch 组成变化；但相同 level 对应的绝对扰动幅度比旧版大。
 - ``temperature`` 偏移量保留 80.0 K 的旧值,适配新单位 T_C 时表现为 80°C 阶跃。
 - ``pressure_drift`` 是输入空间压力通道漂移，直接作用于 IDX_P_MPa；不重算
   声学/HITRAN 派生物理量。scaler-on 时扰动发生在标准化输入空间。
@@ -54,7 +54,8 @@ def inject(x: torch.Tensor, kind: str, level: float) -> torch.Tensor:
        - ``optical_atten``：乘性衰减 ``*(1-level)``，分数损失
        - ``optical_scat``：加性高斯噪声 ``level*randn``，绝对尺度
        - ``thermal``：相对乘性 ``*(1+level*randn)``
-       - ``ultrasonic``：量级自适应 ``level*scale*randn``，``scale≈|mean(speed)|``
+       - ``ultrasonic``：逐样本量级自适应 ``level*scale*randn``，
+         ``scale≈|mean(speed)|``
        - ``temperature``：绝对偏移 ``level*80``，单位°C
        - ``pressure_drift``：确定性压力输入偏移 ``level*2.0``
 
@@ -89,8 +90,8 @@ def inject(x: torch.Tensor, kind: str, level: float) -> torch.Tensor:
 
     elif kind == "ultrasonic":
         # 超声声速估计值加噪（换能器老化 / 耦合不良）
-        # scale 自适应当前声速量级（约 340-360 m/s）
-        scale = x[..., IDX_US_SPEED].abs().mean()
+        # scale 只在序列维求均值并保留样本维，避免依赖 batch 组成。
+        scale = x[..., IDX_US_SPEED].abs().mean(dim=-1, keepdim=True)
         x[..., IDX_US_SPEED] = (
             x[..., IDX_US_SPEED]
             + level * scale * torch.randn_like(x[..., IDX_US_SPEED])

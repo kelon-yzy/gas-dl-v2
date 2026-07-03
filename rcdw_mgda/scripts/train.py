@@ -103,9 +103,14 @@ def main():
 
         W_base = torch.tensor(cfg["model"]["W_base"], dtype=torch.float32)
         hidden = cfg["model"]["single_modal"]["hidden"]
+        err_hidden = cfg["model"].get("error_net", {}).get("hidden", hidden)
         fusion_kwargs = cfg["model"].get("fusion", {}) or {}
         model = RCDW_MGDA(
-            W_base, hidden=hidden, window=window, fusion_kwargs=fusion_kwargs
+            W_base,
+            hidden=hidden,
+            err_hidden=err_hidden,
+            window=window,
+            fusion_kwargs=fusion_kwargs,
         )
 
         # 加载 Stage A checkpoint（磁盘文件名 == 子模块名）
@@ -119,7 +124,20 @@ def main():
             else:
                 print(f"  WARNING: {ckpt_path} not found, using random init")
 
-        run_stage_b(model, train_loader, val_loader, cfg, device=device, save_dir=sb_save_dir)
+        bs_b = cfg["training"]["stage_b"].get("batch_size", bs)
+        g_b = torch.Generator().manual_seed(seed)
+        train_loader_b = DataLoader(
+            train_ds, batch_size=bs_b, shuffle=True, generator=g_b
+        )
+        val_loader_b = DataLoader(val_ds, batch_size=bs_b)
+        run_stage_b(
+            model,
+            train_loader_b,
+            val_loader_b,
+            cfg,
+            device=device,
+            save_dir=sb_save_dir,
+        )
 
     print("\n=== Training complete ===")
 

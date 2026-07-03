@@ -1,7 +1,8 @@
 """退化模态硬抑制（eval-only）。
 
-框架第十一节：当某模态的中位误差 > ratio × 最小中位误差时，
-将其权重压到 cap，然后重归一化。
+框架第十一节：当某模态误差 > ratio × 当前样本最小误差时，
+将其权重压到 cap，然后重归一化。可选 absolute_threshold 用于捕捉
+所有模态均匀退化的场景。
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ def hard_suppress(
     *,
     ratio: float = 4.0,
     cap: float = 0.04,
+    absolute_threshold: float | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """退化硬抑制（⚠️ EVAL-ONLY，不可微）。
 
@@ -25,6 +27,8 @@ def hard_suppress(
         E_pred: (B, M=3, G=3) 预测误差
         ratio:  退化判定倍率阈值
         cap:    退化模态最大权重
+        absolute_threshold: 绝对误差阈值；不为 None 时，任何超过该阈值的
+            样本-模态-气体对都会被标记退化，用于补足均匀退化盲区。
     Returns:
         W_suppressed: (B, M, G) 抑制后的权重
         degraded:     (B, M, G) bool，标记哪些样本-模态-气体对被抑制
@@ -39,6 +43,8 @@ def hard_suppress(
 
     # 退化判定: E_pred[b,m,g] > ratio * min_E[b,g]
     degraded = E_pred > ratio * min_E  # (B, M, G) bool
+    if absolute_threshold is not None:
+        degraded = degraded | (E_pred > float(absolute_threshold))
 
     # 抑制: 退化模态权重压到 cap
     W_out = W.clone()

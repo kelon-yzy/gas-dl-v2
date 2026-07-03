@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 import torch
 
+from rcdw.sim.core.schema import GAS_DISPLAY_NAMES
 from scripts.perturb import (
     _error_calibration_payload,
     _summarize_model_outputs,
@@ -11,7 +12,7 @@ from scripts.perturb import (
 )
 
 
-GAS_NAMES = ["O2", "CO2", "N2"]
+GAS_NAMES = list(GAS_DISPLAY_NAMES)
 MODAL_NAMES = ["NDIR", "TCD", "US"]
 
 

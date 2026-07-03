@@ -259,6 +259,8 @@ def test_generate_benchmark_dataset_uses_configured_path_lms(tmp_path):
     first_sequence_rows = [row for row in slow_rows if row["sequence_id"] == "Q000001"]
 
     assert manifest["path_lms"] == [0.25, 0.35]
+    # sim_revision.l_m_range 应从 spec.path_lms 派生，而非硬编码（防止与 path_lms 矛盾）
+    assert manifest["sim_revision"]["l_m_range"] == [0.25, 0.35]
     assert waveform_spec["path_lms"] == [0.25, 0.35]
     assert first_sequence_rows[4]["phase_id"] == "steady"
     assert first_sequence_rows[5]["phase_id"] == "steady"

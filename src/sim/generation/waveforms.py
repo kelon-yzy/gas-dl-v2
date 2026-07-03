@@ -374,17 +374,36 @@ def _add_pulse_at_peak(buffer: np.ndarray, pulse: np.ndarray, peak_index: int, a
     _add_pulse(buffer, pulse, peak_index - pulse_peak_offset, amplitude)
 
 
+def _zero_pad_shift(signal: np.ndarray, n_int: int) -> np.ndarray:
+    """整数样本零填充延迟（右移 n_int），移出边界的部分丢弃，不环绕。
+
+    替代 np.roll 的环绕移位：物理上信号延迟出数组边界应消失，而非卷到另一端。
+    """
+    out = np.zeros_like(signal)
+    length = signal.shape[0]
+    if n_int == 0:
+        out[:] = signal
+    elif 0 < n_int < length:
+        out[n_int:] = signal[: length - n_int]
+    elif -length < n_int < 0:
+        out[: length + n_int] = signal[-n_int:]
+    return out
+
+
 def _lagrange_fractional_shift(signal: np.ndarray, delay_samples: float, order: int = 5) -> np.ndarray:
     """在输出采样率下将信号精确移动 delay_samples（含整数 + 小数部分）。
 
     使用 Lagrange 插值 FIR，5 阶在 0~0.8×Nyquist 内精度 < 0.002 采样。
     200kHz 载波在 1MS/s 下为 0.4×Nyquist，安全裕度充足。
     参考：Laakso & Välimäki 1996 "Splitting the Unit Delay" IEEE SPM。
+
+    整数部分用零填充移位（不环绕），分数部分用 Lagrange FIR 卷积
+    （mode="same" 边界自然补零）。延迟出窗口的能量应消失，而非卷到数组另一端。
     """
     n_int = int(math.floor(delay_samples))
     frac = delay_samples - n_int
     if abs(frac) < 1e-9:
-        return np.roll(signal, n_int).astype(signal.dtype)
+        return _zero_pad_shift(signal, n_int).astype(signal.dtype)
     n = order
     half = n // 2
     h = np.ones(n + 1, dtype=np.float64)
@@ -392,7 +411,7 @@ def _lagrange_fractional_shift(signal: np.ndarray, delay_samples: float, order: 
         for j in range(n + 1):
             if j != k:
                 h[k] *= (frac - (j - half)) / ((k - half) - (j - half))
-    shifted = np.roll(signal, n_int)
+    shifted = _zero_pad_shift(signal, n_int)
     return np.convolve(shifted, h, mode="same").astype(signal.dtype)
 
 

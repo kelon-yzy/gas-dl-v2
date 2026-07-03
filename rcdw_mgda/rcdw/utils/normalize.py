@@ -7,23 +7,27 @@ import torch
 def rh_to_water_vol(RH: torch.Tensor, T: torch.Tensor | None = None) -> torch.Tensor:
     """将相对湿度（0–1 小数）近似转换为水汽体积分数。
 
-    简化模型：假设 T=300K, P=1atm 下饱和水汽压 ~3.6 kPa。
-    C_H2O ≈ RH * 3.6 / 101.325 ≈ RH * 0.0355
+    默认 T=300K；传入 T 时使用 Magnus 公式计算该温度下的饱和水汽压。
+    T 可为 K（>150）或 °C（<=150），总压固定按 1 atm 近似。
 
     ⚠️ 调用方必须传入 0–1 范围的 RH（非百分数）。管线中 ``H_RH``
     字段为百分数 20–80，需先 ``/100`` 再传入；否则结果溢出（如
     ``rh_to_water_vol(80) = 2.84``，导致 wet basis 总量为负）。
 
-    ⚠️ T 参数当前不参与计算，硬编码 300K 假设。实际饱和水汽压
-    随 T 强非线性变化（260K ~0.2 kPa → 340K ~27 kPa）。
-    切换到 wet basis 前需补全 T 依赖（Magnus / Antoine 公式）。
     """
     if isinstance(RH, torch.Tensor) and (RH > 1.0).any():
         raise ValueError(
             f"RH 应为 0–1 小数，但检测到值 > 1（max={RH.max().item():.2f}）。"
             "若 RH 为百分数（如 H_RH），请先除以 100。"
         )
-    return RH * 0.0355
+    if T is None:
+        temp_c = torch.as_tensor(300.0 - 273.15, dtype=RH.dtype, device=RH.device)
+    else:
+        temp_c = T.to(dtype=RH.dtype, device=RH.device)
+        temp_c = torch.where(temp_c > 150.0, temp_c - 273.15, temp_c)
+
+    saturation_kpa = 0.61094 * torch.exp(17.625 * temp_c / (temp_c + 243.04))
+    return RH * saturation_kpa / 101.325
 
 
 def normalize_composition(

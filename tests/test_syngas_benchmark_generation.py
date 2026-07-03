@@ -121,6 +121,9 @@ def test_syngas_benchmark_manifest_contents(tmp_path, small_spec):
     assert manifest["background_fields"] == list(BACKGROUND_FIELDS)
     assert manifest["slow_channels"] == list(SLOW_CHANNELS)
     assert "V_NDIR_CO" in manifest["slow_channels"]
+    # sim_revision.l_m_range 应从 spec.path_lms 派生，而非硬编码（防止与 path_lms 矛盾）
+    # small_spec 用默认 path_lms=(0.18,0.20,0.22,0.25,0.28)，min/max 为 0.18/0.28
+    assert manifest["sim_revision"]["l_m_range"] == [0.18, 0.28]
 
 
 def test_syngas_benchmark_labels_npy_shape(tmp_path, small_spec):

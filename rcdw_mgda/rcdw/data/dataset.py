@@ -6,7 +6,7 @@
 
     {data_root}/{slug}/
         manifest.json
-        labels/y.npy                                # (N, 3) float32
+        labels/y.npy                                # (N, G) float32
         sequences/
             slow.npy                                # (N, T, 7) float32
             ultrasonic_tof_observed_s.npy           # (N, T) float32
@@ -34,6 +34,8 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+
+from rcdw.sim.core.schema import COMPONENT_FIELDS
 
 
 # 12 维通道布局（与 rcdw.models.single_modal 索引一致）
@@ -118,6 +120,10 @@ class BenchmarkDataset(Dataset):
                 f"先用 scripts.generate_benchmark 生成数据集。"
             )
         self.manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.label_names = _resolve_label_names(self.data_root, self.manifest)
+        self.label_display_names = tuple(
+            name.removeprefix("x_") for name in self.label_names
+        )
 
         timesteps = int(self.manifest["timesteps"])
         if self.window > timesteps:
@@ -151,10 +157,11 @@ class BenchmarkDataset(Dataset):
         # 训练侧统一用 [0, 1] 闭包,与 SingleModal / normalize_composition 对齐。
         # 详见方案 §8.6 历史 ckpt 废弃声明:新标签语义为 [0, 1] 比例。
         self.labels = (labels_all[self.split_indexes] / 100.0).astype(np.float32)
-        # 验证 shape
-        if self.labels.shape[1] != 3:
+        # 验证 shape：列数来自 manifest / metadata，而不是硬编码。
+        if self.labels.ndim != 2 or self.labels.shape[1] != len(self.label_names):
             raise ValueError(
-                f"labels last dim must be 3, got {self.labels.shape}"
+                f"labels last dim must match label names {self.label_names}, "
+                f"got {self.labels.shape}"
             )
 
         # ---- mmap 加载 slow + 5 个 ultrasonic 元数据数组 ----
@@ -280,8 +287,23 @@ class BenchmarkDataset(Dataset):
             x_window = (x_window - self._scale_mean) / self._scale_std
             x_window = x_window.astype(np.float32, copy=False)
 
-        y = self.labels[seq_offset].astype(np.float32)  # (3,)
+        y = self.labels[seq_offset].astype(np.float32)  # (G,)
         return torch.from_numpy(x_window), torch.from_numpy(y)
+
+
+
+def _resolve_label_names(data_root: Path, manifest: dict) -> tuple[str, ...]:
+    """从 manifest 或 metadata/label_names.npy 解析标签列名。"""
+    raw = manifest.get("labels")
+    if raw:
+        return tuple(str(name) for name in raw)
+
+    label_names_path = data_root / "metadata" / "label_names.npy"
+    if label_names_path.is_file():
+        arr = np.load(label_names_path, allow_pickle=True)
+        return tuple(str(name) for name in arr.tolist())
+
+    return COMPONENT_FIELDS
 
 
 def _read_split_sequence_ids(csv_path: Path) -> list[str]:

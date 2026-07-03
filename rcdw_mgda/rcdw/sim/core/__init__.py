@@ -9,6 +9,7 @@ from .ids import (
 )
 from .schema import (
     COMPONENT_FIELDS,
+    GAS_DISPLAY_NAMES,
     CONDITION_GRID_FIELDS,
     LEGACY_CONDITION_FIELDS,
     MULTI_PATH_PHASES,
@@ -32,6 +33,7 @@ __all__ = [
     "make_mixture_id",
     "make_sequence_id",
     "COMPONENT_FIELDS",
+    "GAS_DISPLAY_NAMES",
     "CONDITION_GRID_FIELDS",
     "LEGACY_CONDITION_FIELDS",
     "MULTI_PATH_PHASES",
