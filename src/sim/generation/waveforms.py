@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 
 import numpy as np
+from scipy.signal import resample_poly
 
 from sim.generation.acoustic_physics import hidden_attenuation_v2, hidden_sound_speed_v2
 
@@ -62,6 +63,7 @@ class WaveformSpec:
     transducer_response_model: str = ULTRASONIC_TRANSDUCER_RESPONSE_MODEL
     transducer_bandwidth_hz: float = 20000.0  # PSC200K datasheet 未给出带宽，按典型压电陶瓷 ~10% 中心频率估计
     transducer_ringdown_cycles: float = 4.0
+    internal_oversample_factor: int = 10  # 内部过采样倍数：fs_internal = sample_rate_hz * 此值，生成后重采样到 sample_rate_hz
     calibration_status: str = CALIBRATION_STATUS
 
     @property
@@ -115,6 +117,7 @@ class FiberMicSpec:
     probe: FiberProbeSpec = field(default_factory=FiberProbeSpec)
     acoustic_reflection_coef: float = 0.08
     max_reflections: int = 3
+    internal_oversample_factor: int = 10  # 内部过采样倍数，与 WaveformSpec 一致
     calibration_status: str = CALIBRATION_STATUS
 
     @property
@@ -147,16 +150,21 @@ def generate_burst_pulse(
     return pulse.astype(np.float32)
 
 
-def transducer_response_pulse(spec: WaveformSpec) -> np.ndarray:
+def transducer_response_pulse(spec: WaveformSpec, *, sample_rate_hz: int | None = None) -> np.ndarray:
+    """生成换能器响应脉冲。
+
+    sample_rate_hz 默认取 spec.sample_rate_hz；过采样流程传入内部高采样率。
+    """
+    fs = int(sample_rate_hz) if sample_rate_hz is not None else int(spec.sample_rate_hz)
     pulse = generate_burst_pulse(
         center_frequency_hz=spec.center_frequency_hz,
         burst_cycles=spec.burst_cycles,
-        sample_rate_hz=spec.sample_rate_hz,
+        sample_rate_hz=fs,
         amplitude_v=1.0,
     )
     kernel = _resonant_kernel(
         center_frequency_hz=spec.center_frequency_hz,
-        sample_rate_hz=spec.sample_rate_hz,
+        sample_rate_hz=fs,
         bandwidth_hz=spec.transducer_bandwidth_hz,
         ringdown_cycles=spec.transducer_ringdown_cycles,
     )
@@ -244,18 +252,33 @@ def simulate_waveform_measurement(
     tof_true_s = float(l_m) / c_sound
     trigger_jitter_s = rng.gauss(0.0, spec.trigger_jitter_std_s)
     tof_observed_s = tof_true_s + spec.system_delay_s + spec.cable_delay_s + trigger_jitter_s
-    pulse = transducer_response_pulse(spec)
-    clean_waveform = np.zeros(spec.waveform_samples, dtype=np.float32)
-    peak_index = int(round(tof_observed_s * spec.sample_rate_hz))
+    # 内部高采样率生成连续时间脉冲，TOF 量化到亚样本精度，再重采样到输出采样率
+    fs_out = int(spec.sample_rate_hz)
+    oversample = max(1, int(spec.internal_oversample_factor))
+    fs_internal = fs_out * oversample
+    pulse = transducer_response_pulse(spec, sample_rate_hz=fs_internal)
+    internal_samples = int(round(fs_internal * spec.measurement_window_s))
+    clean_internal = np.zeros(internal_samples, dtype=np.float32)
+    peak_index_internal = int(round(tof_observed_s * fs_internal))
     amp_scale = math.exp(-alpha_true_npm * float(l_m))
-    _add_pulse_at_peak(clean_waveform, pulse, peak_index, amp_scale)
-    waveform = clean_waveform.copy()
+    _add_pulse_at_peak(clean_internal, pulse, peak_index_internal, amp_scale)
+    # 抗混叠低通 + 重采样到输出采样率
+    if oversample > 1:
+        clean_out = resample_poly(clean_internal, up=1, down=oversample).astype(np.float32)
+    else:
+        clean_out = clean_internal.astype(np.float32)
+    clean_out = clean_out[: spec.waveform_samples]
+    if clean_out.shape[0] < spec.waveform_samples:
+        clean_out = np.pad(clean_out, (0, spec.waveform_samples - clean_out.shape[0]))
+    # 噪声在输出采样率注入（前端抗混叠滤波后，noise_std_v 为输出 RMS）
+    waveform = clean_out.copy()
     if spec.noise_std_v > 0.0:
         noise_rng = np.random.default_rng(rng.randrange(0, 2**32))
         waveform = waveform + noise_rng.normal(0.0, spec.noise_std_v, size=waveform.shape).astype(np.float32)
-    signal_peak_abs_v = float(np.max(np.abs(clean_waveform))) if clean_waveform.size else 0.0
+    signal_peak_abs_v = float(np.max(np.abs(clean_out))) if clean_out.size else 0.0
     clipped = float(np.max(np.abs(waveform))) >= spec.daq_full_scale_v
-    corrected_tof_s = max(tof_observed_s - spec.delay_correction_s, 1.0 / float(spec.sample_rate_hz))
+    peak_index = int(round(tof_observed_s * fs_out))
+    corrected_tof_s = max(tof_observed_s - spec.delay_correction_s, 1.0 / float(fs_out))
     sound_speed_estimated = float(l_m) / corrected_tof_s
     tof_quality = _tof_quality(signal_peak_abs_v, spec.noise_std_v, clipped)
     return _digitize_waveform(waveform, spec.adc_max, spec.daq_full_scale_v, spec.waveform_dtype) | {
@@ -304,18 +327,23 @@ def simulate_fiber_mic_measurement(
     l_probe = float(l_m) * float(probe.probe_path_length_factor)
     tof_probe_s = l_probe / c_sound
     t_round_s = (2.0 * float(l_m)) / c_sound
+    # 内部高采样率生成声压场 + 光学解调，再重采样到输出采样率
+    fs_out = int(spec.sample_rate_hz)
+    oversample = max(1, int(spec.internal_oversample_factor))
+    fs_internal = fs_out * oversample
     pulse = generate_burst_pulse(
         center_frequency_hz=spec.center_frequency_hz,
         burst_cycles=spec.burst_cycles,
-        sample_rate_hz=spec.sample_rate_hz,
+        sample_rate_hz=fs_internal,
         amplitude_v=probe.source_pressure_pa,
     )
-    probe_pressure = np.zeros(spec.waveform_samples, dtype=np.float32)
-    _add_pulse_at_peak(probe_pressure, pulse, int(round(tof_probe_s * spec.sample_rate_hz)), math.exp(-alpha_true_npm * l_probe))
+    internal_samples = int(round(fs_internal * spec.measurement_window_s))
+    probe_pressure = np.zeros(internal_samples, dtype=np.float32)
+    _add_pulse_at_peak(probe_pressure, pulse, int(round(tof_probe_s * fs_internal)), math.exp(-alpha_true_npm * l_probe))
     for reflection_idx in range(1, int(spec.max_reflections) + 1):
         path_length = l_probe + (2.0 * reflection_idx * float(l_m))
         amplitude = (float(spec.acoustic_reflection_coef) ** reflection_idx) * math.exp(-alpha_true_npm * path_length)
-        peak_index = int(round((tof_probe_s + reflection_idx * t_round_s) * spec.sample_rate_hz))
+        peak_index = int(round((tof_probe_s + reflection_idx * t_round_s) * fs_internal))
         if peak_index >= probe_pressure.shape[0]:
             break
         _add_pulse_at_peak(probe_pressure, pulse, peak_index, amplitude)
@@ -329,22 +357,33 @@ def simulate_fiber_mic_measurement(
         delta_d = float(probe.displacement_sensitivity_m_per_pa) * probe_pressure
         delta_phase = (4.0 * math.pi / wavelength_m) * delta_d
     phase = float(probe.interferometer_phase_bias_rad) + delta_phase
-    demod_voltage = float(probe.demod_gain_v_per_rad) * optical_link_gain * (phase - float(probe.interferometer_phase_bias_rad))
+    demod_voltage_internal = float(probe.demod_gain_v_per_rad) * optical_link_gain * (phase - float(probe.interferometer_phase_bias_rad))
+    # peak 统计在内部采样率（真实物理峰值，未受重采样平滑）
+    phase_peak_rad = float(np.max(np.abs(delta_phase))) if delta_phase.size else 0.0
+    probe_pressure_peak_pa = float(np.max(np.abs(probe_pressure))) if probe_pressure.size else 0.0
+    demod_peak_v = float(np.max(np.abs(demod_voltage_internal))) if demod_voltage_internal.size else 0.0
+    # 抗混叠低通 + 重采样到输出采样率
+    if oversample > 1:
+        demod_voltage = resample_poly(demod_voltage_internal.astype(np.float64), up=1, down=oversample).astype(np.float32)
+    else:
+        demod_voltage = demod_voltage_internal.astype(np.float32)
+    demod_voltage = demod_voltage[: spec.waveform_samples]
+    if demod_voltage.shape[0] < spec.waveform_samples:
+        demod_voltage = np.pad(demod_voltage, (0, spec.waveform_samples - demod_voltage.shape[0]))
     noise_std = math.hypot(float(probe.photodetector_noise_std_v), float(probe.amplifier_noise_std_v))
     if noise_std > 0.0:
         noise_rng = np.random.default_rng(rng.randrange(0, 2**32))
         demod_voltage = demod_voltage + noise_rng.normal(0.0, noise_std, size=demod_voltage.shape).astype(np.float32)
     waveform = np.clip(demod_voltage, -float(probe.voltage_saturation_v), float(probe.voltage_saturation_v)).astype(np.float32)
-    phase_peak_rad = float(np.max(np.abs(delta_phase))) if delta_phase.size else 0.0
     return _digitize_waveform(waveform, spec.adc_max, probe.daq_full_scale_v, spec.waveform_dtype) | {
         "tof_direct_s": float(tof_probe_s),
         "probe_tof_s": float(tof_probe_s),
         "t_round_s": float(t_round_s),
         "alpha_true_npm": alpha_true_npm,
         "sound_speed_m_per_s": float(c_sound),
-        "probe_pressure_peak_pa": float(np.max(np.abs(probe_pressure))) if probe_pressure.size else 0.0,
+        "probe_pressure_peak_pa": probe_pressure_peak_pa,
         "phase_peak_rad": phase_peak_rad,
-        "demod_peak_v": float(np.max(np.abs(demod_voltage))) if demod_voltage.size else 0.0,
+        "demod_peak_v": demod_peak_v,
     }
 
 
