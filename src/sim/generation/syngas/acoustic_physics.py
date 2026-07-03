@@ -55,11 +55,11 @@ PROCESSING_PARAMS_V2 = {
 _PRESSURE_MPA_TO_ATM = 1.0 / 0.101325
 _T0_K = 293.15
 _NP_TO_DB = 8.686
-_SPEED_H2_MS = 1306.0
-_SPEED_CH4_MS = 446.0
-_SPEED_CO2_MS = 268.0
-_SPEED_N2_MS = 353.0
-_SPEED_CO_MS = 352.0  # 新增：与 N2 差 <1 m/s（同 M=28，同 γ=1.40）
+_R_GAS = 8.314  # J/(mol·K)
+# 纯组分摩尔质量 (kg/mol) 与理想气体定压摩尔热容 (J/mol/K) @25°C
+# 来源：NIST；纯组分声速 c=sqrt(γ·R·T/M)，CO 与 N2 的 M/γ 几乎相同（声学简并）
+_GAS_M = {"H2": 0.002016, "CH4": 0.01604, "CO2": 0.04401, "N2": 0.02801, "CO": 0.02801}
+_GAS_CP = {"H2": 28.84, "CH4": 35.69, "CO2": 37.13, "N2": 29.12, "CO": 29.14}
 
 
 def hidden_sound_speed_v2(
@@ -70,20 +70,26 @@ def hidden_sound_speed_v2(
     x_co: float,
     t_c: float,
 ) -> float:
-    """合成气声速混合公式，签名比 hydrogen_ng 多一个 x_co 参数。"""
-    x_h2_frac = max(0.0, x_h2) / 100.0
-    x_ch4_frac = max(0.0, x_ch4) / 100.0
-    x_co2_frac = max(0.0, x_co2) / 100.0
-    x_n2_frac = max(0.0, x_n2) / 100.0
-    x_co_frac = max(0.0, x_co) / 100.0
-    c_mix = (
-        x_h2_frac * _SPEED_H2_MS
-        + x_ch4_frac * _SPEED_CH4_MS
-        + x_co2_frac * _SPEED_CO2_MS
-        + x_n2_frac * _SPEED_N2_MS
-        + x_co_frac * _SPEED_CO_MS
-    )
-    c_mix += 0.6 * (t_c - 25.0)
+    """合成气声速混合公式，签名比 hydrogen_ng 多一个 x_co 参数。
+
+    理想气体混合 c = sqrt(γ_mix · R · T / M_mix)，M_mix/cp_mix 摩尔分数加权。
+    """
+    fracs = {
+        "H2": max(0.0, x_h2) / 100.0,
+        "CH4": max(0.0, x_ch4) / 100.0,
+        "CO2": max(0.0, x_co2) / 100.0,
+        "N2": max(0.0, x_n2) / 100.0,
+        "CO": max(0.0, x_co) / 100.0,
+    }
+    total = sum(fracs.values())
+    if total <= 0.0:
+        return 200.0
+    fracs = {k: v / total for k, v in fracs.items()}
+    m_mix = sum(fracs[k] * _GAS_M[k] for k in fracs)
+    cp_mix = sum(fracs[k] * _GAS_CP[k] for k in fracs)
+    gamma_mix = cp_mix / max(cp_mix - _R_GAS, 1e-9)
+    t_k = max(t_c + 273.15, 1.0)  # 防低于绝对零度（不物理输入），保 floor 行为
+    c_mix = math.sqrt(gamma_mix * _R_GAS * t_k / max(m_mix, 1e-12))
     return max(c_mix, 200.0)
 
 
@@ -267,7 +273,7 @@ def main_sensor_features(
         )
     else:
         absorption_co = _hidden_absorption_co(x_co, h_rh, p_mpa, t_c)
-    lambda_true = _hidden_lambda_mix(x_h2, x_co2, x_co, t_c)
+    lambda_true = _hidden_lambda_mix(x_h2, x_ch4, x_co2, x_n2, x_co, t_c)
 
     optical_drift_ch4 = 0.0007 * (h_rh - 50.0) + 0.004 * (p_mpa - 1.0) + rng.gauss(0.0, 0.004)
     optical_drift_co2 = 0.0007 * (h_rh - 50.0) + 0.004 * (p_mpa - 1.0) + rng.gauss(0.0, 0.004)
@@ -320,11 +326,13 @@ def main_sensor_features(
 def thermal_conductivity_sensor_feature(condition: dict[str, str], rng: random.Random) -> dict[str, float]:
     """TCS 单通道。合成气场景需要 x_co 入热导混合。"""
     x_h2 = float(condition["x_H2"])
+    x_ch4 = float(condition["x_CH4"])
     x_co2 = float(condition["x_CO2"])
+    x_n2 = float(condition["x_N2"])
     x_co = float(condition["x_CO"])
     t_c = float(condition["T_C"])
     p_mpa = float(condition["P_MPa"])
-    lambda_true = _hidden_lambda_mix(x_h2, x_co2, x_co, t_c)
+    lambda_true = _hidden_lambda_mix(x_h2, x_ch4, x_co2, x_n2, x_co, t_c)
     thermal_drift = _thermal_baseline_drift(t_c, p_mpa, rng)
     return {
         "V_TCS": _tcs_voltage(lambda_true, t_c, thermal_drift, rng),
@@ -363,18 +371,44 @@ def _hidden_absorption_co(x_co: float, h_rh: float, p_mpa: float, t_c: float) ->
     return 0.035 * x_co + 0.0005 * h_rh + 0.010 * p_mpa + 0.00015 * (t_c - 25.0)
 
 
-def _hidden_lambda_mix(x_h2: float, x_co2: float, x_co: float, t_c: float) -> float:
-    """热导率混合。CO 热导率 ~25 mW/(m·K) vs N2 ~26，差异小但 60% 占比下累积约 0.6 mW/(m·K)。
+# 纯组分热导率 λ (W/(m·K)) 与粘度 η (Pa·s) @298K，用于 WMS 混合规则
+# CO λ≈0.0253 略低于 N2，η≈1.75e-5（与 N2 接近，声学简并但热导略异）
+_GAS_LAMBDA = {"H2": 0.180, "CH4": 0.0343, "CO2": 0.0166, "N2": 0.0259, "CO": 0.0253}
+_GAS_ETA = {"H2": 8.90e-6, "CH4": 1.107e-5, "CO2": 1.490e-5, "N2": 1.776e-5, "CO": 1.750e-5}
 
-    x_co 系数 -0.00005 为占位（中置信），需文献标定后修正。
+
+def _wilke_phi(i: str, j: str) -> float:
+    """Wilke 粘度混合函数 φ_ij（Mason-Saxena 热导混合规则共用）。"""
+    eta_ratio = (_GAS_ETA[i] / _GAS_ETA[j]) ** 0.5
+    m_ratio = (_GAS_M[j] / _GAS_M[i]) ** 0.25
+    num = (1.0 + eta_ratio * m_ratio) ** 2
+    den = math.sqrt(8.0 * (1.0 + _GAS_M[i] / _GAS_M[j]))
+    return num / den
+
+
+def _hidden_lambda_mix(x_h2: float, x_ch4: float, x_co2: float, x_n2: float, x_co: float, t_c: float) -> float:
+    """Wassiljewa-Mason-Saxena 混合热导率 (W/(m·K))，含 CO 组分。
+
+    λ_m = Σ_i (y_i · λ_i / Σ_j y_j · φ_ij)。替代旧线性经验公式。
     """
-    return (
-        0.034
-        + 0.00155 * x_h2
-        - 0.00011 * x_co2
-        - 0.00005 * x_co
-        + 0.00002 * (t_c - 25.0)
-    )
+    fracs = {
+        "H2": max(0.0, x_h2) / 100.0,
+        "CH4": max(0.0, x_ch4) / 100.0,
+        "CO2": max(0.0, x_co2) / 100.0,
+        "N2": max(0.0, x_n2) / 100.0,
+        "CO": max(0.0, x_co) / 100.0,
+    }
+    total = sum(fracs.values())
+    if total <= 0.0:
+        return 0.0256
+    fracs = {k: v / total for k, v in fracs.items()}
+    t_factor = (t_c + 273.15) / 298.15
+    lam_i = {k: _GAS_LAMBDA[k] * (t_factor ** 0.78) for k in fracs}
+    lam_mix = 0.0
+    for i, yi in fracs.items():
+        denom = sum(fracs[j] * _wilke_phi(i, j) for j in fracs)
+        lam_mix += yi * lam_i[i] / max(denom, 1e-12)
+    return lam_mix
 
 
 def _thermal_baseline_drift(t_c: float, p_mpa: float, rng: random.Random) -> float:

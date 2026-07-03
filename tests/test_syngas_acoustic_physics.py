@@ -50,10 +50,14 @@ def test_sound_speed_co_and_n2_close():
 
 
 def test_sound_speed_monotone_in_h2():
-    """H2 增加显著提升声速。"""
+    """H2 增加显著提升声速。
+
+    理想气混合 c=sqrt(γRT/M) 下，H2 5%→50% 提升约 115 m/s
+    （旧线性加权代理夸大至 >200 m/s，新物理下阈值调整为 100）。
+    """
     c_low = hidden_sound_speed_v2(x_h2=5, x_ch4=2, x_co2=5, x_n2=3, x_co=85.0, t_c=25.0)
     c_high = hidden_sound_speed_v2(x_h2=50, x_ch4=2, x_co2=5, x_n2=3, x_co=40.0, t_c=25.0)
-    assert c_high > c_low + 200.0
+    assert c_high > c_low + 100.0
 
 
 def test_sound_speed_has_floor():
@@ -134,13 +138,10 @@ def test_hidden_absorption_co_monotone():
 
 
 def test_lambda_mix_co_term_effective():
-    """加入 x_co 后热导率会与 hydrogen_ng 公式产生差异。"""
-    val = _hidden_lambda_mix(x_h2=20.0, x_co2=10.0, x_co=60.0, t_c=25.0)
-    # 与 hg 公式直接对比：hg 不带 x_co 项
-    expected_hg = 0.034 + 0.00155 * 20.0 - 0.00011 * 10.0 + 0.00002 * (25.0 - 25.0)
-    # syngas 还要扣除 -0.00005 * 60 = -0.003
-    expected_sg = expected_hg - 0.00005 * 60.0
-    assert abs(val - expected_sg) < 1e-9
+    """WMS 下 CO 组分通过 φ_ij 影响热导率（CO 与 N2 的 λ/η 略异，故结果不同）。"""
+    val_with_co = _hidden_lambda_mix(x_h2=20.0, x_ch4=0.0, x_co2=10.0, x_n2=0.0, x_co=60.0, t_c=25.0)
+    val_co_as_n2 = _hidden_lambda_mix(x_h2=20.0, x_ch4=0.0, x_co2=10.0, x_n2=60.0, x_co=0.0, t_c=25.0)
+    assert val_with_co != val_co_as_n2
 
 
 # ---------------------------------------------------------------------------
@@ -272,11 +273,11 @@ def test_hydrogen_ng_acoustic_signature_unchanged():
 
 
 def test_hydrogen_ng_lambda_mix_signature_unchanged():
-    """hydrogen_ng 的 _hidden_lambda_mix 签名仍是 3 参（不含 x_co）。"""
+    """hydrogen_ng 的 _hidden_lambda_mix 签名不含 x_co（WMS 仍 5 参：x_h2/x_ch4/x_co2/x_n2/t_c）。"""
     import inspect
 
     sig = inspect.signature(hg_acoustic._hidden_lambda_mix)
-    assert list(sig.parameters) == ["x_h2", "x_co2", "t_c"]
+    assert list(sig.parameters) == ["x_h2", "x_ch4", "x_co2", "x_n2", "t_c"]
 
 
 def test_hydrogen_ng_params_no_co_keys():
