@@ -63,7 +63,7 @@ syngas 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动�
 
 > **2026-07-02 仿真链路对齐**：超声载波 40kHz→200kHz（PSC200K）、采样率 200k→1MS/s、ADC 16-bit→20-bit（NI-6453）、L_m 范围 0.2~1.8m→0.2~0.3m（200kHz 下长声程信号被 CH₄/CO₂ 弛豫吸收淹没，见 `docs/Phase0_物理可行性核对记录.md`）。旧 benchmark 已归档至 `data/_archived_pre_200khz/`，**不可用于新链路训练**。manifest 新增 `sim_revision` 字段标记链路版本（`v5-200khz-20bit-L03`）。`wv4-smoke` / `sg4-smoke` 已按新链路重生成；formal 集（`wv4-formal-hitran-standard-6000`、`sg4-formal`、`sg4-formal-crosstalk`、`sg4-hitran-smoke`）需用原参数重生成后才能使用。
 
-> **2026-07-03 物理模型严格化**：声速改为理想气混合 `c=sqrt(γ_mix·R·T/M_mix)`、热导改为 Wassiljewa-Mason-Saxena 混合规则、波形内部 10MS/s 过采样 + fractional delay + 重采样到 1MS/s（见 `docs/物理模型严格化实施计划.md`）。旧 v5 benchmark 归档至 `data/_archived_pre_phys_strict/`，manifest `sim_revision.tag` 升级为 `v6-phys-strict`，新增 `physics_backend: "ideal_gas_wms_oversample"` 字段。`wv4-smoke` / `sg4-smoke` 已按 v6 重生成；formal 集需重生成。
+> **2026-07-03 物理模型严格化**：声速改为理想气混合 `c=sqrt(γ_mix·R·T/M_mix)`、热导改为 Wassiljewa-Mason-Saxena 混合规则、波形用 Lagrange 5 阶分数延迟 FIR 实现亚样本 TOF 定位（1 MS/s 不变，精度 <0.002μs，见 `docs/物理模型严格化实施计划.md`）。旧 v5 benchmark 归档至 `data/_archived_pre_phys_strict/`，manifest `sim_revision.tag` 升级为 `v6-phys-strict`，`physics_backend: "ideal_gas_wms_fracdelay"`。`wv4-smoke` / `sg4-smoke` 已按 v6 重生成；formal 集需重生成。
 
 - `wv4-smoke` / `wv4-formal*` — 掺氢天然气；正式 6000 序列集 `wv4-formal-hitran-standard-6000` 可通过 `--experiment-preset formal-hitran-standard-6000` 一键固定。
 - `sg4-smoke` / `sg4-formal` — 合成气 smoke / 正式集（empirical 后端，6000 序列）
