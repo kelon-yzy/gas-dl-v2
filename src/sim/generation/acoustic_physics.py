@@ -40,7 +40,7 @@ _R_GAS = 8.314  # J/(mol·K)
 # 纯组分摩尔质量 (kg/mol) 与理想气体定压摩尔热容 (J/mol/K) @25°C
 # 来源：NIST；纯组分声速 c=sqrt(γ·R·T/M) 与原 _SPEED_*_MS 常数一致
 _GAS_M = {"H2": 0.002016, "CH4": 0.01604, "CO2": 0.04401, "N2": 0.02801}
-_GAS_CP = {"H2": 28.84, "CH4": 35.69, "CO2": 37.13, "N2": 29.12}
+_GAS_CP = {"H2": 28.84, "CH4": 35.64, "CO2": 37.13, "N2": 29.12}
 
 
 def hidden_sound_speed_v2(x_h2: float, x_ch4: float, x_co2: float, x_n2: float, t_c: float) -> float:
@@ -262,10 +262,12 @@ def _hidden_absorption_co2(x_co2: float, h_rh: float, p_mpa: float, t_c: float) 
     return 0.045 * x_co2 + 0.0006 * h_rh + 0.012 * p_mpa + 0.00015 * (t_c - 25.0)
 
 
-# 纯组分热导率 λ (W/(m·K)) 与粘度 η (Pa·s) @298K，用于 WMS 混合规则
-# 来源：NIST / Roder 1984（λ）、标准气体粘度表（η）
-_GAS_LAMBDA = {"H2": 0.180, "CH4": 0.0343, "CO2": 0.0166, "N2": 0.0259}
-_GAS_ETA = {"H2": 8.90e-6, "CH4": 1.107e-5, "CO2": 1.490e-5, "N2": 1.776e-5}
+# 纯组分热导率 λ (W/(m·K)) 与粘度 η (Pa·s) @298.15K，用于 WMS 混合规则
+# 来源：NIST WebBook 298.15K（审查修正 2026-07-03）
+_GAS_LAMBDA = {"H2": 0.1858, "CH4": 0.0340, "CO2": 0.0166, "N2": 0.0258}
+_GAS_ETA = {"H2": 8.90e-6, "CH4": 1.108e-5, "CO2": 1.491e-5, "N2": 1.781e-5}
+# 各组分热导率温度幂律指数（NIST 拟合，15~35°C 范围）
+_LAMBDA_T_EXPONENT = {"H2": 0.78, "CH4": 0.82, "CO2": 0.87, "N2": 0.77}
 
 
 def _wilke_phi(i: str, j: str) -> float:
@@ -277,11 +279,16 @@ def _wilke_phi(i: str, j: str) -> float:
     return num / den
 
 
+def _lambda_at_t(gas: str, t_c: float) -> float:
+    """纯组分热导率的温度修正（逐组分幂律）。"""
+    return _GAS_LAMBDA[gas] * ((t_c + 273.15) / 298.15) ** _LAMBDA_T_EXPONENT[gas]
+
+
 def _hidden_lambda_mix(x_h2: float, x_ch4: float, x_co2: float, x_n2: float, t_c: float) -> float:
     """Wassiljewa-Mason-Saxena 混合热导率 (W/(m·K))。
 
-    λ_m = Σ_i (y_i · λ_i / Σ_j y_j · φ_ij)，φ_ij 用 Wilke 形式。
-    纯组分 λ_i(T) 用幂律修正 λ_i·(T/298)^0.78。替代旧线性经验公式。
+    λ_m = Σ_i (y_i · λ_i(T) / Σ_j y_j · φ_ij)，φ_ij 用 Wilke 形式。
+    逐组分幂律温度修正后再混合。替代旧线性经验公式。
     """
     fracs = {
         "H2": max(0.0, x_h2) / 100.0,
@@ -291,14 +298,12 @@ def _hidden_lambda_mix(x_h2: float, x_ch4: float, x_co2: float, x_n2: float, t_c
     }
     total = sum(fracs.values())
     if total <= 0.0:
-        return 0.0259
+        return 0.0258
     fracs = {k: v / total for k, v in fracs.items()}
-    t_factor = (t_c + 273.15) / 298.15
-    lam_i = {k: _GAS_LAMBDA[k] * (t_factor ** 0.78) for k in fracs}
     lam_mix = 0.0
     for i, yi in fracs.items():
         denom = sum(fracs[j] * _wilke_phi(i, j) for j in fracs)
-        lam_mix += yi * lam_i[i] / max(denom, 1e-12)
+        lam_mix += yi * _lambda_at_t(i, t_c) / max(denom, 1e-12)
     return lam_mix
 
 
