@@ -18,6 +18,7 @@
     "transducer_response_model": "second_order_resonant_bandpass_proxy_v1",
     "transducer_bandwidth_hz": 20000.0,
     "transducer_ringdown_cycles": 4.0,
+    "internal_oversample_factor": 10,
     "calibration_status": "pending",
     "adc_max": 524287,
     "waveform_samples": 5000
@@ -53,6 +54,7 @@
     },
     "acoustic_reflection_coef": 0.08,
     "max_reflections": 3,
+    "internal_oversample_factor": 10,
     "calibration_status": "pending",
     "adc_max": 524287,
     "waveform_samples": 10000
