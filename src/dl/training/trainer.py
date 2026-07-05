@@ -25,7 +25,8 @@ from sim.core.schema import COMPONENT_FIELDS as DEFAULT_COMPONENT_FIELDS
 
 HYDROGEN_NG_SCHEME = "hydrogen_ng"
 SYNGAS_SCHEME = "syngas"
-_VALID_SCHEMES = (HYDROGEN_NG_SCHEME, SYNGAS_SCHEME)
+TUNNEL_VENTILATION_SCHEME = "tunnel_ventilation"
+_VALID_SCHEMES = (HYDROGEN_NG_SCHEME, SYNGAS_SCHEME, TUNNEL_VENTILATION_SCHEME)
 
 OPTIMIZER_REGISTRY: dict[str, type[optim.Optimizer]] = {
     "adam": optim.Adam,
@@ -122,10 +123,11 @@ class Trainer:
             raise ValueError(
                 f"composition_scheme must be one of {_VALID_SCHEMES}, got {composition_scheme!r}"
             )
-        if composition_scheme == SYNGAS_SCHEME and target_transform is not None:
+        if composition_scheme in (SYNGAS_SCHEME, TUNNEL_VENTILATION_SCHEME) and target_transform is not None:
             raise ValueError(
-                "syngas composition_scheme is incompatible with target_transform "
-                "(ILR/ALR assume sum=100 closure)"
+                f"{composition_scheme} composition_scheme is incompatible with "
+                f"target_transform (ILR/ALR require closure-head prediction; "
+                f"this scheme uses direct multi-component output without closure head)"
             )
         self.model = model.to(device)
         self.optimizer = optimizer
@@ -328,7 +330,8 @@ class Trainer:
         )
         # sum_abs_error 只在 sum=100% 闭包场景有意义；syngas 下 4 列 sum<100，
         # 强行计算会得到约 |sum - x_N2 - 100| 的无意义数值，置为 None 跳过。
-        if self.composition_scheme == HYDROGEN_NG_SCHEME:
+        # hydrogen_ng / tunnel_ventilation 均为 sum=100% 闭包数据，可计算监控值。
+        if self.composition_scheme in (HYDROGEN_NG_SCHEME, TUNNEL_VENTILATION_SCHEME):
             sum_abs_error = float(torch.mean(torch.abs(y_pred_raw.sum(dim=1) - 100.0)).item())
         else:
             sum_abs_error = None
@@ -395,15 +398,24 @@ class Trainer:
 
         hydrogen_ng → ("x_N2", "x_CH4") to match the historical N2-improvement
         analysis tooling. syngas → ("x_CO", "x_CH4") since x_N2 is not in
-        labels (it is background, computed as 100 - sum). Falls back to the
-        last component plus x_CH4 when names are unrecognised.
+        labels (it is background, computed as 100 - sum). tunnel_ventilation →
+        ("x_O2", "x_CO2"): O2 is the weakly-observable component (no direct
+        NDIR channel), CO2 is the primary observable. Falls back to the last
+        component plus x_CH4 when names are unrecognised.
         """
         if self.composition_scheme == SYNGAS_SCHEME:
             primary = "x_CO" if "x_CO" in self.component_names else self.component_names[-1]
+        elif self.composition_scheme == TUNNEL_VENTILATION_SCHEME:
+            primary = "x_O2" if "x_O2" in self.component_names else self.component_names[-1]
         else:
             primary = "x_N2" if "x_N2" in self.component_names else self.component_names[-1]
         bins = [primary]
-        if "x_CH4" in self.component_names and "x_CH4" != primary:
+        if self.composition_scheme == TUNNEL_VENTILATION_SCHEME:
+            # tv3 无 x_CH4，改用 x_CO2 作为次级分箱维度（主可观测组分）
+            secondary = "x_CO2" if "x_CO2" in self.component_names and "x_CO2" != primary else None
+            if secondary is not None:
+                bins.append(secondary)
+        elif "x_CH4" in self.component_names and "x_CH4" != primary:
             bins.append("x_CH4")
         return tuple(bins)
 

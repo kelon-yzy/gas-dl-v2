@@ -1,7 +1,15 @@
 # DL 相位统计稳定提取与保留方案
 
 日期：2026-06-27  
-状态：方案整理，供后续实验设计与代码实现参考
+状态：方案整理；经 2026-07-04 复核，经验证据需在 v6-phys-strict 链路重新标定（见下方前提警告）
+
+> **2026-07-04 链路版本前提警告（必读）**
+>
+> §2 的全部经验证据产自**旧仿真链路**（40kHz / 200kS/s / 16-bit / L_m 0.2-1.8m），对应 CSV 生成于 2026-06-10 ~ 06-24。方案定稿（2026-06-27）之后，链路于 2026-07-02（200kHz / 1MS/s / 20-bit / L_m≤0.3m）与 2026-07-03（v6-phys-strict：理想气声速 + WMS 热导 + 分数延迟 TOF）连续替换，旧 benchmark 已归档且不可用于新链路（见项目 `CLAUDE.md`）。
+>
+> 影响：N2 在 hydrogen_ng 中为 IR 惰性气体，其超出闭包的独立可观测性主要依赖声学 TOF / 声速；L_m 从 0.2-1.8m 塌缩到 0.18-0.28m（原因：200kHz 下长声程被 CH₄/CO₂ 弛豫吸收淹没）直接削弱该通道。故 §2.1 的 Ridge N2 R²≈0.712、§6.1 的验收门槛均在**物理已不同的信号链上测得**，v6 下可能够不到；一旦够不到，§9 停止条件会在 P2 触发。
+>
+> 处置：执行 P0 前先完成新增的 **P-1（v6 证据迁移验证，见 §5、§9）**——在 v6 数据上重建 Ridge multiwindow 基线，确认 N2 相位统计信号是否幸存。幸存则 P0–P9 照走（仅需按新 L_m 重定义相位窗口）；大幅衰减则方案前提失效，先改问题定义再谈 DL 改造。§1–§9 原文保留旧链路语境，作为“信号幸存后”的执行蓝本；一切数字与判据以 P-1 在 v6 的重新标定为准。
 
 ## 1. 结论
 
@@ -61,14 +69,15 @@
 
 这说明“把统计量拼进去”本身不够。当前 `src/dl/models/cnn1d_tcn_fusion.py` 里的 `PhaseStatMLP` 是旁路 MLP，最后只和 TCN pooled feature 拼接；没有统计分支专属 loss、窗口辅助头、模态平衡或蒸馏约束，因此统计信息仍可能被后续融合层忽略。
 
-另外，当前检查发现：
+另外，2026-07-04 复核发现：
 
 ```text
-data/wv4-formal-hitran-standard-6000/ 整个 benchmark 目录在本地缺失
-data/ 下仅剩 wv4-smoke / sg4-formal / sg4-smoke
+data/wv4-formal-hitran-standard-6000/ 本地缺失；且 _archived_pre_200khz/ 与
+_archived_pre_phys_strict/ 两个归档目录均不含它 —— 无备份可恢复，只能重生成
+data/ 当前仅剩 wv4-smoke / sg4-smoke（sg4-formal 等已随链路切换归档）
 ```
 
-即 P1/P2 中 ridge_multiwindow 和 stats-only MLP 的载体目录目前不可用。后续除了生成相位统计资产，还要先确认 benchmark 是从备份恢复还是重新跑 `python -m pipeline.generate_benchmark` 生成，否则 `phase_stats_path=auto` 类实验不可稳定复验。
+即 P1/P2 的载体目录不可用，且**不存在“从备份恢复”选项**——只能用 v6-phys-strict 参数重跑 `python -m pipeline.generate_benchmark` 重生成。重生成含 10MS/s 过采样 + 分数延迟重采样，算力不轻；`data/hitran_cache/` 可部分复用，但 L_m 变更后 `hitran_cache_windowed/` 需刷新。重生成并按新 L_m 重定义窗口后，`phase_stats_path=auto` 类实验才可复验。
 
 ## 3. 根因拆解
 
@@ -131,7 +140,7 @@ manifest 至少记录：
 - dataset slug；
 - `composition_scheme`（`hydrogen_ng` / `syngas`）与 `background_fields`，用于后续场景迁移；
 - split 主键：明确写 `split_key = "mixture_id"`（项目约定 split 主键是 `mixture_id`，不是 `sequence_id`，见 `CLAUDE.md`），并记录 split 版本；
-- windows：`full`、`phase:exposure`、`phase:recovery`；窗口边界来源（piston 位置阈值 / 固定时间帧号）必须显式记录，包括阈值或帧号；
+- windows：`full`、`phase:exposure`、`phase:recovery`；窗口边界来源（piston 位置阈值 / 固定时间帧号）必须显式记录，包括阈值或帧号；**v6 链路 L_m 已塌缩到 0.18-0.28m，活塞行程与曝光/恢复时序随之改变，旧窗口边界不可直接沿用，必须在 v6 数据上重新标定**；
 - modalities：`slow`、`ultrasonic`、`fiber_mic`；
 - sequence statistics：`mean/std/min/max/last/delta/slope`；
 - waveform frame features：`mean/std/mean_abs/max_abs/energy/peak_index`；
@@ -224,6 +233,8 @@ L = L_final
 1. 显式 sweep `aux_weight ∈ {0.05, 0.1, 0.2, 0.5}`，window-aux 与 modality-aux 各自扫一遍；
 2. 用 GradNorm（Chen et al. ICML 2018）或 Geometric Loss Strategy 让 aux 自动平衡，不调权重。
 
+GradNorm 实现细节（必读，否则会走样）：需指定**参考任务**（reference task）归一化其他任务梯度，本结构以 `head_final`（主任务）为 reference，避免辅助头反客为主压制主任务；并引入单超参 `α` 控制平衡强度，原文用 `α ∈ {0.5, 1, 2}`，需 sweep。
+
 方案 C 中 `0.2 * L_stats_head` 同样适用上述两条规则。
 
 判读：
@@ -268,7 +279,7 @@ tokens
 - `Modality Dropout`；
 - `Window Dropout`；
 - `Branch Dropout`；
-- 梯度范数监控或轻量 gradient balancing。
+- OGM-GE（Peng et al. CVPR 2022，arXiv 2203.15332）：监控各模态对学习目标的贡献差异，动态调制各模态梯度幅度，并附加动态高斯噪声避免泛化下降。属梯度级平衡，与上面的 Dropout（结构级）互补，可叠加。比泛泛的“梯度范数监控”更可操作。**执行建议：首轮先只上结构级 Dropout，确认不足后再叠加 OGM-GE；两者同时开启会使模态平衡效果无法归因。**
 
 ### 方案 F：ROCKET/MultiRocket 式统计池化分支
 
@@ -277,12 +288,14 @@ tokens
 结构：
 
 ```text
-raw window waveform
-  -> fixed/random 1D kernels
+raw window waveform + first-order difference waveform
+  -> fixed/random 1D kernels（对原始与差分序列都卷积）
   -> pooling: max / mean / std / PPV / slope
   -> rocket_features
   -> projection
 ```
+
+“对原始与一阶差分序列都做卷积”是 MultiRocket 相对 MiniRocket 的核心增益之一（Tan et al. 2022，arXiv 2102.00457），不要省略。
 
 然后与：
 
@@ -294,9 +307,13 @@ raw window waveform
 
 这条路线的意义是：不完全依赖端到端网络自己发现统计量，而是把“多尺度卷积响应 + 多种 pooling”作为结构先验。
 
+实现约束（补）：MultiRocket 特征维度可达上万，与 phase_stats / TCN embedding 融合前必须先降维（PCA 或轻量线性投影到与其它分支同量级），否则 rocket 分支会靠维度优势主导融合，重蹈 §3.2 的高维压制问题；random kernels 必须固定 seed（项目复现规则，见 `rules/experiment-reproducibility.md`）。
+
 ### 方案 G：Ridge teacher 蒸馏
 
 目标：用已验证的 `ridge_multiwindow_all_modalities` 指导 DL。
+
+理论先驱：Du et al. ICML 2023（arXiv 2305.01233）提出 UMT（Uni-Modal Teacher）——用单模态 teacher 指导多模态训练，与本项目“用 Ridge（显式统计）teacher 指导端到端 DL”同构。方案 G 可视为 UMT 思想在“统计模型 teacher → DL student”场景的延伸。
 
 可选蒸馏目标：
 
@@ -387,7 +404,10 @@ probe 任务：
 1. hidden -> phase_stats
 2. hidden -> ridge_multiwindow prediction
 3. hidden -> y_true
+4. per-modality hidden -> y_true / phase_stats（每个模态单独 probe）
 ```
+
+任务 4 是 per-modality probe（Du et al. ICML 2023 的诊断视角，呼应 iTransformer 的 variate-centric 发现）：测每个模态单独的可预测性，能区分“某模态本身无信号”与“模态有信号但被融合压制”，定位欠优化模态。
 
 判读：
 
@@ -456,6 +476,8 @@ token_fiber
 token_phase_stats
 ```
 
+token 拆分依据：iTransformer（Liu et al. 2023，arXiv 2310.06625）实证发现“把多变量塞进一个 temporal token 会 fail in learning variate-centric representations，产生 meaningless attention maps”。因此 phase×modality 分开做 token 不是随意拆分，而是有实证支撑——避免变量混合 token 学不到变量中心化表征。
+
 推荐结构：
 
 ```text
@@ -468,6 +490,13 @@ tokens
   -> cls token 或 gated pooling
   -> final head
 ```
+
+设计变体对照（两者构成完整设计空间，建议都验证）：
+
+- **channel-mixing**（iTransformer 风格，即上图）：phase×modality token 间做 attention 交互，学习变量间关系；
+- **channel-independent**（PatchTST 风格）：每个模态独立做 phase-token Transformer（权重共享），末端再融合。PatchTST 摘要明确 channel-independence 是其性能关键之一。
+
+结合 iTransformer 的发现，channel-independent 变体值得作为对照——验证“变量交互是否必要”还是“独立编码已足够”。
 
 适合验证：
 
@@ -549,9 +578,10 @@ per-timestep fused embedding
 
 | 编号    | 实验                                                   | 目的                    | 通过判据                                                                       |
 | ----- | ---------------------------------------------------- | --------------------- | -------------------------------------------------------------------------- |
-| A0    | 恢复 / 重生成 `wv4-formal-hitran-standard-6000` benchmark | 该目录本地缺失，是 A1–A2 的前置条件 | benchmark 目录可读，sequence_index/manifest/labels 完整                           |
+| P-1   | **v6 证据迁移验证**（新增，最高前置） | 旧链路 Ridge 信号能否在 v6 幸存 | v6 数据上 Ridge multiwindow 的 N2 R² 显著高于同数据 full-only baseline；否则前提失效、停止 |
+| A0    | 用 v6 参数重生成 `wv4-formal-hitran-standard-6000`（无备份可恢复） | 该目录本地缺失，是 A1–A2 的前置条件 | benchmark 目录可读，sequence_index/manifest/labels 完整                           |
 | A1    | 生成 `phase_stats.npy` + scaler + names                | 固定统计资产                | Ridge 可复现 multiwindow 指标                                                   |
-| A2    | `ridge_multiwindow_all_modalities` 复跑                | 校验资产一致性               | test N2 R2≈0.712                                                           |
+| A2    | `ridge_multiwindow_all_modalities` 复跑                | 校验资产一致性               | v6 基线可复现（N2 R² 以 P-1 标定值为准，不硬编码 0.712）                          |
 | B1    | `stats_only_mlp_raw4`                                | 验证 DL 能否吃统计特征         | test overall R² ≥ 0.85, N2 R² ≥ 0.5                                        |
 | B2    | `stats_only_mlp_softmax100`                          | 验证闭包 softmax          | test overall R² ≥ 0.88, N2 R² ≥ 0.55, sum_abs_error≈0                      |
 | **P** | **`tcn_hidden_probe`（提前）**                           | **决定后续 P4 分叉**        | probe → phase_stats / probe → ridge_prediction / probe → y_true 三个 R² 同时输出 |
@@ -596,7 +626,9 @@ probe 分叉：
 
 ### 6.1 统计资产验收
 
-必须满足：
+> **注意**：下列数字是**旧链路基线**，仅作历史参照。v6-phys-strict 下必须由 P-1 重新标定；验收判据改为“v6 Ridge multiwindow 的 N2 R² 显著高于同数据 full-only baseline（旧链路对比为 0.712 vs 0.217）”，不再硬编码 0.712。
+
+旧链路基线（历史参照，40kHz / L_m 0.2-1.8m）：
 
 ```text
 ridge_multiwindow_all_modalities
@@ -605,7 +637,7 @@ ridge_multiwindow_all_modalities
   extrapolation N2 R2 ≈ 0.725
 ```
 
-否则不进入 DL 改造。
+v6 未通过 P-1 前，不进入 DL 改造。
 
 ### 6.2 DL 阶段性验收
 
@@ -704,8 +736,11 @@ Patch、Transformer、状态空间与轻量时间序列模型：
 ## 9. 推荐落地顺序
 
 ```text
-P0: 恢复 / 重生成 wv4-formal-hitran-standard-6000 benchmark
-P1: 生成并固定 phase_stats artifact（含 mixture_id split_key 与 composition_scheme）
+P-1: v6 证据迁移验证（新增，最高优先）—— 用 v6 参数重生成 wv4-formal，
+     重建 Ridge multiwindow 基线，确认 N2 相位统计信号是否在新链路幸存
+P0: 用 v6 参数重生成 wv4-formal-hitran-standard-6000 benchmark（无备份，只能重生成）
+P1: 生成并固定 phase_stats artifact（含 mixture_id split_key 与 composition_scheme；
+    相位窗口按 v6 新 L_m 重新标定）
 P2: stats-only MLP + ridge_multiwindow 复现
 P3: TCN hidden probe（提前到此处）—— 决定 P4 分叉
 P4: 按 probe 结果分叉
@@ -721,7 +756,12 @@ P9: TSMixer/DLinear 轻量对照（最末，仅用于结构对照）
 最关键的停止条件：
 
 ```text
-如果 P0 benchmark 无法恢复 / 重生成，
+如果 P-1 显示 v6 下 Ridge multiwindow 的 N2 信号已大幅衰减（不再显著优于
+full-only baseline），说明方案前提（“显式相位统计里有可学信号”）在新链路失效，
+先改问题定义（N2 是否仍作独立目标 / 是否转向 TCS 热导加权 / 是否接受 N2 走闭包），
+不要继续 P0 之后的任何 DL 改造。
+
+如果 P0 benchmark 无法重生成，
 不要继续；先确认数据来源。
 
 如果 phase_stats artifact 无法复现 ridge_multiwindow，

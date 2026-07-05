@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -24,18 +25,18 @@ Regressor = MeanRegressor | RidgeRegressor | DynamicStackingSVRRegressor
 """Concrete regressor type alias. Use Protocol only when 5+ regressor types exist (KARPATHY_REVIEW 2.4)."""
 
 
-def _default_bin_components(label_names: tuple[str, ...]) -> tuple[str, ...]:
-    """Pick conditional-metric bin components based on which composition the
-    labels describe. hydrogen_ng labels include ``x_N2`` (sum=100% closure);
-    syngas labels do not (``x_N2`` is background, ``x_CO`` replaces it as the
-    fourth target). Falls back to the last component plus ``x_CH4`` when the
-    expected names are absent.
-    """
-    primary = (
-        "x_N2"
-        if "x_N2" in label_names
-        else ("x_CO" if "x_CO" in label_names else label_names[-1])
-    )
+def _default_bin_components(label_names: tuple[str, ...], composition_scheme: str) -> tuple[str, ...]:
+    """Pick conditional-metric bin components for the dataset composition scheme."""
+    if composition_scheme == "tunnel_ventilation":
+        primary = "x_O2" if "x_O2" in label_names else label_names[-1]
+        bins = [primary]
+        if "x_CO2" in label_names and "x_CO2" != primary:
+            bins.append("x_CO2")
+        return tuple(bins)
+    if composition_scheme == "syngas":
+        primary = "x_CO" if "x_CO" in label_names else label_names[-1]
+    else:
+        primary = "x_N2" if "x_N2" in label_names else label_names[-1]
     bins = [primary]
     if "x_CH4" in label_names and "x_CH4" != primary:
         bins.append("x_CH4")
@@ -81,6 +82,7 @@ def evaluate_regressor(
     *,
     split: str,
     target_transform: TargetTransformSpec | None = None,
+    composition_scheme: str = "hydrogen_ng",
 ) -> SplitEvaluation:
     """Evaluate a fitted regressor on one feature matrix."""
     predictions = model.predict(matrix.x)
@@ -93,9 +95,8 @@ def evaluate_regressor(
     compositional_metrics = (
         _compositional_metrics(predictions, matrix.y, target_transform) if target_transform is not None else None
     )
-    # sum=100% 闭包对 hg labels (含 x_N2) 才有意义；syngas labels 是 4 列 sum<100，
-    # 强算会得到约 |sum - x_N2 - 100| 的无意义数值，置为 None 跳过。
-    if "x_N2" in matrix.label_names:
+    # sum=100% 闭包只对 hydrogen_ng / tunnel_ventilation 有意义；syngas labels 是 4 列 sum<100。
+    if composition_scheme in ("hydrogen_ng", "tunnel_ventilation"):
         sum_abs_error: float | None = float(np.mean(np.abs(predictions.sum(axis=1) - 100.0)))
     else:
         sum_abs_error = None
@@ -108,7 +109,7 @@ def evaluate_regressor(
             predictions,
             matrix.y,
             matrix.label_names,
-            bin_components=_default_bin_components(matrix.label_names),
+            bin_components=_default_bin_components(matrix.label_names, composition_scheme),
         ),
         sum_abs_error=sum_abs_error,
         predictions=predictions.astype(np.float32, copy=False),
@@ -131,6 +132,10 @@ def train_regressor_on_dataset(
     This is intentionally small: it provides a deterministic baseline path for
     generated benchmark runs without introducing a scikit-learn dependency.
     """
+    dataset_dir = Path(dataset_dir)
+    composition_scheme = _load_composition_scheme(dataset_dir)
+    if composition_scheme == "tunnel_ventilation" and _has_target_transform(target_transform):
+        raise ValueError("tunnel_ventilation ML baselines require raw percentage targets without target_transform")
     feature_config = feature_config or MLFeatureConfig()
     train_matrix = load_feature_matrix(dataset_dir, split=train_split, config=feature_config)
     transform_spec = resolve_target_transform_for_training(target_transform, train_matrix.y)
@@ -156,7 +161,13 @@ def train_regressor_on_dataset(
                 component_names=matrix.label_names,
             )
             audits[split] = audit
-        evaluations[split] = evaluate_regressor(model, matrix, split=split, target_transform=transform_spec)
+        evaluations[split] = evaluate_regressor(
+            model,
+            matrix,
+            split=split,
+            target_transform=transform_spec,
+            composition_scheme=composition_scheme,
+        )
 
     return MLTrainingResult(
         model=model,
@@ -168,6 +179,18 @@ def train_regressor_on_dataset(
         target_transform=transform_spec,
         target_transform_audits=audits,
     )
+
+
+def _load_composition_scheme(dataset_dir: Path) -> str:
+    manifest_path = dataset_dir / "manifest.json"
+    if not manifest_path.is_file():
+        return "hydrogen_ng"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return str(manifest.get("composition_scheme", "hydrogen_ng"))
+
+
+def _has_target_transform(target_transform: str | dict[str, Any] | None) -> bool:
+    return target_transform is not None and target_transform != "none"
 
 
 def _validate_feature_contract(matrix: MLFeatureMatrix, reference: MLFeatureMatrix) -> None:

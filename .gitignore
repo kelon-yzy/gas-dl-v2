@@ -15,6 +15,8 @@ outputs/*.zip
 !outputs/archive/.gitkeep
 data/hitran_cache*/
 data/sg4-*/
+# tv3 数据集（fiber_mic_int32.npy 11.7GB / ultrasonic_int32.npy 5.9GB，超 GitHub 100MB 限制，由 CLI 重新生成）
+data/tv3-*/
 data/_archived_pre_200khz/
 data/_archived_pre_phys_strict/
 # wv4-smoke 波形数组（int32/20-bit 采样点 ×5 后单文件超 GitHub 100MB 限制），本地生成不进 git

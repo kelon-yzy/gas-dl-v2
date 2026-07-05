@@ -215,6 +215,29 @@ def test_weighted_component_mse_allows_cnn1d_tcn_fusion_raw4():
     )
 
 
+def test_tunnel_ventilation_requires_cnn1d_tcn_fusion_raw3():
+    validate_loss_model_output(
+        "mse",
+        model_name="cnn1d_tcn_fusion",
+        model_kwargs={"output_mode": "raw3", "out_dim": 3},
+        composition_scheme="tunnel_ventilation",
+    )
+    with pytest.raises(ValueError, match="output_mode='raw3'"):
+        validate_loss_model_output(
+            "mse",
+            model_name="cnn1d_tcn_fusion",
+            model_kwargs={"output_mode": "gas_head", "out_dim": 3},
+            composition_scheme="tunnel_ventilation",
+        )
+    with pytest.raises(ValueError, match="out_dim=3"):
+        validate_loss_model_output(
+            WEIGHTED_COMPONENT_MSE_LOSS,
+            model_name="cnn1d_tcn_fusion",
+            model_kwargs={"output_mode": "raw3", "out_dim": 4},
+            composition_scheme="tunnel_ventilation",
+        )
+
+
 def test_cnn1d_tcn_fusion_free_component_mse_requires_gas_head():
     # free_component_mse 是闭包类损失，要求 gas_head。
     with pytest.raises(ValueError, match="output_mode='gas_head'"):

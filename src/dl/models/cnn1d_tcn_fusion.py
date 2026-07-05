@@ -188,6 +188,7 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
     output_mode supports:
     - ``"gas_head"``: bounded simplex output using GasHeadNormalize (default, original behavior).
     - ``"raw4"``: unbounded linear output for raw component percentages.
+    - ``"raw3"``: unbounded linear output for three-component raw percentages.
     """
 
     input_format = "NTC"
@@ -218,11 +219,13 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         phase_stat_norm_std: Sequence[float] | None = None,
     ):
         if out_dim not in {3, 4}:
-            raise ValueError("CNN1DTCNFusionRegressor requires out_dim=4 for raw percentages or out_dim=3 for log-ratio targets")
-        if output_mode not in {"raw4", "gas_head"}:
-            raise ValueError("output_mode must be one of ['raw4', 'gas_head']")
+            raise ValueError("CNN1DTCNFusionRegressor requires out_dim=4 for raw4 percentages or out_dim=3 for raw3/log-ratio targets")
+        if output_mode not in {"raw3", "raw4", "gas_head"}:
+            raise ValueError("output_mode must be one of ['raw3', 'raw4', 'gas_head']")
         if output_mode == "raw4" and out_dim != 4:
             raise ValueError("raw4 output_mode requires out_dim=4")
+        if output_mode == "raw3" and out_dim != 3:
+            raise ValueError("raw3 output_mode requires out_dim=3")
         expected_channels = slow_channels + ultrasonic_channels + fiber_mic_channels
         if in_channels != expected_channels:
             raise ValueError(

@@ -31,11 +31,11 @@
 
 ### 通道组成
 
-| 模态                | 通道数  | 索引范围       | 说明                                   |
-| ----------------- | ---- | ---------- | ------------------------------------ |
-| **slow 变量**       | 8    | 0:8        | 温度 T_C、压力 P_MPa、湿度 H_RH、管长 L_m、活塞位置等 |
-| **ultrasonic 波形** | 5000 | 8:5008     | 超声传感器时间序列，int32 原始采样（200kHz 载波 / 1MS/s / 20-bit ADC） |
-| **fiber_mic 波形**  | 10000 | 5008:15008 | 光纤麦克风时间序列，int32 原始采样（10ms 窗口 / 1MS/s）  |
+| 模态                | 通道数   | 索引范围       | 说明                                                   |
+| ----------------- | ----- | ---------- | ---------------------------------------------------- |
+| **slow 变量**       | 8     | 0:8        | 温度 T_C、压力 P_MPa、湿度 H_RH、管长 L_m、活塞位置等                 |
+| **ultrasonic 波形** | 5000  | 8:5008     | 超声传感器时间序列，int32 原始采样（200kHz 载波 / 1MS/s / 20-bit ADC） |
+| **fiber_mic 波形**  | 10000 | 5008:15008 | 光纤麦克风时间序列，int32 原始采样（10ms 窗口 / 1MS/s）                |
 
 ### 目标输出
 
@@ -380,12 +380,12 @@ def _init_prior(self, output_prior):
 
 ### 6.4 输出模式状态
 
-| 模式                    | 结构                      | 约束      | 状态                  |
-| --------------------- | ----------------------- | ------- | ------------------- |
-| **raw4**              | Linear(64, 4)           | 无       | 当前 P0-B 最佳配置       |
-| **GasHeadNormalize**  | Linear(64, 4) + softmax/sigmoid 闭包 | sum=100 | 可用，但 N₂ 为残差，非当前主线 |
-| **GasCoordinateHead** | Linear(64, 3) + ILR 逆变换 | ILR 空间  | 完全不可训练              |
-| **softmax100**        | Linear + Softmax × 100  | sum=100 | 仅 PhaseWindowTCN 支持 |
+| 模式                    | 结构                                 | 约束      | 状态                  |
+| --------------------- | ---------------------------------- | ------- | ------------------- |
+| **raw4**              | Linear(64, 4)                      | 无       | 当前 P0-B 最佳配置        |
+| **GasHeadNormalize**  | Linear(64, 4) + softmax/sigmoid 闭包 | sum=100 | 可用，但 N₂ 为残差，非当前主线   |
+| **GasCoordinateHead** | Linear(64, 3) + ILR 逆变换            | ILR 空间  | 完全不可训练              |
+| **softmax100**        | Linear + Softmax × 100             | sum=100 | 仅 PhaseWindowTCN 支持 |
 
 ---
 
@@ -519,14 +519,14 @@ def _init_weights(module):
 
 ## 九、已证实的失败方向
 
-| 方向                     | 配置                                 | 结果                 | 原因分析            |
-| ---------------------- | ---------------------------------- | ------------------ | --------------- |
-| **gas_head 闭包残差头**   | output_mode="gas_head"             | N₂ R² 近 0，非当前主线   | N₂ 由前三组分残差补全，误差累积 |
-| **gas_head (ILR坐标)**   | output_mode="gas_head" + out_dim=3 | 完全不可训练             | 对数比空间非线性压缩，梯度病态 |
-| **PhaseWindowTCN**     | 多窗口架构                              | R²=+0.227          | 容量分散，未超过单窗口     |
-| **P3-A phase-stat 分支** | 接入 420-d Ridge 特征                  | R²=-0.085 (退化2.7×) | 统计特征引入噪声，容量不足   |
-| **P0-A CO₂×2 单组分**     | inverse_train_var × [1,1,2,1]     | 低于 P0-B             | CO₂ 转正但整体收益不足    |
-| **Cosine annealing**   | CosineAnnealingLR                  | 性能退化               | 末期低学习率困于局部最优    |
+| 方向                     | 配置                                 | 结果                 | 原因分析              |
+| ---------------------- | ---------------------------------- | ------------------ | ----------------- |
+| **gas_head 闭包残差头**     | output_mode="gas_head"             | N₂ R² 近 0，非当前主线    | N₂ 由前三组分残差补全，误差累积 |
+| **gas_head (ILR坐标)**   | output_mode="gas_head" + out_dim=3 | 完全不可训练             | 对数比空间非线性压缩，梯度病态   |
+| **PhaseWindowTCN**     | 多窗口架构                              | R²=+0.227          | 容量分散，未超过单窗口       |
+| **P3-A phase-stat 分支** | 接入 420-d Ridge 特征                  | R²=-0.085 (退化2.7×) | 统计特征引入噪声，容量不足     |
+| **P0-A CO₂×2 单组分**     | inverse_train_var × [1,1,2,1]      | 低于 P0-B            | CO₂ 转正但整体收益不足     |
+| **Cosine annealing**   | CosineAnnealingLR                  | 性能退化               | 末期低学习率困于局部最优      |
 
 ---
 
@@ -565,20 +565,20 @@ def _init_weights(module):
 
 ### 11.1 分模块参数量
 
-| 模块                     | 参数量       | 占比   |
-| ---------------------- | --------- | ---- |
-| **Ultrasonic Encoder** | 55,376    | 21.5% |
-| **Fiber_mic Encoder**  | 55,376    | 21.5% |
-| **Slow Encoder**       | 2,400     | 0.9% |
-| **TCN (3层)**           | 111,360   | 43.2% |
-| **MLP 头**              | 32,960    | 12.8% |
-| **输出头**                | ~260      | <1%  |
-| **总计**                 | **257,732** | 100% |
+| 模块                     | 参数量         | 占比    |
+| ---------------------- | ----------- | ----- |
+| **Ultrasonic Encoder** | 55,376      | 21.5% |
+| **Fiber_mic Encoder**  | 55,376      | 21.5% |
+| **Slow Encoder**       | 2,400       | 0.9%  |
+| **TCN (3层)**           | 111,360     | 43.2% |
+| **MLP 头**              | 32,960      | 12.8% |
+| **输出头**                | ~260        | <1%   |
+| **总计**                 | **257,732** | 100%  |
 
 ### 11.2 容量扩张对比
 
-| 配置           | TCN 通道          | 总参数量 | 感受野 |
-| ------------ | --------------- | ---- | --- |
+| 配置           | TCN 通道          | 总参数量    | 感受野 |
+| ------------ | --------------- | ------- | --- |
 | **Baseline** | [64, 64, 64]    | 257,732 | 29  |
 | **P1 扩张**    | [128, 128, 128] | 516,548 | 29  |
 | **P2 扩展**    | [64] × 6        | 332,228 | 253 |
@@ -675,51 +675,51 @@ generate_benchmark_dataset(benchmark.py)
 
 入口 `generate_benchmark_dataset(output_root, spec)`（`benchmark.py:110`）按以下步骤执行：
 
-| 步骤 | 关键调用 | 说明 |
-|---|---|---|
-| 校验 spec | `_validate_spec` | |
-| 生成 conditions | `generate_condition_rows` | LHS 采样 sequence_count 条 |
-| 校验 HITRAN 缓存 | `validate_hitran_benchmark_cache` | 仅 HITRAN 后端 |
-| 构建 splits | `build_default_split_rows` | mixture_id 主键划分 |
-| 构建标签数组 | `_label_array` | `(N, 4)` float32 |
-| 构建序列数组 | `build_sequence_arrays` / 并行分块 | slow + 波形 + 辅助 |
-| 完整性校验 | `validate_benchmark_assets` | |
-| 写入数组 | `write_arrays` | npy/memmap/npz |
-| 构建 manifest | `build_manifest` | 含 sim_revision |
-| 写 CSV/JSON 元数据 | condition_grid / sequence_index / labels / slow_sequence_long / splits | |
-| 拟合 scalers | `fit_z_score_scalers` | train 序列上拟合 |
-| 发布 | `_publish_staging_dir` | staging 原子重命名为 output_dir |
-| 异常回滚 | `shutil.rmtree(staging_dir)` | |
+| 步骤             | 关键调用                                                                   | 说明                        |
+| -------------- | ---------------------------------------------------------------------- | ------------------------- |
+| 校验 spec        | `_validate_spec`                                                       |                           |
+| 生成 conditions  | `generate_condition_rows`                                              | LHS 采样 sequence_count 条   |
+| 校验 HITRAN 缓存   | `validate_hitran_benchmark_cache`                                      | 仅 HITRAN 后端               |
+| 构建 splits      | `build_default_split_rows`                                             | mixture_id 主键划分           |
+| 构建标签数组         | `_label_array`                                                         | `(N, 4)` float32          |
+| 构建序列数组         | `build_sequence_arrays` / 并行分块                                         | slow + 波形 + 辅助            |
+| 完整性校验          | `validate_benchmark_assets`                                            |                           |
+| 写入数组           | `write_arrays`                                                         | npy/memmap/npz            |
+| 构建 manifest    | `build_manifest`                                                       | 含 sim_revision            |
+| 写 CSV/JSON 元数据 | condition_grid / sequence_index / labels / slow_sequence_long / splits |                           |
+| 拟合 scalers     | `fit_z_score_scalers`                                                  | train 序列上拟合               |
+| 发布             | `_publish_staging_dir`                                                 | staging 原子重命名为 output_dir |
+| 异常回滚           | `shutil.rmtree(staging_dir)`                                           |                           |
 
 `BenchmarkGenerationSpec`（`benchmark.py:89-107`）字段：
 
-| 字段 | 默认值 | 含义 |
-|---|---|---|
-| `dataset_slug` | (必填) | 数据集标识 |
-| `sequence_count` | (必填) | 序列数 |
-| `seed` | (必填) | 全局随机种子 |
-| `timesteps` | 128 | 每序列时间步数 |
-| `dt_s` | 0.5 | 时间步间隔（秒） |
-| `storage` | "memmap" | memmap/npz/both |
-| `multi_path_phase` | "steady" | 多光程扫描阶段 off/baseline/steady |
-| `stage_profile` | "standard_exposure" | 相位调度预设 |
-| `stage_jitter` | 0.0 | 阶段时长抖动分数 |
-| `sampling_strategy` | "lhs" | lhs/random |
-| `path_lms` | (0.18,0.20,0.22,0.25,0.28) | 多光程扫描路径（m） |
-| `optical_absorption_backend` | "hitran_hapi_v1" | NDIR 后端 |
-| `hitran_cache_root` | "data/hitran_cache" | HITRAN 缓存根目录 |
-| `workers` / `chunk_size` | 1 / None | 并行分块参数 |
+| 字段                           | 默认值                        | 含义                          |
+| ---------------------------- | -------------------------- | --------------------------- |
+| `dataset_slug`               | (必填)                       | 数据集标识                       |
+| `sequence_count`             | (必填)                       | 序列数                         |
+| `seed`                       | (必填)                       | 全局随机种子                      |
+| `timesteps`                  | 128                        | 每序列时间步数                     |
+| `dt_s`                       | 0.5                        | 时间步间隔（秒）                    |
+| `storage`                    | "memmap"                   | memmap/npz/both             |
+| `multi_path_phase`           | "steady"                   | 多光程扫描阶段 off/baseline/steady |
+| `stage_profile`              | "standard_exposure"        | 相位调度预设                      |
+| `stage_jitter`               | 0.0                        | 阶段时长抖动分数                    |
+| `sampling_strategy`          | "lhs"                      | lhs/random                  |
+| `path_lms`                   | (0.18,0.20,0.22,0.25,0.28) | 多光程扫描路径（m）                  |
+| `optical_absorption_backend` | "hitran_hapi_v1"           | NDIR 后端                     |
+| `hitran_cache_root`          | "data/hitran_cache"        | HITRAN 缓存根目录                |
+| `workers` / `chunk_size`     | 1 / None                   | 并行分块参数                      |
 
 ### 13.3 条件采样（conditions.py）
 
 LHS 维度 d=3（H₂/CO₂/N₂ 三个自由度，CH₄ 为闭合余项），`_sample_components_lhs`：
 
-| 组分 | 范围 | 采样逻辑 |
-|---|---|---|
-| x_H₂ | 0~30% | 双峰映射：15% trace [0,3]、70% mid [0,30]、15% high [25,30] |
-| x_CO₂ | 0~15% | 均匀 `u*15` |
-| x_N₂ | 0~20% | 均匀 `u*20` |
-| x_CH₄ | ≥40% | `100-sum`，若 <40% 压缩 N₂ 保 CH₄≥40% |
+| 组分    | 范围    | 采样逻辑                                                 |
+| ----- | ----- | ---------------------------------------------------- |
+| x_H₂  | 0~30% | 双峰映射：15% trace [0,3]、70% mid [0,30]、15% high [25,30] |
+| x_CO₂ | 0~15% | 均匀 `u*15`                                            |
+| x_N₂  | 0~20% | 均匀 `u*20`                                            |
+| x_CH₄ | ≥40%  | `100-sum`，若 <40% 压缩 N₂ 保 CH₄≥40%                     |
 
 环境变量（`generate_condition_rows`）：T_C ∈ [15,35]°C、P_MPa ∈ [0.10,0.709]、H_RH ∈ [20,80]%、**L_m ∈ [0.2,0.3]m**（200kHz 物理约束，见 §13.5）。
 
@@ -734,11 +734,11 @@ LHS 维度 d=3（H₂/CO₂/N₂ 三个自由度，CH₄ 为闭合余项），`_
 
 **后端切换**（`slow.py:69-72`）：
 
-| 后端 | 动力学模式 | NDIR 计算 |
-|---|---|---|
-| empirical_v1 + standard_exposure + 无 jitter | legacy 单时间常数（`_dynamic_slow_features`） | 经验线性吸收 `_hidden_absorption_ch4/co2` |
-| empirical_v1 其他 | multi-tau 双指数 | 同上 |
-| hitran_hapi_v1 | multi-tau 双指数（强制） | HITRAN 光谱前向 `_hitran_ndir_equilibrium` |
+| 后端                                          | 动力学模式                                  | NDIR 计算                                |
+| ------------------------------------------- | -------------------------------------- | -------------------------------------- |
+| empirical_v1 + standard_exposure + 无 jitter | legacy 单时间常数（`_dynamic_slow_features`） | 经验线性吸收 `_hidden_absorption_ch4/co2`    |
+| empirical_v1 其他                             | multi-tau 双指数                          | 同上                                     |
+| hitran_hapi_v1                              | multi-tau 双指数（强制）                      | HITRAN 光谱前向 `_hitran_ndir_equilibrium` |
 
 **多光程扫描**（`_path_l_m_for_schedule`，`slow.py:418`）：若 `multi_path_phase=baseline` 在 baseline 段扫描 path_lms；`=steady` 在 steady 段扫描；否则固定 L_m_base。5 档默认 (0.18,0.20,0.22,0.25,0.28)m。
 
@@ -748,14 +748,14 @@ LHS 维度 d=3（H₂/CO₂/N₂ 三个自由度，CH₄ 为闭合余项），`_
 
 **衰减** `hidden_attenuation_v2`（`acoustic_physics.py:72`）：返回 `alpha_true_v2`（Np/m）及分量分解：
 
-| 分量 | 机制 | 关键常数 |
-|---|---|---|
-| alpha_classical | 经典粘滞吸收 ∝f² | K_ref=1.84e-11 |
-| alpha_co2 | CO₂ V-T 弛豫 | f_relax=28kHz/atm, λ_max=0.12, H2O 加速 0.015 |
-| alpha_ch4 | CH₄ V-T 弛豫 | base=30kHz/atm + slope=120kHz/atm·frac, λ_max=0.034 |
-| alpha_h2_diffusion | H₂ 扩散损耗 ∝f² | k=1.6e-3 |
-| alpha_n2 | N₂ V-T 弛豫 | 65kHz/atm, λ_max=0.004 |
-| alpha_h2o | H₂O V-T 弛豫 | 100kHz/atm, λ_max=0.01 |
+| 分量                 | 机制          | 关键常数                                                |
+| ------------------ | ----------- | --------------------------------------------------- |
+| alpha_classical    | 经典粘滞吸收 ∝f²  | K_ref=1.84e-11                                      |
+| alpha_co2          | CO₂ V-T 弛豫  | f_relax=28kHz/atm, λ_max=0.12, H2O 加速 0.015         |
+| alpha_ch4          | CH₄ V-T 弛豫  | base=30kHz/atm + slope=120kHz/atm·frac, λ_max=0.034 |
+| alpha_h2_diffusion | H₂ 扩散损耗 ∝f² | k=1.6e-3                                            |
+| alpha_n2           | N₂ V-T 弛豫   | 65kHz/atm, λ_max=0.004                              |
+| alpha_h2o          | H₂O V-T 弛豫  | 100kHz/atm, λ_max=0.01                              |
 
 **200kHz 物理约束**：CH₄/CO₂ 弛豫峰在 P=0.5MPa 下上移至 ~140kHz，载波落在峰附近，CH₄ 主导气样在 L≥0.5m 信号被吸收淹没。这是 L_m 上限压缩到 0.3m 的根因（见 `docs/Phase0_物理可行性核对记录.md`）。
 
@@ -767,22 +767,23 @@ LHS 维度 d=3（H₂/CO₂/N₂ 三个自由度，CH₄ 为闭合余项），`_
 
 **WaveformSpec** 关键字段（Phase 2/3 改造后）：
 
-| 字段 | 值 | 说明 |
-|---|---|---|
-| `sample_rate_hz` | 1_000_000 | 1 MS/s（NI-6453 同步采样率） |
-| `center_frequency_hz` | 200_000 | 200 kHz（PSC200K） |
-| `burst_cycles` | 8 | 超声脉冲周期数 |
-| `measurement_window_s` | 0.005 | 5ms 窗口 → 5000 采样点 |
-| `daq_bits` | 20 | ADC 位深（NI-6453） |
-| `waveform_dtype` | "int32" | 量化 dtype（20-bit 无原生类型） |
-| `daq_full_scale_v` | 2.5 | ±2.5V 量程（Phase 0 推荐分辨率最优档） |
-| `noise_std_v` | 1e-3 | 前端噪声 1mV |
-| `transducer_bandwidth_hz` | 20000 | 换能器带宽（~10% 中心频率估计） |
-| `transducer_ringdown_cycles` | 4.0 | 振铃衰减周期 |
+| 字段                           | 值         | 说明                         |
+| ---------------------------- | --------- | -------------------------- |
+| `sample_rate_hz`             | 1_000_000 | 1 MS/s（NI-6453 同步采样率）      |
+| `center_frequency_hz`        | 200_000   | 200 kHz（PSC200K）           |
+| `burst_cycles`               | 8         | 超声脉冲周期数                    |
+| `measurement_window_s`       | 0.005     | 5ms 窗口 → 5000 采样点          |
+| `daq_bits`                   | 20        | ADC 位深（NI-6453）            |
+| `waveform_dtype`             | "int32"   | 量化 dtype（20-bit 无原生类型）     |
+| `daq_full_scale_v`           | 2.5       | ±2.5V 量程（Phase 0 推荐分辨率最优档） |
+| `noise_std_v`                | 1e-3      | 前端噪声 1mV                   |
+| `transducer_bandwidth_hz`    | 20000     | 换能器带宽（~10% 中心频率估计）         |
+| `transducer_ringdown_cycles` | 4.0       | 振铃衰减周期                     |
 
 `adc_max` property = `2**(daq_bits-1)-1` = 524287，由 `daq_bits` 推导。`adc_max_from_bits` 工具函数（`waveforms.py`）。
 
 **超声波形** `simulate_waveform_measurement`（`waveforms.py:210`）流程：
+
 1. `_compute_physics`（声速 + 衰减，`f_hz=spec.center_frequency_hz`）
 2. `tof_true_s = l_m / c_sound`，加系统延迟/电缆延迟/触发抖动
 3. `transducer_response_pulse`：burst pulse（Hanning 窗正弦）与二阶谐振核卷积，归一化
@@ -798,13 +799,13 @@ LHS 维度 d=3（H₂/CO₂/N₂ 三个自由度，CH₄ 为闭合余项），`_
 
 两套后端，由 `optical_absorption_backend` 切换：
 
-| 维度 | empirical_v1 | hitran_hapi_v1 |
-|---|---|---|
-| 吸收计算 | 线性经验公式 | HAPI Voigt 线型逐波数积分 |
-| 串扰 | `apply_optical_crosstalk` 固定系数 | 光谱积分自动包含多气体交叉 |
-| T/P 依赖 | 隐含在经验系数 + 漂移项 | 每个 condition 独立 HitranGridSpec |
-| 预处理 | 无 | 需预计算 HITRAN 缓存 |
-| 滤光片 | 不涉及（直接给吸收度） | 高斯滤光片（CH₄ 3030cm⁻¹、CO₂ 2347cm⁻¹，**占位符非实际 datasheet**） |
+| 维度     | empirical_v1                   | hitran_hapi_v1                                        |
+| ------ | ------------------------------ | ----------------------------------------------------- |
+| 吸收计算   | 线性经验公式                         | HAPI Voigt 线型逐波数积分                                    |
+| 串扰     | `apply_optical_crosstalk` 固定系数 | 光谱积分自动包含多气体交叉                                         |
+| T/P 依赖 | 隐含在经验系数 + 漂移项                  | 每个 condition 独立 HitranGridSpec                        |
+| 预处理    | 无                              | 需预计算 HITRAN 缓存                                        |
+| 滤光片    | 不涉及（直接给吸收度）                    | 高斯滤光片（CH₄ 3030cm⁻¹、CO₂ 2347cm⁻¹，**占位符非实际 datasheet**） |
 
 HITRAN 后端位于 `src/sim/generation/spectral/`：`hitran_backend.py`（HAPI 底层 + 缓存）、`filters.py`（高斯滤光核）、`tabulated_backend.py`（表谱积分）、`integration.py`（透射率/吸光度积分）、`cache.py`（文件级缓存）、`defaults.py`（网格/滤镜配置）。编排层 `optical_backend.py` 对 ch4/co2 两通道分别调用。
 
@@ -813,6 +814,7 @@ HITRAN 后端位于 `src/sim/generation/spectral/`：`hitran_backend.py`（HAPI 
 ### 13.8 打包与校验（packaging + validation）
 
 **arrays.py** `write_arrays`：写 14 个数组到 `sequences/`：
+
 - `slow.npy` `(N, T, 8)`、`ultrasonic_<dtype>.npy` `(N, T, 5000)`、`fiber_mic_<dtype>.npy` `(N, T, 10000)`
 - 10 个标量辅助数组（tof_s/alpha/quality/peak_index/sound_speed 等）
 - `waveform_sequence.npz`（可选压缩包）
@@ -832,55 +834,76 @@ HITRAN 后端位于 `src/sim/generation/spectral/`：`hitran_backend.py`（HAPI 
 
 预设（`phases.py:123`）：
 
-| 预设 | 段比 baseline/exposure/steady/recovery | 特点 |
-|---|---|---|
-| `standard_exposure` | 25/25/25/25 | 标准四相等分 |
-| `variable_onset` | 35/20/25/20 | 长基线 + 短暴露 |
-| `fast_transient` | 45/12/8/35 | 极短稳态 |
-| `incomplete_recovery` | 25/25/25/25 | recovery 留 20% 残差 |
-| `multi_pulse` | 12 段 = 3 个完整循环 | 三次脉冲循环 |
+| 预设                    | 段比 baseline/exposure/steady/recovery | 特点                |
+| --------------------- | ------------------------------------ | ----------------- |
+| `standard_exposure`   | 25/25/25/25                          | 标准四相等分            |
+| `variable_onset`      | 35/20/25/20                          | 长基线 + 短暴露         |
+| `fast_transient`      | 45/12/8/35                           | 极短稳态              |
+| `incomplete_recovery` | 25/25/25/25                          | recovery 留 20% 残差 |
+| `multi_pulse`         | 12 段 = 3 个完整循环                       | 三次脉冲循环            |
 
 `blend_shape`：`hold0`（0）、`ramp_up`（线性↑）、`hold1`（1）、`ramp_down`（线性↓至 floor）。baseline/target 按 blend 系数插值，驱动慢通道动力学从基线趋向目标浓度再恢复。
 
 ### 13.10 syngas 场景差异
 
-| 维度 | hg | syngas |
-|---|---|---|
-| COMPONENT_FIELDS | (H₂,CH₄,CO₂,N₂) sum=100% | (H₂,CH₄,CO₂,CO) sum<100% |
-| BACKGROUND_FIELDS | 空 | (x_N2,) — N₂ 入物理不计预测 |
-| SLOW_CHANNELS | 8 | 9 (+V_NDIR_CO) |
-| schema_version | v4-benchmark-1 | v4-syngas-1 |
-| conditions 采样 | LHS d=3（H₂/CO₂/N₂） | 顺序采样 d=4（CO→H₂→CO₂→CH₄，方案 B 煤气化全谱） |
-| 声学物理 | 5 参数（H₂/CH₄/CO₂/N₂） | 6 参数（+x_CO）；均用理想气混合公式，CO 与 N₂ 的 M/γ 几乎相同（28g/mol, γ≈1.399），**声学近简并**（声速差 <1 m/s） |
-| 衰减 | 5 分量 | +CO V-T 弛豫（f_relax=12kHz/atm, λ_max=0.025） |
-| NDIR 通道 | CH₄/CO₂ | +CO（独立网格 1980~2310cm⁻¹，Step 1 无串扰 / Step 2 CO₂↔CO 互扰） |
-| HITRAN 缓存 | data/hitran_cache | data/hitran_cache_syngas（隔离） |
-| 动力学 | empirical 可走 legacy 单 τ | 始终 multi-tau（无 legacy） |
+| 维度                | hg                       | syngas                                                                           |
+| ----------------- | ------------------------ | -------------------------------------------------------------------------------- |
+| COMPONENT_FIELDS  | (H₂,CH₄,CO₂,N₂) sum=100% | (H₂,CH₄,CO₂,CO) sum<100%                                                         |
+| BACKGROUND_FIELDS | 空                        | (x_N2,) — N₂ 入物理不计预测                                                             |
+| SLOW_CHANNELS     | 8                        | 9 (+V_NDIR_CO)                                                                   |
+| schema_version    | v4-benchmark-1           | v4-syngas-1                                                                      |
+| conditions 采样     | LHS d=3（H₂/CO₂/N₂）       | 顺序采样 d=4（CO→H₂→CO₂→CH₄，方案 B 煤气化全谱）                                               |
+| 声学物理              | 5 参数（H₂/CH₄/CO₂/N₂）      | 6 参数（+x_CO）；均用理想气混合公式，CO 与 N₂ 的 M/γ 几乎相同（28g/mol, γ≈1.399），**声学近简并**（声速差 <1 m/s） |
+| 衰减                | 5 分量                     | +CO V-T 弛豫（f_relax=12kHz/atm, λ_max=0.025）                                       |
+| NDIR 通道           | CH₄/CO₂                  | +CO（独立网格 1980~2310cm⁻¹，Step 1 无串扰 / Step 2 CO₂↔CO 互扰）                            |
+| HITRAN 缓存         | data/hitran_cache        | data/hitran_cache_syngas（隔离）                                                     |
+| 动力学               | empirical 可走 legacy 单 τ  | 始终 multi-tau（无 legacy）                                                           |
 
 syngas 的 CO 与 N₂ 摩尔质量均为 28，声速差 <1 m/s，声学通道无法区分 CO/N₂，CO 可观测性依赖 NDIR 光学（见 `docs/syngas/` 系列文档）。
+
+### 13.10.1 掘进通风场景差异
+
+| 维度                | hg                       | 掘进通风 (tunnel_ventilation)                                                        |
+| ----------------- | ------------------------ | -------------------------------------------------------------------------------- |
+| COMPONENT_FIELDS  | (H₂,CH₄,CO₂,N₂) sum=100% | (CO₂,O₂,N₂) sum=100%，但不使用闭包残差头                                                   |
+| BACKGROUND_FIELDS | 空                        | 空 — N₂ 是显式目标                                                                     |
+| SLOW_CHANNELS     | 8                        | 8（沿用 hg 默认，不新增 V_PARAMAGNETIC_O2）                                                |
+| schema_version    | v4-benchmark-1           | tunnel-ventilation-1                                                             |
+| conditions 采样     | LHS d=3（H₂/CO₂/N₂）       | LHS d=2（CO₂/O₂），N₂=100-CO₂-O₂                                                    |
+| 声学物理              | 5 参数（H₂/CH₄/CO₂/N₂）      | 3 参数（CO₂/O₂/N₂）；O₂ vs N₂ 声速差 ~22 m/s（6.4%，可区分）但热导差 ~2%（边际）                       |
+| 衰减                | 5 分量                     | 4 分量（经典 + CO₂ + N₂ + H₂O），移除 CH₄/H₂ 分量，新增 O₂（预期小）                                |
+| NDIR 通道           | CH₄/CO₂                  | 仅 CO₂（O₂/N₂ 同核双原子无红外活性）；V_NDIR_CH4 保留但仅含噪声                                      |
+| 串扰               | 无                         | 无（单组分红外活性）                                                                       |
+| 动力学               | empirical 可走 legacy 单 τ  | multi-tau（跟随 syngas 策略）                                                           |
+| 数据集前缀             | wv4-*                    | tv3-*                                                                            |
+| composition_scheme | hydrogen_ng             | tunnel_ventilation                                                               |
+
+掘进通风的核心挑战是 O₂/N₂ 辨识性：两者声速差 6.4%（可测）但热导率差仅 ~2%（边际），物理可分辨性远低于 hg 中 H₂/CH₄/CO₂/N₂ 之间的差异。详见 `docs/掘进通风/` 系列文档。
+
+实现约束：tv3 虽然数据层 `CO₂+O₂+N₂=100%`，但模型层不使用闭包残差头。`cnn1d_tcn_fusion` 在 tv3 多模态配置中使用 `output_mode="raw3"`、`out_dim=3`；`gas_head` 在 out_dim=3 时表示 log-ratio 坐标头语义，已在 tv3 loss/model 校验中拒绝。
 
 ### 13.11 链路版本与历史对齐
 
 **v5 链路对齐（2026-07-02）**：对齐实际硬件型号（见 `docs/传感器仿真对齐改造计划.md`）：
 
-| 项 | 旧值 | 新值 | 依据 |
-|---|---|---|---|
-| 超声载波 | 40 kHz | 200 kHz | PSC200K 型号 |
-| 采样率 | 200 kS/s | 1 MS/s | NI-6453 同步采样率 |
-| ADC 位深 | 16-bit int16 | 20-bit int32 | NI-6453 |
-| 量程 | ±5V | ±2.5V | Phase 0 推荐分辨率最优档 |
-| L_m 范围 | 0.2~1.8m | 0.2~0.3m | 200kHz 下 CH₄/CO₂ 弛豫吸收约束 |
-| path_lms | (0.20..0.40) | (0.18..0.28) | 同上 |
-| DL in_channels | 3008 | 15008 | 波形采样点 ×5 |
-| 模型归一化 | waveform_int16_scale=32767 | waveform_adc_scale=524287 | adc_max 同步 |
+| 项              | 旧值                         | 新值                        | 依据                      |
+| -------------- | -------------------------- | ------------------------- | ----------------------- |
+| 超声载波           | 40 kHz                     | 200 kHz                   | PSC200K 型号              |
+| 采样率            | 200 kS/s                   | 1 MS/s                    | NI-6453 同步采样率           |
+| ADC 位深         | 16-bit int16               | 20-bit int32              | NI-6453                 |
+| 量程             | ±5V                        | ±2.5V                     | Phase 0 推荐分辨率最优档        |
+| L_m 范围         | 0.2~1.8m                   | 0.2~0.3m                  | 200kHz 下 CH₄/CO₂ 弛豫吸收约束 |
+| path_lms       | (0.20..0.40)               | (0.18..0.28)              | 同上                      |
+| DL in_channels | 3008                       | 15008                     | 波形采样点 ×5                |
+| 模型归一化          | waveform_int16_scale=32767 | waveform_adc_scale=524287 | adc_max 同步              |
 
 **v6 物理严格化（2026-07-03）**：三个物理子模型从工程代理升级为严格物理公式（见 `docs/物理模型严格化实施计划.md`）：
 
-| 子模型 | 旧实现 | 新实现 | sim_revision 字段 |
-|---|---|---|---|
-| 声速 | 纯组分声速线性加权 + 0.6·(t_c−25) | 理想气混合 c=sqrt(γ_mix·R·T/M_mix) | `physics_backend` 新增 |
-| 波形 TOF | int(round(tof·fs)) 整数量化 | Lagrange 5 阶分数延迟 FIR（亚样本 <0.002μs） | `ideal_gas_wms_fracdelay` |
-| 热导 | 线性经验 λ=0.034+0.00155·x_H2−... | Wassiljewa-Mason-Saxena 混合 + 逐组分幂律温度修正 | `tag: v6-phys-strict` |
+| 子模型    | 旧实现                           | 新实现                                    | sim_revision 字段           |
+| ------ | ----------------------------- | -------------------------------------- | ------------------------- |
+| 声速     | 纯组分声速线性加权 + 0.6·(t_c−25)      | 理想气混合 c=sqrt(γ_mix·R·T/M_mix)          | `physics_backend` 新增      |
+| 波形 TOF | int(round(tof·fs)) 整数量化       | Lagrange 5 阶分数延迟 FIR（亚样本 <0.002μs）     | `ideal_gas_wms_fracdelay` |
+| 热导     | 线性经验 λ=0.034+0.00155·x_H2−... | Wassiljewa-Mason-Saxena 混合 + 逐组分幂律温度修正 | `tag: v6-phys-strict`     |
 
 manifest 的 `sim_revision` 字段标记链路版本：旧 v5 benchmark 归档至 `data/_archived_pre_200khz/`，v5→v6 过渡期的旧 v6（物理严格化前）benchmark 归档至 `data/_archived_pre_phys_strict/`，均不可用于当前链路训练。`wv4-smoke` / `sg4-smoke` 已按 v6 重生成。
 
@@ -894,20 +917,20 @@ manifest 的 `sim_revision` 字段标记链路版本：旧 v5 benchmark 归档�
 | **损失函数**         | `src/dl/training/losses.py`                                |
 | **数据集**          | `src/dl/data/dataset.py`                                   |
 | **训练脚本**         | `run/pipeline/train_dl.py`                                 |
-| **仿真编排**        | `src/sim/generation/benchmark.py`                          |
-| **条件采样**        | `src/sim/generation/conditions.py`                         |
-| **慢通道动力学**     | `src/sim/generation/slow.py`                               |
-| **波形仿真**        | `src/sim/generation/waveforms.py`                          |
-| **声学物理**        | `src/sim/generation/acoustic_physics.py`                   |
-| **相位调度**        | `src/sim/generation/phases.py`                             |
+| **仿真编排**         | `src/sim/generation/benchmark.py`                          |
+| **条件采样**         | `src/sim/generation/conditions.py`                         |
+| **慢通道动力学**       | `src/sim/generation/slow.py`                               |
+| **波形仿真**         | `src/sim/generation/waveforms.py`                          |
+| **声学物理**         | `src/sim/generation/acoustic_physics.py`                   |
+| **相位调度**         | `src/sim/generation/phases.py`                             |
 | **HITRAN 后端**    | `src/sim/generation/spectral/hitran_backend.py`            |
-| **光学后端编排**     | `src/sim/generation/optical_backend.py`                    |
-| **数组打包**        | `src/sim/packaging/arrays.py`                              |
-| **manifest**      | `src/sim/packaging/manifest.py`                            |
-| **scaler**        | `src/sim/packaging/scalers.py`                             |
-| **splits**        | `src/sim/packaging/splits.py`                              |
-| **完整性校验**       | `src/sim/validation/integrity.py`                          |
-| **波形文件名工具**    | `src/common/waveform.py`                                   |
+| **光学后端编排**       | `src/sim/generation/optical_backend.py`                    |
+| **数组打包**         | `src/sim/packaging/arrays.py`                              |
+| **manifest**     | `src/sim/packaging/manifest.py`                            |
+| **scaler**       | `src/sim/packaging/scalers.py`                             |
+| **splits**       | `src/sim/packaging/splits.py`                              |
+| **完整性校验**        | `src/sim/validation/integrity.py`                          |
+| **波形文件名工具**      | `src/common/waveform.py`                                   |
 | **syngas 仿真**    | `src/sim/generation/syngas/`                               |
 
 ## 附录 B: 关键超参数速查

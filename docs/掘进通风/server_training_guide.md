@@ -1,0 +1,250 @@
+# 掘进通风服务器训练操作手册
+
+> 本文档给出在 Linux + RTX 5880 48GB 服务器上执行 tv3 正式训练的完整步骤。
+> 场景背景见 [README.md](README.md)，训练方案见 [dl_training_plan.md](dl_training_plan.md)，实验路线见 [experiment_roadmap.md](experiment_roadmap.md)。
+
+## 1. 训练内容
+
+| 项目 | 规模 | 说明 |
+|------|------|------|
+| 数据集 | tv3-formal 600 序列 × 512 时步 | 服务器上由 CLI 重新生成，不依赖本地数据上传 |
+| 基线训练 | 5 模型 × 3 seeds = 15 runs | `scripts/run_tv3_baseline.py` 编排 |
+| 多模态方向 B | cnn1d_tcn_fusion，slow+ultrasonic+fiber_mic | `tv3_tcn_multimodal.json`，验证 O₂ 是否可辨识 |
+| GPU | RTX 5880 48GB | 多模态 batch_size 可从 2 调到 8（见 §4.2） |
+
+> **数据量限制说明**：600 序列 ≈ 400 训练样本，首轮 TCN 50 epochs 全组分 R²≈0（见 [experiment_roadmap.md](experiment_roadmap.md) 基线结果分析）。服务器训练能加速 epoch，但无法解决数据量不足的根本问题。如需更好效果，后续应扩大数据集规模（见 §6）。
+
+## 2. 环境准备
+
+### 2.1 系统要求
+
+| 项目 | 要求 | 说明 |
+|------|------|------|
+| OS | Linux（Ubuntu 22.04 推荐） | 脚本按 bash 编写 |
+| Python | 3.10–3.13（排除 3.14） | 项目 pyproject.toml 约束 |
+| CUDA | 11.8+ | PyTorch GPU 版本需匹配驱动 |
+| GPU 显存 | ≥ 8 GB（基线）/ ≥ 16 GB（多模态 batch_size=8） | RTX 5880 48GB 充足 |
+| 磁盘 | ≥ 25 GB | 数据集 17 GB + 临时 chunk + 输出 |
+| 内存 | ≥ 20 GB | 600 序列 workers=4 生成峰值 ~18 GB |
+
+### 2.2 获取代码
+
+```bash
+git clone https://github.com/kelon-yzy/gas-dl-v2.git
+cd gas-dl-v2
+git checkout feat/ultrasonic-200khz-adc-20bit-alignment
+
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+> `requirements.txt` 内容为 `-e .[dev]`，会安装 numpy / scipy / scikit-learn / torch / hitran-api / pytest。
+> 若服务器无 GPU 版 torch，需先按 [PyTorch 官方指南](https://pytorch.org/get-started/locally/) 安装匹配 CUDA 的版本，再 `pip install -r requirements.txt`。
+
+### 2.3 验证安装
+
+```bash
+# 掘进通风单元测试（应 75 passed）
+python -m pytest tests/test_tunnel_ventilation_schema.py \
+                 tests/test_tunnel_ventilation_physics.py \
+                 tests/test_tunnel_ventilation_benchmark.py \
+                 tests/test_tunnel_ventilation_dl_training.py -q
+```
+
+## 3. 数据集生成
+
+数据集不进 git（fiber_mic_int32.npy 11.7 GB 超 GitHub 100 MB 限制），在服务器上由 CLI 重新生成。
+
+### 3.1 tv3-smoke 链路验证（可选，~30 秒）
+
+```bash
+python -m pipeline.generate_tunnel_ventilation_benchmark \
+    --output-root data --dataset tv3-smoke --sequences 32 --seed 20260704 \
+    --timesteps 32 --dt-s 0.5 --optical-absorption-backend empirical_v1 --workers 1
+```
+
+验证清单：
+
+| 检查项 | 预期 |
+|--------|------|
+| `labels/y.npy` shape | `(32, 3)` |
+| `metadata/label_names.npy` | `["x_CO2", "x_O2", "x_N2"]` |
+| `manifest.composition_scheme` | `"tunnel_ventilation"` |
+| `manifest.background_fields` | `[]` |
+| `sequences/slow.npy` 最后一维 | 8 |
+
+### 3.2 tv3-formal 正式集（600 序列，~2–4 分钟）
+
+```bash
+python -m pipeline.generate_tunnel_ventilation_benchmark \
+    --output-root data --dataset tv3-formal --sequences 600 --seed 20260704 \
+    --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 \
+    --storage memmap --workers 4
+```
+
+生成完成后 `data/tv3-formal/` 约 17 GB，关键产物：
+
+| 文件 | shape | 说明 |
+|------|-------|------|
+| `sequences/ultrasonic_int32.npy` | (600, 512, 5000) int32 | 超声波形 |
+| `sequences/fiber_mic_int32.npy` | (600, 512, 10000) int32 | 光纤麦克风波形 |
+| `sequences/slow.npy` | (600, 512, 8) float32 | 8 慢通道 |
+| `labels/y.npy` | (600, 3) | CO₂/O₂/N₂ 浓度 |
+| `manifest.json` | — | composition_scheme + sim_revision |
+
+> 若服务器内存 < 20 GB，降低 `--workers`（如 `--workers 2`）；若磁盘 < 25 GB，无法同时容纳数据集 + 临时 chunk，需清理空间。
+
+## 4. 训练执行
+
+### 4.1 基线 15 runs（5 模型 × 3 seeds）
+
+```bash
+python scripts/run_tv3_baseline.py
+```
+
+编排脚本固定 seeds = `42, 123, 456`，依次运行：
+
+| 模型 | 配置 | 默认 epochs | 默认 batch_size |
+|------|------|:-----------:|:--------------:|
+| cnn1d | `tv3_baseline.json` | 50 | 16 |
+| tcn | `tv3_tcn.json` | 50 | 16 |
+| lstm | `tv3_lstm.json` | 50 | 16 |
+| patchtst | `tv3_patchtst.json` | 80 | 16 |
+| ridge | `tv3_ridge.json` | —（closed-form） | — |
+
+可选参数：
+
+```bash
+# 只跑部分模型 / seeds
+python scripts/run_tv3_baseline.py --models tcn,ridge --seeds 42
+
+# 覆盖 epochs
+python scripts/run_tv3_baseline.py --epochs 100
+
+# 只打印命令不执行
+python scripts/run_tv3_baseline.py --dry-run
+```
+
+输出位置：`outputs/tv3_baseline/{model}/seed{seed}/metrics.json`，汇总在 `outputs/tv3_baseline/summary.json`。
+
+> DL run 非零退出码按失败暴露，即使已写出 `metrics.json`。`runs.jsonl` 记录所有 run 状态，partial rerun 会合并已有记录。
+
+### 4.2 多模态方向 B（cnn1d_tcn_fusion）
+
+多模态配置 `tv3_tcn_multimodal.json` 默认 `batch_size=2`（受本地 8 GB 显存限制）。RTX 5880 48 GB 可调大：
+
+```bash
+python -m dl.cli \
+    --config configs/experiment/tv3/tv3_tcn_multimodal.json \
+    --batch-size 8 \
+    --output-dir outputs/tv3_tcn_multimodal/s42 \
+    --seed 42
+```
+
+batch_size 选择建议：
+
+| batch_size | 预计显存占用 | 适用 |
+|:---------:|:-----------:|------|
+| 2 | ~8 GB | 配置默认（保守） |
+| 4 | ~15 GB | 中等 |
+| **8** | ~28 GB | **推荐**（48 GB 显存有余量） |
+| 12 | ~40 GB | 激进（接近上限，可能 OOM） |
+
+> 若 OOM，降到 4 或 6；若显存有余量，可试 12。AMP fp16 已在配置中启用。
+> 多模态训练 epochs=50，early stopping patience=10。如需多 seed，手动改 `--seed` 和 `--output-dir` 重复运行。
+
+### 4.3 多模态多 seed（可选）
+
+配置脚本 `run_tv3_baseline.py` 不含多模态。如需多模态多 seed，手动循环：
+
+```bash
+for seed in 42 123 456; do
+    python -m dl.cli \
+        --config configs/experiment/tv3/tv3_tcn_multimodal.json \
+        --batch-size 8 \
+        --output-dir outputs/tv3_tcn_multimodal/s${seed} \
+        --seed ${seed}
+done
+```
+
+## 5. 结果回收
+
+训练完成后，需回收的产物：
+
+| 文件 | 位置 | 大小 | 用途 |
+|------|------|------|------|
+| `summary.json` | `outputs/tv3_baseline/summary.json` | 小 | 基线 15 runs 汇总 |
+| `runs.jsonl` | `outputs/tv3_baseline/runs.jsonl` | 小 | 每个 run 状态记录 |
+| `metrics.json` | `outputs/tv3_baseline/{model}/seed{seed}/metrics.json` | 小 | 单 run 完整指标 |
+| `metrics.json` | `outputs/tv3_tcn_multimodal/s*/metrics.json` | 小 | 多模态指标 |
+| `best_checkpoint.pt` | 同上目录 | 0.5–3 MB | 最优模型权重（按需） |
+| `metrics_live.jsonl` | 同上目录 | 小 | 每 epoch 训练日志 |
+
+打包回收（在服务器上）：
+
+```bash
+# 只回收 metrics（小文件）
+tar czf tv3_results_metrics.tar.gz \
+    outputs/tv3_baseline/summary.json \
+    outputs/tv3_baseline/runs.jsonl \
+    outputs/tv3_baseline/*/seed*/metrics.json \
+    outputs/tv3_baseline/*/seed*/run_config.json \
+    outputs/tv3_tcn_multimodal/s*/metrics.json \
+    outputs/tv3_tcn_multimodal/s*/run_config.json
+
+# 含 checkpoint（按需）
+tar czf tv3_results_full.tar.gz outputs/tv3_baseline outputs/tv3_tcn_multimodal
+```
+
+下载到本地（在本地执行）：
+
+```bash
+scp user@server:/path/to/gas-dl-v2/tv3_results_metrics.tar.gz .
+```
+
+## 6. 后续扩展
+
+### 6.1 扩大数据集
+
+600 序列对 DL 严重不足。若服务器资源允许（磁盘 ≥ 350 GB、内存 ≥ 90 GB），可生成 6000 序列：
+
+```bash
+python -m pipeline.generate_tunnel_ventilation_benchmark \
+    --output-root data --dataset tv3-formal-6000 --sequences 6000 --seed 20260704 \
+    --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 \
+    --storage memmap --workers 4
+```
+
+> 6000 序列 memmap ~172 GB，多进程峰值（chunk + memmap）~350 GB。`build_sequence_arrays` 在内存中预分配 chunk 数组，workers=4 chunk=750 每 worker 22.5 GB。若内存不足，降低 `--workers`。
+
+### 6.2 阶段 Ⅱ ablation
+
+见 [experiment_roadmap.md](experiment_roadmap.md) 阶段 Ⅱ：
+- 通道消融（`--slow-channels` 参数移除指定通道）
+- O₂ 可辨识性消融（`--modalities` 参数切换模态组合）
+- Loss 消融（`--loss` 参数切换 loss）
+
+### 6.3 长时间训练后台运行
+
+```bash
+# nohup 后台运行，日志写文件
+nohup python scripts/run_tv3_baseline.py > tv3_baseline.log 2>&1 &
+
+# 或 tmux
+tmux new -s tv3
+python scripts/run_tv3_baseline.py
+# Ctrl+B D 脱离
+```
+
+## 7. 故障排查
+
+| 问题 | 排查方向 |
+|------|----------|
+| `CUDA out of memory` | 降低 `--batch-size`；多模态从 8 降到 4 或 2 |
+| 数据生成 OOM | 降低 `--workers`；`build_sequence_arrays` 预分配 chunk 内存 |
+| 磁盘不足 | 清理 `data/tv3-formal/.chunks/` 临时文件；`du -sh data/tv3-formal/` |
+| 测试失败 | `python -m pytest tests/test_tunnel_ventilation_*.py -v` 查看详情 |
+| DL run 非零退出 | 查看 `outputs/tv3_baseline/{model}/seed{seed}/` 下是否有 `metrics.json`（诊断用），`runs.jsonl` 记录失败原因 |
+| 多模态 `gas_head` 报错 | tv3 下 `output_mode` 必须为 `raw3`、`out_dim=3`，`gas_head` / `target_transform` 被拒绝 |

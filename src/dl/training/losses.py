@@ -188,20 +188,24 @@ def validate_loss_composition_scheme(
     loss_config: str | dict[str, object],
     composition_scheme: str,
 ) -> None:
-    """Reject closure-dependent losses on open-composition (syngas) datasets.
+    """Reject closure-dependent losses on open-composition or non-closure datasets.
 
     syngas 场景下 4 列预测目标 sum<100（x_N2 是背景，不在 labels 里），
     闭包类 loss（compositional_mse / ilr_mse / free_component_mse /
     weighted_free_component_mse）的物理假设不成立，必须拒绝。
+
+    tunnel_ventilation 场景数据层 sum=100% 闭包，但模型层不使用闭包残差头
+    （直接输出 3 组分），闭包类 loss 依赖残差补全头，同样拒绝。
     """
     loss_name = loss_config_name(loss_config)
     if loss_name not in LOSS_REGISTRY:
         raise ValueError(f"Unknown loss name: {loss_name!r}. Available: {sorted(LOSS_REGISTRY)}")
-    if composition_scheme == "syngas" and loss_name in CLOSURE_DEPENDENT_LOSSES:
+    if composition_scheme in ("syngas", "tunnel_ventilation") and loss_name in CLOSURE_DEPENDENT_LOSSES:
         raise ValueError(
-            f"loss {loss_name!r} assumes sum=100 closure (hydrogen_ng) and is "
-            f"incompatible with composition_scheme='syngas'. Use 'mse', "
-            f"'weighted_component_mse', 'mae', 'smooth_l1', or 'huber' instead."
+            f"loss {loss_name!r} assumes sum=100 closure with residual head "
+            f"(hydrogen_ng) and is incompatible with composition_scheme="
+            f"{composition_scheme!r}. Use 'mse', 'weighted_component_mse', "
+            f"'mae', 'smooth_l1', or 'huber' instead."
         )
 
 
@@ -219,17 +223,27 @@ def validate_loss_model_output(
         need gas-head closure, so weighted_component_mse / mse / etc. are
         allowed on any model. Closure-dependent losses are rejected earlier
         via ``validate_loss_composition_scheme``.
+
+        For "tunnel_ventilation", fusion models must use direct raw outputs;
+        closure residual heads and log-ratio coordinate heads are not part of
+        the tv3 contract.
     """
     loss_name = loss_config_name(loss_config)
+    if composition_scheme == "tunnel_ventilation":
+        if not isinstance(model_kwargs, dict):
+            raise ValueError(f"model_kwargs must be a JSON object for tunnel_ventilation {loss_name}")
+        _validate_tunnel_ventilation_output_mode(model_name, model_kwargs, loss_name=loss_name)
+        return
     if loss_name not in GAS_HEAD_PERCENTAGE_LOSSES:
         return
     if not isinstance(model_kwargs, dict):
         raise ValueError(f"model_kwargs must be a JSON object when using {loss_name}")
-    _validate_gas_head_out_dim(model_kwargs, loss_name=loss_name)
     if composition_scheme == "syngas":
-        # syngas 4 列预测目标 sum<100，没有 N2 闭包要求；weighted_component_mse
-        # 直接监督全 4 列即可，不需要 gas-head。out_dim 已经校验为 4。
+        # 非 hg 场景不使用闭包残差头，weighted_component_mse 直接监督全列，
+        # 不需要 gas-head / out_dim=4 校验。闭包类 loss 已由
+        # validate_loss_composition_scheme 拒绝。
         return
+    _validate_gas_head_out_dim(model_kwargs, loss_name=loss_name)
     if model_name == "phase_window_tcn":
         output_mode = model_kwargs.get("output_mode")
         if loss_name in FREE_COMPONENT_CLOSURE_LOSSES:
@@ -276,6 +290,35 @@ def _validate_gas_head_out_dim(model_kwargs: dict[str, object], *, loss_name: st
         raise ValueError(f"{loss_name} requires model out_dim=4") from exc
     if out_dim != 4:
         raise ValueError(f"{loss_name} requires model out_dim=4")
+
+
+def _validate_tunnel_ventilation_output_mode(
+    model_name: str,
+    model_kwargs: dict[str, object],
+    *,
+    loss_name: str,
+) -> None:
+    if model_name == "cnn1d_tcn_fusion":
+        output_mode = model_kwargs.get("output_mode", "gas_head")
+        if output_mode != "raw3":
+            raise ValueError(
+                f"tunnel_ventilation {loss_name} requires cnn1d_tcn_fusion "
+                f"model_kwargs.output_mode='raw3'"
+            )
+        try:
+            out_dim = int(model_kwargs.get("out_dim", 3))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"tunnel_ventilation {loss_name} requires model out_dim=3") from exc
+        if out_dim != 3:
+            raise ValueError(f"tunnel_ventilation {loss_name} requires model out_dim=3")
+        return
+    if model_name == "phase_window_tcn":
+        output_mode = model_kwargs.get("output_mode", "raw4")
+        if output_mode == "gas_head":
+            raise ValueError(
+                f"tunnel_ventilation {loss_name} requires direct raw outputs, "
+                f"got phase_window_tcn model_kwargs.output_mode='gas_head'"
+            )
 
 
 def _resolve_weighted_loss_kwargs(

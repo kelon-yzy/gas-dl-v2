@@ -4,39 +4,43 @@
 
 基于 **NDIR 光学 + 超声波 + 光纤麦克风 + TCS 热导** 四模态传感器仿真信号，使用 DL/ML 模型预测混合气体各组分浓度。
 
-已落地两个检测场景，可并存：
+已落地三个检测场景，可并存：
 
 - **掺氢天然气（hydrogen_ng）**：H₂/CH₄/CO₂/N₂，sum=100% 闭包。benchmark `wv4-*`。
 - **合成气 / 煤气化制气（syngas）**：H₂/CH₄/CO₂/CO，N₂ 为背景气，sum<100%。Stage Ⅰ 基线 + Stage Ⅱ ablation 完成，benchmark `sg4-smoke` / `sg4-formal`（empirical 后端，6000 序列）可用，HITRAN 后端待补。独立模块路径。
+- **掘进通风（tunnel_ventilation）**：CO₂/O₂/N₂，sum=100% 严格闭包但模型层不使用闭包残差头。N₂ 升格为显式预测目标，O₂ 为同核双原子（无红外活性，仅声学+TCS 间接推断）。阶段 1–4 链路 + DL 适配已落地，benchmark `tv3-smoke` 与 600 序列 `tv3-formal` 可用，Ridge/TCN 首轮基线已完成；多模态 fusion 必须用 `raw3` 直接三输出。独立模块路径。
 
 ## 代码结构
 
 ```
 src/
 ├── sim/          # 物理仿真：声学、光学、慢通道、波形生成、打包
-│   ├── core/     #   schema.py (hg) + syngas_schema.py (sg)
+│   ├── core/     #   schema.py (hg) + syngas_schema.py (sg) + tunnel_ventilation_schema.py (tv3)
 │   ├── generation/  # conditions / acoustic_physics / slow / optical_* (hg)
-│   │   └── syngas/  #   合成气专用子包：conditions / acoustic_physics / optical_crosstalk / slow / benchmark
-│   ├── packaging/   # 数据打包、manifest、scalers（schema 无关，两场景共用）
+│   │   ├── syngas/             #   合成气专用子包：conditions / acoustic_physics / optical_crosstalk / slow / benchmark
+│   │   └── tunnel_ventilation/ #   掘进通风专用子包：conditions / acoustic_physics / slow / benchmark（无光学串扰）
+│   ├── packaging/   # 数据打包、manifest、scalers（schema 无关，三场景共用）
 │   └── validation/  # 数据完整性校验（可注入 component_fields / background_fields）
 ├── dl/           # 深度学习
-│   ├── data/     #   dataset.py（manifest 驱动，自动兼容两场景）
+│   ├── data/     #   dataset.py（manifest 驱动，自动兼容三场景）
 │   ├── models/   #   CNN1D / TCN / CNN1DTCNFusion / PhaseWindowTCN / LSTM / Transformer / PatchTST
 │   └── training/ #   losses.py / trainer.py / metrics.py（按 composition_scheme 切换分箱/loss 校验）
 ├── ml/           # 传统 ML (Ridge / Mean baseline)
 ├── pipeline/     # CLI 编排、实验运行、benchmark 生成
-│   ├── generate_benchmark.py         # hg benchmark CLI
-│   └── generate_syngas_benchmark.py  # sg benchmark CLI
+│   ├── generate_benchmark.py                  # hg benchmark CLI
+│   ├── generate_syngas_benchmark.py           # sg benchmark CLI
+│   └── generate_tunnel_ventilation_benchmark.py  # tv3 benchmark CLI
 └── common/       # 共享工具：composition.py / metrics.py / scalers.py
 ```
 
 关键入口：
 - `python -m pipeline.generate_benchmark` — hg benchmark 生成
 - `python -m pipeline.generate_syngas_benchmark` — sg benchmark 生成（empirical 后端可用，HITRAN 后端未实现）
+- `python -m pipeline.generate_tunnel_ventilation_benchmark` — tv3 benchmark 生成（仅 empirical 后端，HITRAN 待后续阶段）
 - `python -m pipeline.precompute_hitran_benchmark_cache` — hg HITRAN 谱线缓存预计算
-- `python -m dl.cli --config <json>` — DL 训练（manifest 自动决定走 hg 还是 sg 路径）
-- `python -m pipeline.run_experiment --config <json>` — hg 多 run 实验编排（sg 暂未接入）
-- `python -m pytest` — 全量测试（以实际通过数为准；当前主线 462 passed = hg 353 + sg 109，含 Stage Ⅱ ablation 18 个）
+- `python -m dl.cli --config <json>` — DL 训练（manifest 自动决定走 hg / sg / tv3 路径）
+- `python -m pipeline.run_experiment --config <json>` — hg 多 run 实验编排（sg / tv3 暂未接入）
+- `python -m pytest` — 全量测试（以实际通过数为准）
 
 ## 核心概念
 
@@ -44,6 +48,7 @@ src/
 
 - **hydrogen_ng**：`src/sim/core/schema.py` 中 `COMPONENT_FIELDS = ("x_H2", "x_CH4", "x_CO2", "x_N2")`，4 列 sum=100%。
 - **syngas**：`src/sim/core/syngas_schema.py` 中 `COMPONENT_FIELDS = ("x_H2", "x_CH4", "x_CO2", "x_CO")` + `BACKGROUND_FIELDS = ("x_N2",)`，4 列 sum<100%；`x_N2 = 100 - sum(targets)`，写入 condition grid 但不入 labels。
+- **tunnel_ventilation**：`src/sim/core/tunnel_ventilation_schema.py` 中 `COMPONENT_FIELDS = ("x_CO2", "x_O2", "x_N2")`，`BACKGROUND_FIELDS = ()`，3 列 sum=100% 严格闭包。N₂ 是显式预测目标（与 syngas 不同），数据层闭包但模型层不使用闭包残差头。
 
 下游加载器优先读 `manifest.composition_scheme` 与 `metadata/label_names.npy`，不要直接 import 全局常量推断 schema。
 
@@ -51,13 +56,14 @@ src/
 
 - **hydrogen_ng**：8 个 — V_NDIR_CH4, V_NDIR_CO2, V_TCS, T_C, P_MPa, H_RH, L_m, piston_position_m。
 - **syngas**：9 个，在 hg 基础上新增 `V_NDIR_CO`。
+- **tunnel_ventilation**：8 个，沿用 hg 默认（V_NDIR_CH4 保留以维持通道对齐，但场景无 CH₄，该通道仅含基线+噪声）。
 
 ### Loss 体系
 
 - 闭包类（sum=100%，仅 hg 可用）：`compositional_mse`, `ilr_mse`, `free_component_mse`, `weighted_free_component_mse`
-- 开放类（两场景兼容）：`weighted_component_mse`, `mse`, `mae`, `smooth_l1`, `huber`
+- 开放类（三场景兼容）：`weighted_component_mse`, `mse`, `mae`, `smooth_l1`, `huber`
 
-syngas 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动拒绝；syngas 也不允许 `target_transform`（ILR/ALR 依赖 sum=100%）。
+syngas / tunnel_ventilation 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动拒绝；这两个场景也不允许 `target_transform`（ILR/ALR 依赖 sum=100% 闭包残差头）。tunnel_ventilation 数据层 sum=100% 闭包，`sum_abs_error` 可计算作监控项，但模型输出不强制归一化；`cnn1d_tcn_fusion` 在 tv3 下必须使用 `output_mode="raw3"`、`out_dim=3`，`gas_head` 被校验拒绝。
 
 ### Benchmark 命名
 
@@ -67,6 +73,7 @@ syngas 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动�
 
 - `wv4-smoke` / `wv4-formal*` — 掺氢天然气；正式 6000 序列集 `wv4-formal-hitran-standard-6000` 可通过 `--experiment-preset formal-hitran-standard-6000` 一键固定。
 - `sg4-smoke` / `sg4-formal` — 合成气 smoke / 正式集（empirical 后端，6000 序列）
+- `tv3-smoke` / `tv3-formal` — 掘进通风 smoke / 正式集（仅 empirical 后端，HITRAN 待后续阶段）；`tv3-smoke` 已生成，`tv3-formal` 已按 600 序列规模生成
 
 ## 开发注意事项
 
@@ -75,6 +82,9 @@ syngas 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动�
 1. **CO 与 N₂ 声学近简并**：两者摩尔质量均为 28 g/mol，声速差 <1 m/s。声学和 TCS 通道几乎无法区分 CO 和 N₂，CO 的可观测性主要依赖 NDIR 光学通道。
 2. **N₂ 双重角色**：syngas 场景中 N₂ 不在预测目标中，但声学/衰减/热导计算仍需要 N₂ 浓度（`x_N2 = 100 - sum(targets)`），由 syngas `conditions.py` 与 `slow.py._main_feature_condition` 自动透传。
 3. **CO NDIR 串扰**：CO 基频 2143 cm⁻¹ 与 CO₂ ν₃ 2349 cm⁻¹ 间隔 ~200 cm⁻¹，宽带滤光片下存在串扰。已实现 3×3 矩阵 `src/sim/generation/syngas/optical_crosstalk.py`；默认 `enable_co_crosstalk=False`（Step 1：CO 通道仅含自身吸收），切到 `True` 启用 CO₂↔CO 互扰（Step 2 ablation）。
+4. **O₂/N₂ 声学辨识**（tunnel_ventilation）：O₂ 与 N₂ 摩尔质量差 14.3%（32 vs 28 g/mol），声速差约 6.4%（~22 m/s），是超声通道区分两者的主要物理基础；热导率差异仅约 2.3%，TCS 提供边际辨识力。O₂ 为同核双原子，无红外活性，不设 NDIR 通道。
+5. **O₂ 弛豫在 200 kHz 下可忽略**（tunnel_ventilation）：dry air 下 O₂ V-T 弛豫频率 fr,O ≈ 24 Hz/atm（Bass 1990 JASA），远低于 200 kHz 载波，工程实现取 alpha_o2 ≈ 0。
+6. **tunnel_ventilation 无光学串扰**：仅 CO₂ 一个红外活性组分（O₂/N₂ 同核双原子无红外活性），不需要串扰矩阵。V_NDIR_CH4 通道保留但 absorption_ch4=0（场景无 CH₄，仅含基线+噪声）。
 
 ### 文件约定
 
@@ -86,7 +96,7 @@ syngas 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动�
 
 ### 测试
 
-修改 `src/` 下代码后必须运行 `python -m pytest`，以实际通过数为准（当前主线 462）。新增 syngas 功能在 `tests/test_syngas_*.py` 系列。修改共用文件（waveforms / manifest / validation / metrics / losses / trainer / cli）前后都要对两个场景的测试都跑一遍。
+修改 `src/` 下代码后必须运行 `python -m pytest`，以实际通过数为准。新增 syngas 功能在 `tests/test_syngas_*.py` 系列；新增 tunnel_ventilation 功能在 `tests/test_tunnel_ventilation_*.py` 系列。修改共用文件（waveforms / manifest / validation / metrics / losses / trainer / cli）前后都要对三个场景的测试都跑一遍。
 
 ## 相关文档
 
@@ -105,7 +115,12 @@ syngas 场景下闭包类 loss 由 `validate_loss_composition_scheme()` 自动�
 | CO 光学参数 | `docs/syngas/references/co_optical_hitran.md` | HITRAN 谱线/NDIR 滤光片/串扰 |
 | 组分分布 | `docs/syngas/references/syngas_composition_ranges.md` | LHS 采样区间文献支撑 |
 | 传感器综述 | `docs/syngas/references/syngas_sensing_survey.md` | 商用系统对比 + 可行性评估 |
-| 学长 RCDW 复现 | `docs/学长算法/RCDW_实施完成情况.md` | 独立子工程 `rcdw_mgda/` 的端到端落地状态（与主线 src/ 完全隔离，互不影响主线 462 tests） |
+| 掘进通风文档导航 | `docs/掘进通风/README.md` | tv3 场景文档索引、阅读顺序与实施状态 |
+| 掘进通风适配方案 | `docs/掘进通风/adaptation_plan.md` | tv3 主实施方案：架构决策、分阶段任务、文件清单 |
+| 掘进通风物性常数 | `docs/掘进通风/physics_references.md` | CO₂/O₂/N₂ 声学、热导、光学物性速查 |
+| 掘进通风采样设计 | `docs/掘进通风/sampling_design.md` | 2D LHS 采样、联合约束、状态分层 |
+| 掘进通风 DL 方案 | `docs/掘进通风/dl_training_plan.md` | 通道可辨识性、模型选型、Loss、实验矩阵 |
+| 学长 RCDW 复现 | `docs/学长算法/RCDW_实施完成情况.md` | 独立子工程 `rcdw_mgda/` 的端到端落地状态（与主线 src/ 完全隔离，互不影响主线 tests） |
 | 工作原则 | `AGENTS.md` | AI 协作规则与边界 |
 
 ## 环境

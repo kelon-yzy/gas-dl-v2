@@ -1,0 +1,69 @@
+{
+  "dataset_dir": "data/tv3-formal",
+  "output_dir": "outputs/tv3_tcn_multimodal",
+  "model": "cnn1d_tcn_fusion",
+  "model_kwargs": {
+    "output_mode": "raw3",
+    "waveform_embedding_dim": 64,
+    "waveform_adc_scale": 5.0,
+    "acoustic_channels": [16, 32, 64, 64],
+    "acoustic_kernel_size": 7,
+    "acoustic_dropout": 0.15,
+    "slow_hidden_dim": 32,
+    "slow_embedding_dim": 64,
+    "tcn_channels": [128, 128, 128],
+    "tcn_kernel_size": 3,
+    "tcn_dropout": 0.30,
+    "shared_hidden_dims": [128, 64]
+  },
+  "modalities": "slow,ultrasonic,fiber_mic",
+  "dequantize_waveforms": true,
+  "epochs": 50,
+  "batch_size": 2,
+  "num_workers": 2,
+  "pin_memory": true,
+  "persistent_workers": false,
+  "prefetch_factor": 2,
+  "seed": 20260704,
+  "device": "cuda",
+  "loss": {
+    "name": "weighted_component_mse",
+    "weighting": "inverse_train_var",
+    "component_count": 3
+  },
+  "optimizer": "adamw",
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "grad_clip_norm": 1.0,
+  "eval_splits": "val,test",
+  "checkpoint_name": "checkpoint.pt",
+  "early_stopping": {
+    "enabled": true,
+    "monitor": "val_loss",
+    "patience": 10,
+    "min_delta": 0.0,
+    "mode": "min"
+  },
+  "scheduler": {
+    "name": "reduce_on_plateau",
+    "factor": 0.5,
+    "patience": 5,
+    "min_lr": 1e-6
+  },
+  "amp": {
+    "enabled": true,
+    "dtype": "float16"
+  },
+  "performance": {
+    "cudnn_benchmark": true,
+    "tf32": true,
+    "compile": false,
+    "compile_mode": "default"
+  },
+  "progress": {
+    "enabled": true,
+    "stdout": true,
+    "jsonl": true,
+    "jsonl_name": "metrics_live.jsonl"
+  }
+}

@@ -41,6 +41,27 @@ def _make_smoke_dataset(tmp_path: Path, slug: str = "ml-smoke", sequences: int =
     return tmp_path / slug
 
 
+def _make_tv3_smoke_dataset(tmp_path: Path, slug: str = "tv3-ml-smoke", sequences: int = 16) -> Path:
+    from sim.generation.tunnel_ventilation import (
+        TunnelVentilationBenchmarkGenerationSpec,
+        generate_tunnel_ventilation_benchmark_dataset,
+    )
+
+    generate_tunnel_ventilation_benchmark_dataset(
+        tmp_path,
+        TunnelVentilationBenchmarkGenerationSpec(
+            dataset_slug=slug,
+            sequence_count=sequences,
+            seed=20260704,
+            timesteps=16,
+            storage="npz",
+            optical_absorption_backend="empirical_v1",
+            workers=1,
+        ),
+    )
+    return tmp_path / slug
+
+
 class TestMLFeatures:
     def test_sequence_stat_features_include_expected_names_and_values(self):
         values = np.array(
@@ -288,6 +309,37 @@ class TestMLTraining:
             assert np.isfinite(split_eval.predictions).all()
             assert isinstance(split_eval.metrics, RegressionMetrics)
             assert split_eval.sum_abs_error >= 0.0
+
+    def test_train_regressor_on_tunnel_ventilation_uses_o2_co2_bins(self, tmp_path: Path):
+        dataset_dir = _make_tv3_smoke_dataset(tmp_path, slug="tv3-ml-train", sequences=16)
+        result = train_regressor_on_dataset(
+            dataset_dir,
+            model_config={"name": "ridge", "alpha": 1.0},
+            feature_config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean", "last")),
+            eval_splits=("train", "val"),
+        )
+
+        assert result.label_names == ("x_CO2", "x_O2", "x_N2")
+        for split_eval in result.evaluations.values():
+            assert set(split_eval.conditional_metrics) == {"o2_bins", "co2_bins"}
+            assert split_eval.sum_abs_error is not None
+
+    def test_train_regressor_rejects_target_transform_on_tunnel_ventilation(self, tmp_path: Path):
+        dataset_dir = _make_tv3_smoke_dataset(tmp_path, slug="tv3-ml-transform-reject", sequences=8)
+
+        try:
+            train_regressor_on_dataset(
+                dataset_dir,
+                model_config={"name": "ridge", "alpha": 1.0},
+                feature_config=MLFeatureConfig(modalities=("slow",), sequence_statistics=("mean",)),
+                eval_splits=("train",),
+                target_transform="ilr_n2_first",
+            )
+        except ValueError as exc:
+            assert "tunnel_ventilation" in str(exc)
+            assert "target_transform" in str(exc)
+        else:
+            raise AssertionError("tv3 ML target_transform should be rejected")
 
     def test_train_regressor_can_use_alr_ch4_target_transform(self, tmp_path: Path):
         dataset_dir = _make_smoke_dataset(tmp_path, slug="ml-train-alr", sequences=16)

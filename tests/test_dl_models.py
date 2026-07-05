@@ -273,6 +273,27 @@ class TestCNN1DTCNFusionRegressor:
         # raw4 输出无 simplex 约束，不需要求和为 100
         assert model.output_mode == "raw4"
 
+    def test_forward_shape_for_raw3_head(self):
+        model = CNN1DTCNFusionRegressor(
+            in_channels=14,
+            out_dim=3,
+            slow_channels=2,
+            ultrasonic_channels=5,
+            fiber_mic_channels=7,
+            waveform_embedding_dim=4,
+            acoustic_channels=[2, 4],
+            slow_hidden_dim=4,
+            slow_embedding_dim=4,
+            tcn_channels=[4],
+            shared_hidden_dims=[8, 4],
+            output_mode="raw3",
+        )
+
+        out = model(torch.randn(3, 6, 14))
+
+        assert out.shape == (3, 3)
+        assert model.output_mode == "raw3"
+
     def test_forward_with_phase_stat_branch(self):
         model = CNN1DTCNFusionRegressor(
             in_channels=14,
@@ -330,6 +351,21 @@ class TestCNN1DTCNFusionRegressor:
             assert "raw4" in str(exc)
         else:
             raise AssertionError("raw4 with out_dim=3 should be rejected")
+
+    def test_raw3_rejects_out_dim_not_3(self):
+        try:
+            CNN1DTCNFusionRegressor(
+                in_channels=14,
+                out_dim=4,
+                slow_channels=2,
+                ultrasonic_channels=5,
+                fiber_mic_channels=7,
+                output_mode="raw3",
+            )
+        except ValueError as exc:
+            assert "raw3" in str(exc)
+        else:
+            raise AssertionError("raw3 with out_dim=4 should be rejected")
 
     def test_gradient_flows(self):
         model = CNN1DTCNFusionRegressor(
