@@ -249,21 +249,25 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
             kernel_size=acoustic_kernel_size,
             dropout=acoustic_dropout,
         )
-        self.fiber_mic_encoder = DeepAcousticEncoder1D(
-            fiber_mic_channels,
-            embedding_dim=waveform_embedding_dim,
-            waveform_adc_scale=waveform_adc_scale,
-            channels=acoustic_channels,
-            kernel_size=acoustic_kernel_size,
-            dropout=acoustic_dropout,
-        )
+        if fiber_mic_channels > 0:
+            self.fiber_mic_encoder = DeepAcousticEncoder1D(
+                fiber_mic_channels,
+                embedding_dim=waveform_embedding_dim,
+                waveform_adc_scale=waveform_adc_scale,
+                channels=acoustic_channels,
+                kernel_size=acoustic_kernel_size,
+                dropout=acoustic_dropout,
+            )
+        else:
+            self.fiber_mic_encoder = None
         self.slow_encoder = SlowFeatureEncoder(
             slow_channels=slow_channels,
             hidden_dim=slow_hidden_dim,
             embedding_dim=slow_embedding_dim,
         )
 
-        fusion_channels = waveform_embedding_dim * 2 + slow_embedding_dim
+        n_waveform_encoders = 1 + (1 if fiber_mic_channels > 0 else 0)
+        fusion_channels = waveform_embedding_dim * n_waveform_encoders + slow_embedding_dim
         layers: list[nn.Module] = []
         current = fusion_channels
         self.dilations = tuple(2**idx for idx in range(len(tcn_channels)))
@@ -317,16 +321,13 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         ultrasonic_end = slow_end + self.ultrasonic_channels
         slow = x[:, :, :slow_end]
         ultrasonic = x[:, :, slow_end:ultrasonic_end]
-        fiber_mic = x[:, :, ultrasonic_end:]
 
-        fused = torch.cat(
-            [
-                self.ultrasonic_encoder(ultrasonic),
-                self.fiber_mic_encoder(fiber_mic),
-                self.slow_encoder(slow),
-            ],
-            dim=-1,
-        )
+        parts = [self.ultrasonic_encoder(ultrasonic)]
+        if self.fiber_mic_encoder is not None:
+            fiber_mic = x[:, :, ultrasonic_end:]
+            parts.append(self.fiber_mic_encoder(fiber_mic))
+        parts.append(self.slow_encoder(slow))
+        fused = torch.cat(parts, dim=-1)
         feats = self.tcn(fused.transpose(1, 2))
         pooled = torch.cat([feats[:, :, -1], feats.mean(dim=-1), feats.amax(dim=-1)], dim=-1)
 

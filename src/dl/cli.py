@@ -228,6 +228,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
 
     model_config = _build_model_config(args.model, args.model_kwargs, in_channels, out_dim, timesteps)
+    # cnn1d_tcn_fusion: 当 modalities 不含 fiber_mic 时自动设 fiber_mic_channels=0
+    if args.model == "cnn1d_tcn_fusion" and "fiber_mic" not in modalities:
+        model_config.setdefault("fiber_mic_channels", 0)
     if phase_stats_path is not None and train_dataset.has_phase_stats:
         model_config["phase_stat_dim"] = train_dataset.phase_stat_dim
         if phase_scaler_path is not None and phase_scaler_path.is_file():
