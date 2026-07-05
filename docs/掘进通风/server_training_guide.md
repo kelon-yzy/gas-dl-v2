@@ -5,12 +5,12 @@
 
 ## 1. 训练内容
 
-| 项目 | 规模 | 说明 |
-|------|------|------|
-| 数据集 | tv3-formal 600 序列 × 512 时步 | 服务器上由 CLI 重新生成，**跳过 fiber_mic**（`--skip-fiber-mic`）+ **int16 per-timestep scale** |
-| 基线训练 | 5 模型 × 3 seeds = 15 runs | `scripts/run_tv3_baseline.py` 编排 |
-| 多模态方向 B | cnn1d_tcn_fusion，slow+ultrasonic | `tv3_tcn_multimodal.json` + `--modalities slow,ultrasonic`，验证 O₂ 是否可辨识 |
-| GPU | RTX 5880 48GB | 多模态 batch_size 可从 2 调到 8（见 §4.2） |
+| 项目      | 规模                               | 说明                                                                                |
+| ------- | -------------------------------- | --------------------------------------------------------------------------------- |
+| 数据集     | tv3-formal 600 序列 × 512 时步       | 服务器上由 CLI 重新生成，**跳过 fiber_mic**（`--skip-fiber-mic`）+ **int16 per-timestep scale** |
+| 基线训练    | 5 模型 × 3 seeds = 15 runs         | `scripts/run_tv3_baseline.py` 编排                                                  |
+| 多模态方向 B | cnn1d_tcn_fusion，slow+ultrasonic | `tv3_tcn_multimodal.json` + `--modalities slow,ultrasonic`，验证 O₂ 是否可辨识            |
+| GPU     | RTX 5880 48GB                    | 多模态 batch_size 可从 2 调到 8（见 §4.2）                                                  |
 
 > **波形存储优化**：tv3 默认采用 int16 + per-timestep 自适应 scale（方案 B），物理 ADC 仍为 20-bit（`daq_bits=20`），存储时按每 timestep 峰值定标压缩为 int16。实测峰值占满量程 ~22%，per-timestep scale 比固定 scale 量化步长小 ~4.6×；int16 量化误差 max ~1e-5 V，远小于噪声 std 1e-3 V（误差/噪声 ≈ 1%），精度损失可忽略。数据集从 int32 的 ~6 GB 降至 int16 的 ~3 GB。
 
@@ -22,14 +22,14 @@
 
 ### 2.1 系统要求
 
-| 项目 | 要求 | 说明 |
-|------|------|------|
-| OS | Linux（Ubuntu 22.04 推荐） | 脚本按 bash 编写 |
-| Python | 3.10–3.13（排除 3.14） | 项目 pyproject.toml 约束 |
-| CUDA | 11.8+ | PyTorch GPU 版本需匹配驱动 |
-| GPU 显存 | ≥ 8 GB（基线）/ ≥ 16 GB（多模态 batch_size=8） | RTX 5880 48GB 充足 |
-| 磁盘 | ≥ 8 GB | 数据集 ~3 GB（int16 + 跳过 fiber_mic）+ 临时 chunk + 输出 |
-| 内存 | ≥ 8 GB | 600 序列 workers=4 生成峰值 ~3 GB（int16 + 跳过 fiber_mic） |
+| 项目     | 要求                                    | 说明                                                |
+| ------ | ------------------------------------- | ------------------------------------------------- |
+| OS     | Linux（Ubuntu 22.04 推荐）                | 脚本按 bash 编写                                       |
+| Python | 3.10–3.13（排除 3.14）                    | 项目 pyproject.toml 约束                              |
+| CUDA   | 11.8+                                 | PyTorch GPU 版本需匹配驱动                               |
+| GPU 显存 | ≥ 8 GB（基线）/ ≥ 16 GB（多模态 batch_size=8） | RTX 5880 48GB 充足                                  |
+| 磁盘     | ≥ 8 GB                                | 数据集 ~3 GB（int16 + 跳过 fiber_mic）+ 临时 chunk + 输出    |
+| 内存     | ≥ 8 GB                                | 600 序列 workers=4 生成峰值 ~3 GB（int16 + 跳过 fiber_mic） |
 
 ### 2.2 获取代码
 
@@ -71,13 +71,13 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
 
 验证清单：
 
-| 检查项 | 预期 |
-|--------|------|
-| `labels/y.npy` shape | `(32, 3)` |
-| `metadata/label_names.npy` | `["x_CO2", "x_O2", "x_N2"]` |
-| `manifest.composition_scheme` | `"tunnel_ventilation"` |
-| `manifest.background_fields` | `[]` |
-| `sequences/slow.npy` 最后一维 | 8 |
+| 检查项                           | 预期                          |
+| ----------------------------- | --------------------------- |
+| `labels/y.npy` shape          | `(32, 3)`                   |
+| `metadata/label_names.npy`    | `["x_CO2", "x_O2", "x_N2"]` |
+| `manifest.composition_scheme` | `"tunnel_ventilation"`      |
+| `manifest.background_fields`  | `[]`                        |
+| `sequences/slow.npy` 最后一维     | 8                           |
 
 ### 3.2 tv3-formal 正式集（600 序列，~1–2 分钟，int16 + 跳过 fiber_mic）
 
@@ -90,13 +90,13 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
 
 生成完成后 `data/tv3-formal/` 约 3 GB（int16 + 跳过 fiber_mic），关键产物：
 
-| 文件 | shape | 说明 |
-|------|-------|------|
-| `sequences/ultrasonic_int16.npy` | (600, 512, 5000) int16 | 超声波形（per-timestep scale 压缩） |
-| `sequences/ultrasonic_scale.npy` | (600, 512) float32 | per-timestep scale_factor（每时步不同） |
-| `sequences/slow.npy` | (600, 512, 8) float32 | 8 慢通道 |
-| `labels/y.npy` | (600, 3) | CO₂/O₂/N₂ 浓度 |
-| `manifest.json` | — | composition_scheme + sim_revision，`fiber_mic_model: null`，`waveform_dtype: int16` |
+| 文件                               | shape                  | 说明                                                                                |
+| -------------------------------- | ---------------------- | --------------------------------------------------------------------------------- |
+| `sequences/ultrasonic_int16.npy` | (600, 512, 5000) int16 | 超声波形（per-timestep scale 压缩）                                                       |
+| `sequences/ultrasonic_scale.npy` | (600, 512) float32     | per-timestep scale_factor（每时步不同）                                                  |
+| `sequences/slow.npy`             | (600, 512, 8) float32  | 8 慢通道                                                                             |
+| `labels/y.npy`                   | (600, 3)               | CO₂/O₂/N₂ 浓度                                                                      |
+| `manifest.json`                  | —                      | composition_scheme + sim_revision，`fiber_mic_model: null`，`waveform_dtype: int16` |
 
 > tv3 默认 int16 + per-timestep scale（方案 B），无需额外参数。数据集从 int32 的 17 GB 降到 int16 + 跳过 fiber_mic 的 ~3 GB（-82%）。DL 端通过 `waveform_spec.json` 自动识别 dtype，加载 `ultrasonic_int16.npy`。
 > `ultrasonic_scale.npy` 现在是 per-timestep 自适应（每个时步值不同，按该时步波形峰值定标），dequantize 时 `waveform_int16 * scale` 还原电压。
@@ -112,13 +112,13 @@ python scripts/run_tv3_baseline.py
 
 编排脚本固定 seeds = `42, 123, 456`，依次运行：
 
-| 模型 | 配置 | 默认 epochs | 默认 batch_size |
-|------|------|:-----------:|:--------------:|
-| cnn1d | `tv3_baseline.json` | 50 | 16 |
-| tcn | `tv3_tcn.json` | 50 | 16 |
-| lstm | `tv3_lstm.json` | 50 | 16 |
-| patchtst | `tv3_patchtst.json` | 80 | 16 |
-| ridge | `tv3_ridge.json` | —（closed-form） | — |
+| 模型       | 配置                  | 默认 epochs      | 默认 batch_size |
+| -------- | ------------------- |:--------------:|:-------------:|
+| cnn1d    | `tv3_baseline.json` | 50             | 16            |
+| tcn      | `tv3_tcn.json`      | 50             | 16            |
+| lstm     | `tv3_lstm.json`     | 50             | 16            |
+| patchtst | `tv3_patchtst.json` | 80             | 16            |
+| ridge    | `tv3_ridge.json`    | —（closed-form） | —             |
 
 可选参数：
 
@@ -154,12 +154,12 @@ python -m dl.cli \
 
 batch_size 选择建议（slow+ultrasonic 两模态，无 fiber_mic，显存占用比三模态低）：
 
-| batch_size | 预计显存占用 | 适用 |
-|:---------:|:-----------:|------|
-| 2 | ~5 GB | 配置默认（保守） |
-| 4 | ~9 GB | 中等 |
-| **8** | ~18 GB | **推荐**（48 GB 显存充足） |
-| 16 | ~34 GB | 激进（48 GB 显存仍有余量） |
+| batch_size | 预计显存占用 | 适用                 |
+|:----------:|:------:| ------------------ |
+| 2          | ~5 GB  | 配置默认（保守）           |
+| 4          | ~9 GB  | 中等                 |
+| **8**      | ~18 GB | **推荐**（48 GB 显存充足） |
+| 16         | ~34 GB | 激进（48 GB 显存仍有余量）   |
 
 > 若 OOM，降到 4 或 8；若显存有余量，可试 16。AMP fp16 已在配置中启用。
 > 多模态训练 epochs=50，early stopping patience=10。如需多 seed，手动改 `--seed` 和 `--output-dir` 重复运行。
@@ -183,14 +183,14 @@ done
 
 训练完成后，需回收的产物：
 
-| 文件 | 位置 | 大小 | 用途 |
-|------|------|------|------|
-| `summary.json` | `outputs/tv3_baseline/summary.json` | 小 | 基线 15 runs 汇总 |
-| `runs.jsonl` | `outputs/tv3_baseline/runs.jsonl` | 小 | 每个 run 状态记录 |
-| `metrics.json` | `outputs/tv3_baseline/{model}/seed{seed}/metrics.json` | 小 | 单 run 完整指标 |
-| `metrics.json` | `outputs/tv3_tcn_multimodal/s*/metrics.json` | 小 | 多模态指标 |
-| `best_checkpoint.pt` | 同上目录 | 0.5–3 MB | 最优模型权重（按需） |
-| `metrics_live.jsonl` | 同上目录 | 小 | 每 epoch 训练日志 |
+| 文件                   | 位置                                                     | 大小       | 用途            |
+| -------------------- | ------------------------------------------------------ | -------- | ------------- |
+| `summary.json`       | `outputs/tv3_baseline/summary.json`                    | 小        | 基线 15 runs 汇总 |
+| `runs.jsonl`         | `outputs/tv3_baseline/runs.jsonl`                      | 小        | 每个 run 状态记录   |
+| `metrics.json`       | `outputs/tv3_baseline/{model}/seed{seed}/metrics.json` | 小        | 单 run 完整指标    |
+| `metrics.json`       | `outputs/tv3_tcn_multimodal/s*/metrics.json`           | 小        | 多模态指标         |
+| `best_checkpoint.pt` | 同上目录                                                   | 0.5–3 MB | 最优模型权重（按需）    |
+| `metrics_live.jsonl` | 同上目录                                                   | 小        | 每 epoch 训练日志  |
 
 打包回收（在服务器上）：
 
@@ -227,10 +227,10 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
     --storage memmap --workers 4 --skip-fiber-mic
 ```
 
-| 规模 | 磁盘（int16 + 跳过 fiber_mic） | 生成内存峰值（workers=4） |
-|------|------------------------------|--------------------------|
-| 600 序列 | ~3 GB | ~3 GB |
-| 6000 序列 | ~29 GB | ~15 GB |
+| 规模      | 磁盘（int16 + 跳过 fiber_mic） | 生成内存峰值（workers=4） |
+| ------- | ------------------------ | ----------------- |
+| 600 序列  | ~3 GB                    | ~3 GB             |
+| 6000 序列 | ~29 GB                   | ~15 GB            |
 
 > 6000 序列 int16 + 跳过 fiber_mic 后 memmap ~29 GB（原始 int32 + 含 fiber_mic 为 172 GB，减 83%）。`build_sequence_arrays` 在内存中预分配 chunk 数组，workers=4 chunk=750 每 worker ~3.8 GB（int16）。若内存不足，降低 `--workers`。
 > 若需完整三模态 6000 序列（int32 + fiber_mic），需改回 `WaveformSpec()`（去掉 per_timestep_scale + waveform_dtype="int16"）并去掉 `--skip-fiber-mic`，磁盘需 ≥350 GB、内存 ≥90 GB。
@@ -238,6 +238,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
 ### 6.2 阶段 Ⅱ ablation
 
 见 [experiment_roadmap.md](experiment_roadmap.md) 阶段 Ⅱ：
+
 - 通道消融（`--slow-channels` 参数移除指定通道）
 - O₂ 可辨识性消融（`--modalities` 参数切换模态组合）
 - Loss 消融（`--loss` 参数切换 loss）
@@ -256,11 +257,11 @@ python scripts/run_tv3_baseline.py
 
 ## 7. 故障排查
 
-| 问题 | 排查方向 |
-|------|----------|
-| `CUDA out of memory` | 降低 `--batch-size`；多模态从 8 降到 4 或 2 |
-| 数据生成 OOM | 降低 `--workers`；`build_sequence_arrays` 预分配 chunk 内存 |
-| 磁盘不足 | 清理 `data/tv3-formal/.chunks/` 临时文件；`du -sh data/tv3-formal/` |
-| 测试失败 | `python -m pytest tests/test_tunnel_ventilation_*.py -v` 查看详情 |
-| DL run 非零退出 | 查看 `outputs/tv3_baseline/{model}/seed{seed}/` 下是否有 `metrics.json`（诊断用），`runs.jsonl` 记录失败原因 |
-| 多模态 `gas_head` 报错 | tv3 下 `output_mode` 必须为 `raw3`、`out_dim=3`，`gas_head` / `target_transform` 被拒绝 |
+| 问题                   | 排查方向                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `CUDA out of memory` | 降低 `--batch-size`；多模态从 8 降到 4 或 2                                                          |
+| 数据生成 OOM             | 降低 `--workers`；`build_sequence_arrays` 预分配 chunk 内存                                        |
+| 磁盘不足                 | 清理 `data/tv3-formal/.chunks/` 临时文件；`du -sh data/tv3-formal/`                               |
+| 测试失败                 | `python -m pytest tests/test_tunnel_ventilation_*.py -v` 查看详情                              |
+| DL run 非零退出          | 查看 `outputs/tv3_baseline/{model}/seed{seed}/` 下是否有 `metrics.json`（诊断用），`runs.jsonl` 记录失败原因 |
+| 多模态 `gas_head` 报错    | tv3 下 `output_mode` 必须为 `raw3`、`out_dim=3`，`gas_head` / `target_transform` 被拒绝             |
