@@ -51,6 +51,7 @@ class WaveformSpec:
     measurement_window_s: float = ULTRASONIC_MEASUREMENT_WINDOW_S
     daq_bits: int = DEFAULT_DAQ_BITS
     waveform_dtype: str = DEFAULT_WAVEFORM_DTYPE
+    per_timestep_scale: bool = False
     daq_full_scale_v: float = 2.5  # NI-6453 量程，Phase 0 推荐分辨率最优档（超声峰值 ≤1.0V）
     noise_std_v: float = DEFAULT_NOISE_STD_V
     acoustic_attenuation_model: str = ACOUSTIC_ATTENUATION_MODEL
@@ -109,6 +110,7 @@ class FiberMicSpec:
     measurement_window_s: float = FIBER_MIC_MEASUREMENT_WINDOW_S
     daq_bits: int = DEFAULT_DAQ_BITS
     waveform_dtype: str = DEFAULT_WAVEFORM_DTYPE
+    per_timestep_scale: bool = False
     acoustic_attenuation_model: str = ACOUSTIC_ATTENUATION_MODEL
     acoustic_field_model: str = FIBER_MIC_ACOUSTIC_FIELD_MODEL
     fiber_optical_demodulation_model: str = FIBER_OPTICAL_DEMODULATION_MODEL
@@ -261,7 +263,7 @@ def simulate_waveform_measurement(
     corrected_tof_s = max(tof_observed_s - spec.delay_correction_s, 1.0 / float(spec.sample_rate_hz))
     sound_speed_estimated = float(l_m) / corrected_tof_s
     tof_quality = _tof_quality(signal_peak_abs_v, spec.noise_std_v, clipped)
-    return _digitize_waveform(waveform, spec.adc_max, spec.daq_full_scale_v, spec.waveform_dtype) | {
+    return _digitize_waveform(waveform, spec.adc_max, spec.daq_full_scale_v, spec.waveform_dtype, spec.per_timestep_scale) | {
         "tof_s": tof_true_s,
         "tof_true_s": tof_true_s,
         "tof_observed_s": tof_observed_s,
@@ -349,7 +351,7 @@ def simulate_fiber_mic_measurement(
         noise_rng = np.random.default_rng(rng.randrange(0, 2**32))
         demod_voltage = demod_voltage + noise_rng.normal(0.0, noise_std, size=demod_voltage.shape).astype(np.float32)
     waveform = np.clip(demod_voltage, -float(probe.voltage_saturation_v), float(probe.voltage_saturation_v)).astype(np.float32)
-    return _digitize_waveform(waveform, spec.adc_max, probe.daq_full_scale_v, spec.waveform_dtype) | {
+    return _digitize_waveform(waveform, spec.adc_max, probe.daq_full_scale_v, spec.waveform_dtype, spec.per_timestep_scale) | {
         "tof_direct_s": float(tof_probe_s),
         "probe_tof_s": float(tof_probe_s),
         "t_round_s": float(t_round_s),
@@ -415,15 +417,29 @@ def _lagrange_fractional_shift(signal: np.ndarray, delay_samples: float, order: 
     return np.convolve(shifted, h, mode="same").astype(signal.dtype)
 
 
-def _digitize_waveform(waveform: np.ndarray, adc_max: int, daq_full_scale_v: float, waveform_dtype: str) -> dict[str, object]:
+def _digitize_waveform(
+    waveform: np.ndarray,
+    adc_max: int,
+    daq_full_scale_v: float,
+    waveform_dtype: str,
+    per_timestep_scale: bool = False,
+) -> dict[str, object]:
     if daq_full_scale_v <= 0.0:
         raise ValueError("daq_full_scale_v must be > 0")
     peak_abs_v = float(np.max(np.abs(waveform))) if waveform.size else 0.0
     if peak_abs_v <= 0.0:
         raise ValueError("peak_abs_v must be > 0")
     np_dtype = np.dtype(waveform_dtype)
-    scale_factor = float(daq_full_scale_v) / float(adc_max)
-    waveform_int = np.clip(np.round(waveform / scale_factor), -adc_max, adc_max).astype(np_dtype)
+    if per_timestep_scale:
+        # per-timestep 自适应 scale：按波形峰值定标，充分利用 dtype 动态范围
+        # int16 下峰值→32767，量化步长 = peak_abs_v / 32767
+        dtype_max = (1 << (np_dtype.itemsize * 8 - 1)) - 1
+        scale_factor = peak_abs_v / dtype_max
+        clip_max = dtype_max
+    else:
+        scale_factor = float(daq_full_scale_v) / float(adc_max)
+        clip_max = adc_max
+    waveform_int = np.clip(np.round(waveform / scale_factor), -clip_max, clip_max).astype(np_dtype)
     return {
         "waveform_float": waveform.astype(np.float32),
         "waveform_int": waveform_int,

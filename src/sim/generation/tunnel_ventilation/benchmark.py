@@ -127,8 +127,11 @@ def generate_tunnel_ventilation_benchmark_dataset(
         optical_metadata = _optical_absorption_metadata(spec)
         split_rows = build_default_split_rows(conditions, seed=spec.seed)
         labels = _label_array(conditions)
-        ultrasonic_spec = WaveformSpec()
-        fiber_mic_spec = FiberMicSpec() if not spec.skip_fiber_mic else None
+        # tv3 采用 int16 + per-timestep 自适应 scale 存储波形（方案 B）
+        # 物理 ADC 仍为 20-bit（daq_bits=20），存储时按每 timestep 峰值定标压缩为 int16
+        # 实测峰值占满量程 ~22%，per-timestep scale 比固定 scale 量化步长小 ~4.6×
+        ultrasonic_spec = WaveformSpec(per_timestep_scale=True, waveform_dtype="int16")
+        fiber_mic_spec = FiberMicSpec(per_timestep_scale=True, waveform_dtype="int16") if not spec.skip_fiber_mic else None
         acoustic_metadata = _acoustic_model_metadata(ultrasonic_spec, fiber_mic_spec)
         array_keys = _array_keys(spec.skip_fiber_mic)
         arrays = _build_sequence_arrays_for_spec(

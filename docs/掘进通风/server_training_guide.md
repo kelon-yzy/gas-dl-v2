@@ -7,12 +7,14 @@
 
 | 项目 | 规模 | 说明 |
 |------|------|------|
-| 数据集 | tv3-formal 600 序列 × 512 时步 | 服务器上由 CLI 重新生成，**跳过 fiber_mic 波形**（`--skip-fiber-mic`） |
+| 数据集 | tv3-formal 600 序列 × 512 时步 | 服务器上由 CLI 重新生成，**跳过 fiber_mic**（`--skip-fiber-mic`）+ **int16 per-timestep scale** |
 | 基线训练 | 5 模型 × 3 seeds = 15 runs | `scripts/run_tv3_baseline.py` 编排 |
 | 多模态方向 B | cnn1d_tcn_fusion，slow+ultrasonic | `tv3_tcn_multimodal.json` + `--modalities slow,ultrasonic`，验证 O₂ 是否可辨识 |
 | GPU | RTX 5880 48GB | 多模态 batch_size 可从 2 调到 8（见 §4.2） |
 
-> **跳过 fiber_mic 说明**：fiber_mic 波形占数据集 66%（600 序列下 11.4 GB），当前阶段先只跑超声链路，数据集降至 ~6 GB。光纤麦克风代码全部保留（`FiberMicSpec` / `simulate_fiber_mic_measurement` / `waveforms.py` 未改），后续去掉 `--skip-fiber-mic` 即可恢复完整三模态生成。DL 端需同步去掉 `fiber_mic` 模态（`--modalities slow,ultrasonic`），否则会因找不到 `fiber_mic_int32.npy` 报错。
+> **波形存储优化**：tv3 默认采用 int16 + per-timestep 自适应 scale（方案 B），物理 ADC 仍为 20-bit（`daq_bits=20`），存储时按每 timestep 峰值定标压缩为 int16。实测峰值占满量程 ~22%，per-timestep scale 比固定 scale 量化步长小 ~4.6×；int16 量化误差 max ~1e-5 V，远小于噪声 std 1e-3 V（误差/噪声 ≈ 1%），精度损失可忽略。数据集从 int32 的 ~6 GB 降至 int16 的 ~3 GB。
+
+> **跳过 fiber_mic 说明**：fiber_mic 波形占数据集 66%（600 序列下 11.4 GB），当前阶段先只跑超声链路。光纤麦克风代码全部保留（`FiberMicSpec` / `simulate_fiber_mic_measurement` / `waveforms.py` 未改），后续去掉 `--skip-fiber-mic` 即可恢复完整三模态生成。DL 端需同步去掉 `fiber_mic` 模态（`--modalities slow,ultrasonic`），否则会因找不到 `fiber_mic_int32.npy` 报错。
 
 > **数据量限制说明**：600 序列 ≈ 400 训练样本，首轮 TCN 50 epochs 全组分 R²≈0（见 [experiment_roadmap.md](experiment_roadmap.md) 基线结果分析）。服务器训练能加速 epoch，但无法解决数据量不足的根本问题。如需更好效果，后续应扩大数据集规模（见 §6）。
 
@@ -26,8 +28,8 @@
 | Python | 3.10–3.13（排除 3.14） | 项目 pyproject.toml 约束 |
 | CUDA | 11.8+ | PyTorch GPU 版本需匹配驱动 |
 | GPU 显存 | ≥ 8 GB（基线）/ ≥ 16 GB（多模态 batch_size=8） | RTX 5880 48GB 充足 |
-| 磁盘 | ≥ 10 GB | 数据集 ~6 GB（跳过 fiber_mic）+ 临时 chunk + 输出 |
-| 内存 | ≥ 10 GB | 600 序列 workers=4 生成峰值 ~6 GB（跳过 fiber_mic） |
+| 磁盘 | ≥ 8 GB | 数据集 ~3 GB（int16 + 跳过 fiber_mic）+ 临时 chunk + 输出 |
+| 内存 | ≥ 8 GB | 600 序列 workers=4 生成峰值 ~3 GB（int16 + 跳过 fiber_mic） |
 
 ### 2.2 获取代码
 
@@ -77,7 +79,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
 | `manifest.background_fields` | `[]` |
 | `sequences/slow.npy` 最后一维 | 8 |
 
-### 3.2 tv3-formal 正式集（600 序列，~1–2 分钟，跳过 fiber_mic）
+### 3.2 tv3-formal 正式集（600 序列，~1–2 分钟，int16 + 跳过 fiber_mic）
 
 ```bash
 python -m pipeline.generate_tunnel_ventilation_benchmark \
@@ -86,17 +88,19 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
     --storage memmap --workers 4 --skip-fiber-mic
 ```
 
-生成完成后 `data/tv3-formal/` 约 6 GB（跳过 fiber_mic），关键产物：
+生成完成后 `data/tv3-formal/` 约 3 GB（int16 + 跳过 fiber_mic），关键产物：
 
 | 文件 | shape | 说明 |
 |------|-------|------|
-| `sequences/ultrasonic_int32.npy` | (600, 512, 5000) int32 | 超声波形 |
+| `sequences/ultrasonic_int16.npy` | (600, 512, 5000) int16 | 超声波形（per-timestep scale 压缩） |
+| `sequences/ultrasonic_scale.npy` | (600, 512) float32 | per-timestep scale_factor（每时步不同） |
 | `sequences/slow.npy` | (600, 512, 8) float32 | 8 慢通道 |
 | `labels/y.npy` | (600, 3) | CO₂/O₂/N₂ 浓度 |
-| `manifest.json` | — | composition_scheme + sim_revision，`fiber_mic_model: null` |
+| `manifest.json` | — | composition_scheme + sim_revision，`fiber_mic_model: null`，`waveform_dtype: int16` |
 
-> `--skip-fiber-mic` 跳过光纤麦克风波形生成，数据集从 17 GB 降到 ~6 GB。若后续需要完整三模态，去掉 `--skip-fiber-mic` 重新生成即可。
-> 若服务器内存 < 10 GB，降低 `--workers`（如 `--workers 2`）。
+> tv3 默认 int16 + per-timestep scale（方案 B），无需额外参数。数据集从 int32 的 17 GB 降到 int16 + 跳过 fiber_mic 的 ~3 GB（-82%）。DL 端通过 `waveform_spec.json` 自动识别 dtype，加载 `ultrasonic_int16.npy`。
+> `ultrasonic_scale.npy` 现在是 per-timestep 自适应（每个时步值不同，按该时步波形峰值定标），dequantize 时 `waveform_int16 * scale` 还原电压。
+> 若服务器内存 < 8 GB，降低 `--workers`（如 `--workers 2`）。
 
 ## 4. 训练执行
 
@@ -214,7 +218,7 @@ scp user@server:/path/to/gas-dl-v2/tv3_results_metrics.tar.gz .
 
 ### 6.1 扩大数据集
 
-600 序列对 DL 严重不足。若服务器资源允许，可生成 6000 序列。跳过 fiber_mic 时磁盘/内存需求大幅降低：
+600 序列对 DL 严重不足。若服务器资源允许，可生成 6000 序列。int16 + 跳过 fiber_mic 时磁盘/内存需求大幅降低：
 
 ```bash
 python -m pipeline.generate_tunnel_ventilation_benchmark \
@@ -223,13 +227,13 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
     --storage memmap --workers 4 --skip-fiber-mic
 ```
 
-| 规模 | 磁盘（跳过 fiber_mic） | 生成内存峰值（workers=4） |
-|------|----------------------|--------------------------|
-| 600 序列 | ~6 GB | ~6 GB |
-| 6000 序列 | ~58 GB | ~45 GB |
+| 规模 | 磁盘（int16 + 跳过 fiber_mic） | 生成内存峰值（workers=4） |
+|------|------------------------------|--------------------------|
+| 600 序列 | ~3 GB | ~3 GB |
+| 6000 序列 | ~29 GB | ~15 GB |
 
-> 6000 序列跳过 fiber_mic 后 memmap ~58 GB（含 fiber_mic 为 172 GB）。`build_sequence_arrays` 在内存中预分配 chunk 数组，workers=4 chunk=750 每 worker ~7.5 GB。若内存不足，降低 `--workers`。
-> 若需完整三模态 6000 序列（含 fiber_mic），去掉 `--skip-fiber-mic`，磁盘需 ≥350 GB、内存 ≥90 GB。
+> 6000 序列 int16 + 跳过 fiber_mic 后 memmap ~29 GB（原始 int32 + 含 fiber_mic 为 172 GB，减 83%）。`build_sequence_arrays` 在内存中预分配 chunk 数组，workers=4 chunk=750 每 worker ~3.8 GB（int16）。若内存不足，降低 `--workers`。
+> 若需完整三模态 6000 序列（int32 + fiber_mic），需改回 `WaveformSpec()`（去掉 per_timestep_scale + waveform_dtype="int16"）并去掉 `--skip-fiber-mic`，磁盘需 ≥350 GB、内存 ≥90 GB。
 
 ### 6.2 阶段 Ⅱ ablation
 
