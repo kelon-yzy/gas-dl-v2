@@ -22,6 +22,7 @@
 - conditional_metrics 按 `o2_bins` / `co2_bins` 分箱
 - sum_abs_error 在 tv3 下计算（数据层 sum=100% 闭包，模型层不强制归一化）
 - HITRAN 后端阶段 1 未实现，CLI 拒绝 `hitran_hapi_v1`
+- **2026-07-05 存储优化**：tv3 默认 `WaveformSpec(per_timestep_scale=True, waveform_dtype="int16")` + CLI `--skip-fiber-mic`；物理 ADC 仍 20-bit，存储 int16 + per-timestep scale（误差/噪声 ≈ 1%）；fiber_mic 代码保留但默认不生成；数据集 17 GB → 3 GB（600 序列）
 
 首轮基线结果（slow-only，600 序列）：
 - Ridge: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌
@@ -230,6 +231,10 @@ python -m pipeline.generate_tunnel_ventilation_benchmark `
 | `src/dl/training/losses.py` | 修改 | E | ✅ 已完成（tv3 拒绝闭包 loss + gas-head 校验） |
 | `src/ml/training.py` | 修改 | E | ✅ 已完成（按 `composition_scheme` 选择 `o2_bins/co2_bins`，tv3 拒绝 target_transform） |
 | `src/dl/training/trainer.py` | 修改 | E | ✅ 已完成（tv3 scheme + bin components + sum_abs_error） |
+| `src/sim/generation/waveforms.py` | 修改 | E | ✅ 已完成（`_digitize_waveform` 支持 `per_timestep_scale`；WaveformSpec/FiberMicSpec 添加字段） |
+| `src/sim/packaging/arrays.py` | 修改 | E | ✅ 已完成（`write_arrays` 支持可选 fiber_mic） |
+| `src/sim/validation/integrity.py` | 修改 | E | ✅ 已完成（`_validate_array_shapes` 支持可选 fiber_mic） |
+| `docs/掘进通风/server_training_guide.md` | 新增 | E | ✅ 已完成（Linux + RTX 5880 48GB 服务器训练操作手册） |
 
 ## 六、验证流程
 

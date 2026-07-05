@@ -72,8 +72,8 @@
 | 模块 | 复用方式 | 本场景仅变动 |
 |---|---|---|
 | slow 变量 | 复用现有 8 slow 通道组织方式 | 气体组分输入改为 `CO2 / O2 / N2` |
-| ultrasonic 波形 | 复用 200 kHz、1 MS/s、20-bit int32、5000 点窗口 | 声速与衰减物理参数换成三组分空气背景 |
-| fiber_mic 波形 | 复用 10000 点窗口与反射 / 相位解调链路 | 气体物性输入换成三组分空气背景 |
+| ultrasonic 波形 | 复用 200 kHz、1 MS/s、20-bit ADC、5000 点窗口 | 声速与衰减物理参数换成三组分空气背景；tv3 默认 int16 + per-timestep scale 存储 |
+| fiber_mic 波形 | 复用 10000 点窗口与反射 / 相位解调链路 | 气体物性输入换成三组分空气背景；tv3 默认 `--skip-fiber-mic` 跳过生成（代码保留） |
 | phase schedule | 复用 baseline、exposure、steady、recovery 四阶段 | 状态语义映射为通风扰动 |
 | packaging / validation | 复用 arrays、manifest、scalers、splits、integrity | labels 改为三列；N2 不进 background_fields |
 | HITRAN / empirical 光学 | 复用现有后端开关 | 第一阶段只保留 CO2 相关吸收差异，O2 / N2 不新增光学专用通道 |

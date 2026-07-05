@@ -8,7 +8,7 @@
 
 - **掺氢天然气（hydrogen_ng）**：H₂/CH₄/CO₂/N₂，sum=100% 闭包。benchmark `wv4-*`。
 - **合成气 / 煤气化制气（syngas）**：H₂/CH₄/CO₂/CO，N₂ 为背景气，sum<100%。Stage Ⅰ 基线 + Stage Ⅱ ablation 完成，benchmark `sg4-smoke` / `sg4-formal`（empirical 后端，6000 序列）可用，HITRAN 后端待补。独立模块路径。
-- **掘进通风（tunnel_ventilation）**：CO₂/O₂/N₂，sum=100% 严格闭包但模型层不使用闭包残差头。N₂ 升格为显式预测目标，O₂ 为同核双原子（无红外活性，仅声学+TCS 间接推断）。阶段 1–4 链路 + DL 适配已落地，benchmark `tv3-smoke` 与 600 序列 `tv3-formal` 可用，Ridge/TCN 首轮基线已完成；多模态 fusion 必须用 `raw3` 直接三输出。独立模块路径。
+- **掘进通风（tunnel_ventilation）**：CO₂/O₂/N₂，sum=100% 严格闭包但模型层不使用闭包残差头。N₂ 升格为显式预测目标，O₂ 为同核双原子（无红外活性，仅声学+TCS 间接推断）。阶段 1–4 链路 + DL 适配已落地，benchmark `tv3-smoke` 与 600 序列 `tv3-formal` 可用，Ridge/TCN 首轮基线已完成；多模态 fusion 必须用 `raw3` 直接三输出。2026-07-05 存储优化：tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`（数据集 17→3 GB，误差/噪声 ≈ 1%，光纤代码保留可恢复，见 `docs/掘进通风/server_training_guide.md`）。独立模块路径。
 
 ## 代码结构
 
@@ -73,7 +73,7 @@ syngas / tunnel_ventilation 场景下闭包类 loss 由 `validate_loss_compositi
 
 - `wv4-smoke` / `wv4-formal*` — 掺氢天然气；正式 6000 序列集 `wv4-formal-hitran-standard-6000` 可通过 `--experiment-preset formal-hitran-standard-6000` 一键固定。
 - `sg4-smoke` / `sg4-formal` — 合成气 smoke / 正式集（empirical 后端，6000 序列）
-- `tv3-smoke` / `tv3-formal` — 掘进通风 smoke / 正式集（仅 empirical 后端，HITRAN 待后续阶段）；`tv3-smoke` 已生成，`tv3-formal` 已按 600 序列规模生成
+- `tv3-smoke` / `tv3-formal` — 掘进通风 smoke / 正式集（仅 empirical 后端，HITRAN 待后续阶段）；`tv3-smoke` 已生成，`tv3-formal` 已按 600 序列规模生成。2026-07-05 起 tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`（数据集 17→3 GB，物理 ADC 仍 20-bit，存储 dtype=int16，光纤代码保留可恢复）
 
 ## 开发注意事项
 
@@ -120,6 +120,7 @@ syngas / tunnel_ventilation 场景下闭包类 loss 由 `validate_loss_compositi
 | 掘进通风物性常数 | `docs/掘进通风/physics_references.md` | CO₂/O₂/N₂ 声学、热导、光学物性速查 |
 | 掘进通风采样设计 | `docs/掘进通风/sampling_design.md` | 2D LHS 采样、联合约束、状态分层 |
 | 掘进通风 DL 方案 | `docs/掘进通风/dl_training_plan.md` | 通道可辨识性、模型选型、Loss、实验矩阵 |
+| 掘进通风服务器训练手册 | `docs/掘进通风/server_training_guide.md` | Linux + RTX 5880 48GB 服务器训练完整步骤（环境/生成/训练/回收） |
 | 学长 RCDW 复现 | `docs/学长算法/RCDW_实施完成情况.md` | 独立子工程 `rcdw_mgda/` 的端到端落地状态（与主线 src/ 完全隔离，互不影响主线 tests） |
 | 工作原则 | `AGENTS.md` | AI 协作规则与边界 |
 

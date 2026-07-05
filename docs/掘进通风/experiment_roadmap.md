@@ -16,7 +16,8 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 | 仿真链路适配（阶段 1–3） | schema/物理/慢通道/benchmark/CLI 全部落地，tv3-smoke 生成通过 |
 | DL 训练适配（阶段 4） | losses/trainer 适配 tv3 scheme，CLI 端到端训练通过 |
 | tv3-smoke 生成 | 32 序列链路验证通过 |
-| tv3-formal 生成 | 600 序列 512 时步生成通过（受内存限制，详见 Ⅰ-2） |
+| tv3-formal 生成 | 600 序列 512 时步生成通过（int16 + skip-fiber-mic，3 GB；详见 Ⅰ-2） |
+| 存储优化（2026-07-05） | int16 + per-timestep scale + `--skip-fiber-mic`；数据集 17→3 GB，误差/噪声 ≈ 1% |
 | DL 配置矩阵 | 5 个基线配置 + `tv3_tcn_multimodal.json` + 编排脚本已创建；fusion 配置使用 `raw3` 三输出 |
 | CNN1D 1 epoch 验证 | 管线正常，3 组分 metrics + o2_bins/co2_bins 分箱 + sum_abs_error 可计算 |
 | TCN 50 epochs（seed=42） | val R²≈0（CO₂=-0.05, O₂=-0.14, N₂=-0.53），600 序列对 DL 不够 |
@@ -79,24 +80,36 @@ python -m pipeline.generate_tunnel_ventilation_benchmark `
 | 组分总量 | `|x_CO2 + x_O2 + x_N2 - 100| < 1e-6` |
 | `sequence_labels.csv` 列 | `sequence_id, x_CO2, x_O2, x_N2` |
 
-### Ⅰ-2 tv3-formal 生成 ⚠️ 规模调整
+### Ⅰ-2 tv3-formal 生成 ⚠️ 规模调整 + 存储优化
 
 目的：训练规模数据集，与 hg `wv4-formal-hitran-standard-6000` 时间轴对齐。
 
-> **内存/磁盘双重限制**：计划 6000 序列 × 512 时步受限于两个瓶颈：
+> **内存/磁盘双重限制（原始 int32 + fiber_mic）**：计划 6000 序列 × 512 时步受限于两个瓶颈：
 > 1. **磁盘**：memmap 需 184 GB，多进程峰值（chunk + memmap）约 368 GB，D 盘剩余 251.8 GB 不足。
 > 2. **内存**：`build_sequence_arrays` 在内存中预分配整个 chunk 数组，每 worker chunk 内存 = chunk_size × 512 × 15008 × 4。系统内存 33.6 GB（可用约 25 GB），3000 序列 workers=4（chunk=750）每 worker 22.5 GB，4 worker 并行 90 GB，OOM。
 >
-> 调整为 **600 序列 × 512 时步 workers=4**（每 worker 4.6 GB，总 18.4 GB，安全余量）。保持 512 时步与 sg4-formal 时间轴对齐。600 序列 ≈ 400 训练样本，可训练初步基线；序列数远少于 sg4 的 6000，后续若需扩大规模需优化 `build_sequence_arrays` 支持流式 memmap 写入（不预分配全数组）。
+> **2026-07-05 存储优化（方案 B）**：tv3 默认采用 int16 + per-timestep 自适应 scale + 跳过 fiber_mic，数据集大幅压缩：
+> - int32 → int16：per-timestep scale 按每时步波形峰值定标，实测峰值占满量程 ~22%，per-timestep 比固定 scale 量化步长小 4.6×；量化误差 max ~1e-5 V，远小于噪声 std 1e-3 V（误差/噪声 ≈ 1%），精度损失可忽略
+> - 跳过 fiber_mic（`--skip-fiber-mic`）：光纤代码全部保留，后续去掉开关即可恢复
+> - 物理 ADC 仍为 20-bit（`daq_bits=20`），存储 dtype 改为 int16
+>
+> 调整为 **600 序列 × 512 时步 workers=4 --skip-fiber-mic**（int16 下每 worker ~0.77 GB，总 ~3 GB）。保持 512 时步与 sg4-formal 时间轴对齐。600 序列 ≈ 400 训练样本，可训练初步基线。
 
-```powershell
-python -m pipeline.generate_tunnel_ventilation_benchmark `
-    --output-root data --dataset tv3-formal --sequences 600 --seed 20260704 `
-    --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 `
-    --storage memmap --workers 4
+| 规模 | int32 + fiber_mic | int16 + skip-fiber-mic | 减幅 |
+|------|:----------------:|:---------------------:|:----:|
+| 600 序列 | 17 GB | 3 GB | -82% |
+| 6000 序列 | 172 GB | 29 GB | -83% |
+
+```bash
+python -m pipeline.generate_tunnel_ventilation_benchmark \
+    --output-root data --dataset tv3-formal --sequences 600 --seed 20260704 \
+    --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 \
+    --storage memmap --workers 4 --skip-fiber-mic
 ```
 
-预计耗时：2–4 分钟（600 序列，workers=4）。
+预计耗时：1–2 分钟（600 序列 int16 + skip-fiber-mic，workers=4）。
+
+> DL 端通过 `metadata/waveform_spec.json` 自动识别 `waveform_dtype=int16`，加载 `ultrasonic_int16.npy`，dequantize 用 per-timestep `ultrasonic_scale.npy` 还原电压。多模态训练需 `--modalities slow,ultrasonic`（去掉 fiber_mic）。详见 [server_training_guide.md](server_training_guide.md)。
 
 ### Ⅰ-3 配置矩阵 ✅ 已完成
 

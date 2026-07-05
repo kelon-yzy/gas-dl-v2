@@ -10,7 +10,7 @@
 推荐训练管线：
 
 ```
-tv3-formal (600 seq / 512 steps; 受当前内存/磁盘约束从原 6000 调整)
+tv3-formal (600 seq / 512 steps; int16 + per-timestep scale + skip-fiber-mic，3 GB；6000 序列 29 GB 亦可)
     → TCN (primary) + CNN1D (secondary)
     → weighted_component_mse, weights=[1.0, 2.0, 1.0]
     → 5 模型 × 3 seeds 基线

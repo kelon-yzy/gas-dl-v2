@@ -5,7 +5,7 @@
 
 ## 实施状态（截至 2026-07-05）
 
-仿真链路适配（阶段 1–3）+ DL 训练适配（阶段 4）+ formal 数据集 + 初步基线已落地。tv3-formal（600 序列）已生成，Ridge/TCN 基线已完成首轮。阶段 5 剩余：完整 15 runs 基线矩阵 + ablation（待决策方向，见 [experiment_roadmap.md](experiment_roadmap.md) 基线结果分析）。2026-07-05 审查修复后，tv3 多模态 fusion 使用 `raw3` 三输出，`gas_head` / `target_transform` 在 tv3 路径下显式拒绝。
+仿真链路适配（阶段 1–3）+ DL 训练适配（阶段 4）+ formal 数据集 + 初步基线已落地。tv3-formal（600 序列）已生成，Ridge/TCN 基线已完成首轮。阶段 5 剩余：完整 15 runs 基线矩阵 + ablation（待决策方向，见 [experiment_roadmap.md](experiment_roadmap.md) 基线结果分析）。2026-07-05 审查修复后，tv3 多模态 fusion 使用 `raw3` 三输出，`gas_head` / `target_transform` 在 tv3 路径下显式拒绝。2026-07-05 存储优化：tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`，数据集 17 GB → 3 GB（600 序列），精度损失可忽略（误差/噪声 ≈ 1%），光纤代码保留可恢复，详见 [server_training_guide.md](server_training_guide.md)。
 
 | 阶段 | 范围 | 状态 |
 |------|------|------|
@@ -25,7 +25,8 @@
 | 4 | [physics_references.md](physics_references.md) | 可编码物性常数速查：声速、弛豫、热导、NDIR 参数 | 修改 `acoustic_physics.py`、编码物理模型 |
 | 5 | [experiment_roadmap.md](experiment_roadmap.md) | 实验路线图：benchmark 生成 → 基线 → ablation | 规划下一步实验、确认依赖和优先级 |
 | 6 | [dl_training_plan.md](dl_training_plan.md) | DL 训练方案：通道可辨识性、模型选型、Loss、实验矩阵、验收标准 | 配置 DL 实验、评估 O₂ 可辨识性 |
-| 7 | [references/README.md](references/README.md) | 文献报告索引和证据来源入口 | 追溯参数来源、补充文献 |
+| 7 | [server_training_guide.md](server_training_guide.md) | 服务器训练操作手册：环境/生成/训练/回收完整步骤（Linux + RTX 5880 48GB） | 在服务器上执行正式训练 |
+| 8 | [references/README.md](references/README.md) | 文献报告索引和证据来源入口 | 追溯参数来源、补充文献 |
 
 ## 已确认的初始约束
 
@@ -71,6 +72,7 @@
 - [sampling_design.md](sampling_design.md)：采样设计。CO₂/O₂/N₂ 三组分 LHS 方案、约束、状态分层、伪代码。
 - [experiment_roadmap.md](experiment_roadmap.md)：实验路线图。benchmark 生成、基线训练、ablation 消融的优先级和依赖关系。
 - [dl_training_plan.md](dl_training_plan.md)：DL 训练方案。通道可辨识性分析、模型选型、Loss 选择、实验矩阵、验收标准。
+- [server_training_guide.md](server_training_guide.md)：服务器训练操作手册。Linux + RTX 5880 48GB 环境下的完整执行步骤（环境/生成/训练/回收）。
 
 ### 参数与文献
 
