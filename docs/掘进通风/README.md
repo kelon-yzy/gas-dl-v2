@@ -26,7 +26,8 @@
 | 5 | [experiment_roadmap.md](experiment_roadmap.md) | 实验路线图：benchmark 生成 → 基线 → ablation | 规划下一步实验、确认依赖和优先级 |
 | 6 | [dl_training_plan.md](dl_training_plan.md) | DL 训练方案：通道可辨识性、模型选型、Loss、实验矩阵、验收标准 | 配置 DL 实验、评估 O₂ 可辨识性 |
 | 7 | [server_training_guide.md](server_training_guide.md) | 服务器训练操作手册：环境/生成/训练/回收完整步骤（Linux + RTX 5880 48GB） | 在服务器上执行正式训练 |
-| 8 | [references/README.md](references/README.md) | 文献报告索引和证据来源入口 | 追溯参数来源、补充文献 |
+| 8 | [small_sample_dl_strategies.md](small_sample_dl_strategies.md) | 小样本 DL 训练策略：9 类策略（数据增强/正则化/轻量模型/集成/蒸馏/元学习/自监督/半监督/物理约束）+ 文献 + 优先级 | 600 序列约束下提升 DL 表现 |
+| 9 | [references/README.md](references/README.md) | 文献报告索引和证据来源入口 | 追溯参数来源、补充文献 |
 
 ## 已确认的初始约束
 
@@ -73,6 +74,7 @@
 - [experiment_roadmap.md](experiment_roadmap.md)：实验路线图。benchmark 生成、基线训练、ablation 消融的优先级和依赖关系。
 - [dl_training_plan.md](dl_training_plan.md)：DL 训练方案。通道可辨识性分析、模型选型、Loss 选择、实验矩阵、验收标准。
 - [server_training_guide.md](server_training_guide.md)：服务器训练操作手册。Linux + RTX 5880 48GB 环境下的完整执行步骤（环境/生成/训练/回收）。
+- [small_sample_dl_strategies.md](small_sample_dl_strategies.md)：小样本 DL 训练策略。9 类策略（数据增强/正则化/轻量模型/集成/蒸馏/元学习/自监督/半监督/物理约束）的原理、文献、tv3 适用性、优先级。
 
 ### 参数与文献
 

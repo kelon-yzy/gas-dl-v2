@@ -121,6 +121,7 @@ syngas / tunnel_ventilation 场景下闭包类 loss 由 `validate_loss_compositi
 | 掘进通风采样设计 | `docs/掘进通风/sampling_design.md` | 2D LHS 采样、联合约束、状态分层 |
 | 掘进通风 DL 方案 | `docs/掘进通风/dl_training_plan.md` | 通道可辨识性、模型选型、Loss、实验矩阵 |
 | 掘进通风服务器训练手册 | `docs/掘进通风/server_training_guide.md` | Linux + RTX 5880 48GB 服务器训练完整步骤（环境/生成/训练/回收） |
+| 掘进通风小样本 DL 策略 | `docs/掘进通风/small_sample_dl_strategies.md` | 9 类小样本策略（数据增强/正则化/轻量模型/集成/蒸馏/元学习/自监督/半监督/物理约束）+ 文献 + 优先级 |
 | 学长 RCDW 复现 | `docs/学长算法/RCDW_实施完成情况.md` | 独立子工程 `rcdw_mgda/` 的端到端落地状态（与主线 src/ 完全隔离，互不影响主线 tests） |
 | 工作原则 | `AGENTS.md` | AI 协作规则与边界 |
 
