@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
@@ -186,11 +187,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     random.seed(args.seed)
 
     composition_scheme, component_names = _load_composition_scheme(args.dataset_dir)
+    print(f"[dl] scheme={composition_scheme}  components={list(component_names)}  device={args.device}", file=sys.stderr, flush=True)
     validate_loss_composition_scheme(args.loss, composition_scheme)
     performance = _performance_config(args.performance)
     _apply_performance_settings(performance, torch.device(args.device))
 
     modalities = _parse_modalities(args.modalities)
+    print(f"[dl] modalities={list(modalities)}  loading train dataset ...", file=sys.stderr, flush=True)
     slow_channels = _parse_slow_channels(args.slow_channels)
     input_format = args.input_format or _model_input_format(args.model)
 
@@ -215,6 +218,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     sample_x, sample_y = train_dataset[0]
     in_channels, timesteps = _infer_input_shape(sample_x, input_format)
+    print(f"[dl] train samples={len(train_dataset)}  in_channels={in_channels}  timesteps={timesteps}", file=sys.stderr, flush=True)
     train_labels = _split_labels(args.dataset_dir, "train")
     target_transform = resolve_target_transform_for_training(
         args.target_transform,
@@ -246,6 +250,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if target_transform is not None and int(model_config["out_dim"]) != 3:
         raise ValueError("DL target_transform requires model out_dim=3")
     model = build_model(model_config)
+    _n_params = sum(p.numel() for p in model.parameters())
+    print(f"[dl] model={args.model}  params={_n_params:,}  out_dim={out_dim}", file=sys.stderr, flush=True)
     loss_fn = build_loss(args.loss, train_targets=train_labels)
     optimizer = build_optimizer(
         model,
@@ -314,6 +320,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         progress_log_path=progress_log_path,
         stdout_enabled=not args.json,
     )
+    print(f"[dl] training start  epochs={args.epochs}  batch_size={args.batch_size}  "
+          f"amp={amp.enabled}  loss={args.loss.get('name', args.loss) if isinstance(args.loss, dict) else args.loss}",
+          file=sys.stderr, flush=True)
     history = trainer.fit(
         train_loader,
         val_loader=val_loader,
@@ -327,12 +336,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         grad_clip_norm=args.grad_clip_norm,
     )
     _write_training_progress_event(args.model, history, progress_log_path)
+    print(f"[dl] training done  epochs={len(history.epochs)}  "
+          f"stopped_early={history.stopped_early}  best_epoch={history.best_epoch.epoch if history.best_epoch else 'N/A'}",
+          file=sys.stderr, flush=True)
     if best_checkpoint_path.is_file():
         trainer.load_checkpoint(best_checkpoint_path)
         trainer.history = history
 
     evaluations: dict[str, Any] = {}
     for split in _parse_comma(args.eval_splits):
+        print(f"[dl] evaluating split={split} ...", file=sys.stderr, flush=True)
         loader = _optional_loader(
             args.dataset_dir,
             split,

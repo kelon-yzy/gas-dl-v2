@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import sys
 import time
 from typing import Any, Callable
 
@@ -205,6 +206,8 @@ class Trainer:
             loss_accum = torch.zeros((), dtype=torch.float64, device=self.device)
             n_batches = 0
             n_samples = 0
+            total_batches = len(train_loader)
+            report_interval = max(1, total_batches // 5)  # 每 20% 报告一次
             for batch in train_loader:
                 xb, yb, model_kwargs = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
                 self.optimizer.zero_grad(set_to_none=True)
@@ -228,6 +231,11 @@ class Trainer:
                 loss_accum += loss.detach().double()
                 n_batches += 1
                 n_samples += int(xb.shape[0])
+                if n_batches % report_interval == 0 or n_batches == total_batches:
+                    pct = 100 * n_batches / total_batches
+                    avg = float(loss_accum.item()) / n_batches
+                    print(f"  epoch {epoch}/{epochs}  batch {n_batches}/{total_batches} ({pct:.0f}%)  avg_loss={avg:.4f}",
+                          file=sys.stderr, flush=True)
 
             _cuda_synchronize(self.device)
             train_seconds = time.perf_counter() - train_start

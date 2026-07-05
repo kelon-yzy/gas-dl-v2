@@ -81,9 +81,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    import time as _time
+
     parser = build_parser()
     args = parser.parse_args(argv)
     workers = args.workers if args.workers is not None else default_worker_count(args.sequences)
+
+    print(f"[tv3-gen] dataset={args.dataset}  sequences={args.sequences}  "
+          f"timesteps={args.timesteps}  workers={workers}  "
+          f"skip_fiber_mic={args.skip_fiber_mic}", flush=True)
+    t0 = _time.perf_counter()
+
     spec = TunnelVentilationBenchmarkGenerationSpec(
         dataset_slug=args.dataset,
         sequence_count=args.sequences,
@@ -105,6 +113,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         skip_fiber_mic=args.skip_fiber_mic,
     )
     result = generate_tunnel_ventilation_benchmark_dataset(Path(args.output_root), spec)
+    elapsed = _time.perf_counter() - t0
+    print(f"[tv3-gen] done  output={result['output_dir']}  "
+          f"sequences={result['sequence_count']}  elapsed={elapsed:.1f}s", flush=True)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
 

@@ -16,6 +16,8 @@ from __future__ import annotations
 import math
 import os
 import shutil
+import sys
+import time as _time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -106,6 +108,10 @@ class TunnelVentilationBenchmarkGenerationSpec:
     skip_fiber_mic: bool = False
 
 
+def _log(msg: str) -> None:
+    print(f"[tv3-gen] {msg}", file=sys.stderr, flush=True)
+
+
 def generate_tunnel_ventilation_benchmark_dataset(
     output_root: Path | str,
     spec: TunnelVentilationBenchmarkGenerationSpec,
@@ -119,6 +125,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
     phase_schedule_metadata = phase_schedule.to_dict()
 
     try:
+        _log(f"generating {spec.sequence_count} condition rows ...")
         conditions = generate_condition_rows(
             spec.sequence_count,
             seed=spec.seed,
@@ -133,6 +140,8 @@ def generate_tunnel_ventilation_benchmark_dataset(
         ultrasonic_spec = WaveformSpec(per_timestep_scale=True, waveform_dtype="int16")
         fiber_mic_spec = FiberMicSpec(per_timestep_scale=True, waveform_dtype="int16") if not spec.skip_fiber_mic else None
         acoustic_metadata = _acoustic_model_metadata(ultrasonic_spec, fiber_mic_spec)
+        _log(f"conditions done ({len(conditions)} rows), building waveforms (workers={spec.workers}) ...")
+        t_wave = _time.perf_counter()
         array_keys = _array_keys(spec.skip_fiber_mic)
         arrays = _build_sequence_arrays_for_spec(
             conditions=conditions,
@@ -143,6 +152,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
             staging_dir=staging_dir,
             array_keys=array_keys,
         )
+        _log(f"waveforms done ({_time.perf_counter() - t_wave:.1f}s), validating ...")
         # tv3: 3 列预测目标 sum=100%（严格闭包），BACKGROUND_FIELDS 为空
         validation_summary = validate_benchmark_assets(
             conditions,
@@ -155,6 +165,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
             require_sum_100=True,
         )
         sequence_ids = [row["sequence_id"] for row in conditions]
+        _log("validation passed, writing arrays ...")
         fiber_dtype = fiber_mic_spec.waveform_dtype if fiber_mic_spec is not None else "int16"
         shapes = write_arrays(staging_dir, arrays, labels, sequence_ids, SLOW_CHANNELS, COMPONENT_FIELDS, spec.storage, ultrasonic_dtype=ultrasonic_spec.waveform_dtype, fiber_dtype=fiber_dtype)
         sim_revision = {
@@ -241,6 +252,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
         write_json(staging_dir / "manifest.json", manifest)
         write_json(staging_dir / "quality" / "validation_summary.json", validation_summary)
         _cleanup_parallel_temp_arrays(arrays, array_keys)
+        _log("writing metadata / CSVs / scalers ...")
         _publish_staging_dir(staging_dir, output_dir)
     except Exception:
         if staging_dir.exists():
