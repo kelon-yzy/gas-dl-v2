@@ -61,21 +61,27 @@ DEFAULT_WAVEFORM_PATH_LMS = (0.18, 0.20, 0.22, 0.25, 0.28)  # 200kHz 声程上�
 DEFAULT_MAX_WORKERS = 24
 # tv3 阶段 1 仅支持 empirical 后端
 _TV3_VALID_BACKENDS = (EMPIRICAL_ABSORPTION_BACKEND,)
-ARRAY_KEYS = (
-    "slow",
-    "ultrasonic",
-    "ultrasonic_scale",
-    "ultrasonic_tof_s",
-    "ultrasonic_tof_observed_s",
-    "ultrasonic_peak_index",
-    "ultrasonic_sound_speed_m_per_s",
-    "ultrasonic_sound_speed_estimated_m_per_s",
-    "ultrasonic_alpha_true_npm",
-    "ultrasonic_tof_quality",
-    "ultrasonic_tof_accepted",
-    "fiber_mic",
-    "fiber_mic_scale",
-)
+def _array_keys(skip_fiber_mic: bool) -> tuple[str, ...]:
+    """数据集数组 key 列表；skip_fiber_mic=True 时排除 fiber_mic 相关 key。"""
+    keys = (
+        "slow",
+        "ultrasonic",
+        "ultrasonic_scale",
+        "ultrasonic_tof_s",
+        "ultrasonic_tof_observed_s",
+        "ultrasonic_peak_index",
+        "ultrasonic_sound_speed_m_per_s",
+        "ultrasonic_sound_speed_estimated_m_per_s",
+        "ultrasonic_alpha_true_npm",
+        "ultrasonic_tof_quality",
+        "ultrasonic_tof_accepted",
+    )
+    if not skip_fiber_mic:
+        keys += ("fiber_mic", "fiber_mic_scale")
+    return keys
+
+
+ARRAY_KEYS = _array_keys(skip_fiber_mic=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +103,7 @@ class TunnelVentilationBenchmarkGenerationSpec:
     chunk_size: int | None = None
     temp_dir: str | None = None
     keep_chunks: bool = False
+    skip_fiber_mic: bool = False
 
 
 def generate_tunnel_ventilation_benchmark_dataset(
@@ -121,8 +128,9 @@ def generate_tunnel_ventilation_benchmark_dataset(
         split_rows = build_default_split_rows(conditions, seed=spec.seed)
         labels = _label_array(conditions)
         ultrasonic_spec = WaveformSpec()
-        fiber_mic_spec = FiberMicSpec()
+        fiber_mic_spec = FiberMicSpec() if not spec.skip_fiber_mic else None
         acoustic_metadata = _acoustic_model_metadata(ultrasonic_spec, fiber_mic_spec)
+        array_keys = _array_keys(spec.skip_fiber_mic)
         arrays = _build_sequence_arrays_for_spec(
             conditions=conditions,
             spec=spec,
@@ -130,6 +138,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
             ultrasonic_spec=ultrasonic_spec,
             fiber_mic_spec=fiber_mic_spec,
             staging_dir=staging_dir,
+            array_keys=array_keys,
         )
         # tv3: 3 列预测目标 sum=100%（严格闭包），BACKGROUND_FIELDS 为空
         validation_summary = validate_benchmark_assets(
@@ -143,7 +152,8 @@ def generate_tunnel_ventilation_benchmark_dataset(
             require_sum_100=True,
         )
         sequence_ids = [row["sequence_id"] for row in conditions]
-        shapes = write_arrays(staging_dir, arrays, labels, sequence_ids, SLOW_CHANNELS, COMPONENT_FIELDS, spec.storage, ultrasonic_dtype=ultrasonic_spec.waveform_dtype, fiber_dtype=fiber_mic_spec.waveform_dtype)
+        fiber_dtype = fiber_mic_spec.waveform_dtype if fiber_mic_spec is not None else "int16"
+        shapes = write_arrays(staging_dir, arrays, labels, sequence_ids, SLOW_CHANNELS, COMPONENT_FIELDS, spec.storage, ultrasonic_dtype=ultrasonic_spec.waveform_dtype, fiber_dtype=fiber_dtype)
         sim_revision = {
             "ultrasonic_center_frequency_hz": float(ultrasonic_spec.center_frequency_hz),
             "sample_rate_hz": int(ultrasonic_spec.sample_rate_hz),
@@ -208,7 +218,8 @@ def generate_tunnel_ventilation_benchmark_dataset(
             staging_dir / "metadata" / "waveform_spec.json",
             {
                 "ultrasonic": ultrasonic_spec.to_dict(),
-                "fiber_mic": fiber_mic_spec.to_dict(),
+                "fiber_mic": fiber_mic_spec.to_dict() if fiber_mic_spec is not None else None,
+                "skip_fiber_mic": spec.skip_fiber_mic,
                 "slow_channels": list(SLOW_CHANNELS),
                 "labels": list(COMPONENT_FIELDS),
                 "background_fields": list(BACKGROUND_FIELDS),
@@ -226,7 +237,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
         )
         write_json(staging_dir / "manifest.json", manifest)
         write_json(staging_dir / "quality" / "validation_summary.json", validation_summary)
-        _cleanup_parallel_temp_arrays(arrays)
+        _cleanup_parallel_temp_arrays(arrays, array_keys)
         _publish_staging_dir(staging_dir, output_dir)
     except Exception:
         if staging_dir.exists():
@@ -283,8 +294,8 @@ def _optical_absorption_metadata(spec: TunnelVentilationBenchmarkGenerationSpec)
     }
 
 
-def _acoustic_model_metadata(ultrasonic_spec: WaveformSpec, fiber_mic_spec: FiberMicSpec) -> dict[str, object]:
-    return {
+def _acoustic_model_metadata(ultrasonic_spec: WaveformSpec, fiber_mic_spec: FiberMicSpec | None) -> dict[str, object]:
+    metadata: dict[str, object] = {
         "ultrasonic_model": ultrasonic_spec.model_name,
         "ultrasonic_system_delay_model": ultrasonic_spec.system_delay_model,
         "ultrasonic_system_delay_s": ultrasonic_spec.system_delay_s,
@@ -293,11 +304,17 @@ def _acoustic_model_metadata(ultrasonic_spec: WaveformSpec, fiber_mic_spec: Fibe
         "ultrasonic_trigger_jitter_std_s": ultrasonic_spec.trigger_jitter_std_s,
         "ultrasonic_transducer_response_model": ultrasonic_spec.transducer_response_model,
         "ultrasonic_transducer_bandwidth_hz": ultrasonic_spec.transducer_bandwidth_hz,
-        "fiber_mic_model": fiber_mic_spec.model_name,
-        "fiber_mic_acoustic_field_model": fiber_mic_spec.acoustic_field_model,
-        "fiber_optical_demodulation_model": fiber_mic_spec.fiber_optical_demodulation_model,
         "acoustic_attenuation_model": ultrasonic_spec.acoustic_attenuation_model,
     }
+    if fiber_mic_spec is not None:
+        metadata["fiber_mic_model"] = fiber_mic_spec.model_name
+        metadata["fiber_mic_acoustic_field_model"] = fiber_mic_spec.acoustic_field_model
+        metadata["fiber_optical_demodulation_model"] = fiber_mic_spec.fiber_optical_demodulation_model
+    else:
+        metadata["fiber_mic_model"] = None
+        metadata["fiber_mic_acoustic_field_model"] = None
+        metadata["fiber_optical_demodulation_model"] = None
+    return metadata
 
 
 def _label_array(conditions: list[dict[str, str]]) -> np.ndarray:
@@ -340,8 +357,9 @@ def _build_sequence_arrays_for_spec(
     spec: TunnelVentilationBenchmarkGenerationSpec,
     phase_schedule: PhaseSchedule,
     ultrasonic_spec: WaveformSpec,
-    fiber_mic_spec: FiberMicSpec,
+    fiber_mic_spec: FiberMicSpec | None,
     staging_dir: Path,
+    array_keys: tuple[str, ...],
 ) -> dict[str, object]:
     if spec.workers == 1 or len(conditions) <= 1:
         return build_sequence_arrays(
@@ -367,7 +385,7 @@ def _build_sequence_arrays_for_spec(
         ultrasonic_spec=ultrasonic_spec,
         fiber_mic_spec=fiber_mic_spec,
         staging_dir=staging_dir,
-        array_keys=ARRAY_KEYS,
+        array_keys=array_keys,
     )
 
 
@@ -389,7 +407,7 @@ def _publish_staging_dir(staging_dir: Path, output_dir: Path) -> None:
     shutil.rmtree(backup_dir)
 
 
-def _cleanup_parallel_temp_arrays(arrays: dict[str, object]) -> None:
+def _cleanup_parallel_temp_arrays(arrays: dict[str, object], array_keys: tuple[str, ...]) -> None:
     from sim.generation.tunnel_ventilation._parallel import cleanup_parallel_temp_arrays
 
-    cleanup_parallel_temp_arrays(arrays, ARRAY_KEYS)
+    cleanup_parallel_temp_arrays(arrays, array_keys)

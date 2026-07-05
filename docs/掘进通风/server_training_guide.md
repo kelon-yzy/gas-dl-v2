@@ -7,10 +7,12 @@
 
 | 项目 | 规模 | 说明 |
 |------|------|------|
-| 数据集 | tv3-formal 600 序列 × 512 时步 | 服务器上由 CLI 重新生成，不依赖本地数据上传 |
+| 数据集 | tv3-formal 600 序列 × 512 时步 | 服务器上由 CLI 重新生成，**跳过 fiber_mic 波形**（`--skip-fiber-mic`） |
 | 基线训练 | 5 模型 × 3 seeds = 15 runs | `scripts/run_tv3_baseline.py` 编排 |
-| 多模态方向 B | cnn1d_tcn_fusion，slow+ultrasonic+fiber_mic | `tv3_tcn_multimodal.json`，验证 O₂ 是否可辨识 |
+| 多模态方向 B | cnn1d_tcn_fusion，slow+ultrasonic | `tv3_tcn_multimodal.json` + `--modalities slow,ultrasonic`，验证 O₂ 是否可辨识 |
 | GPU | RTX 5880 48GB | 多模态 batch_size 可从 2 调到 8（见 §4.2） |
+
+> **跳过 fiber_mic 说明**：fiber_mic 波形占数据集 66%（600 序列下 11.4 GB），当前阶段先只跑超声链路，数据集降至 ~6 GB。光纤麦克风代码全部保留（`FiberMicSpec` / `simulate_fiber_mic_measurement` / `waveforms.py` 未改），后续去掉 `--skip-fiber-mic` 即可恢复完整三模态生成。DL 端需同步去掉 `fiber_mic` 模态（`--modalities slow,ultrasonic`），否则会因找不到 `fiber_mic_int32.npy` 报错。
 
 > **数据量限制说明**：600 序列 ≈ 400 训练样本，首轮 TCN 50 epochs 全组分 R²≈0（见 [experiment_roadmap.md](experiment_roadmap.md) 基线结果分析）。服务器训练能加速 epoch，但无法解决数据量不足的根本问题。如需更好效果，后续应扩大数据集规模（见 §6）。
 
@@ -24,8 +26,8 @@
 | Python | 3.10–3.13（排除 3.14） | 项目 pyproject.toml 约束 |
 | CUDA | 11.8+ | PyTorch GPU 版本需匹配驱动 |
 | GPU 显存 | ≥ 8 GB（基线）/ ≥ 16 GB（多模态 batch_size=8） | RTX 5880 48GB 充足 |
-| 磁盘 | ≥ 25 GB | 数据集 17 GB + 临时 chunk + 输出 |
-| 内存 | ≥ 20 GB | 600 序列 workers=4 生成峰值 ~18 GB |
+| 磁盘 | ≥ 10 GB | 数据集 ~6 GB（跳过 fiber_mic）+ 临时 chunk + 输出 |
+| 内存 | ≥ 10 GB | 600 序列 workers=4 生成峰值 ~6 GB（跳过 fiber_mic） |
 
 ### 2.2 获取代码
 
@@ -75,26 +77,26 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
 | `manifest.background_fields` | `[]` |
 | `sequences/slow.npy` 最后一维 | 8 |
 
-### 3.2 tv3-formal 正式集（600 序列，~2–4 分钟）
+### 3.2 tv3-formal 正式集（600 序列，~1–2 分钟，跳过 fiber_mic）
 
 ```bash
 python -m pipeline.generate_tunnel_ventilation_benchmark \
     --output-root data --dataset tv3-formal --sequences 600 --seed 20260704 \
     --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 \
-    --storage memmap --workers 4
+    --storage memmap --workers 4 --skip-fiber-mic
 ```
 
-生成完成后 `data/tv3-formal/` 约 17 GB，关键产物：
+生成完成后 `data/tv3-formal/` 约 6 GB（跳过 fiber_mic），关键产物：
 
 | 文件 | shape | 说明 |
 |------|-------|------|
 | `sequences/ultrasonic_int32.npy` | (600, 512, 5000) int32 | 超声波形 |
-| `sequences/fiber_mic_int32.npy` | (600, 512, 10000) int32 | 光纤麦克风波形 |
 | `sequences/slow.npy` | (600, 512, 8) float32 | 8 慢通道 |
 | `labels/y.npy` | (600, 3) | CO₂/O₂/N₂ 浓度 |
-| `manifest.json` | — | composition_scheme + sim_revision |
+| `manifest.json` | — | composition_scheme + sim_revision，`fiber_mic_model: null` |
 
-> 若服务器内存 < 20 GB，降低 `--workers`（如 `--workers 2`）；若磁盘 < 25 GB，无法同时容纳数据集 + 临时 chunk，需清理空间。
+> `--skip-fiber-mic` 跳过光纤麦克风波形生成，数据集从 17 GB 降到 ~6 GB。若后续需要完整三模态，去掉 `--skip-fiber-mic` 重新生成即可。
+> 若服务器内存 < 10 GB，降低 `--workers`（如 `--workers 2`）。
 
 ## 4. 训练执行
 
@@ -133,26 +135,29 @@ python scripts/run_tv3_baseline.py --dry-run
 
 ### 4.2 多模态方向 B（cnn1d_tcn_fusion）
 
-多模态配置 `tv3_tcn_multimodal.json` 默认 `batch_size=2`（受本地 8 GB 显存限制）。RTX 5880 48 GB 可调大：
+多模态配置 `tv3_tcn_multimodal.json` 默认 `batch_size=2`（受本地 8 GB 显存限制）、`modalities="slow,ultrasonic,fiber_mic"`。当前数据集跳过了 fiber_mic，需用 `--modalities slow,ultrasonic` 覆盖。RTX 5880 48 GB 可调大 batch_size：
 
 ```bash
 python -m dl.cli \
     --config configs/experiment/tv3/tv3_tcn_multimodal.json \
+    --modalities slow,ultrasonic \
     --batch-size 8 \
     --output-dir outputs/tv3_tcn_multimodal/s42 \
     --seed 42
 ```
 
-batch_size 选择建议：
+> `--modalities slow,ultrasonic` 必须显式传入，否则配置默认含 `fiber_mic` 会因找不到 `fiber_mic_int32.npy` 报错。
+
+batch_size 选择建议（slow+ultrasonic 两模态，无 fiber_mic，显存占用比三模态低）：
 
 | batch_size | 预计显存占用 | 适用 |
 |:---------:|:-----------:|------|
-| 2 | ~8 GB | 配置默认（保守） |
-| 4 | ~15 GB | 中等 |
-| **8** | ~28 GB | **推荐**（48 GB 显存有余量） |
-| 12 | ~40 GB | 激进（接近上限，可能 OOM） |
+| 2 | ~5 GB | 配置默认（保守） |
+| 4 | ~9 GB | 中等 |
+| **8** | ~18 GB | **推荐**（48 GB 显存充足） |
+| 16 | ~34 GB | 激进（48 GB 显存仍有余量） |
 
-> 若 OOM，降到 4 或 6；若显存有余量，可试 12。AMP fp16 已在配置中启用。
+> 若 OOM，降到 4 或 8；若显存有余量，可试 16。AMP fp16 已在配置中启用。
 > 多模态训练 epochs=50，early stopping patience=10。如需多 seed，手动改 `--seed` 和 `--output-dir` 重复运行。
 
 ### 4.3 多模态多 seed（可选）
@@ -163,6 +168,7 @@ batch_size 选择建议：
 for seed in 42 123 456; do
     python -m dl.cli \
         --config configs/experiment/tv3/tv3_tcn_multimodal.json \
+        --modalities slow,ultrasonic \
         --batch-size 8 \
         --output-dir outputs/tv3_tcn_multimodal/s${seed} \
         --seed ${seed}
@@ -208,16 +214,22 @@ scp user@server:/path/to/gas-dl-v2/tv3_results_metrics.tar.gz .
 
 ### 6.1 扩大数据集
 
-600 序列对 DL 严重不足。若服务器资源允许（磁盘 ≥ 350 GB、内存 ≥ 90 GB），可生成 6000 序列：
+600 序列对 DL 严重不足。若服务器资源允许，可生成 6000 序列。跳过 fiber_mic 时磁盘/内存需求大幅降低：
 
 ```bash
 python -m pipeline.generate_tunnel_ventilation_benchmark \
     --output-root data --dataset tv3-formal-6000 --sequences 6000 --seed 20260704 \
     --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 \
-    --storage memmap --workers 4
+    --storage memmap --workers 4 --skip-fiber-mic
 ```
 
-> 6000 序列 memmap ~172 GB，多进程峰值（chunk + memmap）~350 GB。`build_sequence_arrays` 在内存中预分配 chunk 数组，workers=4 chunk=750 每 worker 22.5 GB。若内存不足，降低 `--workers`。
+| 规模 | 磁盘（跳过 fiber_mic） | 生成内存峰值（workers=4） |
+|------|----------------------|--------------------------|
+| 600 序列 | ~6 GB | ~6 GB |
+| 6000 序列 | ~58 GB | ~45 GB |
+
+> 6000 序列跳过 fiber_mic 后 memmap ~58 GB（含 fiber_mic 为 172 GB）。`build_sequence_arrays` 在内存中预分配 chunk 数组，workers=4 chunk=750 每 worker ~7.5 GB。若内存不足，降低 `--workers`。
+> 若需完整三模态 6000 序列（含 fiber_mic），去掉 `--skip-fiber-mic`，磁盘需 ≥350 GB、内存 ≥90 GB。
 
 ### 6.2 阶段 Ⅱ ablation
 

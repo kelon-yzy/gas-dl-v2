@@ -71,6 +71,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--chunk-size", type=int, default=None)
     parser.add_argument("--temp-dir", type=str, default=None)
     parser.add_argument("--keep-chunks", action="store_true", default=False)
+    parser.add_argument(
+        "--skip-fiber-mic",
+        action="store_true",
+        default=False,
+        help="跳过光纤麦克风波形生成（省 ~66%% 磁盘，DL 端需去掉 fiber_mic 模态）",
+    )
     return parser
 
 
@@ -96,6 +102,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         chunk_size=args.chunk_size,
         temp_dir=args.temp_dir,
         keep_chunks=args.keep_chunks,
+        skip_fiber_mic=args.skip_fiber_mic,
     )
     result = generate_tunnel_ventilation_benchmark_dataset(Path(args.output_root), spec)
     print(json.dumps(result, indent=2, ensure_ascii=False))

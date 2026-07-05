@@ -110,8 +110,11 @@ def _validate_array_shapes(
         raise ValueError("slow channel axis must match slow channel schema")
     if labels.shape != (sequence_count, len(component_fields)):
         raise ValueError("label array shape must match condition rows and labels")
-    for name in ("ultrasonic", "fiber_mic", "ultrasonic_scale", "fiber_mic_scale"):
+    for name in ("ultrasonic", "ultrasonic_scale"):
         if arrays[name].shape[0] != sequence_count:
+            raise ValueError(f"{name} sequence axis must match condition rows")
+    for name in ("fiber_mic", "fiber_mic_scale"):
+        if name in arrays and arrays[name].shape[0] != sequence_count:
             raise ValueError(f"{name} sequence axis must match condition rows")
     for name in (
         "ultrasonic_tof_s",

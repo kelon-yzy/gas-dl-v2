@@ -77,7 +77,7 @@ def build_sequence_arrays(
     seed: int,
     multi_path_phase: str,
     ultrasonic_spec: WaveformSpec,
-    fiber_mic_spec: FiberMicSpec,
+    fiber_mic_spec: FiberMicSpec | None,
     path_lms: tuple[float, ...],
     phase_schedule: str | PhaseSchedule = "standard_exposure",
     stage_jitter: float = 0.0,
@@ -108,8 +108,9 @@ def build_sequence_arrays(
     ultrasonic_alpha = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_quality = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_accepted = np.zeros((sequence_count, timesteps), dtype=np.int8)
-    fiber_mic = np.zeros((sequence_count, timesteps, fiber_mic_spec.waveform_samples), dtype=np.dtype(fiber_mic_spec.waveform_dtype))
-    fiber_mic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
+    if fiber_mic_spec is not None:
+        fiber_mic = np.zeros((sequence_count, timesteps, fiber_mic_spec.waveform_samples), dtype=np.dtype(fiber_mic_spec.waveform_dtype))
+        fiber_mic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
     slow_rows = []
     base_schedule = resolve_phase_schedule(phase_schedule)
     is_baseline_scan = multi_path_phase == "baseline"
@@ -189,21 +190,22 @@ def build_sequence_arrays(
                 attenuation_fn=hidden_attenuation_v2,
                 extra_gas_kwargs=extra_gas,
             )
-            fiber_result = simulate_fiber_mic_measurement(
-                x_h2=0.0,
-                x_ch4=0.0,
-                x_co2=composition["x_co2"],
-                x_n2=composition["x_n2"],
-                t_c=float(current["T_C"]),
-                p_mpa=float(current["P_MPa"]),
-                h_rh=float(current["H_RH"]),
-                l_m=float(current["L_m"]),
-                seed=sequence_rng.randrange(0, 2**32),
-                spec=fiber_mic_spec,
-                sound_speed_fn=hidden_sound_speed_v2,
-                attenuation_fn=hidden_attenuation_v2,
-                extra_gas_kwargs=extra_gas,
-            )
+            if fiber_mic_spec is not None:
+                fiber_result = simulate_fiber_mic_measurement(
+                    x_h2=0.0,
+                    x_ch4=0.0,
+                    x_co2=composition["x_co2"],
+                    x_n2=composition["x_n2"],
+                    t_c=float(current["T_C"]),
+                    p_mpa=float(current["P_MPa"]),
+                    h_rh=float(current["H_RH"]),
+                    l_m=float(current["L_m"]),
+                    seed=sequence_rng.randrange(0, 2**32),
+                    spec=fiber_mic_spec,
+                    sound_speed_fn=hidden_sound_speed_v2,
+                    attenuation_fn=hidden_attenuation_v2,
+                    extra_gas_kwargs=extra_gas,
+                )
             ultrasonic[seq_index, timestep, :] = ultrasonic_result["waveform_int"]
             ultrasonic_scale[seq_index, timestep] = ultrasonic_result["scale_factor"]
             ultrasonic_tof_s[seq_index, timestep] = float(ultrasonic_result["tof_s"])
@@ -214,11 +216,12 @@ def build_sequence_arrays(
             ultrasonic_alpha[seq_index, timestep] = float(ultrasonic_result["alpha_true_npm"])
             ultrasonic_tof_quality[seq_index, timestep] = float(ultrasonic_result["tof_quality"])
             ultrasonic_tof_accepted[seq_index, timestep] = int(ultrasonic_result["tof_accepted"])
-            fiber_mic[seq_index, timestep, :] = fiber_result["waveform_int"]
-            fiber_mic_scale[seq_index, timestep] = fiber_result["scale_factor"]
+            if fiber_mic_spec is not None:
+                fiber_mic[seq_index, timestep, :] = fiber_result["waveform_int"]
+                fiber_mic_scale[seq_index, timestep] = fiber_result["scale_factor"]
             slow_rows.append(_slow_row(condition["sequence_id"], timestep, dt_s, phase_id, current))
 
-    return {
+    result = {
         "slow": slow,
         "ultrasonic": ultrasonic,
         "ultrasonic_scale": ultrasonic_scale,
@@ -230,10 +233,12 @@ def build_sequence_arrays(
         "ultrasonic_alpha_true_npm": ultrasonic_alpha,
         "ultrasonic_tof_quality": ultrasonic_tof_quality,
         "ultrasonic_tof_accepted": ultrasonic_tof_accepted,
-        "fiber_mic": fiber_mic,
-        "fiber_mic_scale": fiber_mic_scale,
         "slow_rows": slow_rows,
     }
+    if fiber_mic_spec is not None:
+        result["fiber_mic"] = fiber_mic
+        result["fiber_mic_scale"] = fiber_mic_scale
+    return result
 
 
 def _main_feature_condition(

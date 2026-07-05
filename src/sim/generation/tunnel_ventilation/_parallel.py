@@ -23,7 +23,7 @@ def build_arrays_parallel(
     spec: object,
     phase_schedule: PhaseSchedule,
     ultrasonic_spec: WaveformSpec,
-    fiber_mic_spec: FiberMicSpec,
+    fiber_mic_spec: FiberMicSpec | None,
     staging_dir: Path,
     array_keys: ArrayKeys,
 ) -> dict[str, object]:
@@ -99,7 +99,7 @@ def _generate_chunk_file(
     spec: object,
     phase_schedule: PhaseSchedule,
     ultrasonic_spec: WaveformSpec,
-    fiber_mic_spec: FiberMicSpec,
+    fiber_mic_spec: FiberMicSpec | None,
     array_keys: ArrayKeys,
 ) -> dict[str, object]:
     arrays = build_sequence_arrays(
