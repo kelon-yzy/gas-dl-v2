@@ -42,6 +42,10 @@ class TunnelVentilationRanges:
 
 TUNNEL_VENTILATION_RANGES = TunnelVentilationRanges()
 
+# 序列基准光程采样范围（每条序列的 L_m_base，与多光程扫描档位 path_lms 独立）
+# 200kHz 下长声程信号被 CH4/CO2 弛豫吸收淹没，L_m 上限 0.3m（见 Phase0 核对记录）
+L_M_BASE_RANGE: tuple[float, float] = (0.2, 0.3)
+
 
 def generate_tunnel_ventilation_condition_rows(
     sequence_count: int,
@@ -81,7 +85,7 @@ def generate_tunnel_ventilation_condition_rows(
                 "H_RH_base": _fmt(rng.uniform(20.0, 80.0), 4),
                 # 200kHz 下长声程信号被 CH4/CO2 弛豫吸收淹没，L_m 上限 0.3m
                 # （见 Phase0 核对记录）。tv3 CO2 最高 5%，压力较小，沿用一致约束。
-                "L_m_base": _fmt(rng.uniform(0.2, 0.3), 4),
+                "L_m_base": _fmt(rng.uniform(*L_M_BASE_RANGE), 4),
                 "status": "synthetic_measurement",
             }
         )

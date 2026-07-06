@@ -5,7 +5,7 @@
 模块：
 - conditions: 2D LHS 采样（CO2, O2），N2 = 100 - CO2 - O2
 - acoustic_physics: 含 O2 项的声速/衰减/热导（移除 H2/CH4 项）
-- slow: 8 通道慢通道生成（V_NDIR_CH4 保留但无 CH4 信号）
+- slow: 7 通道慢通道生成（无 V_NDIR_CH4，场景无 CH₄）
 - benchmark: tv3 benchmark dataset 生成
 """
 from __future__ import annotations
@@ -17,6 +17,7 @@ from sim.generation.tunnel_ventilation.benchmark import (
     generate_tunnel_ventilation_benchmark_dataset,
 )
 from sim.generation.tunnel_ventilation.conditions import (
+    L_M_BASE_RANGE,
     TUNNEL_VENTILATION_RANGES,
     TunnelVentilationRanges,
     build_tunnel_ventilation_label_rows,
@@ -25,6 +26,7 @@ from sim.generation.tunnel_ventilation.conditions import (
 
 __all__ = [
     "DEFAULT_WAVEFORM_PATH_LMS",
+    "L_M_BASE_RANGE",
     "TUNNEL_VENTILATION_RANGES",
     "TunnelVentilationBenchmarkGenerationSpec",
     "TunnelVentilationRanges",

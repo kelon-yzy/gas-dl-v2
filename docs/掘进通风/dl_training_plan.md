@@ -93,7 +93,7 @@ N₂ 在空气中占比 73.8–82%，绝对值大但动态范围仅约 8 个百�
 
 ```
 输入:
-  slow:      (T, 8)      # 8 慢通道
+  slow:      (T, 7)      # 7 慢通道（无 V_NDIR_CH4，场景无 CH₄）
   ultrasonic: (T, 5000)  # 超声波形
   fiber_mic:  (T, 10000) # 光纤麦克风波形
   T = target_timesteps = 512

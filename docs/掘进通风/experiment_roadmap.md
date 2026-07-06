@@ -78,7 +78,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark `
 | `metadata/label_names.npy`    | `["x_CO2", "x_O2", "x_N2"]`      |
 | `manifest.composition_scheme` | `"tunnel_ventilation"`           |
 | `manifest.background_fields`  | `[]`                             |
-| `sequences/slow.npy` 最后一维     | 8                                |
+| `sequences/slow.npy` 最后一维     | 7                                |
 | 组分总量                          | `                                |
 | `sequence_labels.csv` 列       | `sequence_id, x_CO2, x_O2, x_N2` |
 

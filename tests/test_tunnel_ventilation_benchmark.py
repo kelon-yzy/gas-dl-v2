@@ -132,6 +132,8 @@ def test_tv3_benchmark_manifest_contents(tmp_path, small_spec):
     # sim_revision.l_m_range 应从 spec.path_lms 派生
     # small_spec 用默认 path_lms=(0.18,0.20,0.22,0.25,0.28)，min/max 为 0.18/0.28
     assert manifest["sim_revision"]["l_m_range"] == [0.18, 0.28]
+    # l_m_base_range 是每条序列基准光程采样范围（conditions.py L_M_BASE_RANGE 常量）
+    assert manifest["sim_revision"]["l_m_base_range"] == [0.2, 0.3]
 
 
 def test_tv3_benchmark_labels_npy_shape(tmp_path, small_spec):

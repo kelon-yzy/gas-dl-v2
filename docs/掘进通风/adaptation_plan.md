@@ -161,7 +161,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark `
 - `metadata/label_names.npy` = `["x_CO2", "x_O2", "x_N2"]`
 - `manifest.json` 中 `composition_scheme == "tunnel_ventilation"`
 - `manifest.json` 中 `background_fields == []`
-- `sequences/slow.npy` 最后一维 = 8
+- `sequences/slow.npy` 最后一维 = 7
 
 ### E. DL 训练适配（阶段 4）
 

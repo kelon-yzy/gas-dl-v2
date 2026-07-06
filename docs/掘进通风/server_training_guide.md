@@ -77,7 +77,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
 | `metadata/label_names.npy`    | `["x_CO2", "x_O2", "x_N2"]` |
 | `manifest.composition_scheme` | `"tunnel_ventilation"`      |
 | `manifest.background_fields`  | `[]`                        |
-| `sequences/slow.npy` 最后一维     | 8                           |
+| `sequences/slow.npy` 最后一维     | 7                           |
 
 ### 3.2 tv3-formal 正式集（600 序列，~1–2 分钟，int16 + 跳过 fiber_mic）
 
@@ -94,7 +94,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
 | -------------------------------- | ---------------------- | --------------------------------------------------------------------------------- |
 | `sequences/ultrasonic_int16.npy` | (600, 512, 5000) int16 | 超声波形（per-timestep scale 压缩）                                                       |
 | `sequences/ultrasonic_scale.npy` | (600, 512) float32     | per-timestep scale_factor（每时步不同）                                                  |
-| `sequences/slow.npy`             | (600, 512, 8) float32  | 8 慢通道                                                                             |
+| `sequences/slow.npy`             | (600, 512, 7) float32  | 7 慢通道（V_NDIR_CO2 / V_TCS / T_C / P_MPa / H_RH / L_m / piston_position_m）        |
 | `labels/y.npy`                   | (600, 3)               | CO₂/O₂/N₂ 浓度                                                                      |
 | `manifest.json`                  | —                      | composition_scheme + sim_revision，`fiber_mic_model: null`，`waveform_dtype: int16` |
 

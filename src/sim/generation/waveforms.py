@@ -4,6 +4,7 @@ import math
 import random
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
+from functools import lru_cache
 
 import numpy as np
 
@@ -149,7 +150,14 @@ def generate_burst_pulse(
     return pulse.astype(np.float32)
 
 
+@lru_cache(maxsize=8)
 def transducer_response_pulse(spec: WaveformSpec) -> np.ndarray:
+    """换能器响应脉冲，仅依赖 ``spec``（frozen dataclass，可哈希）。
+
+    缓存返回值：同一 ``spec`` 多次调用返回同一数组对象，调用方不得原地修改。
+    ``simulate_waveform_measurement`` 内部以 ``pulse * amp`` 等方式创建新数组，
+    不修改缓存实例，安全。
+    """
     pulse = generate_burst_pulse(
         center_frequency_hz=spec.center_frequency_hz,
         burst_cycles=spec.burst_cycles,

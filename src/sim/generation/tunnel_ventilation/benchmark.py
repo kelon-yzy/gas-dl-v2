@@ -45,6 +45,7 @@ from sim.generation.optical_backend import (
 )
 from sim.generation.phases import PHASE_SCHEDULES, PhaseSchedule, resolve_phase_schedule
 from sim.generation.tunnel_ventilation.conditions import (
+    L_M_BASE_RANGE,
     build_tunnel_ventilation_label_rows as build_label_rows,
     generate_tunnel_ventilation_condition_rows as generate_condition_rows,
 )
@@ -123,6 +124,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
     staging_dir = output_root / f"{dataset_id}.tmp-{uuid.uuid4().hex[:12]}"
     phase_schedule = resolve_phase_schedule(spec.stage_profile)
     phase_schedule_metadata = phase_schedule.to_dict()
+    arrays: dict[str, object] = {}
 
     try:
         _log(f"generating {spec.sequence_count} condition rows ...")
@@ -173,7 +175,10 @@ def generate_tunnel_ventilation_benchmark_dataset(
             "sample_rate_hz": int(ultrasonic_spec.sample_rate_hz),
             "daq_bits": int(ultrasonic_spec.daq_bits),
             "waveform_dtype": str(ultrasonic_spec.waveform_dtype),
+            # l_m_range：多光程扫描离散档位 path_lms 的 min/max
+            # l_m_base_range：每条序列基准光程 L_m_base 的采样范围（非扫描阶段使用）
             "l_m_range": [float(min(spec.path_lms)), float(max(spec.path_lms))],
+            "l_m_base_range": [float(L_M_BASE_RANGE[0]), float(L_M_BASE_RANGE[1])],
             "physics_backend": "ideal_gas_wms_fracdelay",
             "tag": "v6-phys-strict",
         }
@@ -262,7 +267,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
     except Exception:
         if staging_dir.exists():
             try:
-                _close_waveform_memmap(arrays)  # type: ignore[possibly-used-before-def]
+                _close_waveform_memmap(arrays)
             except Exception:
                 pass
             shutil.rmtree(staging_dir)
