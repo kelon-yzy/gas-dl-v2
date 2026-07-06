@@ -4,6 +4,9 @@
   "model": "cnn1d_tcn_fusion",
   "model_kwargs": {
     "output_mode": "raw3",
+    "slow_channels": 7,
+    "ultrasonic_channels": 5000,
+    "fiber_mic_channels": 0,
     "waveform_embedding_dim": 64,
     "waveform_adc_scale": 5.0,
     "acoustic_channels": [16, 32, 64, 64],
