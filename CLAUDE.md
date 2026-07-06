@@ -56,7 +56,7 @@ src/
 
 - **hydrogen_ng**：8 个 — V_NDIR_CH4, V_NDIR_CO2, V_TCS, T_C, P_MPa, H_RH, L_m, piston_position_m。
 - **syngas**：9 个，在 hg 基础上新增 `V_NDIR_CO`。
-- **tunnel_ventilation**：8 个，沿用 hg 默认（V_NDIR_CH4 保留以维持通道对齐，但场景无 CH₄，该通道仅含基线+噪声）。
+- **tunnel_ventilation**：7 个 — V_NDIR_CO2, V_TCS, T_C, P_MPa, H_RH, L_m, piston_position_m（无 V_NDIR_CH4，场景无 CH₄）。
 
 ### Loss 体系
 
@@ -84,7 +84,7 @@ syngas / tunnel_ventilation 场景下闭包类 loss 由 `validate_loss_compositi
 3. **CO NDIR 串扰**：CO 基频 2143 cm⁻¹ 与 CO₂ ν₃ 2349 cm⁻¹ 间隔 ~200 cm⁻¹，宽带滤光片下存在串扰。已实现 3×3 矩阵 `src/sim/generation/syngas/optical_crosstalk.py`；默认 `enable_co_crosstalk=False`（Step 1：CO 通道仅含自身吸收），切到 `True` 启用 CO₂↔CO 互扰（Step 2 ablation）。
 4. **O₂/N₂ 声学辨识**（tunnel_ventilation）：O₂ 与 N₂ 摩尔质量差 14.3%（32 vs 28 g/mol），声速差约 6.4%（~22 m/s），是超声通道区分两者的主要物理基础；热导率差异仅约 2.3%，TCS 提供边际辨识力。O₂ 为同核双原子，无红外活性，不设 NDIR 通道。
 5. **O₂ 弛豫在 200 kHz 下可忽略**（tunnel_ventilation）：dry air 下 O₂ V-T 弛豫频率 fr,O ≈ 24 Hz/atm（Bass 1990 JASA），远低于 200 kHz 载波，工程实现取 alpha_o2 ≈ 0。
-6. **tunnel_ventilation 无光学串扰**：仅 CO₂ 一个红外活性组分（O₂/N₂ 同核双原子无红外活性），不需要串扰矩阵。V_NDIR_CH4 通道保留但 absorption_ch4=0（场景无 CH₄，仅含基线+噪声）。
+6. **tunnel_ventilation 无光学串扰**：仅 CO₂ 一个红外活性组分（O₂/N₂ 同核双原子无红外活性），不需要串扰矩阵。
 
 ### 文件约定
 

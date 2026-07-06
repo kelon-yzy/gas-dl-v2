@@ -2,7 +2,7 @@
 
 验证：
 - CLI 能直接消费 tv3-smoke benchmark（manifest.composition_scheme="tunnel_ventilation"）
-- in_channels == 8（无 V_NDIR_CO）
+- in_channels == 7（无 V_NDIR_CH4 / V_NDIR_CO）
 - out_dim == 3（3 列预测目标：x_CO2, x_O2, x_N2）
 - component_metrics 键集合 == ("x_CO2", "x_O2", "x_N2")
 - conditional_metrics 按 o2_bins / co2_bins 分箱（tv3 无 x_CH4）
@@ -186,8 +186,8 @@ class TestDLCliTunnelVentilation:
 
         assert (output_dir / "metrics.json").is_file()
         assert (output_dir / "checkpoint.pt").is_file()
-        # 8 个慢通道（无 V_NDIR_CO）
-        assert payload["model_config"]["in_channels"] == 8
+        # 7 个慢通道（无 V_NDIR_CH4 / V_NDIR_CO）
+        assert payload["model_config"]["in_channels"] == 7
         # 3 列预测目标
         assert payload["model_config"]["out_dim"] == 3
         assert set(payload["evaluations"]) == {"val", "test"}

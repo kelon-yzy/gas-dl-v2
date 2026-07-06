@@ -4,8 +4,8 @@
 并存。主要差异：
 - 声速/热导混合公式仅含 CO2/O2/N2 三组分（移除 H2/CH4/CO）
 - 衰减公式移除 alpha_ch4 + alpha_h2_diffusion，新增 alpha_o2（200kHz 下可忽略，取 0）
-- V_NDIR_CH4 通道保留但 absorption_ch4=0（场景无 CH4，仅含基线+噪声）
 - 无光学串扰矩阵（只有 CO2 一个红外活性组分）
+- 无 V_NDIR_CH4 通道（场景无 CH₄，无需 NDIR CH4 传感器）
 
 物理常数来源详见 docs/掘进通风/physics_references.md。
 
@@ -23,7 +23,6 @@ from sim.generation.gas_state import h2o_mole_percent_from_rh
 
 PROCESSING_PARAMS = {
     "t_delay_s": 0.00008,
-    "optical_baseline_ch4_init": 2.5,  # 保留以维持通道对齐（场景无 CH4，仅基线+噪声）
     "optical_baseline_co2_init": 2.5,
     "optical_saturation_absorbance": 4.0,
     "thermal_baseline_init": 1.1,
@@ -206,7 +205,7 @@ def main_sensor_features(
     - 多读取 x_O2
     - 声速/衰减签名多 x_o2（关键字参数）
     - 无光学串扰矩阵（只有 CO2 一个红外活性组分）
-    - V_NDIR_CH4 通道保留但 absorption_ch4=0（仅含基线+噪声）
+    - 不输出 V_NDIR_CH4（场景无 CH₄）
     - 输出不含 V_NDIR_CO（syngas 才有）
     """
     x_co2 = float(condition["x_CO2"])
@@ -232,23 +231,15 @@ def main_sensor_features(
     f_peak = f_hz - 18.0 * x_co2 + 2.0 * (t_c - 20.0) + rng.gauss(0.0, 65.0)
     a_fft_max = amp * (900.0 + rng.gauss(0.0, 20.0))
 
-    # 光学吸收：仅 CO2 有红外活性；CH4 通道 absorption=0（场景无 CH4）
-    absorption_ch4 = 0.0  # 场景无 CH4
+    # 光学吸收：仅 CO2 有红外活性
     absorption_co2 = _hidden_absorption_co2(x_co2, h_rh, p_mpa, t_c)
     lambda_true = _hidden_lambda_mix(x_co2, x_o2, x_n2, t_c)
 
-    optical_drift_ch4 = 0.0007 * (h_rh - 50.0) + 0.004 * (p_mpa - 1.0) + rng.gauss(0.0, 0.004)
     optical_drift_co2 = 0.0007 * (h_rh - 50.0) + 0.004 * (p_mpa - 1.0) + rng.gauss(0.0, 0.004)
     thermal_drift = _thermal_baseline_drift(t_c, p_mpa, rng)
 
-    optical_baseline_ch4_now = PROCESSING_PARAMS["optical_baseline_ch4_init"] + optical_drift_ch4 + rng.gauss(0.0, 0.006)
     optical_baseline_co2_now = PROCESSING_PARAMS["optical_baseline_co2_init"] + optical_drift_co2 + rng.gauss(0.0, 0.006)
 
-    # V_NDIR_CH4：absorption=0，仅基线+噪声（通道保留维持对齐，无组分信息）
-    v_ndir_ch4 = max(
-        0.1,
-        optical_baseline_ch4_now * math.exp(-absorption_ch4) + rng.gauss(0.0, 0.008),
-    )
     v_ndir_co2 = max(
         0.1,
         optical_baseline_co2_now * math.exp(-absorption_co2) + rng.gauss(0.0, 0.008),
@@ -260,19 +251,11 @@ def main_sensor_features(
         "Amp": amp,
         "f_peak": f_peak,
         "A_fft_max": a_fft_max,
-        "V_NDIR_CH4": v_ndir_ch4,
         "V_NDIR_CO2": v_ndir_co2,
         "V_TCS": v_tcs,
-        "ndir_ch4_saturated": absorption_ch4 > PROCESSING_PARAMS["optical_saturation_absorbance"],
         "ndir_co2_saturated": absorption_co2 > PROCESSING_PARAMS["optical_saturation_absorbance"],
-        # 光学字段（与 hg/syngas dict schema 对齐；CH4 系列固定为 0）
-        "absorption_ch4_true": absorption_ch4,
         "absorption_co2_true": absorption_co2,
-        "absorption_ch4_cross_from_co2": 0.0,
-        "absorption_co2_cross_from_ch4": 0.0,
-        "absorption_ch4_observed": absorption_ch4,
         "absorption_co2_observed": absorption_co2,
-        "optical_baseline_drift_ch4_observed": optical_drift_ch4,
         "optical_baseline_drift_co2_observed": optical_drift_co2,
         "thermal_baseline_drift_observed": thermal_drift,
     }

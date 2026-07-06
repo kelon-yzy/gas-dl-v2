@@ -6,12 +6,13 @@
 字段约定：
 - COMPONENT_FIELDS: 预测目标列（3 列，sum=100% 严格闭包）
 - BACKGROUND_FIELDS: 空（N₂ 是显式预测目标，不是背景气）
-- SLOW_CHANNELS: 8 通道，沿用 hg 默认（V_NDIR_CH4 保留以维持通道对齐）
+- SLOW_CHANNELS: 7 通道（V_NDIR_CO2 / V_TCS / T_C / P_MPa / H_RH / L_m / piston_position_m）
 
 与 syngas 的关键差异：
 - N₂ 升格为显式预测目标，写入 labels
 - 数据层 sum=100% 严格闭包，但模型层不使用闭包残差头
 - O₂ 是新增组分（同核双原子，无红外活性）
+- 无 V_NDIR_CH4（场景无 CH₄）
 """
 from __future__ import annotations
 
@@ -28,10 +29,8 @@ BACKGROUND_FIELDS: tuple[str, ...] = ()
 # 全部组分（用于声学/热导物理混合计算）
 ALL_COMPONENT_FIELDS = (*COMPONENT_FIELDS, *BACKGROUND_FIELDS)
 
-# 慢通道：8 通道，沿用 hg 默认。
-# V_NDIR_CH4 保留以维持与 hg 场景的通道对齐，虽场景无 CH4（仅含基线+噪声）。
+# 慢通道：7 通道。tv3 场景无 CH₄，不设 V_NDIR_CH4。
 SLOW_CHANNELS = (
-    "V_NDIR_CH4",
     "V_NDIR_CO2",
     "V_TCS",
     "T_C",
@@ -40,9 +39,9 @@ SLOW_CHANNELS = (
     "L_m",
     "piston_position_m",
 )
-SLOW_DYNAMIC_CHANNELS = ("V_NDIR_CH4", "V_NDIR_CO2", "V_TCS")
+SLOW_DYNAMIC_CHANNELS = ("V_NDIR_CO2", "V_TCS")
 SLOW_MODAL_GROUPS = {
-    "optical": ("V_NDIR_CH4", "V_NDIR_CO2"),
+    "optical": ("V_NDIR_CO2",),
     "thermal": ("V_TCS",),
     "environment": ("T_C", "P_MPa", "H_RH", "L_m", "piston_position_m"),
 }

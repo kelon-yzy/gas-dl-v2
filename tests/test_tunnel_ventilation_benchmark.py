@@ -1,12 +1,13 @@
 """掘进通风 benchmark 端到端生成测试。
 
 验证：
-- tv3 slow.py 生成 8 通道 slow 数组
+- tv3 slow.py 生成 7 通道 slow 数组
 - tv3 benchmark 生成完整数据集（manifest / labels / splits / scalers）
 - labels 含 3 列 (x_CO2, x_O2, x_N2)，N2 在 labels 中
 - condition_grid 含 3 列预测目标
 - manifest.composition_scheme == "tunnel_ventilation"
 - manifest.background_fields == []
+- slow_channels 不含 V_NDIR_CH4
 - HITRAN 后端被拒绝（阶段 1 未实现）
 - 组分总量严格闭包 sum=100%
 - hydrogen_ng / syngas 生成路径完全不受影响
@@ -50,7 +51,7 @@ def small_spec(tmp_path) -> TunnelVentilationBenchmarkGenerationSpec:
 
 
 def test_tv3_slow_build_arrays_basic():
-    """build_sequence_arrays 直接调用，验证 8 通道 slow 输出。"""
+    """build_sequence_arrays 直接调用，验证 7 通道 slow 输出。"""
     from sim.generation.tunnel_ventilation.conditions import (
         generate_tunnel_ventilation_condition_rows,
     )
@@ -72,8 +73,8 @@ def test_tv3_slow_build_arrays_basic():
         optical_absorption_backend="empirical_v1",
     )
     slow = arrays["slow"]
-    # (序列数, 时间步, 通道数) = (4, 16, 8)
-    assert slow.shape == (4, 16, 8)
+    # (序列数, 时间步, 通道数) = (4, 16, 7)
+    assert slow.shape == (4, 16, 7)
     assert len(arrays["slow_rows"]) == 4 * 16
 
 
@@ -126,6 +127,7 @@ def test_tv3_benchmark_manifest_contents(tmp_path, small_spec):
     assert manifest["background_fields"] == list(BACKGROUND_FIELDS)
     assert manifest["background_fields"] == []
     assert manifest["slow_channels"] == list(SLOW_CHANNELS)
+    assert "V_NDIR_CH4" not in manifest["slow_channels"]
     assert "V_NDIR_CO" not in manifest["slow_channels"]
     # sim_revision.l_m_range 应从 spec.path_lms 派生
     # small_spec 用默认 path_lms=(0.18,0.20,0.22,0.25,0.28)，min/max 为 0.18/0.28
@@ -147,13 +149,13 @@ def test_tv3_benchmark_label_names(tmp_path, small_spec):
     assert list(label_names.astype(str)) == ["x_CO2", "x_O2", "x_N2"]
 
 
-def test_tv3_benchmark_slow_npy_has_8_channels(tmp_path, small_spec):
+def test_tv3_benchmark_slow_npy_has_7_channels(tmp_path, small_spec):
     generate_tunnel_ventilation_benchmark_dataset(tmp_path, small_spec)
     slow = np.load(
         tmp_path / small_spec.dataset_slug / "sequences" / "slow.npy", mmap_mode="r"
     )
-    # (sequences, timesteps, channels) = (8, 16, 8)
-    assert slow.shape == (8, 16, 8)
+    # (sequences, timesteps, channels) = (8, 16, 7)
+    assert slow.shape == (8, 16, 7)
 
 
 def test_tv3_benchmark_condition_grid_contains_all_targets(tmp_path, small_spec):
@@ -187,19 +189,20 @@ def test_tv3_benchmark_splits_exist(tmp_path, small_spec):
         assert (splits_dir / f"{split_name}.csv").exists()
 
 
-def test_tv3_benchmark_scalers_built_on_8_channels(tmp_path, small_spec):
+def test_tv3_benchmark_scalers_built_on_7_channels(tmp_path, small_spec):
     generate_tunnel_ventilation_benchmark_dataset(tmp_path, small_spec)
     scaler_path = tmp_path / small_spec.dataset_slug / "scalers" / "scaler_slow_sequence.json"
     scaler = json.loads(scaler_path.read_text(encoding="utf-8"))
-    # tv3 8 通道，应含 V_NDIR_CO2 但不含 V_NDIR_CO（syngas 才有）
+    # tv3 7 通道，应含 V_NDIR_CO2 但不含 V_NDIR_CH4 / V_NDIR_CO
     channels = scaler.get("channels", [])
     if channels:
         assert "V_NDIR_CO2" in channels
+        assert "V_NDIR_CH4" not in channels
         assert "V_NDIR_CO" not in channels
     else:
-        # fallback：带引号精确匹配，避免 "V_NDIR_CO" 匹配到 "V_NDIR_CO2" 子串
         scaler_text = scaler_path.read_text(encoding="utf-8")
         assert '"V_NDIR_CO2"' in scaler_text
+        assert '"V_NDIR_CH4"' not in scaler_text
         assert '"V_NDIR_CO"' not in scaler_text
 
 

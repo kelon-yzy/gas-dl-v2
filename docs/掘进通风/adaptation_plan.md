@@ -17,7 +17,7 @@
 已落地契约：
 - `composition_scheme = "tunnel_ventilation"`，`schema_version = "tunnel-ventilation-1"`
 - `COMPONENT_FIELDS = ("x_CO2", "x_O2", "x_N2")`，`BACKGROUND_FIELDS = ()`
-- 8 慢通道（沿用 hg 默认，V_NDIR_CH4 保留但无 CH4 信号）
+- 7 慢通道（V_NDIR_CO2 / V_TCS / T_C / P_MPa / H_RH / L_m / piston_position_m，无 V_NDIR_CH4）
 - 闭包类 loss / target_transform / `gas_head` 在 tv3 下被拒绝；多模态 `cnn1d_tcn_fusion` 使用 `raw3` 直接三输出
 - conditional_metrics 按 `o2_bins` / `co2_bins` 分箱
 - sum_abs_error 在 tv3 下计算（数据层 sum=100% 闭包，模型层不强制归一化）
@@ -69,12 +69,10 @@
 COMPONENT_FIELDS = ("x_CO2", "x_O2", "x_N2")
 BACKGROUND_FIELDS = ()  # N₂ 是目标，不是背景
 SLOW_CHANNELS = (
-    "V_NDIR_CH4", "V_NDIR_CO2", "V_TCS",
+    "V_NDIR_CO2", "V_TCS",
     "T_C", "P_MPa", "H_RH", "L_m", "piston_position_m",
-)  # 8 通道，沿用 hg 默认
+)  # 7 通道，无 V_NDIR_CH4（场景无 CH₄）
 ```
-
-`V_NDIR_CH4` 通道保留以维持与 hg 场景的通道对齐，虽然场景中无 CH₄。
 
 #### A2. 创建 `src/sim/generation/tunnel_ventilation/conditions.py`
 
@@ -201,7 +199,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark `
 4. 复用 v6-phys-strict 仿真链路（200 kHz、1 MS/s、20-bit、L_m 0.2–0.3 m）。
 5. 数据集前缀 `tv3-*`，schema_version `tunnel-ventilation-1`。
 6. `composition_scheme = "tunnel_ventilation"`，下游加载器以 manifest 为准。
-7. 保留 `V_NDIR_CH4` 通道（虽场景无 CH₄），通过 ablation 验证其无贡献。
+7. 移除 `V_NDIR_CH4` 通道（场景无 CH₄，该通道仅含噪声无信息）。
 
 ## 五、关键文件清单
 
@@ -258,7 +256,7 @@ python -m dl.cli --config configs/experiment/tv3/tv3_baseline.json
 - ✅ tv3-smoke 生成成功，validation pass（32 序列，split: train=22/val=4/test=3/extrapolation=3）
 - ✅ 掘进通风测试全部通过（74 tests = schema 18 + physics 25 + benchmark 18 + dl_training 13）
 - ✅ 全量回归通过：548 passed，0 failed（原主线 462 + tv3 新增 74 + 其他 12），hg/sg 无回归
-- ✅ DL CLI 端到端验证通过（`test_cli_trains_tv3_benchmark` 用 tv3-smoke 数据，CNN1D 8 通道 / out_dim=3 / o2_bins+co2_bins 分箱 / sum_abs_error 可计算）；tv3-formal 已生成，首轮 TCN/Ridge 已完成，完整 15-run baseline 仍待决策
+- ✅ DL CLI 端到端验证通过（tv3-smoke 数据，CNN1D 7 通道 / out_dim=3 / o2_bins+co2_bins 分箱 / sum_abs_error 可计算）
 
 ## 七、风险矩阵
 
@@ -267,7 +265,7 @@ python -m dl.cli --config configs/experiment/tv3/tv3_baseline.json
 | O₂ 物理可辨识性不足 | 高 | 高 | 阶段 Ⅱ-2 通道消融评估；后备方案：引入顺磁 O₂ 传感器 |
 | O₂/N₂ 热导率差异过小（~2%） | 高 | 高 | 依赖声学通道补充（声速差 ~6.4%） |
 | N₂ 动态范围小（73.8–82%） | 中 | 中 | weighted_component_mse 加权 + 数据归一化 |
-| V_NDIR_CH4 通道无信息（无 CH₄） | 低 | 低 | ablation 验证后可在配置中排除 |
+| ~~V_NDIR_CH4 通道无信息（无 CH₄）~~ | — | — | 已移除，不再构成风险 |
 | 过度改造主线代码 | 低 | 高 | 分支隔离，tunnel_ventilation 子包独立 |
 | 仿真精度限制实际迁移性 | 中 | 中 | 后续引入 HITRAN 后端提高保真度 |
 

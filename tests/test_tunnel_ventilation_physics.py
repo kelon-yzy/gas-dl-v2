@@ -4,8 +4,7 @@
 - 声速混合公式仅含 CO2/O2/N2 三组分
 - 衰减公式含 alpha_o2 字段（200kHz 下 ≈ 0）
 - 热导混合含 O2（WMS 规则）
-- main_sensor_features 输出 V_NDIR_CH4/V_NDIR_CO2/V_TCS，无 V_NDIR_CO
-- V_NDIR_CH4 通道 absorption_ch4=0（场景无 CH4）
+- main_sensor_features 输出 V_NDIR_CO2/V_TCS，无 V_NDIR_CH4 / V_NDIR_CO
 - 空气组成下 c_mix ≈ 346 m/s（与已知空气声速交叉验证）
 - hydrogen_ng acoustic_physics 未被影响
 """
@@ -195,7 +194,8 @@ def tv3_condition():
 def test_main_sensor_features_outputs_v_ndir_channels(tv3_condition):
     rng = random.Random(123)
     res = main_sensor_features(tv3_condition, rng)
-    assert "V_NDIR_CH4" in res
+    # tv3 场景无 CH₄，不应有 V_NDIR_CH4
+    assert "V_NDIR_CH4" not in res
     assert "V_NDIR_CO2" in res
     assert "V_TCS" in res
     # tv3 不含 V_NDIR_CO（syngas 才有）
@@ -209,23 +209,11 @@ def test_main_sensor_features_no_v_ndir_co(tv3_condition):
     assert "V_NDIR_CO" not in res
 
 
-def test_main_sensor_features_ch4_absorption_zero(tv3_condition):
-    """场景无 CH4，absorption_ch4_true == 0，V_NDIR_CH4 仅含基线+噪声。"""
-    rng = random.Random(456)
-    res = main_sensor_features(tv3_condition, rng)
-    assert res["absorption_ch4_true"] == 0.0
-    assert res["absorption_ch4_observed"] == 0.0
-    # V_NDIR_CH4 仍应有非零值（基线+噪声）
-    assert res["V_NDIR_CH4"] >= 0.1
-
-
 def test_main_sensor_features_no_crosstalk(tv3_condition):
     """tv3 无光学串扰：absorption_co2_observed == absorption_co2_true。"""
     rng = random.Random(789)
     res = main_sensor_features(tv3_condition, rng)
     assert abs(res["absorption_co2_observed"] - res["absorption_co2_true"]) < 1e-9
-    assert res["absorption_co2_cross_from_ch4"] == 0.0
-    assert res["absorption_ch4_cross_from_co2"] == 0.0
 
 
 def test_thermal_conductivity_sensor_feature_uses_x_o2(tv3_condition):

@@ -50,12 +50,13 @@ def test_tunnel_ventilation_schema_fields():
     assert TV_SCHEMA_VERSION == "tunnel-ventilation-1"
 
 
-def test_tunnel_ventilation_slow_channels_8_aligns_with_hg():
-    """tv3 SLOW_CHANNELS 8 通道，与 hg 默认一致（V_NDIR_CH4 保留）。"""
-    assert len(TV_SLOW_CHANNELS) == 8
-    assert TV_SLOW_CHANNELS == HG_SLOW_CHANNELS
+def test_tunnel_ventilation_slow_channels_7_no_v_ndir_ch4():
+    """tv3 SLOW_CHANNELS 是 7 通道，不含 V_NDIR_CH4（场景无 CH₄）。"""
+    assert len(TV_SLOW_CHANNELS) == 7
+    assert "V_NDIR_CH4" not in TV_SLOW_CHANNELS
+    assert "V_NDIR_CO2" in TV_SLOW_CHANNELS
     assert "V_NDIR_CO" not in TV_SLOW_CHANNELS
-    assert TV_SLOW_DYNAMIC_CHANNELS == ("V_NDIR_CH4", "V_NDIR_CO2", "V_TCS")
+    assert TV_SLOW_DYNAMIC_CHANNELS == ("V_NDIR_CO2", "V_TCS")
 
 
 def test_hydrogen_ng_schema_unchanged():

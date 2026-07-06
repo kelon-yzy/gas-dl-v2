@@ -62,7 +62,7 @@ DL 模型容量大（`cnn1d_tcn_fusion` 含 acoustic_channels [16,32,64,64] + tc
 - `window_fraction`：窗口切片比例
 - `gaussian_noise_std`：附加高斯噪声
 - `apply_prob`：增强应用概率（建议 0.5）
-- `amplitude_apply_from_channel`：从第 8 通道开始（跳过 slow 8 通道，只增强波形）
+- `amplitude_apply_from_channel`：从第 7 通道开始（跳过 slow 7 通道，只增强波形）
 
 **实现方式**（零代码改动，仅 CLI 参数）：
 

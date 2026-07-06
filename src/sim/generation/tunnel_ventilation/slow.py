@@ -1,11 +1,12 @@
 """掘进通风场景的慢通道序列生成。
 
 与 hydrogen_ng `sim.generation.slow` 和 syngas `sim.generation.syngas.slow` 并存。差异：
-- SLOW_CHANNELS / SLOW_DYNAMIC_CHANNELS 来自 tunnel_ventilation_schema（8 通道，沿用 hg 默认）
+- SLOW_CHANNELS / SLOW_DYNAMIC_CHANNELS 来自 tunnel_ventilation_schema（7 通道）
 - 物理函数走 sim.generation.tunnel_ventilation.acoustic_physics
 - 波形仿真通过 sound_speed_fn / attenuation_fn 注入 tv3 物理，extra_gas_kwargs 透传 x_o2
 - 仅支持 empirical_v1 后端（HITRAN 后端阶段 1 不实现，调用即拒绝）
 - 无光学串扰矩阵（只有 CO2 一个红外活性组分）
+- 无 V_NDIR_CH4 通道（场景无 CH₄）
 
 baseline 语义：blend=0 时标准新鲜空气，blend=1 时实际 CO2/O2/N2 组分。
 """
@@ -40,22 +41,18 @@ from sim.generation.waveforms import (
 
 # 系统响应时间常数（与 hydrogen_ng 同量级）
 TAU_RISE_SYSTEM_S = {
-    "V_NDIR_CH4": (8.0, 20.0),
     "V_NDIR_CO2": (6.0, 18.0),
     "V_TCS": (10.0, 35.0),
 }
 TAU_DECAY_SYSTEM_S = {
-    "V_NDIR_CH4": (12.0, 30.0),
     "V_NDIR_CO2": (10.0, 28.0),
     "V_TCS": (20.0, 60.0),
 }
 NOISE_FRACTION = {
-    "V_NDIR_CH4": 0.0025,
     "V_NDIR_CO2": 0.0025,
     "V_TCS": 0.003,
 }
 _BASE_SCALE = {
-    "V_NDIR_CH4": 2.5,
     "V_NDIR_CO2": 2.5,
     "V_TCS": 1.5,
 }
@@ -392,7 +389,6 @@ def _slow_row(sequence_id: str, timestep: int, dt_s: float, phase_id: str, curre
         "timestep": str(timestep),
         "timestamp_s": _fmt(timestep * dt_s, 1),
         "phase_id": phase_id,
-        "V_NDIR_CH4": _fmt(float(current["V_NDIR_CH4"]), 6),
         "V_NDIR_CO2": _fmt(float(current["V_NDIR_CO2"]), 6),
         "V_TCS": _fmt(float(current["V_TCS"]), 6),
         "T_C": _fmt(float(current["T_C"]), 4),

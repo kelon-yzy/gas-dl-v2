@@ -867,12 +867,12 @@ syngas 的 CO 与 N₂ 摩尔质量均为 28，声速差 <1 m/s，声学通道�
 | ----------------- | ------------------------ | -------------------------------------------------------------------------------- |
 | COMPONENT_FIELDS  | (H₂,CH₄,CO₂,N₂) sum=100% | (CO₂,O₂,N₂) sum=100%，但不使用闭包残差头                                                   |
 | BACKGROUND_FIELDS | 空                        | 空 — N₂ 是显式目标                                                                     |
-| SLOW_CHANNELS     | 8                        | 8（沿用 hg 默认，不新增 V_PARAMAGNETIC_O2）                                                |
+| SLOW_CHANNELS     | 8                        | 7（无 V_NDIR_CH4，场景无 CH₄）                                                           |
 | schema_version    | v4-benchmark-1           | tunnel-ventilation-1                                                             |
 | conditions 采样     | LHS d=3（H₂/CO₂/N₂）       | LHS d=2（CO₂/O₂），N₂=100-CO₂-O₂                                                    |
 | 声学物理              | 5 参数（H₂/CH₄/CO₂/N₂）      | 3 参数（CO₂/O₂/N₂）；O₂ vs N₂ 声速差 ~22 m/s（6.4%，可区分）但热导差 ~2%（边际）                       |
 | 衰减                | 5 分量                     | 4 分量（经典 + CO₂ + N₂ + H₂O），移除 CH₄/H₂ 分量，新增 O₂（预期小）                                |
-| NDIR 通道           | CH₄/CO₂                  | 仅 CO₂（O₂/N₂ 同核双原子无红外活性）；V_NDIR_CH4 保留但仅含噪声                                      |
+| NDIR 通道           | CH₄/CO₂                  | 仅 CO₂（O₂/N₂ 同核双原子无红外活性）                                                            |
 | 串扰               | 无                         | 无（单组分红外活性）                                                                       |
 | 动力学               | empirical 可走 legacy 单 τ  | multi-tau（跟随 syngas 策略）                                                           |
 | 数据集前缀             | wv4-*                    | tv3-*                                                                            |
