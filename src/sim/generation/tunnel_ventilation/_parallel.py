@@ -182,8 +182,7 @@ def _merge_chunk_files(
                 shape=(sequence_count, *sample.shape[1:]),
             )
             sample._mmap.close()
-        else:
-            arrays[key] = None  # fiber_mic 可能不存在
+        # key 不存在时不写入 arrays dict，避免下游代码访问 None
 
     # 小数组：从第一个 chunk 的 npz 获取 shape
     with np.load(str(first_dir / "small.npz"), allow_pickle=True) as first_small:
