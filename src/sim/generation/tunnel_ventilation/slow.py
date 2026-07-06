@@ -9,12 +9,16 @@
 - 无 V_NDIR_CH4 通道（场景无 CH₄）
 
 baseline 语义：blend=0 时标准新鲜空气，blend=1 时实际 CO2/O2/N2 组分。
+
+内存优化：当 temp_dir 传入时，大波形数组（ultrasonic / fiber_mic）改用 memmap 直接落盘，
+避免大序列数场景下 np.zeros 申请几十 GiB RAM 导致 OOM / SIGBUS。
 """
 from __future__ import annotations
 
 import hashlib
 import math
 import random
+from pathlib import Path
 
 import numpy as np
 
@@ -81,6 +85,7 @@ def build_sequence_arrays(
     optical_absorption_backend: str = EMPIRICAL_ABSORPTION_BACKEND,
     hitran_cache_root: str = "data/hitran_cache_tv3",  # noqa: ARG001 保留参数为兼容接口签名
     start_sequence_index: int = 0,
+    temp_dir: Path | None = None,  # 大波形数组 memmap 落盘目录；None 时沿用 np.zeros
 ) -> dict[str, object]:
     if optical_absorption_backend not in VALID_OPTICAL_ABSORPTION_BACKENDS:
         raise ValueError(
@@ -94,8 +99,23 @@ def build_sequence_arrays(
         )
 
     sequence_count = len(conditions)
+    use_memmap = temp_dir is not None
+    if use_memmap:
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
     slow = np.zeros((sequence_count, timesteps, len(SLOW_CHANNELS)), dtype=np.float32)
-    ultrasonic = np.zeros((sequence_count, timesteps, ultrasonic_spec.waveform_samples), dtype=np.dtype(ultrasonic_spec.waveform_dtype))
+    # 大波形数组：6000×512×5000 int16 ≈ 28.6 GiB，必须 memmap 落盘避免 OOM
+    if use_memmap:
+        ultrasonic = np.lib.format.open_memmap(
+            str(temp_dir / "ultrasonic.npy"), mode="w+",
+            dtype=np.dtype(ultrasonic_spec.waveform_dtype),
+            shape=(sequence_count, timesteps, ultrasonic_spec.waveform_samples),
+        )
+    else:
+        ultrasonic = np.zeros(
+            (sequence_count, timesteps, ultrasonic_spec.waveform_samples),
+            dtype=np.dtype(ultrasonic_spec.waveform_dtype),
+        )
     ultrasonic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_s = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_observed_s = np.zeros((sequence_count, timesteps), dtype=np.float32)
@@ -106,7 +126,17 @@ def build_sequence_arrays(
     ultrasonic_tof_quality = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_accepted = np.zeros((sequence_count, timesteps), dtype=np.int8)
     if fiber_mic_spec is not None:
-        fiber_mic = np.zeros((sequence_count, timesteps, fiber_mic_spec.waveform_samples), dtype=np.dtype(fiber_mic_spec.waveform_dtype))
+        if use_memmap:
+            fiber_mic = np.lib.format.open_memmap(
+                str(temp_dir / "fiber_mic.npy"), mode="w+",
+                dtype=np.dtype(fiber_mic_spec.waveform_dtype),
+                shape=(sequence_count, timesteps, fiber_mic_spec.waveform_samples),
+            )
+        else:
+            fiber_mic = np.zeros(
+                (sequence_count, timesteps, fiber_mic_spec.waveform_samples),
+                dtype=np.dtype(fiber_mic_spec.waveform_dtype),
+            )
         fiber_mic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
     slow_rows = []
     base_schedule = resolve_phase_schedule(phase_schedule)

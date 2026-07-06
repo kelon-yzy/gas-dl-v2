@@ -251,11 +251,18 @@ def generate_tunnel_ventilation_benchmark_dataset(
         )
         write_json(staging_dir / "manifest.json", manifest)
         write_json(staging_dir / "quality" / "validation_summary.json", validation_summary)
+        # 关闭大波形数组的 memmap 句柄：数据已写入 staging_dir/sequences/，
+        # 必须释放句柄才能安全清理临时目录（Windows 要求无打开句柄才能删除）
+        _close_waveform_memmap(arrays)
         _cleanup_parallel_temp_arrays(arrays, array_keys)
         _log("writing metadata / CSVs / scalers ...")
         _publish_staging_dir(staging_dir, output_dir)
     except Exception:
         if staging_dir.exists():
+            try:
+                _close_waveform_memmap(arrays)  # type: ignore[possibly-used-before-def]
+            except Exception:
+                pass
             shutil.rmtree(staging_dir)
         raise
 
@@ -377,6 +384,7 @@ def _build_sequence_arrays_for_spec(
     array_keys: tuple[str, ...],
 ) -> dict[str, object]:
     if spec.workers == 1 or len(conditions) <= 1:
+        waveform_temp = staging_dir / ".waveform_temp"
         return build_sequence_arrays(
             conditions,
             timesteps=spec.timesteps,
@@ -390,6 +398,7 @@ def _build_sequence_arrays_for_spec(
             stage_jitter=spec.stage_jitter,
             optical_absorption_backend=spec.optical_absorption_backend,
             hitran_cache_root=spec.hitran_cache_root,
+            temp_dir=waveform_temp,
         )
     from sim.generation.tunnel_ventilation._parallel import build_arrays_parallel
 
@@ -426,3 +435,17 @@ def _cleanup_parallel_temp_arrays(arrays: dict[str, object], array_keys: tuple[s
     from sim.generation.tunnel_ventilation._parallel import cleanup_parallel_temp_arrays
 
     cleanup_parallel_temp_arrays(arrays, array_keys)
+
+
+def _close_waveform_memmap(arrays: dict[str, object]) -> None:
+    """关闭大波形数组的 memmap 句柄。
+
+    在 write_arrays 将数据拷贝到最终输出目录后调用，
+    确保 Windows 下可以安全删除临时 memmap 文件。
+    """
+    for key in ("ultrasonic", "fiber_mic"):
+        arr = arrays.get(key)
+        if arr is not None:
+            mmap = getattr(arr, "_mmap", None)
+            if mmap is not None:
+                mmap.close()
