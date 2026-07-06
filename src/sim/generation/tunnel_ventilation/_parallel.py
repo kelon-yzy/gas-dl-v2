@@ -64,7 +64,7 @@ def build_arrays_parallel(
         ]
         for future in as_completed(futures):
             results.append(future.result())
-    arrays = _merge_chunk_files(results, sequence_count=len(conditions), temp_dir=temp_dir, array_keys=array_keys)
+    arrays = _merge_chunk_files(results, sequence_count=len(conditions), temp_dir=temp_dir, array_keys=array_keys, keep_chunks=spec.keep_chunks)  # type: ignore[attr-defined]
     if not spec.keep_chunks and spec.temp_dir is None:  # type: ignore[attr-defined]
         arrays["_temp_dir_to_cleanup"] = str(temp_dir)
     return arrays
@@ -160,6 +160,7 @@ def _merge_chunk_files(
     sequence_count: int,
     temp_dir: Path,
     array_keys: ArrayKeys,
+    keep_chunks: bool = False,
 ) -> dict[str, object]:
     """合并所有 chunk：大波形数组从 chunk memmap 拷贝，小数组从 npz 加载。"""
     ordered = sorted(results, key=lambda item: int(item["chunk_index"]))
@@ -220,6 +221,11 @@ def _merge_chunk_files(
                     continue
                 arrays[key][start:end] = small[key]
             slow_rows.extend(dict(row) for row in small["slow_rows"].tolist())
+
+        # 数据已拷贝到 merged 文件，立即删除 chunk 目录释放磁盘空间
+        if not keep_chunks:
+            import shutil
+            shutil.rmtree(chunk_dir)
 
     for key in array_keys:
         arr = arrays.get(key)
