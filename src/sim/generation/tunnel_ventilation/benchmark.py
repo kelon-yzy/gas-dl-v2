@@ -255,6 +255,8 @@ def generate_tunnel_ventilation_benchmark_dataset(
         # 必须释放句柄才能安全清理临时目录（Windows 要求无打开句柄才能删除）
         _close_waveform_memmap(arrays)
         _cleanup_parallel_temp_arrays(arrays, array_keys)
+        # 串行路径的 .waveform_temp 目录也需要清理，避免随 staging 迁入最终输出
+        _cleanup_serial_waveform_temp(staging_dir)
         _log("writing metadata / CSVs / scalers ...")
         _publish_staging_dir(staging_dir, output_dir)
     except Exception:
@@ -449,3 +451,11 @@ def _close_waveform_memmap(arrays: dict[str, object]) -> None:
             mmap = getattr(arr, "_mmap", None)
             if mmap is not None:
                 mmap.close()
+
+
+def _cleanup_serial_waveform_temp(staging_dir: Path) -> None:
+    """清理串行路径（workers=1）产生的 .waveform_temp 临时目录。"""
+    waveform_temp = staging_dir / ".waveform_temp"
+    if waveform_temp.exists():
+        import shutil
+        shutil.rmtree(waveform_temp)
