@@ -77,6 +77,24 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="跳过光纤麦克风波形生成（省 ~66%% 磁盘，DL 端需去掉 fiber_mic 模态）",
     )
+    parser.add_argument(
+        "--split-strategy",
+        choices=("random", "spxy_v1", "lhs_stratified_split_v1"),
+        default="random",
+        help="数据集划分策略（docs/掘进通风/spxy_split_implementation_plan.md）",
+    )
+    parser.add_argument(
+        "--spxy-alpha",
+        type=float,
+        default=0.5,
+        help="SPXY X/Y 距离权重（仅 spxy_v1 用；1.0=KS, 0.5=标准, 0.0=纯 Y）",
+    )
+    parser.add_argument(
+        "--extrapolation-strategy",
+        choices=("none", "y_margin_ood", "lhs_boundary", "kmeans_boundary"),
+        default="none",
+        help="OOD 外推集选取规则（仅 spxy_v1 用；none 仅适用于 random/lhs_stratified）",
+    )
     return parser
 
 
@@ -111,6 +129,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         temp_dir=args.temp_dir,
         keep_chunks=args.keep_chunks,
         skip_fiber_mic=args.skip_fiber_mic,
+        split_strategy=args.split_strategy,
+        spxy_alpha=args.spxy_alpha,
+        extrapolation_strategy=args.extrapolation_strategy,
     )
     result = generate_tunnel_ventilation_benchmark_dataset(Path(args.output_root), spec)
     elapsed = _time.perf_counter() - t0

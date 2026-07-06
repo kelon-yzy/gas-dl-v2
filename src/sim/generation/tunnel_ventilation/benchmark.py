@@ -107,6 +107,13 @@ class TunnelVentilationBenchmarkGenerationSpec:
     temp_dir: str | None = None
     keep_chunks: bool = False
     skip_fiber_mic: bool = False
+    # 数据集划分策略（docs/掘进通风/spxy_split_implementation_plan.md）
+    # random: 现有 mixture_id shuffle 划分（build_default_split_rows）
+    # spxy_v1: ID pool 内 SPXY 选 train + 独立 OOD selector 选 extrapolation + Y 分箱分层 val/test
+    # lhs_stratified_split_v1: 全量 Y 分箱分层随机四分类（SPXY 简单对照）
+    split_strategy: str = "random"
+    spxy_alpha: float = 0.5  # SPXY X/Y 距离权重，仅 spxy_v1 用；1.0=KS, 0.5=标准, 0.0=纯 Y
+    extrapolation_strategy: str = "none"  # 仅 spxy_v1 用；none/y_margin_ood/lhs_boundary/kmeans_boundary
 
 
 def _log(msg: str) -> None:
@@ -134,7 +141,6 @@ def generate_tunnel_ventilation_benchmark_dataset(
             sampling_strategy=spec.sampling_strategy,
         )
         optical_metadata = _optical_absorption_metadata(spec)
-        split_rows = build_default_split_rows(conditions, seed=spec.seed)
         labels = _label_array(conditions)
         # tv3 采用 int16 + per-timestep 自适应 scale 存储波形（方案 B）
         # 物理 ADC 仍为 20-bit（daq_bits=20），存储时按每 timestep 峰值定标压缩为 int16
@@ -154,6 +160,8 @@ def generate_tunnel_ventilation_benchmark_dataset(
             staging_dir=staging_dir,
             array_keys=array_keys,
         )
+        # split 必须在 arrays 生成之后：spxy_v1 需要 arrays["slow"]/ultrasonic_* 构建 X 特征
+        split_rows, split_summary_extra = _build_split_rows_for_spec(spec, conditions, arrays, labels)
         _log(f"waveforms done ({_time.perf_counter() - t_wave:.1f}s), validating ...")
         # tv3: 3 列预测目标 sum=100%（严格闭包），BACKGROUND_FIELDS 为空
         validation_summary = validate_benchmark_assets(
@@ -222,7 +230,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
         write_csv(staging_dir / "sequences" / "slow_sequence_long.csv", SLOW_SEQUENCE_FIELDS, arrays["slow_rows"])
         for split_name in SPLIT_NAMES:
             write_csv(staging_dir / "splits" / f"{split_name}.csv", SPLIT_FIELDS, split_rows[split_name])
-        write_json(staging_dir / "splits" / "split_summary.json", _split_summary(split_rows))
+        write_json(staging_dir / "splits" / "split_summary.json", _split_summary(split_rows, split_summary_extra))
         train_sequence_ids = {row["sequence_id"] for row in split_rows["train"]}
         train_indexes = [index for index, sequence_id in enumerate(sequence_ids) if sequence_id in train_sequence_ids]
         slow_scaler, slow_modal_scaler = fit_z_score_scalers(
@@ -312,6 +320,27 @@ def _validate_spec(spec: TunnelVentilationBenchmarkGenerationSpec) -> None:
         raise ValueError("workers must be positive")
     if spec.chunk_size is not None and spec.chunk_size <= 0:
         raise ValueError("chunk_size must be positive when provided")
+    if spec.split_strategy not in _VALID_SPLIT_STRATEGIES:
+        raise ValueError(
+            f"split_strategy must be one of {list(_VALID_SPLIT_STRATEGIES)}, got {spec.split_strategy!r}"
+        )
+    if not (0.0 <= spec.spxy_alpha <= 1.0):
+        raise ValueError(f"spxy_alpha must be in [0, 1], got {spec.spxy_alpha}")
+    if spec.extrapolation_strategy not in _VALID_EXTRAPOLATION_STRATEGIES:
+        raise ValueError(
+            f"extrapolation_strategy must be one of {list(_VALID_EXTRAPOLATION_STRATEGIES)}, "
+            f"got {spec.extrapolation_strategy!r}"
+        )
+    # spxy_v1 必须配独立 OOD selector；其他策略不允许带 OOD selector
+    if spec.split_strategy == "spxy_v1" and spec.extrapolation_strategy == "none":
+        raise ValueError(
+            "split_strategy='spxy_v1' 要求 extrapolation_strategy 为 "
+            "y_margin_ood/lhs_boundary/kmeans_boundary 之一，不能为 none"
+        )
+    if spec.split_strategy != "spxy_v1" and spec.extrapolation_strategy != "none":
+        raise ValueError(
+            f"extrapolation_strategy={spec.extrapolation_strategy!r} 仅在 split_strategy='spxy_v1' 下有效"
+        )
 
 
 def _optical_absorption_metadata(spec: TunnelVentilationBenchmarkGenerationSpec) -> dict[str, object]:
@@ -354,9 +383,11 @@ def _label_array(conditions: list[dict[str, str]]) -> np.ndarray:
     )
 
 
-def _split_summary(split_rows: dict[str, list[dict[str, str]]]) -> dict[str, object]:
-    return {
-        "split_policy": "stratified_mixture_id_group_split_v4",
+def _split_summary(
+    split_rows: dict[str, list[dict[str, str]]],
+    extra: dict[str, object] | None = None,
+) -> dict[str, object]:
+    summary: dict[str, object] = {
         "group_field": "mixture_id",
         "splits": {
             name: {
@@ -366,6 +397,49 @@ def _split_summary(split_rows: dict[str, list[dict[str, str]]]) -> dict[str, obj
             for name, rows in split_rows.items()
         },
     }
+    if extra:
+        summary.update(extra)
+    else:
+        summary["split_policy"] = "random_mixture_id_split_v4"
+    return summary
+
+
+# 支持的划分策略与 OOD selector（docs/掘进通风/spxy_split_implementation_plan.md）
+_VALID_SPLIT_STRATEGIES = ("random", "spxy_v1", "lhs_stratified_split_v1")
+_VALID_EXTRAPOLATION_STRATEGIES = ("none", "y_margin_ood", "lhs_boundary", "kmeans_boundary")
+
+
+def _build_split_rows_for_spec(
+    spec: TunnelVentilationBenchmarkGenerationSpec,
+    conditions: list[dict[str, str]],
+    arrays: dict[str, object],
+    labels: np.ndarray,
+) -> tuple[dict[str, list[dict[str, str]]], dict[str, object]]:
+    """根据 spec.split_strategy 分派划分，返回 (split_rows, summary_extra)。
+
+    random: 现有 build_default_split_rows（mixture_id shuffle）。
+    spxy_v1: SPXY 选 train + 独立 OOD selector + Y 分箱分层 val/test。
+    lhs_stratified_split_v1: 全量 Y 分箱分层随机四分类。
+    """
+    if spec.split_strategy == "spxy_v1":
+        from sim.packaging.spxy_split import build_spxy_split_with_summary
+
+        rows, extra = build_spxy_split_with_summary(
+            conditions,
+            arrays,
+            labels,
+            seed=spec.seed,
+            alpha=spec.spxy_alpha,
+            extrapolation_strategy=spec.extrapolation_strategy,
+        )
+        return rows, extra
+    if spec.split_strategy == "lhs_stratified_split_v1":
+        from sim.packaging.spxy_split import build_lhs_stratified_split_with_summary
+
+        rows, extra = build_lhs_stratified_split_with_summary(conditions, labels, seed=spec.seed)
+        return rows, extra
+    rows = build_default_split_rows(conditions, seed=spec.seed)
+    return rows, {"split_policy": "random_mixture_id_split_v4"}
 
 
 def default_worker_count(sequence_count: int | None = None) -> int:

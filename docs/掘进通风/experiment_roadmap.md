@@ -130,7 +130,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
 
 共享关键参数：
 
-- `slow_input_dim = 8`
+- `slow_input_dim = 7`
 - `output_dim = 3`
 - `target_timesteps = 512`
 - `composition_scheme = "tunnel_ventilation"`

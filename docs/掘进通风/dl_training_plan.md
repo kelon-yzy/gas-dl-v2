@@ -172,7 +172,7 @@ sum_abs_error = |x_CO2_pred + x_O2_pred + x_N2_pred - 100|
   "model": {
     "type": "cnn1d",
     "output_dim": 3,
-    "slow_input_dim": 8
+    "slow_input_dim": 7
   },
   "training": {
     "loss": "weighted_component_mse",

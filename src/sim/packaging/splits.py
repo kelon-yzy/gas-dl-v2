@@ -14,6 +14,18 @@ def build_split_groups(
     val_ratio: float = 0.15,
     test_ratio: float = 0.10,
 ) -> dict[str, set[str]]:
+    """按 mixture_id 分组后 shuffle 按比例切片。
+
+    注意：此函数不执行分层采样（stratified sampling）。它只是将 mixture_id 打乱后按比例分配。
+    当 mixture_id 与 sequence_id 一一对应时（tv3 / hg / sg 均为 1:1），等价于纯随机划分。
+
+    设计意图：mixture_id 可用于分组（同一组分可对应不同噪声/路径的多个 sequence），
+    按 mixture_id 分组可防止同组分不同噪声变体泄漏到测试集。但在当前实现中每条
+    sequence 对应唯一条 mixture，因此分组无实际效果。
+
+    局限：不保证各 split 内的成分空间均匀覆盖（破坏 LHS 的 space-filling 性质）。
+    extrapolation split 是从 shuffle 末尾随机剩余，不基于成分极值或分布外距离选取。
+    """
     group_ids = sorted({str(row["mixture_id"]) for row in conditions})
     rng = random.Random(seed)
     rng.shuffle(group_ids)
