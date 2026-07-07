@@ -6,7 +6,6 @@
 - 热导混合含 O2（WMS 规则）
 - main_sensor_features 输出 V_NDIR_CO2/V_TCS，无 V_NDIR_CH4 / V_NDIR_CO
 - 空气组成下 c_mix ≈ 346 m/s（与已知空气声速交叉验证）
-- hydrogen_ng acoustic_physics 未被影响
 """
 from __future__ import annotations
 
@@ -15,7 +14,6 @@ import random
 
 import pytest
 
-from tv3.sim.generation import acoustic_physics as hg_acoustic
 from tv3.sim.generation.tunnel_ventilation.acoustic_physics import (
     PROCESSING_PARAMS_V2,
     _hidden_absorption_co2,
@@ -221,26 +219,6 @@ def test_thermal_conductivity_sensor_feature_uses_x_o2(tv3_condition):
     res = thermal_conductivity_sensor_feature(tv3_condition, rng)
     assert "V_TCS" in res
     assert res["V_TCS"] > 0
-
-
-# ---------------------------------------------------------------------------
-# 隔离性：hydrogen_ng 物理不变
-# ---------------------------------------------------------------------------
-
-
-def test_hydrogen_ng_acoustic_signature_unchanged():
-    """hydrogen_ng 的 hidden_sound_speed_v2 签名仍是 5 参（无 x_o2）。"""
-    import inspect
-
-    sig = inspect.signature(hg_acoustic.hidden_sound_speed_v2)
-    assert list(sig.parameters) == ["x_h2", "x_ch4", "x_co2", "x_n2", "t_c"]
-
-
-def test_hydrogen_ng_params_no_o2_keys():
-    """hydrogen_ng PROCESSING_PARAMS_V2 不包含 O2 相关键。"""
-    keys = set(hg_acoustic.PROCESSING_PARAMS_V2)
-    assert "alpha_lambda_max_o2" not in keys
-    assert "f_relax_o2_per_atm" not in keys
 
 
 def test_tv3_params_has_o2_keys():

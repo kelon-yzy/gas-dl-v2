@@ -82,7 +82,7 @@ def evaluate_regressor(
     *,
     split: str,
     target_transform: TargetTransformSpec | None = None,
-    composition_scheme: str = "hydrogen_ng",
+    composition_scheme: str = "tunnel_ventilation",
 ) -> SplitEvaluation:
     """Evaluate a fitted regressor on one feature matrix."""
     predictions = model.predict(matrix.x)
@@ -184,9 +184,9 @@ def train_regressor_on_dataset(
 def _load_composition_scheme(dataset_dir: Path) -> str:
     manifest_path = dataset_dir / "manifest.json"
     if not manifest_path.is_file():
-        return "hydrogen_ng"
+        return "tunnel_ventilation"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    return str(manifest.get("composition_scheme", "hydrogen_ng"))
+    return str(manifest.get("composition_scheme", "tunnel_ventilation"))
 
 
 def _has_target_transform(target_transform: str | dict[str, Any] | None) -> bool:
