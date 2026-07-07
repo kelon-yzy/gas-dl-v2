@@ -216,10 +216,10 @@ components_sensitivity = {
 
 #### 配置文件
 
-- `configs/experiment/dl_p3_full_aug.json` — 三策略组合
-- `configs/experiment/dl_p3_ablation_time_jitter.json` — 时间抖动消融
-- `configs/experiment/dl_p3_ablation_amplitude_scale.json` — 幅度缩放消融
-- `configs/experiment/dl_p3_ablation_gaussian_noise.json` — 高斯噪声消融
+- `configs/dl_p3_full_aug.json` — 三策略组合
+- `configs/dl_p3_ablation_time_jitter.json` — 时间抖动消融
+- `configs/dl_p3_ablation_amplitude_scale.json` — 幅度缩放消融
+- `configs/dl_p3_ablation_gaussian_noise.json` — 高斯噪声消融
 
 #### 验收标准（修正）
 

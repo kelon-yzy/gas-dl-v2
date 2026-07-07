@@ -77,7 +77,7 @@ _archived_pre_phys_strict/ 两个归档目录均不含它 —— 无备份可恢
 data/ 当前仅剩 wv4-smoke / sg4-smoke（sg4-formal 等已随链路切换归档）
 ```
 
-即 P1/P2 的载体目录不可用，且**不存在“从备份恢复”选项**——只能用 v6-phys-strict 参数重跑 `python -m pipeline.generate_benchmark` 重生成。重生成含 10MS/s 过采样 + 分数延迟重采样，算力不轻；`data/hitran_cache/` 可部分复用，但 L_m 变更后 `hitran_cache_windowed/` 需刷新。重生成并按新 L_m 重定义窗口后，`phase_stats_path=auto` 类实验才可复验。
+即 P1/P2 的载体目录不可用，且**不存在“从备份恢复”选项**——只能用 v6-phys-strict 参数重跑 `python -m hg.pipeline.generate_benchmark` 重生成。重生成含 10MS/s 过采样 + 分数延迟重采样，算力不轻；`data/hitran_cache/` 可部分复用，但 L_m 变更后 `hitran_cache_windowed/` 需刷新。重生成并按新 L_m 重定义窗口后，`phase_stats_path=auto` 类实验才可复验。
 
 ## 3. 根因拆解
 

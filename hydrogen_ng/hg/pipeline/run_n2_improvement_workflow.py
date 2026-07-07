@@ -11,7 +11,7 @@ from typing import Any, Sequence
 from hg.pipeline.experiment_config import ExperimentConfig, load_experiment_config
 
 
-DEFAULT_CONFIG_PATH = Path("configs/experiment/formal_full.json")
+DEFAULT_CONFIG_PATH = Path("configs/formal_full.json")
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +59,7 @@ def planned_steps(
     run_experiment_base = [
         sys.executable,
         "-m",
-        "pipeline.run_experiment",
+        "hg.pipeline.run_experiment",
         "--config",
         str(config_path),
         "--dataset-dir",
@@ -77,7 +77,7 @@ def planned_steps(
                 command=(
                     sys.executable,
                     "-m",
-                    "pipeline.inspect_composition_labels",
+                    "hg.pipeline.inspect_composition_labels",
                     "--dataset-dir",
                     str(config.dataset_dir),
                     "--output-path",
@@ -99,7 +99,7 @@ def planned_steps(
                 command=(
                     sys.executable,
                     "-m",
-                    "pipeline.analyze_n2_improvement",
+                    "hg.pipeline.analyze_n2_improvement",
                     "--run-root",
                     str(effective_run_root),
                     "--output-path",
@@ -113,7 +113,7 @@ def planned_steps(
                 command=(
                     sys.executable,
                     "-m",
-                    "pipeline.analyze_n2_improvement",
+                    "hg.pipeline.analyze_n2_improvement",
                     "--phase-aware",
                     "--run-root",
                     str(effective_run_root),

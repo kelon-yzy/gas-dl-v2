@@ -103,7 +103,7 @@ def test_precompute_cli_prints_json_summary(tmp_path, capsys, monkeypatch):
         kwargs["hapi_module"] = fake_hapi
         return precompute_hitran_spectra(**kwargs)
 
-    monkeypatch.setattr("pipeline.precompute_hitran_spectra.precompute_hitran_spectra", fake_precompute)
+    monkeypatch.setattr("hg.pipeline.precompute_hitran_spectra.precompute_hitran_spectra", fake_precompute)
     exit_code = precompute_main([
         "--cache-root",
         str(tmp_path),
@@ -170,7 +170,7 @@ def test_precompute_hitran_benchmark_cache_cli_prints_summary(tmp_path, capsys, 
         kwargs["hapi_module"] = fake_hapi
         return precompute_hitran_benchmark_cache(**kwargs)
 
-    monkeypatch.setattr("pipeline.precompute_hitran_benchmark_cache.precompute_hitran_benchmark_cache", fake_precompute)
+    monkeypatch.setattr("hg.pipeline.precompute_hitran_benchmark_cache.precompute_hitran_benchmark_cache", fake_precompute)
     exit_code = precompute_benchmark_main([
         "--cache-root",
         str(tmp_path),
@@ -190,14 +190,14 @@ def test_precompute_hitran_benchmark_cache_cli_prints_summary(tmp_path, capsys, 
 
 
 def test_default_hitran_precompute_worker_count_is_memory_conservative(monkeypatch):
-    module = importlib.import_module("pipeline.precompute_hitran_benchmark_cache")
+    module = importlib.import_module("hg.pipeline.precompute_hitran_benchmark_cache")
     monkeypatch.setattr(module, "default_worker_count", lambda sequence_count: 24)
 
     assert default_hitran_precompute_worker_count(6000) == 4
 
 
 def test_parallel_hitran_precompute_bounds_pending_futures(monkeypatch, tmp_path):
-    module = importlib.import_module("pipeline.precompute_hitran_benchmark_cache")
+    module = importlib.import_module("hg.pipeline.precompute_hitran_benchmark_cache")
     max_pending_seen = 0
 
     class ImmediateFuture:

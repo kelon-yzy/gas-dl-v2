@@ -101,7 +101,7 @@ def test_hitran_sequence_generation_does_not_call_empirical_main_sensor_features
     def fail_main_sensor_features(*args, **kwargs):
         raise AssertionError("HITRAN sequence generation must not call empirical main_sensor_features")
 
-    monkeypatch.setattr("sim.generation.slow.main_sensor_features", fail_main_sensor_features)
+    monkeypatch.setattr("hg.sim.generation.slow.main_sensor_features", fail_main_sensor_features)
 
     generate_benchmark_dataset(
         tmp_path,
@@ -134,7 +134,7 @@ def test_hitran_sequence_generation_uses_equilibrium_dynamics_not_legacy(tmp_pat
     def fail_legacy(*args, **kwargs):
         raise AssertionError("HITRAN sequence generation must use equilibrium dynamics, not legacy _dynamic_slow_features")
 
-    monkeypatch.setattr("sim.generation.slow._dynamic_slow_features", fail_legacy)
+    monkeypatch.setattr("hg.sim.generation.slow._dynamic_slow_features", fail_legacy)
 
     # 即使 standard_exposure + jitter=0（empirical 的 legacy 条件），HITRAN 后端也不应回退到单时间常数动力学。
     generate_benchmark_dataset(

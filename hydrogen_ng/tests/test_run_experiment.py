@@ -146,7 +146,7 @@ def test_default_dl_runs_use_all_modalities(tmp_path: Path):
 
 def test_phase_window_tcn_improvement_config_plans_gas_head_runs():
     config = load_experiment_config(
-        Path("configs/experiment/phase_window_tcn_improvement/phase_window_tcn_improvement.json")
+        Path("configs/phase_window_tcn_improvement/phase_window_tcn_improvement.json")
     )
 
     result = run(config, dry_run=True)
@@ -174,13 +174,13 @@ def test_phase_window_tcn_improvement_config_plans_gas_head_runs():
 
 def test_phase_window_tcn_ablation_configs_diagnostic_batch_then_structure_followup():
     config = load_experiment_config(
-        Path("configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation.json")
+        Path("configs/phase_window_tcn_ablation/phase_window_tcn_ablation.json")
     )
     structure = load_experiment_config(
-        Path("configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation_structure.json")
+        Path("configs/phase_window_tcn_ablation/phase_window_tcn_ablation_structure.json")
     )
     followup = load_experiment_config(
-        Path("configs/experiment/phase_window_tcn_ablation/phase_window_tcn_ablation_followup.json")
+        Path("configs/phase_window_tcn_ablation/phase_window_tcn_ablation_followup.json")
     )
 
     result = run(config, dry_run=True)

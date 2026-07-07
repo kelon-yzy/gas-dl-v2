@@ -98,7 +98,7 @@ filter 参数 `center_cm1=2143`（CO 基频带中心）、`fwhm_cm1=80`（占位
 需要重新跑一遍（用户手动触发）：
 
 ```powershell
-python -m pipeline.precompute_hitran_benchmark_cache --benchmark sg4-smoke
+python -m hg.pipeline.precompute_hitran_benchmark_cache --benchmark sg4-smoke
 ```
 
 ---
@@ -154,8 +154,8 @@ python -m pipeline.precompute_hitran_benchmark_cache --benchmark sg4-smoke
 
 **D3. 配置文件**
 
-- `configs/experiment/` 下所有现有 JSON 保留（属于旧 benchmark 范围），不批量改
-- 新建 `configs/experiment/sg4/` 目录，放新 benchmark 的实验配置：
+- `configs/` 下所有现有 JSON 保留（属于旧 benchmark 范围），不批量改
+- 新建 `configs/sg4/` 目录，放新 benchmark 的实验配置：
   - `sg4_baseline.json`（对应旧的 P0-B baseline）
   - `sg4_cnn1d_tcn.json`
   - `sg4_ridge_baseline.json`（ML 基线对照）
@@ -205,7 +205,7 @@ python -m pipeline.precompute_hitran_benchmark_cache --benchmark sg4-smoke
 | [src/common/metrics.py](src/common/metrics.py)                                   | 改             | n2_bins → co_bins                |
 | [src/pipeline/run_experiment.py](src/pipeline/run_experiment.py)                 | 改             | 报告字段重命名                          |
 | [src/pipeline/analyze_n2_improvement.py](src/pipeline/analyze_n2_improvement.py) | 改名            | analyze_co_improvement.py        |
-| `configs/experiment/sg4/*.json`                                                  | 新建            | 新场景实验入口                          |
+| `configs/sg4/*.json`                                                  | 新建            | 新场景实验入口                          |
 | `tests/test_syngas_*.py`                                                         | 新建            | 采样/物理/光学新测试                      |
 | `data/sg4-smoke/`                                                                | 新建            | 重生成 benchmark                    |
 
@@ -213,11 +213,11 @@ python -m pipeline.precompute_hitran_benchmark_cache --benchmark sg4-smoke
 
 ## 验证流程
 
-1. **采样可行性**：`python -m pipeline.generate_benchmark --composition-scheme syngas --sequence-count 100 --dry-run`，确认 N₂ 残量分布、采样无失败
-2. **HITRAN 缓存**：`python -m pipeline.precompute_hitran_benchmark_cache --benchmark sg4-smoke` 跑通，`data/hitran_cache/co/` 生成
+1. **采样可行性**：`python -m hg.pipeline.generate_benchmark --composition-scheme syngas --sequence-count 100 --dry-run`，确认 N₂ 残量分布、采样无失败
+2. **HITRAN 缓存**：`python -m hg.pipeline.precompute_hitran_benchmark_cache --benchmark sg4-smoke` 跑通，`data/hitran_cache/co/` 生成
 3. **小规模 benchmark**：`--sequence-count 100` 完整跑通，检查 `manifest.json` 字段、`labels/y.npy` shape
 4. **物理单元测试**：`pytest tests/test_syngas_sampling.py tests/test_acoustic_physics_syngas.py tests/test_spectral_co_channel.py -v`
-5. **DL 基线训练**：`python -m dl.cli train --config configs/experiment/sg4/sg4_baseline.json --epochs 20`，确认 loss 下降、4 组分预测 shape 正确、N₂ 不出现在 labels
+5. **DL 基线训练**：`python -m hg.dl.cli train --config configs/sg4/sg4_baseline.json --epochs 20`，确认 loss 下降、4 组分预测 shape 正确、N₂ 不出现在 labels
 6. **回归测试**：`pytest tests/ -v`，确认旧 wv4-smoke 流水线未受影响
 
 ---

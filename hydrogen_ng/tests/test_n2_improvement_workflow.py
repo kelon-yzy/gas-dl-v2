@@ -52,7 +52,7 @@ def test_planned_steps_match_formal_n2_workflow(tmp_path: Path):
     assert plan.steps[0].command == (
         sys.executable,
         "-m",
-        "pipeline.inspect_composition_labels",
+        "hg.pipeline.inspect_composition_labels",
         "--dataset-dir",
         str(dataset_dir),
         "--output-path",

@@ -7,7 +7,7 @@
 
 - 正式 ML phase-aware 主线已收束为 `ridge_multiwindow_all_modalities`，使用 `full + exposure + recovery` 多窗口特征拼接。
 - PhaseWindowTCN 已完成 MVP 与 `gas_head + free_component_mse` 改进实验；`gas_head` 修复闭包问题，但 N2 仍未转正。
-- 当前 DL 下一步只做结构消融：`share_window_encoder=false` 与更深 TCN 感受野；配置位于 `configs/experiment/phase_window_tcn_ablation/`。
+- 当前 DL 下一步只做结构消融：`share_window_encoder=false` 与更深 TCN 感受野；配置位于 `configs/phase_window_tcn_ablation/`。
 - 旧的 ILR/ALR、PhasePreservingTCN、复杂频域融合等方案已归档，只作为历史依据。
 
 ## 当前状态总览
@@ -101,12 +101,12 @@
 ### 2.7 仿真数据生成性能利用率 ✅
 
 - **状态**：已完成第一版。`src/sim/generation/benchmark.py` 支持按 sequence chunk 多进程生成，worker 只写临时 chunk，最终 `.npy`、CSV、metadata、manifest、quality 仍由主进程顺序合并写出。
-- **CLI 默认**：`python -m pipeline.generate_benchmark` 未传 `--workers` 时使用 `default_worker_count(sequence_count)`，默认保留 2 个逻辑线程给系统并最多使用 24 个 worker；`--chunk-size` 默认按 `ceil(sequences / workers)`。
+- **CLI 默认**：`python -m hg.pipeline.generate_benchmark` 未传 `--workers` 时使用 `default_worker_count(sequence_count)`，默认保留 2 个逻辑线程给系统并最多使用 24 个 worker；`--chunk-size` 默认按 `ceil(sequences / workers)`。
 - **Python API 默认**：`BenchmarkGenerationSpec.workers` 仍默认是 `1`，用于保留既有程序化调用的串行语义。脚本内如果希望并行，必须显式传 `workers=default_worker_count(sequence_count)` 或具体整数。
 - **可复现性**：序列随机源按 `(global_seed, sequence_index, stream_name)` 稳定派生，同一 seed 下不依赖 worker 数和 chunk 切分。
 - **输出安全**：生成过程先写 `<dataset>.tmp-*` staging 目录，验证和写出完成后再发布到最终 dataset 目录；并行中间文件默认位于 staging 下 `.chunks`，`--keep-chunks` 仅用于调试。
 - **HITRAN cache**：`pipeline.precompute_hitran_benchmark_cache` 支持 `--workers`，但 HAPI 进程会独立加载谱表，因此 CLI 默认最多使用 4 个 worker。实现先串行确保 HAPI 原始 `.data/.header` 表存在，再通过有界 pending 队列并行运行 `absorptionCoefficient_Voigt` 生成缺失 `.npz` cache；cache 已存在时跳过。谱 cache 写入采用临时文件加 `replace` 的原子写入。
-- **存储策略**：大规模正式运行推荐 `storage=memmap`；如需 `waveform_sequence.npz`，生成后运行 `python -m pipeline.bundle_waveform_sequence --dataset-dir <dataset>` 单独打包，避免压缩阻塞主生成路径。
+- **存储策略**：大规模正式运行推荐 `storage=memmap`；如需 `waveform_sequence.npz`，生成后运行 `python -m hg.pipeline.bundle_waveform_sequence --dataset-dir <dataset>` 单独打包，避免压缩阻塞主生成路径。
 - **测试**：新增并行生成契约、不同 chunk-size 稳定性、HITRAN cache 跳过、HITRAN pending 队列上限、bundle 入口测试；已纳入全量 187 passed。
 
 ---
@@ -150,7 +150,7 @@
 
 - 文件：`configs/train/adamw-cosine.yaml`（Hydra 结构）
 - 字段：`optimizer`、`scheduler`、`loss`、`batch_size`、`epochs`、`grad_clip`
-- **状态**：Hydra 配置未采用；当前正式入口为 JSON 实验配置和 argparse CLI。`python -m dl.cli` 与 `python -m pipeline.run_experiment` 已支持 optimizer、scheduler、loss、batch_size、epochs、early stopping、AMP 和进度日志。
+- **状态**：Hydra 配置未采用；当前正式入口为 JSON 实验配置和 argparse CLI。`python -m hg.dl.cli` 与 `python -m hg.pipeline.run_experiment` 已支持 optimizer、scheduler、loss、batch_size、epochs、early stopping、AMP 和进度日志。
 
 ### 4.2 Loss 与 Metrics
 
@@ -195,7 +195,7 @@
   - numpy 版 MAE、RMSE、R2 和按组分指标。
   - `train_regressor_on_dataset(...)`：加载 train split、拟合模型，并评估 train/val/test/extrapolation split。
 - **协议评估**：新增 `src/ml/evaluation_protocol.py`，`run_baseline_protocol(...)` 统一生成 full/per-phase/early baseline 结果。
-- **CLI 报告**：`python -m ml.cli --protocol --report-path <path>` 可写出 Markdown baseline protocol report；`--json` 可输出同结构 JSON。
+- **CLI 报告**：`python -m hg.ml.cli --protocol --report-path <path>` 可写出 Markdown baseline protocol report；`--json` 可输出同结构 JSON。
 - **测试**：`tests/test_ml_baselines.py` 覆盖特征统计、benchmark split 加载、波形特征、mean/ridge regressor、指标、训练入口、protocol 入口和 CLI 报告。
 - **当前验证状态**：`tests/test_ml_baselines.py` 已纳入全量测试；`python -m pytest` 当前为 187 passed。
 
@@ -219,14 +219,14 @@
 
 ### 6.1 Experiment 配置
 
-- 文件：`configs/experiment/` 下各实验 yaml
+- 文件：`configs/` 下各实验 yaml
 - 组合 data/model/train/eval 四类配置
 
 ### 6.2 批量运行入口
 
 - 文件：`experiments/run_baseline.py`
 - 读实验配置 → 生成 benchmark（如需要）→ 训练 → 评估 → 写报告
-- **当前状态**：`python -m pipeline.run_experiment --config ...` 已作为批量实验入口落地，支持 dry-run、ML/DL run 列表、summary CSV 和 Markdown report。传统 ML 的单数据集 protocol report 仍由 `python -m ml.cli --protocol` 提供。
+- **当前状态**：`python -m hg.pipeline.run_experiment --config ...` 已作为批量实验入口落地，支持 dry-run、ML/DL run 列表、summary CSV 和 Markdown report。传统 ML 的单数据集 protocol report 仍由 `python -m hg.ml.cli --protocol` 提供。
 
 ### 6.3 汇总与绘图
 

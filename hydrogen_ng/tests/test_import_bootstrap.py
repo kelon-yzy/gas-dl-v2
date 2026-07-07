@@ -12,7 +12,7 @@ def test_pipeline_modules_are_importable_from_repo_root_without_pythonpath():
     env.pop("PYTHONPATH", None)
 
     result = subprocess.run(
-        [sys.executable, "-m", "pipeline.generate_benchmark", "--help"],
+        [sys.executable, "-m", "hg.pipeline.generate_benchmark", "--help"],
         cwd=project_root,
         env=env,
         capture_output=True,
@@ -30,7 +30,7 @@ def test_waveform_bundle_module_is_importable_from_repo_root_without_pythonpath(
     env.pop("PYTHONPATH", None)
 
     result = subprocess.run(
-        [sys.executable, "-m", "pipeline.bundle_waveform_sequence", "--help"],
+        [sys.executable, "-m", "hg.pipeline.bundle_waveform_sequence", "--help"],
         cwd=project_root,
         env=env,
         capture_output=True,
@@ -48,7 +48,7 @@ def test_dl_cli_is_importable_from_repo_root_without_pythonpath():
     env.pop("PYTHONPATH", None)
 
     result = subprocess.run(
-        [sys.executable, "-m", "dl.cli", "--help"],
+        [sys.executable, "-m", "hg.dl.cli", "--help"],
         cwd=project_root,
         env=env,
         capture_output=True,
@@ -66,7 +66,7 @@ def test_ml_cli_is_importable_from_repo_root_without_pythonpath():
     env.pop("PYTHONPATH", None)
 
     result = subprocess.run(
-        [sys.executable, "-m", "ml.cli", "--help"],
+        [sys.executable, "-m", "hg.ml.cli", "--help"],
         cwd=project_root,
         env=env,
         capture_output=True,
@@ -84,7 +84,7 @@ def test_run_experiment_is_importable_from_repo_root_without_pythonpath():
     env.pop("PYTHONPATH", None)
 
     result = subprocess.run(
-        [sys.executable, "-m", "pipeline.run_experiment", "--help"],
+        [sys.executable, "-m", "hg.pipeline.run_experiment", "--help"],
         cwd=project_root,
         env=env,
         capture_output=True,
@@ -102,7 +102,7 @@ def test_n2_improvement_workflow_is_importable_from_repo_root_without_pythonpath
     env.pop("PYTHONPATH", None)
 
     result = subprocess.run(
-        [sys.executable, "-m", "pipeline.run_n2_improvement_workflow", "--help"],
+        [sys.executable, "-m", "hg.pipeline.run_n2_improvement_workflow", "--help"],
         cwd=project_root,
         env=env,
         capture_output=True,

@@ -21,12 +21,12 @@
 - HITRAN 光谱积分支撑：`src/sim/generation/spectral/` 已具备表格谱积分、HAPI 适配、缓存、单位换算和默认滤光片/网格配置；`src/pipeline/precompute_hitran_benchmark_cache.py` 按 benchmark 的 `sequence_count/seed/sampling_strategy` 预计算每条 condition 的 T/P cache，先串行确保 HAPI 原始表，再以保守进程数和有界 pending 队列补齐缺失 `.npz` cache，已有 cache 直接跳过；`src/pipeline/precompute_hitran_spectra.py` 保留通用通道预计算入口。默认滤光片当前使用 InfraTec NBP 行业参考占位（`filter_source.type=industry_reference_only`），待目标传感器 TraceGas-HC-NDIR 实际 datasheet 替换。
 - DL 数据加载：`V4BenchmarkDataset` 消费 v4 benchmark 目录，支持慢变量/超声/光纤麦克风三模态、NTC/NCT 格式切换、lazy memmap、按 split 消费；训练期可选 `TimeSeriesAugmentConfig` 做窗口切片/重采样抖动，默认关闭。
 - DL 模型注册：`MODEL_REGISTRY` + `build_model()` 工厂，已落地 `CNN1DRegressor`、`TCNRegressor`、`LSTMRegressor`、`TransformerRegressor` 和 `PatchTSTRegressor`。CNN/TCN 支持 `mean/last/attention` 时序聚合；`TCNRegressor.receptive_field` 记录模型时间感受野，并可按 `target_timesteps` 自动扩展通道层数。
-- PhaseWindowTCN 多窗口 DL 链路：`V4BenchmarkDataset` 支持 `phase_windows` 返回 `(W, T, C)` 多窗口输入；`PhaseWindowTCNRegressor` 消费真实 `full + exposure + recovery` 窗口视图，支持 `share_window_encoder`、`output_mode={"raw4","softmax100","gas_head"}` 和更深 TCN 通道配置。当前活跃结构消融配置位于 `configs/experiment/phase_window_tcn_ablation/`。
+- PhaseWindowTCN 多窗口 DL 链路：`V4BenchmarkDataset` 支持 `phase_windows` 返回 `(W, T, C)` 多窗口输入；`PhaseWindowTCNRegressor` 消费真实 `full + exposure + recovery` 窗口视图，支持 `share_window_encoder`、`output_mode={"raw4","softmax100","gas_head"}` 和更深 TCN 通道配置。当前活跃结构消融配置位于 `configs/phase_window_tcn_ablation/`。
 - DL 训练闭环：`src/dl/training` 已落地 loss registry、`free_component_mse`、回归指标、`build_optimizer`、轻量 `Trainer.fit/evaluate/predict`、checkpoint 保存/加载、early stopping、ReduceLROnPlateau、AMP、训练进度 JSONL 和 run_config/metrics JSON 写出。当前定位为单卡实验闭环，不包含多 GPU/分布式训练。
 - v4 输出契约：正式 split 只使用 `splits/train.csv`、`splits/val.csv`、`splits/test.csv`、`splits/extrapolation.csv`；不写 V3 的 `*_sequence_ids.csv` 旧命名。
 - 传统 ML 与协议评估：`src/ml` 支持 Mean/Ridge baseline、full/per-phase/early-window 特征窗口，以及 `full + exposure + recovery` 多窗口特征拼接；`ridge_multiwindow_all_modalities` 是当前正式 phase-aware ML 主线。
 - 实验编排：`src/pipeline/experiment_config.py` 与 `src/pipeline/run_experiment.py` 支持 JSON 实验配置、ML/DL run 列表、`phase_windows`、dry-run、summary CSV 和 Markdown report。当前 PhaseWindowTCN 结构消融首批和 followup 配置已落地。
-- 存储策略：正式大规模数据集默认推荐 `storage=memmap`，下游 ML/DL 已能直接读取 `.npy`/memmap。若需要兼容压缩包，生成后用 `python -m pipeline.bundle_waveform_sequence --dataset-dir <dataset>` 单独打包 `sequences/waveform_sequence.npz`；`storage=npz/both` 保留兼容，但不作为大规模主路径。
+- 存储策略：正式大规模数据集默认推荐 `storage=memmap`，下游 ML/DL 已能直接读取 `.npy`/memmap。若需要兼容压缩包，生成后用 `python -m hg.pipeline.bundle_waveform_sequence --dataset-dir <dataset>` 单独打包 `sequences/waveform_sequence.npz`；`storage=npz/both` 保留兼容，但不作为大规模主路径。
 - 验证基线：核心依赖为 `numpy/scipy/torch/pytest/hitran-api`；`python -m pytest` 当前为 462 passed（hydrogen_ng 353 + syngas 109，含 Stage Ⅱ ablation 18 个新增测试）。
 
 ## 合成气适配（已落地，2026-06-26）
@@ -42,7 +42,7 @@
 - `src/sim/core/syngas_schema.py` — syngas 专用 schema：`COMPONENT_FIELDS = ("x_H2","x_CH4","x_CO2","x_CO")`，`BACKGROUND_FIELDS = ("x_N2",)`，9 个 SLOW_CHANNELS（含 `V_NDIR_CO`）。
 - `src/sim/generation/syngas/` 子包：`conditions.py`（方案 B + 条件顺序采样）、`acoustic_physics.py`（CO 声速 / 弛豫衰减 / 热导 / 吸收）、`optical_crosstalk.py`（3×3 矩阵，Step 1/2 切换）、`slow.py`（含 V_NDIR_CO 慢通道）、`benchmark.py`（独立 benchmark 编排）。
 - `src/pipeline/generate_syngas_benchmark.py` — CLI 入口，默认 `empirical_v1` 光学后端。
-- `configs/experiment/sg4/sg4_baseline.json` — DL baseline 配置：`cnn1d` + `weighted_component_mse` + `weighting=inverse_train_var`。
+- `configs/sg4/sg4_baseline.json` — DL baseline 配置：`cnn1d` + `weighted_component_mse` + `weighting=inverse_train_var`。
 - `tests/test_syngas_{sampling,acoustic_physics,benchmark_generation,dl_training,ablation}.py` — 109 个新测试（91 个基础 + 18 个 Stage Ⅱ ablation）。
 
 **共用代码兼容性改造**（默认行为不变）：
