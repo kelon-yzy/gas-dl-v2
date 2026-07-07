@@ -7,7 +7,7 @@
 - condition_grid 含 x_N2 但 labels 不含
 - manifest.composition_scheme == "syngas"
 - HITRAN 后端 raise NotImplementedError（Stage 3c 留位）
-- hydrogen_ng 生成路径完全不受影响
+- 默认 schema 出口不再保留 hg 目标字段
 """
 from __future__ import annotations
 
@@ -237,30 +237,15 @@ def test_syngas_benchmark_hitran_backend_rejects_co_crosstalk(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 隔离性：hydrogen_ng benchmark 不受影响
+# 隔离性：默认 schema 不再携带 hg 目标字段
 # ---------------------------------------------------------------------------
 
 
-def test_hydrogen_ng_benchmark_module_intact():
-    """hydrogen_ng benchmark 仍可正常 import 并保持原签名。"""
-    from sg.sim.generation.benchmark import (
-        BenchmarkGenerationSpec,
-        generate_benchmark_dataset,
-    )
-    import inspect
+def test_default_schema_points_to_syngas_fields():
+    from sg.sim.core.schema import BACKGROUND_FIELDS as DEFAULT_BACKGROUND_FIELDS
+    from sg.sim.core.schema import COMPONENT_FIELDS as DEFAULT_COMPONENT_FIELDS
+    from sg.sim.core.schema import SCHEMA_VERSION as DEFAULT_SCHEMA_VERSION
 
-    sig = inspect.signature(BenchmarkGenerationSpec.__init__)
-    # 旧 spec 没有 composition_scheme（属于 syngas 概念）
-    assert "dataset_slug" in sig.parameters
-    # syngas 字段不能渗透进 hg spec
-    assert "composition_scheme" not in sig.parameters
-    assert "background_fields" not in sig.parameters
-    # generate 函数仍存在
-    assert callable(generate_benchmark_dataset)
-
-
-def test_hydrogen_ng_schema_unchanged():
-    """全局 hg COMPONENT_FIELDS 仍是 (x_H2, x_CH4, x_CO2, x_N2)。"""
-    from sg.sim.core.schema import COMPONENT_FIELDS as HG_FIELDS
-
-    assert HG_FIELDS == ("x_H2", "x_CH4", "x_CO2", "x_N2")
+    assert DEFAULT_SCHEMA_VERSION == "v4-syngas-1"
+    assert DEFAULT_COMPONENT_FIELDS == COMPONENT_FIELDS
+    assert DEFAULT_BACKGROUND_FIELDS == BACKGROUND_FIELDS

@@ -24,7 +24,7 @@ data/wv4-smoke/sequences/*.npy
 data/wv4-smoke/sequences/*.npz
 logs/
 .ace-tool/
-.claude/settings.local.json
+.claude/
 .agents/
 node_modules/
 package-lock.json

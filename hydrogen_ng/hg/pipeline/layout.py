@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-TOP_LEVEL_DIRS = ("src", "configs", "data", "outputs", "docs", "experiments", "tests")
-CONFIG_GROUPS = ("data", "model", "train", "eval", "experiment")
+TOP_LEVEL_DIRS = ("hg", "configs", "data", "outputs", "docs", "scripts", "tests")
+CONFIG_GROUPS = ("data",)
 OUTPUT_GROUPS = ("runs", "summary", "reports", "archive")
 
 

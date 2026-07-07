@@ -1,7 +1,7 @@
 """合成气场景 benchmark 生成 CLI。
 
 用法（empirical）：
-    python -m pipeline.generate_syngas_benchmark \
+    python -m sg.pipeline.generate_syngas_benchmark \
         --output-root data \
         --dataset sg4-smoke \
         --sequences 32 \
@@ -11,9 +11,9 @@
         --optical-absorption-backend empirical_v1
 
 用法（HITRAN，需先跑 precompute_syngas_hitran_benchmark_cache）：
-    python -m pipeline.precompute_syngas_hitran_benchmark_cache \
+    python -m sg.pipeline.precompute_syngas_hitran_benchmark_cache \
         --cache-root data/hitran_cache --sequences 32 --seed 20260626 --workers 4
-    python -m pipeline.generate_syngas_benchmark \
+    python -m sg.pipeline.generate_syngas_benchmark \
         --output-root data --dataset sg4-hitran-smoke --sequences 32 --seed 20260626 \
         --timesteps 32 --dt-s 0.5 \
         --optical-absorption-backend hitran_hapi_v1 --hitran-cache-root data/hitran_cache

@@ -8,6 +8,7 @@ import numpy as np
 
 from hg.sim.core.schema import SLOW_CHANNELS, SLOW_DYNAMIC_CHANNELS
 from hg.sim.generation.acoustic_physics import PROCESSING_PARAMS, main_sensor_features, thermal_conductivity_sensor_feature
+from hg.sim.generation.cache_paths import default_hitran_cache_root
 from hg.sim.generation.optical_backend import (
     EMPIRICAL_ABSORPTION_BACKEND,
     HITRAN_ABSORPTION_BACKEND,
@@ -45,7 +46,7 @@ def build_sequence_arrays(
     phase_schedule: str | PhaseSchedule = "standard_exposure",
     stage_jitter: float = 0.0,
     optical_absorption_backend: str = EMPIRICAL_ABSORPTION_BACKEND,
-    hitran_cache_root: str = "data/hitran_cache",
+    hitran_cache_root: str = default_hitran_cache_root(),
     start_sequence_index: int = 0,
 ) -> dict[str, object]:
     if optical_absorption_backend not in VALID_OPTICAL_ABSORPTION_BACKENDS:
@@ -224,7 +225,7 @@ def build_sequence_arrays_chunk(
     phase_schedule: str | PhaseSchedule = "standard_exposure",
     stage_jitter: float = 0.0,
     optical_absorption_backend: str = EMPIRICAL_ABSORPTION_BACKEND,
-    hitran_cache_root: str = "data/hitran_cache",
+    hitran_cache_root: str = default_hitran_cache_root(),
     start_sequence_index: int = 0,
 ) -> dict[str, object]:
     return build_sequence_arrays(

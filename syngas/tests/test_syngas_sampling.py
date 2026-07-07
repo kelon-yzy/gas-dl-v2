@@ -5,7 +5,7 @@
 - N2 残量 ≥ 阈值
 - 返回 dict 含 COMPONENT_FIELDS + BACKGROUND_FIELDS
 - labels 仅含 4 列预测目标
-- 不影响 hydrogen_ng schema
+- 默认 schema 出口与 syngas schema 一致
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from sg.sim.core.syngas_schema import (
     SLOW_CHANNELS as SG_SLOW_CHANNELS,
     SLOW_DYNAMIC_CHANNELS as SG_SLOW_DYNAMIC_CHANNELS,
 )
-from sg.sim.core.schema import COMPONENT_FIELDS as HG_COMPONENT_FIELDS
+from sg.sim.core.schema import COMPONENT_FIELDS as DEFAULT_COMPONENT_FIELDS
 from sg.sim.generation.syngas import (
     SYNGAS_RANGES,
     build_syngas_label_rows,
@@ -46,9 +46,9 @@ def test_syngas_schema_slow_channels_includes_co():
     assert len(SG_SLOW_DYNAMIC_CHANNELS) == 4
 
 
-def test_hydrogen_ng_schema_unchanged():
-    """hydrogen_ng COMPONENT_FIELDS 未被影响（分支隔离前提）。"""
-    assert HG_COMPONENT_FIELDS == ("x_H2", "x_CH4", "x_CO2", "x_N2")
+def test_default_schema_is_syngas_schema():
+    """隔离后的 sg 包默认 schema 应是 syngas，不再携带 hg 目标字段。"""
+    assert DEFAULT_COMPONENT_FIELDS == SG_COMPONENT_FIELDS
 
 
 # ---------------------------------------------------------------------------

@@ -10,7 +10,7 @@
 阶段 1–4 已完成；阶段 Ⅰ 正式实验已启动：
 
 ```text
-pipeline.generate_syngas_benchmark  →  data/sg4-formal/ (6000 seq)  →  dl.cli + sg4_{baseline,tcn,lstm,patchtst,ridge}.json
+sg.pipeline.generate_syngas_benchmark  →  data/sg4-formal/ (6000 seq)  →  sg.dl.cli + sg4_{baseline,tcn,lstm,patchtst,ridge}.json
 ```
 
 | 阶段 | 范围 | 状态 |
@@ -79,7 +79,7 @@ pipeline.generate_syngas_benchmark  →  data/sg4-formal/ (6000 seq)  →  dl.cl
 
 - `manifest.json` 应记录 `composition_scheme` / `labels` / `background_fields` / `slow_channels`，下游加载器应以 manifest 为准，不要硬编码全局常量。
 - `x_N2` 必须保留在 condition / physics 输入中，但不能作为 syngas labels 目标列。
-- 旧 `wv4` 数据和新 `sg4` 数据完全并存：实施采用**分支隔离**，syngas 走 `src/sim/core/syngas_schema.py` 和 `src/sim/generation/syngas/` 子包；hg 路径未改动。
+- `sg4` 数据由独立 `syngas/` 子工程生成和训练，入口位于 `sg/sim/core/syngas_schema.py` 与 `sg/sim/generation/syngas/`。
 - CO 与 N₂ 在声学和热导上近似简并，CO 精度需要重点检查 `V_NDIR_CO` 贡献；建议做 ablation 移除 `V_NDIR_CO` 看 CO R² 是否暴跌。
 - CO NDIR 滤光片参数当前是行业参考占位（InfraTec I 4.66 μm / 180 nm），正式实验前需要替换为目标传感器 datasheet。
 - syngas 不允许 `target_transform`（ILR/ALR 依赖 sum=100% 闭包），Trainer 直接拒绝。
@@ -89,18 +89,18 @@ pipeline.generate_syngas_benchmark  →  data/sg4-formal/ (6000 seq)  →  dl.cl
 
 ```powershell
 # 1a. 生成 sg4-smoke benchmark（empirical 后端，约 16 序列、3 秒，用于链路验证）
-python -m pipeline.generate_syngas_benchmark `
+python -m sg.pipeline.generate_syngas_benchmark `
     --output-root data --dataset sg4-smoke --sequences 32 --seed 20260626 `
     --timesteps 32 --dt-s 0.5 --optical-absorption-backend empirical_v1 --workers 1
 
 # 1b. 生成 sg4-formal benchmark（6000 序列 / 512 时步 / 24 workers，约 6–8 分钟，与 hg `wv4-formal-hitran-standard-6000` 时间轴对齐）
-python -m pipeline.generate_syngas_benchmark `
+python -m sg.pipeline.generate_syngas_benchmark `
     --output-root data --dataset sg4-formal --sequences 6000 --seed 20260626 `
     --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 `
     --storage memmap --workers 24
 
 # 2. DL 基线训练（cnn1d + weighted_component_mse，单 seed）
-python -m dl.cli --config configs/experiment/sg4/sg4_baseline.json
+python -m sg.dl.cli --config configs/sg4_baseline.json
 
 # 3. 全量基线矩阵（5 模型 × 3 seeds = 15 runs，自动汇总到 outputs/sg4_baseline/summary.json）
 python scripts/run_sg4_baseline.py
@@ -113,16 +113,16 @@ python -m pytest tests/test_syngas_*.py -v
 
 | 入口 | 文件 |
 |---|---|
-| schema | `src/sim/core/syngas_schema.py` |
-| 采样 | `src/sim/generation/syngas/conditions.py` |
-| 声学 / 热导 / 吸收 | `src/sim/generation/syngas/acoustic_physics.py` |
-| 3×3 光学串扰（Step 1/2 切换） | `src/sim/generation/syngas/optical_crosstalk.py` |
-| 慢通道（9 通道） | `src/sim/generation/syngas/slow.py` |
-| benchmark 编排 | `src/sim/generation/syngas/benchmark.py` |
-| CLI | `src/pipeline/generate_syngas_benchmark.py` |
-| DL 配置（5 个） | `configs/experiment/sg4/sg4_{baseline,tcn,lstm,patchtst,ridge}.json` |
+| schema | `sg/sim/core/syngas_schema.py` |
+| 采样 | `sg/sim/generation/syngas/conditions.py` |
+| 声学 / 热导 / 吸收 | `sg/sim/generation/syngas/acoustic_physics.py` |
+| 3×3 光学串扰（Step 1/2 切换） | `sg/sim/generation/syngas/optical_crosstalk.py` |
+| 慢通道（9 通道） | `sg/sim/generation/syngas/slow.py` |
+| benchmark 编排 | `sg/sim/generation/syngas/benchmark.py` |
+| CLI | `sg/pipeline/generate_syngas_benchmark.py` |
+| DL 配置（5 个） | `configs/sg4_{baseline,tcn,lstm,patchtst,ridge}.json` |
 | 训练编排脚本 | `scripts/run_sg4_baseline.py` |
-| 共用 metrics 适配 | `src/common/metrics.py` (`bin_components` 参数化) ; `src/ml/training.py` (`_default_bin_components`) |
+| 共用 metrics 适配 | `sg/common/metrics.py` (`bin_components` 参数化) ; `sg/ml/training.py` (`_default_bin_components`) |
 
 ## 旧路径迁移说明
 
@@ -130,8 +130,8 @@ python -m pytest tests/test_syngas_*.py -v
 
 | 旧路径 | 新路径 |
 |---|---|
-| `docs/syngas_adaptation_plan.md` | `docs/syngas/adaptation_plan.md` |
-| `docs/syngas_physics_references.md` | `docs/syngas/physics_references.md` |
-| `docs/syngas_lhs_sampling_design.md` | `docs/syngas/lhs_sampling_design.md` |
-| `docs/syngas_co_crosstalk_design.md` | `docs/syngas/co_crosstalk_design.md` |
-| `docs/syngas_references/*.md` | `docs/syngas/references/*.md` |
+| `docs/syngas_adaptation_plan.md` | `syngas/docs/adaptation_plan.md` |
+| `docs/syngas_physics_references.md` | `syngas/docs/physics_references.md` |
+| `docs/syngas_lhs_sampling_design.md` | `syngas/docs/lhs_sampling_design.md` |
+| `docs/syngas_co_crosstalk_design.md` | `syngas/docs/co_crosstalk_design.md` |
+| `docs/syngas_references/*.md` | `syngas/docs/references/*.md` |

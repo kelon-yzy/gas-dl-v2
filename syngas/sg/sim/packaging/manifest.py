@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from sg.sim.core.schema import SCHEMA_VERSION as DEFAULT_SCHEMA_VERSION
+from sg.sim.core.schema import (
+    BACKGROUND_FIELDS as DEFAULT_BACKGROUND_FIELDS,
+    COMPOSITION_SCHEME as DEFAULT_COMPOSITION_SCHEME,
+    SCHEMA_VERSION as DEFAULT_SCHEMA_VERSION,
+)
 
 
 def build_manifest(
@@ -25,17 +29,16 @@ def build_manifest(
     acoustic_model_metadata: dict[str, object] | None = None,
     sim_revision: dict[str, object] | None = None,
     schema_version: str = DEFAULT_SCHEMA_VERSION,
-    composition_scheme: str = "hydrogen_ng",
-    background_fields: tuple[str, ...] = (),
+    composition_scheme: str = DEFAULT_COMPOSITION_SCHEME,
+    background_fields: tuple[str, ...] = DEFAULT_BACKGROUND_FIELDS,
 ) -> dict[str, object]:
     """Build a benchmark manifest.
 
     composition_scheme:
-        "hydrogen_ng" (default, sum=100% closure) or "syngas" (sum<100%, N2 as
-        background). Downstream loaders use this to switch label semantics.
+        Defaults to the isolated sg package scheme ("syngas").
+        Downstream loaders use this to switch label semantics.
     background_fields:
-        Components that participate in physics but are not predicted (e.g.
-        ("x_N2",) for syngas). Empty tuple for hydrogen_ng.
+        Components that participate in physics but are not predicted.
     """
     manifest = {
         "schema_version": schema_version,

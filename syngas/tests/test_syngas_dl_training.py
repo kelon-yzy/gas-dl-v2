@@ -8,7 +8,7 @@
 - conditional_metrics 按 co_bins 分箱（不是 n2_bins）
 - val_sum_abs_error 为 None（syngas 场景不计算）
 - 闭包类 loss 在 syngas 下被拒绝
-- hydrogen_ng 路径不受影响
+- 缺省 composition_scheme 时按 syngas 处理
 """
 from __future__ import annotations
 
@@ -81,16 +81,6 @@ class TestLossCompositionSchemeValidation:
         ):
             # 不应抛错
             validate_loss_composition_scheme(loss_name, "syngas")
-
-    def test_all_losses_accepted_for_hydrogen_ng(self):
-        """hydrogen_ng 场景下闭包类 loss 仍然合法。"""
-        for loss_name in (
-            "mse",
-            COMPOSITIONAL_MSE_LOSS,
-            FREE_COMPONENT_MSE_LOSS,
-            WEIGHTED_COMPONENT_MSE_LOSS,
-        ):
-            validate_loss_composition_scheme(loss_name, "hydrogen_ng")
 
 
 # ---------------------------------------------------------------------------
@@ -253,27 +243,15 @@ class TestTrainerCompositionScheme:
 # ---------------------------------------------------------------------------
 
 
-class TestHydrogenNgUnaffected:
-    def test_legacy_hg_benchmark_still_loads_with_default_scheme(self, tmp_path: Path):
-        """hydrogen_ng 数据集即使 manifest 无 composition_scheme 字段也能 fallback。"""
-        from sg.sim.generation.benchmark import (
-            BenchmarkGenerationSpec,
-            generate_benchmark_dataset,
-        )
-
-        generate_benchmark_dataset(
-            tmp_path,
-            BenchmarkGenerationSpec(
-                dataset_slug="hg-dl-smoke",
-                sequence_count=8,
-                seed=7,
-                timesteps=16,
-                storage="npz",
-                optical_absorption_backend="empirical_v1",
-            ),
-        )
-        dataset_dir = tmp_path / "hg-dl-smoke"
-        output_dir = tmp_path / "runs" / "hg-baseline"
+class TestSyngasDefaults:
+    def test_missing_manifest_scheme_uses_syngas_default(self, tmp_path: Path):
+        """旧 sg 数据集缺少 composition_scheme 字段时仍按 syngas label 语义训练。"""
+        dataset_dir = _make_syngas_smoke_dataset(tmp_path, slug="sg4-no-scheme")
+        manifest_path = dataset_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest.pop("composition_scheme")
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        output_dir = tmp_path / "runs" / "sg-default-scheme"
         parser = build_dl_cli_parser()
         args = parser.parse_args(
             [
@@ -296,9 +274,8 @@ class TestHydrogenNgUnaffected:
             ]
         )
         payload = run_dl_cli(args)
-        # hg：8 通道、按 N2 分箱、计算 sum_abs_error
-        assert payload["model_config"]["in_channels"] == 8
+        assert payload["model_config"]["in_channels"] == 9
         assert payload["model_config"]["out_dim"] == 4
         cond_keys = set(payload["evaluations"]["val"]["conditional_metrics"])
-        assert cond_keys == {"n2_bins", "ch4_bins"}
-        assert payload["evaluations"]["val"]["sum_abs_error"] is not None
+        assert cond_keys == {"co_bins", "ch4_bins"}
+        assert payload["evaluations"]["val"]["sum_abs_error"] is None

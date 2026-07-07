@@ -6,7 +6,7 @@ acoustic frame stats) = 420-d feature vector, saved as
 `<dataset>/features/phase_stats.npy` (shape: [N_sequences, 420]).
 
 Usage (on server where data exists):
-    PYTHONPATH=src python scripts/precompute_phase_stats.py \
+    python scripts/precompute_phase_stats.py \
         --dataset-dir data/wv4-formal-hitran-standard-6000
 
 The output matches the same statistic set used by Ridge multiwindow ML features.

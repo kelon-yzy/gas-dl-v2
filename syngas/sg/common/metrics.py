@@ -45,13 +45,14 @@ def conditional_component_metrics(
     Parameters
     ----------
     bin_components:
-        Components to bin by. Defaults to ("x_N2", "x_CH4") for hydrogen_ng
-        compatibility. For syngas the caller should pass ("x_CO", "x_CH4").
+        Components to bin by. Defaults to ("x_CO", "x_CH4") for syngas
+        labels, and falls back to ("x_N2", "x_CH4") only when x_CO is absent.
         The returned dict key convention strips the ``"x_"`` prefix and adds
         ``"_bins"`` (e.g. ``"x_CO"`` → ``"co_bins"``).
     """
     if bin_components is None:
-        bin_components = ("x_N2", "x_CH4")
+        primary = "x_CO" if "x_CO" in component_names else "x_N2"
+        bin_components = (primary, "x_CH4")
     result: dict[str, dict[str, object]] = {}
     for component_name in bin_components:
         if not component_name.startswith("x_"):

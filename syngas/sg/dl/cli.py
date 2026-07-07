@@ -749,19 +749,19 @@ def _load_str_array(path: Path) -> list[str]:
 def _load_composition_scheme(dataset_dir: Path) -> tuple[str, tuple[str, ...]]:
     """Read composition_scheme and label_names from benchmark manifest/metadata.
 
-    Falls back to hydrogen_ng defaults for legacy datasets that pre-date the
-    syngas adaptation (manifest.composition_scheme absent).
+    Falls back to syngas defaults for isolated sg datasets that pre-date the
+    explicit manifest field.
     """
     manifest_path = dataset_dir / "manifest.json"
-    composition_scheme = "hydrogen_ng"
+    composition_scheme = "syngas"
     if manifest_path.is_file():
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        composition_scheme = str(manifest.get("composition_scheme", "hydrogen_ng"))
+        composition_scheme = str(manifest.get("composition_scheme", "syngas"))
     label_names_path = dataset_dir / "metadata" / "label_names.npy"
     if label_names_path.is_file():
         component_names = tuple(_load_str_array(label_names_path))
     else:
-        # Fallback：legacy 数据集没有 label_names.npy 时，用 hg 默认
+        # Fallback: older isolated sg datasets may not have label_names.npy.
         from sg.sim.core.schema import COMPONENT_FIELDS
 
         component_names = tuple(COMPONENT_FIELDS)

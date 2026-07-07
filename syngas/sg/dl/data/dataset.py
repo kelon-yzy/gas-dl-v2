@@ -21,7 +21,7 @@ MODALITY_OPTIONS = ("slow", "ultrasonic", "fiber_mic")
 class V4BenchmarkDataset(Dataset):
     """v4 正式 benchmark PyTorch Dataset。
 
-    消费 ``sim.pipeline.generate_benchmark`` 生成的完整数据集目录，
+    消费 ``sg.pipeline.generate_syngas_benchmark`` 生成的完整数据集目录，
     按 split 和模态选择构造可训练的 Dataset 实例。
 
     Parameters

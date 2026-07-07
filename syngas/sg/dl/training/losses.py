@@ -214,7 +214,7 @@ def validate_loss_model_output(
     *,
     model_name: str,
     model_kwargs: object,
-    composition_scheme: str = "hydrogen_ng",
+    composition_scheme: str = "syngas",
 ) -> None:
     """Check that the loss is compatible with the model's output head.
 

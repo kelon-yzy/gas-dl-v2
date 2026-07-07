@@ -6,7 +6,6 @@
 - 热导混合正确加入 CO
 - main_sensor_features 输出 V_NDIR_CO
 - 3×3 串扰矩阵 Step 1 / Step 2 行为
-- hydrogen_ng acoustic_physics 未被影响
 """
 from __future__ import annotations
 
@@ -14,8 +13,6 @@ import random
 
 import pytest
 
-from sg.sim.generation import acoustic_physics as hg_acoustic
-from sg.sim.generation.optical_crosstalk import apply_optical_crosstalk as hg_apply_crosstalk
 from sg.sim.generation.syngas.acoustic_physics import (
     _hidden_absorption_co,
     _hidden_lambda_mix,
@@ -194,7 +191,7 @@ def test_thermal_conductivity_sensor_feature_uses_x_co(syngas_condition):
 
 
 def test_crosstalk_step1_co_pure():
-    """Step 1 模式：observed_co == true_co；CH4↔CO2 行为同 hydrogen_ng。"""
+    """Step 1 模式：observed_co == true_co；CH4↔CO2 保留基础 2x2 串扰。"""
     res = apply_syngas_optical_crosstalk(
         absorption_ch4=1.0,
         absorption_co2=2.0,
@@ -209,14 +206,14 @@ def test_crosstalk_step1_co_pure():
     assert abs(res["absorption_co2_observed"] - (2.0 + 0.012 * 1.0)) < 1e-9
 
 
-def test_crosstalk_step1_matches_hydrogen_ng_for_ch4_co2():
-    """Step 1 的 CH4 / CO2 通道结果应与 hydrogen_ng 的 2×2 完全一致。"""
+def test_crosstalk_step1_ch4_co2_matrix_terms():
+    """Step 1 仍保留 CH4 与 CO2 的 2x2 串扰项，CO 通道纯净。"""
     sg = apply_syngas_optical_crosstalk(
         absorption_ch4=0.5, absorption_co2=0.3, absorption_co=2.0, enable_co_crosstalk=False
     )
-    hg = hg_apply_crosstalk(absorption_ch4=0.5, absorption_co2=0.3)
-    assert abs(sg["absorption_ch4_observed"] - hg["absorption_ch4_observed"]) < 1e-9
-    assert abs(sg["absorption_co2_observed"] - hg["absorption_co2_observed"]) < 1e-9
+    assert abs(sg["absorption_ch4_observed"] - (0.5 + 0.035 * 0.3)) < 1e-9
+    assert abs(sg["absorption_co2_observed"] - (0.3 + 0.012 * 0.5)) < 1e-9
+    assert sg["absorption_co_observed"] == 2.0
 
 
 def test_crosstalk_step2_co_receives_co2_leak():
@@ -257,34 +254,6 @@ def test_crosstalk_observed_ge_true_when_enabled(a_ch4, a_co2, a_co):
     assert res["absorption_ch4_observed"] >= a_ch4 - 1e-12
     assert res["absorption_co2_observed"] >= a_co2 - 1e-12
     assert res["absorption_co_observed"] >= a_co - 1e-12
-
-
-# ---------------------------------------------------------------------------
-# 隔离性：hydrogen_ng 物理不变
-# ---------------------------------------------------------------------------
-
-
-def test_hydrogen_ng_acoustic_signature_unchanged():
-    """hydrogen_ng 的 hidden_sound_speed_v2 签名仍是 5 参（无 x_co）。"""
-    import inspect
-
-    sig = inspect.signature(hg_acoustic.hidden_sound_speed_v2)
-    assert list(sig.parameters) == ["x_h2", "x_ch4", "x_co2", "x_n2", "t_c"]
-
-
-def test_hydrogen_ng_lambda_mix_signature_unchanged():
-    """hydrogen_ng 的 _hidden_lambda_mix 签名不含 x_co（WMS 仍 5 参：x_h2/x_ch4/x_co2/x_n2/t_c）。"""
-    import inspect
-
-    sig = inspect.signature(hg_acoustic._hidden_lambda_mix)
-    assert list(sig.parameters) == ["x_h2", "x_ch4", "x_co2", "x_n2", "t_c"]
-
-
-def test_hydrogen_ng_params_no_co_keys():
-    """hydrogen_ng PROCESSING_PARAMS_V2 不包含 CO 相关键，避免被误污染。"""
-    keys = set(hg_acoustic.PROCESSING_PARAMS_V2)
-    assert "alpha_lambda_max_co" not in keys
-    assert "f_relax_co_per_atm" not in keys
 
 
 def test_syngas_params_has_co_keys():

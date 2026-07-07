@@ -82,7 +82,7 @@ def evaluate_regressor(
     *,
     split: str,
     target_transform: TargetTransformSpec | None = None,
-    composition_scheme: str = "hydrogen_ng",
+    composition_scheme: str = "syngas",
 ) -> SplitEvaluation:
     """Evaluate a fitted regressor on one feature matrix."""
     predictions = model.predict(matrix.x)
@@ -95,7 +95,7 @@ def evaluate_regressor(
     compositional_metrics = (
         _compositional_metrics(predictions, matrix.y, target_transform) if target_transform is not None else None
     )
-    # sum=100% 闭包只对 hydrogen_ng / tunnel_ventilation 有意义；syngas labels 是 4 列 sum<100。
+    # sum=100% closure is not defined for syngas labels: N2 is background.
     if composition_scheme in ("hydrogen_ng", "tunnel_ventilation"):
         sum_abs_error: float | None = float(np.mean(np.abs(predictions.sum(axis=1) - 100.0)))
     else:
@@ -184,9 +184,9 @@ def train_regressor_on_dataset(
 def _load_composition_scheme(dataset_dir: Path) -> str:
     manifest_path = dataset_dir / "manifest.json"
     if not manifest_path.is_file():
-        return "hydrogen_ng"
+        return "syngas"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    return str(manifest.get("composition_scheme", "hydrogen_ng"))
+    return str(manifest.get("composition_scheme", "syngas"))
 
 
 def _has_target_transform(target_transform: str | dict[str, Any] | None) -> bool:

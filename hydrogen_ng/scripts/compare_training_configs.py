@@ -32,12 +32,12 @@ def compare_configs() -> None:
     print("  只有速度、显存、val_loss、test/extrapolation x_N2 R2 全部通过，才更新正式配置。")
     print()
     print("运行当前基线:")
-    print("PYTHONPATH=src python -m hg.pipeline.run_experiment \\")
+    print("python -m hg.pipeline.run_experiment \\")
     print("  --config configs/phase_window_tcn_ablation/phase_window_tcn_ablation.json \\")
     print("  --dataset-dir data/wv4-formal-hitran-standard-6000 \\")
     print("  --output-root outputs")
     print()
-    print("详细方案: docs/整理归档/runtime_tuning/训练配置优化方案.md")
+    print("详细方案: docs/ARCHITECTURE.md")
     print("=" * 80)
 
 

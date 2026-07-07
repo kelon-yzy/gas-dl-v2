@@ -1,41 +1,31 @@
+"""Default schema surface for the isolated syngas package.
+
+The old monorepo kept hydrogen-ng defaults in ``sim.core.schema`` and placed
+syngas-specific fields in ``syngas_schema``.  After scenario isolation, ``sg``
+has one default schema: syngas.  Shared copied modules can keep importing
+``sg.sim.core.schema`` without reintroducing hydrogen-ng target semantics.
+"""
 from __future__ import annotations
 
-
-SCHEMA_VERSION = "v4-benchmark-1"
-
-COMPONENT_FIELDS = ("x_H2", "x_CH4", "x_CO2", "x_N2")
-SLOW_CHANNELS = (
-    "V_NDIR_CH4",
-    "V_NDIR_CO2",
-    "V_TCS",
-    "T_C",
-    "P_MPa",
-    "H_RH",
-    "L_m",
-    "piston_position_m",
+from sg.sim.core.syngas_schema import (
+    ALL_COMPONENT_FIELDS,
+    BACKGROUND_FIELDS,
+    COMPONENT_FIELDS,
+    COMPOSITION_SCHEME,
+    CONDITION_GRID_FIELDS,
+    SCHEMA_VERSION,
+    SEQUENCE_INDEX_FIELDS,
+    SEQUENCE_LABEL_FIELDS,
+    SLOW_CHANNELS,
+    SLOW_DYNAMIC_CHANNELS,
+    SLOW_MODAL_GROUPS,
+    SLOW_SEQUENCE_FIELDS,
+    SPLIT_FIELDS,
+    SPLIT_NAMES,
 )
-SLOW_DYNAMIC_CHANNELS = ("V_NDIR_CH4", "V_NDIR_CO2", "V_TCS")
-SLOW_MODAL_GROUPS = {
-    "optical": ("V_NDIR_CH4", "V_NDIR_CO2"),
-    "thermal": ("V_TCS",),
-    "environment": ("T_C", "P_MPa", "H_RH", "L_m", "piston_position_m"),
-}
+
+
 PHASE_NAMES = ("baseline", "exposure", "steady", "recovery")
 MULTI_PATH_PHASES = ("off", "baseline", "steady")
 VALID_STORAGE_FORMATS = ("memmap", "npz", "both")
-CONDITION_GRID_FIELDS = (
-    "sequence_id",
-    "mixture_id",
-    *COMPONENT_FIELDS,
-    "T_C_base",
-    "P_MPa_base",
-    "H_RH_base",
-    "L_m_base",
-    "status",
-)
-SEQUENCE_INDEX_FIELDS = ("sequence_id", "mixture_id", "stage_profile", "status", "n_timesteps", "dt_s")
-SEQUENCE_LABEL_FIELDS = ("sequence_id", *COMPONENT_FIELDS)
-SLOW_SEQUENCE_FIELDS = ("sequence_id", "timestep", "timestamp_s", "phase_id", *SLOW_CHANNELS)
-SPLIT_FIELDS = ("sequence_id", "mixture_id")
-SPLIT_NAMES = ("train", "val", "test", "extrapolation")
-LEGACY_CONDITION_FIELDS = ("base_condition_id", "noise_seed_index", "noise_seed")
+LEGACY_CONDITION_FIELDS: tuple[str, ...] = ()

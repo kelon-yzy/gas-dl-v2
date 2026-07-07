@@ -6,7 +6,7 @@ HITRAN 后端预计算所需 (channel, gas, T, P) 谱线缓存。结构与 hg �
 3 通道 (ch4, co2, co) cache requirements。
 
 用法：
-    python -m pipeline.precompute_syngas_hitran_benchmark_cache \
+    python -m sg.pipeline.precompute_syngas_hitran_benchmark_cache \
         --cache-root data/hitran_cache \
         --sequences 32 \
         --seed 20260626 \

@@ -1,7 +1,7 @@
 """合成气场景的 schema 定义。
 
-与 hydrogen_ng 场景 (`sim.core.schema`) 并存。两者通过 `composition_scheme`
-字段区分，不共享 `COMPONENT_FIELDS` 等全局常量。
+隔离后的 `sg` 子工程以本 schema 作为唯一默认场景 schema；`schema.py`
+仅作为兼容出口重导出这些字段。
 
 字段约定：
 - COMPONENT_FIELDS: 预测目标列（4 列，sum<100%）
@@ -23,7 +23,7 @@ BACKGROUND_FIELDS = ("x_N2",)
 # 全部组分（用于声学/光学物理混合计算）
 ALL_COMPONENT_FIELDS = (*COMPONENT_FIELDS, *BACKGROUND_FIELDS)
 
-# 慢通道：在 hydrogen_ng 基础上新增 V_NDIR_CO
+# 慢通道：包含 CH4 / CO2 / CO 三个 NDIR 光学通道
 SLOW_CHANNELS = (
     "V_NDIR_CH4",
     "V_NDIR_CO2",

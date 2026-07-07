@@ -24,6 +24,7 @@ from hg.sim.core.schema import (
     SPLIT_NAMES,
     VALID_STORAGE_FORMATS,
 )
+from hg.sim.generation.cache_paths import default_hitran_cache_root
 from hg.sim.generation.conditions import build_label_rows, generate_condition_rows
 from hg.sim.generation.optical_backend import (
     EMPIRICAL_ABSORPTION_BACKEND,
@@ -45,7 +46,7 @@ from hg.sim.validation.integrity import validate_benchmark_assets
 
 
 DEFAULT_WAVEFORM_PATH_LMS = (0.18, 0.20, 0.22, 0.25, 0.28)  # 200kHz 声程上限 0.3m 约束下的 5 档多光程扫描
-DEFAULT_HITRAN_CACHE_ROOT = "data/hitran_cache"
+DEFAULT_HITRAN_CACHE_ROOT = default_hitran_cache_root()
 DEFAULT_MAX_WORKERS = 24
 ARRAY_KEYS = (
     "slow",
