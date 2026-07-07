@@ -6,12 +6,12 @@ import numpy as np
 import pytest
 import torch
 
-from dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
-from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
-from dl.data.scalers import apply_scaler, load_scaler
-from dl.data.splits import SPLIT_NAMES, load_splits, resolve_split_indices, split_sequence_ids
-from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
-from sim.packaging.scalers import fit_z_score_scalers
+from hg.dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
+from hg.dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
+from hg.dl.data.scalers import apply_scaler, load_scaler
+from hg.dl.data.splits import SPLIT_NAMES, load_splits, resolve_split_indices, split_sequence_ids
+from hg.sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+from hg.sim.packaging.scalers import fit_z_score_scalers
 
 
 def _make_smoke_dataset(tmp_path: Path, slug: str = "dl-smoke", sequences: int = 16) -> Path:

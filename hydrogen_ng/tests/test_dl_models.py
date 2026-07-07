@@ -4,18 +4,18 @@ from pathlib import Path
 
 import torch
 
-from dl.models.base import BaseRegressor
-from dl.models.cnn1d import CNN1DRegressor
-from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor, GasHeadNormalize
-from dl.models.handcraft_mlp import HandcraftMLPRegressor
-from dl.models.lstm import LSTMRegressor
-from dl.models.patchtst import PatchTSTRegressor
-from dl.models.phase_window_tcn import PhaseWindowTCNRegressor
-from dl.models.registry import MODEL_REGISTRY, build_model
-from dl.models.tcn import CausalConv1d, TCNRegressor, tcn_channels_for_timesteps
-from dl.models.transformer import TransformerRegressor
-from dl.data.dataset import V4BenchmarkDataset
-from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+from hg.dl.models.base import BaseRegressor
+from hg.dl.models.cnn1d import CNN1DRegressor
+from hg.dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor, GasHeadNormalize
+from hg.dl.models.handcraft_mlp import HandcraftMLPRegressor
+from hg.dl.models.lstm import LSTMRegressor
+from hg.dl.models.patchtst import PatchTSTRegressor
+from hg.dl.models.phase_window_tcn import PhaseWindowTCNRegressor
+from hg.dl.models.registry import MODEL_REGISTRY, build_model
+from hg.dl.models.tcn import CausalConv1d, TCNRegressor, tcn_channels_for_timesteps
+from hg.dl.models.transformer import TransformerRegressor
+from hg.dl.data.dataset import V4BenchmarkDataset
+from hg.sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
 
 
 def _make_smoke_dataset(tmp_path: Path) -> Path:

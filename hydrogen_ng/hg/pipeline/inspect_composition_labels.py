@@ -7,9 +7,9 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from common.composition import PERCENT_TOTAL, close_to_unit_interval, resolve_zero_replacement_epsilon
-from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
-from common.splits import load_splits, resolve_split_indices
+from hg.common.composition import PERCENT_TOTAL, close_to_unit_interval, resolve_zero_replacement_epsilon
+from hg.common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
+from hg.common.splits import load_splits, resolve_split_indices
 
 
 DEFAULT_ALR_REFERENCE = "x_CH4"

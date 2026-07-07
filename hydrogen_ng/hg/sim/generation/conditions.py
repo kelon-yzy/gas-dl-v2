@@ -5,8 +5,8 @@ from collections.abc import Iterable
 
 from scipy.stats.qmc import LatinHypercube
 
-from sim.core.ids import make_mixture_id, make_sequence_id
-from sim.core.schema import COMPONENT_FIELDS
+from hg.sim.core.ids import make_mixture_id, make_sequence_id
+from hg.sim.core.schema import COMPONENT_FIELDS
 
 
 def generate_condition_rows(

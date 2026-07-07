@@ -1,4 +1,4 @@
-from sim.core.ids import (
+from hg.sim.core.ids import (
     BenchmarkDatasetId,
     MixtureId,
     SequenceId,

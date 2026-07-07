@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 import pytest
 
-from sim.generation.spectral import (
+from hg.sim.generation.spectral import (
     BOLTZMANN_J_PER_K,
     NDIRFilter,
     STANDARD_ATMOSPHERE_PA,

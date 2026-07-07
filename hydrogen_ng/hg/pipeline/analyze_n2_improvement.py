@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 from typing import Any, Sequence
 
-from sim.core.schema import COMPONENT_FIELDS
+from hg.sim.core.schema import COMPONENT_FIELDS
 
 
 DEFAULT_COMPARISONS = (

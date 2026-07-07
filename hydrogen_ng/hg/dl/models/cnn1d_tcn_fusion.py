@@ -6,8 +6,8 @@ from typing import Sequence
 import torch
 from torch import nn
 
-from dl.models.base import BaseRegressor
-from dl.models.tcn import TemporalBlock
+from hg.dl.models.base import BaseRegressor
+from hg.dl.models.tcn import TemporalBlock
 
 
 class DeepAcousticEncoder1D(nn.Module):

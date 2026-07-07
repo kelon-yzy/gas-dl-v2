@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from sim.generation.acoustic_physics import (
+from hg.sim.generation.acoustic_physics import (
     hidden_attenuation_v2,
     hidden_sound_speed_v2,
     main_sensor_features,

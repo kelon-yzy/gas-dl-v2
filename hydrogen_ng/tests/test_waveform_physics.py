@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from sim.generation.waveforms import (
+from hg.sim.generation.waveforms import (
     FiberMicSpec,
     WaveformSpec,
     generate_burst_pulse,
@@ -77,7 +77,7 @@ def test_fractional_shift_distinguishes_subsample_offsets():
     """
     from scipy.signal import resample_poly
 
-    from sim.generation.waveforms import _lagrange_fractional_shift
+    from hg.sim.generation.waveforms import _lagrange_fractional_shift
 
     # 带通脉冲信号（与超声主脉冲同形态），放置在远离边界处避免边界效应干扰
     signal = np.zeros(512, dtype=np.float32)
@@ -104,7 +104,7 @@ def test_fractional_shift_no_wraparound_at_boundary():
     旧实现用 np.roll 做整数移位，会把移出的能量卷到另一端；本测试锁定零填充
     行为——正向延迟不污染末尾，负向延迟不污染开头。
     """
-    from sim.generation.waveforms import _lagrange_fractional_shift
+    from hg.sim.generation.waveforms import _lagrange_fractional_shift
 
     # 靠近开头的脉冲，正向延迟 3.3 样本：末尾应保持零（无环绕）
     signal_head = np.zeros(64, dtype=np.float32)

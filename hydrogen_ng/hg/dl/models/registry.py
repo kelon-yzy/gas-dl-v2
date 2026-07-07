@@ -4,14 +4,14 @@ from typing import Callable
 
 from torch import nn
 
-from dl.models.cnn1d import CNN1DRegressor
-from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
-from dl.models.handcraft_mlp import HandcraftMLPRegressor
-from dl.models.lstm import LSTMRegressor
-from dl.models.patchtst import PatchTSTRegressor
-from dl.models.phase_window_tcn import PhaseWindowTCNRegressor
-from dl.models.tcn import TCNRegressor
-from dl.models.transformer import TransformerRegressor
+from hg.dl.models.cnn1d import CNN1DRegressor
+from hg.dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
+from hg.dl.models.handcraft_mlp import HandcraftMLPRegressor
+from hg.dl.models.lstm import LSTMRegressor
+from hg.dl.models.patchtst import PatchTSTRegressor
+from hg.dl.models.phase_window_tcn import PhaseWindowTCNRegressor
+from hg.dl.models.tcn import TCNRegressor
+from hg.dl.models.transformer import TransformerRegressor
 
 MODEL_REGISTRY: dict[str, type[nn.Module] | Callable[..., nn.Module]] = {
     "cnn1d": CNN1DRegressor,

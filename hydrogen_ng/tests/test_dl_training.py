@@ -9,20 +9,20 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from dl import cli as dl_cli
-from common.composition import (
+from hg.dl import cli as dl_cli
+from hg.common.composition import (
     ALR_CH4_TRANSFORM,
     ILR_N2_FIRST_TRANSFORM,
     TRAIN_MIN_POSITIVE_HALF_EPSILON,
     TargetTransformSpec,
     transform_composition_targets,
 )
-from dl.cli import build_parser as build_dl_cli_parser, run as run_dl_cli
-from dl.training.losses import FREE_COMPONENT_MSE_LOSS
-from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
-from dl.training.trainer import AmpConfig, EarlyStoppingConfig, Trainer, build_optimizer
-from sim.core.schema import COMPONENT_FIELDS
-from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+from hg.dl.cli import build_parser as build_dl_cli_parser, run as run_dl_cli
+from hg.dl.training.losses import FREE_COMPONENT_MSE_LOSS
+from hg.dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
+from hg.dl.training.trainer import AmpConfig, EarlyStoppingConfig, Trainer, build_optimizer
+from hg.sim.core.schema import COMPONENT_FIELDS
+from hg.sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
 
 
 def _make_smoke_dataset(tmp_path: Path, slug: str = "dl-train-smoke", sequences: int = 16) -> Path:
@@ -685,7 +685,7 @@ class TestTrainerControl:
 
     def test_weight_init_produces_finite_values(self):
         """初始化后所有权重和偏置为有限值。"""
-        from dl.models.registry import build_model
+        from hg.dl.models.registry import build_model
         model = build_model(
             {
                 "name": "cnn1d",
@@ -701,7 +701,7 @@ class TestTrainerControl:
 
     def test_init_weights_actually_changes_weights(self):
         """验证 _init_weights 调用后权重与 PyTorch 默认初始化不同。"""
-        from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
+        from hg.dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
         model = CNN1DTCNFusionRegressor(
             in_channels=15008, out_dim=4,
             acoustic_channels=[4], tcn_channels=[4],
@@ -716,8 +716,8 @@ class TestTrainerControl:
 
     def test_init_weights_preserves_gas_head_bias_prior(self):
         """_init_weights 不应覆盖 GasHeadNormalize.bias 中的先验 logits。"""
-        from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
-        from dl.models.cnn1d_tcn_fusion import GasHeadNormalize
+        from hg.dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
+        from hg.dl.models.cnn1d_tcn_fusion import GasHeadNormalize
         model = CNN1DTCNFusionRegressor(
             in_channels=15008, out_dim=4,
             acoustic_channels=[4], tcn_channels=[4],

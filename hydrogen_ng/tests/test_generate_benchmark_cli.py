@@ -1,6 +1,6 @@
 import json
 
-from pipeline.generate_benchmark import main
+from hg.pipeline.generate_benchmark import main
 
 
 def test_generate_benchmark_cli_writes_summary(tmp_path, capsys):

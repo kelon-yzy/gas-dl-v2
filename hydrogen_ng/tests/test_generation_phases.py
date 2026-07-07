@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from sim.generation.phases import (
+from hg.sim.generation.phases import (
     FAST_TRANSIENT,
     INCOMPLETE_RECOVERY,
     MULTI_PULSE,
@@ -13,7 +13,7 @@ from sim.generation.phases import (
     phase_for_timestep,
     resolve_phase_schedule,
 )
-from sim.generation.slow import _path_l_m_for_schedule
+from hg.sim.generation.slow import _path_l_m_for_schedule
 
 
 def test_phase_boundaries_split_sequence_into_four_ordered_regions():

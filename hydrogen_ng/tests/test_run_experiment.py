@@ -5,15 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
-from dl.training.losses import (
+from hg.common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
+from hg.dl.training.losses import (
     FREE_COMPONENT_MSE_LOSS,
     WEIGHTED_COMPONENT_MSE_LOSS,
     WEIGHTED_FREE_COMPONENT_MSE_LOSS,
 )
-from pipeline.experiment_config import ALL_MODALITIES, load_experiment_config
-from pipeline.run_experiment import run
-from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+from hg.pipeline.experiment_config import ALL_MODALITIES, load_experiment_config
+from hg.pipeline.run_experiment import run
+from hg.sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
 
 
 def _make_smoke_dataset(tmp_path: Path, slug: str = "experiment-smoke", sequences: int = 8) -> Path:

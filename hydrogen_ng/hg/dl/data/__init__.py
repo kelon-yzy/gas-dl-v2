@@ -1,10 +1,10 @@
 """v4 DL 数据加载子模块。"""
 
-from dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
-from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
-from dl.data.feature_dataset import V4FeatureMatrixDataset
-from dl.data.scalers import apply_scaler, load_scaler
-from dl.data.splits import SPLIT_NAMES, load_splits, resolve_split_indices, split_sequence_ids
+from hg.dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
+from hg.dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
+from hg.dl.data.feature_dataset import V4FeatureMatrixDataset
+from hg.dl.data.scalers import apply_scaler, load_scaler
+from hg.dl.data.splits import SPLIT_NAMES, load_splits, resolve_split_indices, split_sequence_ids
 
 __all__ = [
     "V4BenchmarkDataset",

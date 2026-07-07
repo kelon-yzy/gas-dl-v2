@@ -1,6 +1,6 @@
-from sim.packaging.index import build_sequence_index_rows
-from sim.packaging.run_contract import REQUIRED_RUN_FILES, minimum_run_contract
-from sim.packaging.splits import build_split_rows_from_group_sets
+from hg.sim.packaging.index import build_sequence_index_rows
+from hg.sim.packaging.run_contract import REQUIRED_RUN_FILES, minimum_run_contract
+from hg.sim.packaging.splits import build_split_rows_from_group_sets
 
 
 def test_sequence_index_preserves_mixture_id_from_condition_rows():

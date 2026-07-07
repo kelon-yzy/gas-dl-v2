@@ -20,9 +20,9 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from common.splits import load_splits, resolve_split_indices
-from common.windows import WINDOW_KIND_PHASE, WindowConfig
-from ml.features import (
+from hg.common.splits import load_splits, resolve_split_indices
+from hg.common.windows import WINDOW_KIND_PHASE, WindowConfig
+from hg.ml.features import (
     DEFAULT_SEQUENCE_STATISTICS,
     DEFAULT_WAVEFORM_FRAME_FEATURES,
     MLFeatureConfig,

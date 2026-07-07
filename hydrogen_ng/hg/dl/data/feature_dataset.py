@@ -5,8 +5,8 @@ from pathlib import Path
 import torch
 from torch.utils.data import Dataset
 
-from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, resolve_window_config
-from ml.features import MLFeatureConfig, load_feature_matrix
+from hg.common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, resolve_window_config
+from hg.ml.features import MLFeatureConfig, load_feature_matrix
 
 
 class V4FeatureMatrixDataset(Dataset):

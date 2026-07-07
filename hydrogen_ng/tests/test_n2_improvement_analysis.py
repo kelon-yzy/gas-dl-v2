@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.analyze_n2_improvement import (
+from hg.pipeline.analyze_n2_improvement import (
     DEFAULT_PHASE_AWARE_COMPARISONS,
     analyze_n2_improvement,
     analyze_phase_aware_n2,

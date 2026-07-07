@@ -5,10 +5,10 @@ from pathlib import Path
 
 import numpy as np
 
-from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
-from common.windows import WindowConfig
-from ml.cli import build_parser as build_ml_cli_parser, run as run_ml_cli
-from ml import (
+from hg.common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON
+from hg.common.windows import WindowConfig
+from hg.ml.cli import build_parser as build_ml_cli_parser, run as run_ml_cli
+from hg.ml import (
     DynamicStackingSVRRegressor,
     MLFeatureConfig,
     MeanRegressor,
@@ -22,8 +22,8 @@ from ml import (
     sequence_stat_features,
     train_regressor_on_dataset,
 )
-from sim.core.schema import COMPONENT_FIELDS
-from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+from hg.sim.core.schema import COMPONENT_FIELDS
+from hg.sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
 
 
 def _make_smoke_dataset(tmp_path: Path, slug: str = "ml-smoke", sequences: int = 16) -> Path:

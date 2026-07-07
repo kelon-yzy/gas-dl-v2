@@ -7,15 +7,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
-from sim.generation.conditions import generate_condition_rows
-from sim.generation.gas_state import h2o_mole_percent_from_rh, hitran_pressure_atm, hitran_temperature_k
-from sim.generation.optical_backend import (
+from hg.sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+from hg.sim.generation.conditions import generate_condition_rows
+from hg.sim.generation.gas_state import h2o_mole_percent_from_rh, hitran_pressure_atm, hitran_temperature_k
+from hg.sim.generation.optical_backend import (
     MissingHitranBenchmarkCacheError,
     build_hitran_grid_for_condition,
     collect_hitran_cache_requirements,
 )
-from sim.generation.spectral import write_cached_spectrum
+from hg.sim.generation.spectral import write_cached_spectrum
 
 
 def test_default_benchmark_uses_hitran_cache_only_backend(tmp_path: Path):

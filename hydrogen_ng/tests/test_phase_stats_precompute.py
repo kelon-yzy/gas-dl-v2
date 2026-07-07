@@ -4,10 +4,10 @@ from pathlib import Path
 
 import numpy as np
 
-from common.windows import WINDOW_KIND_PHASE, WindowConfig
-from ml.features import MLFeatureConfig, load_feature_matrix
+from hg.common.windows import WINDOW_KIND_PHASE, WindowConfig
+from hg.ml.features import MLFeatureConfig, load_feature_matrix
 from scripts.precompute_phase_stats import precompute
-from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+from hg.sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
 
 
 def test_precomputed_phase_stats_match_ml_multiwindow_features(tmp_path: Path):

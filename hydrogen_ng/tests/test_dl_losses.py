@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 import torch
 
-from common.composition import ILR_N2_FIRST_TRANSFORM
-from dl.training.losses import (
+from hg.common.composition import ILR_N2_FIRST_TRANSFORM
+from hg.dl.training.losses import (
     FREE_COMPONENT_MSE_LOSS,
     LOSS_REGISTRY,
     WEIGHTED_COMPONENT_MSE_LOSS,

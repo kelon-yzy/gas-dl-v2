@@ -6,9 +6,9 @@ from pathlib import Path
 
 import numpy as np
 
-from sim.generation.spectral.cache import SpectralCacheKey, read_cached_spectrum, write_cached_spectrum
-from sim.generation.spectral.filters import NDIRFilter
-from sim.generation.spectral.tabulated_backend import TabulatedSpectrum, compute_tabulated_ndir_absorbance
+from hg.sim.generation.spectral.cache import SpectralCacheKey, read_cached_spectrum, write_cached_spectrum
+from hg.sim.generation.spectral.filters import NDIRFilter
+from hg.sim.generation.spectral.tabulated_backend import TabulatedSpectrum, compute_tabulated_ndir_absorbance
 
 
 HITRAN_ABSORPTION_BACKEND = "hitran_hapi_v1"

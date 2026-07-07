@@ -7,7 +7,7 @@ from typing import Sequence
 
 import numpy as np
 
-from common.waveform import waveform_array_filename, read_waveform_dtype
+from hg.common.waveform import waveform_array_filename, read_waveform_dtype
 
 
 def _array_files(dataset_dir: Path) -> dict[str, str]:

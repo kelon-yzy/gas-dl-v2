@@ -6,8 +6,8 @@ from pathlib import Path
 
 import numpy as np
 
-from pipeline.inspect_composition_labels import format_markdown_report, inspect_composition_labels, main
-from sim.core.schema import COMPONENT_FIELDS
+from hg.pipeline.inspect_composition_labels import format_markdown_report, inspect_composition_labels, main
+from hg.sim.core.schema import COMPONENT_FIELDS
 
 
 def _write_split(path: Path, rows: list[tuple[str, str]]) -> None:

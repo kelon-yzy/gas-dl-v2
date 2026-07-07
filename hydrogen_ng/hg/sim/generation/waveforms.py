@@ -8,7 +8,7 @@ from functools import lru_cache
 
 import numpy as np
 
-from sim.generation.acoustic_physics import hidden_attenuation_v2, hidden_sound_speed_v2
+from hg.sim.generation.acoustic_physics import hidden_attenuation_v2, hidden_sound_speed_v2
 
 
 # 物理后端注入：syngas 场景需要 6 参数声速/衰减（多 x_co）。默认使用

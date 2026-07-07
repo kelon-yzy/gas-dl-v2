@@ -6,8 +6,8 @@ from pathlib import Path
 
 import numpy as np
 
-from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
-from sim.generation.conditions import generate_condition_rows
+from hg.sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset
+from hg.sim.generation.conditions import generate_condition_rows
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:

@@ -22,7 +22,7 @@ from sklearn.cluster import KMeans
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.preprocessing import StandardScaler
 
-from sim.core.schema import SPLIT_NAMES
+from hg.sim.core.schema import SPLIT_NAMES
 
 
 class SpxySplitError(RuntimeError):
@@ -579,7 +579,7 @@ def build_spxy_split_with_summary(
     n_clusters: int = 8,
 ) -> tuple[dict[str, list[dict[str, str]]], dict[str, object]]:
     """SPXY+OOD 划分，附带 split_policy / alpha / strategy / diagnostics 的 summary。"""
-    from sim.packaging.spxy_diagnostics import compute_split_diagnostics
+    from hg.sim.packaging.spxy_diagnostics import compute_split_diagnostics
 
     rows, summary, (X_scaled, y_basis) = _build_spxy_split(
         conditions,
@@ -693,7 +693,7 @@ def build_lhs_stratified_split_with_summary(
     extrapolation_ratio: float = 0.05,
 ) -> tuple[dict[str, list[dict[str, str]]], dict[str, object]]:
     """LHS 分层随机划分，附带 summary 与 diagnostics。"""
-    from sim.packaging.spxy_diagnostics import compute_split_diagnostics
+    from hg.sim.packaging.spxy_diagnostics import compute_split_diagnostics
 
     rows, summary = _build_lhs_stratified_split(
         conditions, labels, seed=seed, train_ratio=train_ratio,

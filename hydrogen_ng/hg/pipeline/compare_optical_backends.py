@@ -6,8 +6,8 @@ import random
 from pathlib import Path
 from typing import Sequence
 
-from sim.generation.acoustic_physics import main_sensor_features
-from sim.generation.spectral import (
+from hg.sim.generation.acoustic_physics import main_sensor_features
+from hg.sim.generation.spectral import (
     DEFAULT_HITRAN_GAS_SPECS,
     compute_hitran_ndir_absorbance,
     get_default_hitran_grid,

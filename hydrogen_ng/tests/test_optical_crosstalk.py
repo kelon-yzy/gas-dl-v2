@@ -1,6 +1,6 @@
 import pytest
 
-from sim.generation.optical_crosstalk import OpticalCrosstalkSpec, apply_optical_crosstalk
+from hg.sim.generation.optical_crosstalk import OpticalCrosstalkSpec, apply_optical_crosstalk
 
 
 def test_apply_optical_crosstalk_uses_default_matrix():

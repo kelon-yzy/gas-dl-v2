@@ -6,17 +6,17 @@ import random
 
 import numpy as np
 
-from sim.core.schema import SLOW_CHANNELS, SLOW_DYNAMIC_CHANNELS
-from sim.generation.acoustic_physics import PROCESSING_PARAMS, main_sensor_features, thermal_conductivity_sensor_feature
-from sim.generation.optical_backend import (
+from hg.sim.core.schema import SLOW_CHANNELS, SLOW_DYNAMIC_CHANNELS
+from hg.sim.generation.acoustic_physics import PROCESSING_PARAMS, main_sensor_features, thermal_conductivity_sensor_feature
+from hg.sim.generation.optical_backend import (
     EMPIRICAL_ABSORPTION_BACKEND,
     HITRAN_ABSORPTION_BACKEND,
     VALID_OPTICAL_ABSORPTION_BACKENDS,
     compute_hitran_optical_absorption,
 )
-from sim.generation.phases import PhaseSchedule, phase_boundaries, resolve_phase_schedule
-from sim.generation.spectral import HitranGridSpec, PreparedTabulatedSpectra
-from sim.generation.waveforms import FiberMicSpec, WaveformSpec, simulate_fiber_mic_measurement, simulate_waveform_measurement
+from hg.sim.generation.phases import PhaseSchedule, phase_boundaries, resolve_phase_schedule
+from hg.sim.generation.spectral import HitranGridSpec, PreparedTabulatedSpectra
+from hg.sim.generation.waveforms import FiberMicSpec, WaveformSpec, simulate_fiber_mic_measurement, simulate_waveform_measurement
 
 
 TAU_RISE_SYSTEM_S = {

@@ -7,11 +7,11 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from sim.generation.benchmark import DEFAULT_HITRAN_CACHE_ROOT, default_worker_count
-from sim.generation.conditions import generate_condition_rows
-from sim.generation.optical_backend import HitranCacheRequirement, collect_hitran_cache_requirements
-from sim.generation.spectral import compute_hitran_ndir_absorbance, get_default_ndir_filter, read_cached_spectrum
-from sim.generation.spectral.hitran_backend import _ensure_hapi_table, _load_hapi
+from hg.sim.generation.benchmark import DEFAULT_HITRAN_CACHE_ROOT, default_worker_count
+from hg.sim.generation.conditions import generate_condition_rows
+from hg.sim.generation.optical_backend import HitranCacheRequirement, collect_hitran_cache_requirements
+from hg.sim.generation.spectral import compute_hitran_ndir_absorbance, get_default_ndir_filter, read_cached_spectrum
+from hg.sim.generation.spectral.hitran_backend import _ensure_hapi_table, _load_hapi
 
 
 DEFAULT_MAX_HITRAN_PRECOMPUTE_WORKERS = 4

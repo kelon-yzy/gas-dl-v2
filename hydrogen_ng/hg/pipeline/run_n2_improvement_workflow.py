@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
-from pipeline.experiment_config import ExperimentConfig, load_experiment_config
+from hg.pipeline.experiment_config import ExperimentConfig, load_experiment_config
 
 
 DEFAULT_CONFIG_PATH = Path("configs/experiment/formal_full.json")

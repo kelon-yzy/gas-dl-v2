@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from sim.packaging.constants import Z_SCORE_STD_EPSILON
+from hg.sim.packaging.constants import Z_SCORE_STD_EPSILON
 
 
 def fit_z_score_scalers(

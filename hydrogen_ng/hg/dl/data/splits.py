@@ -6,7 +6,7 @@ Kept as a thin re-export so the deep-learning data API stays at
 
 from __future__ import annotations
 
-from common.splits import (
+from hg.common.splits import (
     SPLIT_NAMES,
     load_splits,
     resolve_split_indices,

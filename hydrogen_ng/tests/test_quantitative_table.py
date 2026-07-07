@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sim.generation.spectral import TabulatedSpectrum
-from sim.generation.spectral.quantitative_table import (
+from hg.sim.generation.spectral import TabulatedSpectrum
+from hg.sim.generation.spectral.quantitative_table import (
     convert_quantitative_coeff_to_per_percent_m,
     load_quantitative_spectrum_csv,
     resample_spectrum_to_grid,

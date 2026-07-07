@@ -6,12 +6,12 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from common.composition import TARGET_TRANSFORM_OPTIONS
-from common.metrics import conditional_metrics_to_payload
-from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
-from ml.features import MLFeatureConfig
-from ml.models import DynamicStackingSVRRegressor, MeanRegressor, RidgeRegressor
-from ml.training import MLTrainingResult, train_regressor_on_dataset
+from hg.common.composition import TARGET_TRANSFORM_OPTIONS
+from hg.common.metrics import conditional_metrics_to_payload
+from hg.ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
+from hg.ml.features import MLFeatureConfig
+from hg.ml.models import DynamicStackingSVRRegressor, MeanRegressor, RidgeRegressor
+from hg.ml.training import MLTrainingResult, train_regressor_on_dataset
 
 MODALITY_CHOICES = ("slow", "ultrasonic", "fiber_mic")
 DEFAULT_ML_CONFIG: dict[str, Any] = {

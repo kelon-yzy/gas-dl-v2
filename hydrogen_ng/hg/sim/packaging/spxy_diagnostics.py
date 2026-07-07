@@ -14,7 +14,7 @@ import numpy as np
 from scipy.spatial.distance import pdist
 from sklearn.neighbors import NearestNeighbors
 
-from sim.core.schema import SPLIT_NAMES
+from hg.sim.core.schema import SPLIT_NAMES
 
 
 def _indices_for_split(

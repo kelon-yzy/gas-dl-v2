@@ -11,13 +11,13 @@ from typing import Any, Sequence
 # 抑制 PyTorch Triton 编译器的逻辑运算符弃用警告
 warnings.filterwarnings('ignore', category=UserWarning, module='torch._inductor')
 
-from common.metrics import conditional_metrics_to_payload
-from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig, resolve_window_config, window_label, window_to_payload
-from dl.cli import run as run_dl_cli
-from ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
-from ml.features import MLFeatureConfig
-from ml.training import MLTrainingResult, train_regressor_on_dataset
-from pipeline.experiment_config import ExperimentConfig, load_experiment_config
+from hg.common.metrics import conditional_metrics_to_payload
+from hg.common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig, resolve_window_config, window_label, window_to_payload
+from hg.dl.cli import run as run_dl_cli
+from hg.ml.evaluation_protocol import BaselineProtocolResult, run_baseline_protocol
+from hg.ml.features import MLFeatureConfig
+from hg.ml.training import MLTrainingResult, train_regressor_on_dataset
+from hg.pipeline.experiment_config import ExperimentConfig, load_experiment_config
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -1,4 +1,4 @@
-from pipeline.layout import CONFIG_GROUPS, OUTPUT_GROUPS, TOP_LEVEL_DIRS, ensure_project_layout
+from hg.pipeline.layout import CONFIG_GROUPS, OUTPUT_GROUPS, TOP_LEVEL_DIRS, ensure_project_layout
 
 
 def test_layout_constants_match_target_architecture():

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from sim.generation.spectral import (
+from hg.sim.generation.spectral import (
     NDIRFilter,
     TabulatedSpectrum,
     compute_prepared_tabulated_ndir_absorbance,

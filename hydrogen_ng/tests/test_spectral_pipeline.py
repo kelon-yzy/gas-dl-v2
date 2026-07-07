@@ -5,14 +5,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pipeline.compare_optical_backends import compare_optical_backends
-from pipeline.precompute_hitran_benchmark_cache import main as precompute_benchmark_main
-from pipeline.precompute_hitran_benchmark_cache import default_hitran_precompute_worker_count, precompute_hitran_benchmark_cache
-from pipeline.precompute_hitran_spectra import main as precompute_main
-from pipeline.precompute_hitran_spectra import parse_channels, precompute_hitran_spectra
-from sim.generation.conditions import generate_condition_rows
-from sim.generation.optical_backend import collect_hitran_cache_requirements
-from sim.generation.spectral import (
+from hg.pipeline.compare_optical_backends import compare_optical_backends
+from hg.pipeline.precompute_hitran_benchmark_cache import main as precompute_benchmark_main
+from hg.pipeline.precompute_hitran_benchmark_cache import default_hitran_precompute_worker_count, precompute_hitran_benchmark_cache
+from hg.pipeline.precompute_hitran_spectra import main as precompute_main
+from hg.pipeline.precompute_hitran_spectra import parse_channels, precompute_hitran_spectra
+from hg.sim.generation.conditions import generate_condition_rows
+from hg.sim.generation.optical_backend import collect_hitran_cache_requirements
+from hg.sim.generation.spectral import (
     DEFAULT_HITRAN_GAS_SPECS,
     SPECTRAL_DEFAULTS_CONFIG_PATH,
     SPECTRAL_DEFAULTS_PAYLOAD,

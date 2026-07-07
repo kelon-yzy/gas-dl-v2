@@ -6,8 +6,8 @@ from typing import Callable
 import torch
 from torch import nn
 
-from common.composition import ILR_N2_FIRST_TRANSFORM
-from sim.core.schema import COMPONENT_FIELDS
+from hg.common.composition import ILR_N2_FIRST_TRANSFORM
+from hg.sim.core.schema import COMPONENT_FIELDS
 
 
 COMPOSITIONAL_MSE_LOSS = "compositional_mse"

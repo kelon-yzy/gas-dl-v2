@@ -5,12 +5,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pipeline.sanity_check_tabulated_spectra import (
+from hg.pipeline.sanity_check_tabulated_spectra import (
     load_cli_spectra,
     parse_channels,
     sanity_check_tabulated_spectra,
 )
-from sim.generation.spectral import (
+from hg.sim.generation.spectral import (
     TabulatedSpectrum,
     convert_hitran_coeff_to_per_percent_m,
     get_default_hitran_grid,

@@ -7,7 +7,7 @@ from typing import Sequence
 
 import numpy as np
 
-from sim.generation.spectral import (
+from hg.sim.generation.spectral import (
     DEFAULT_HITRAN_GAS_SPECS,
     HitranGasSpec,
     HitranGridSpec,
@@ -17,7 +17,7 @@ from sim.generation.spectral import (
     get_default_hitran_grid,
     get_default_ndir_filter,
 )
-from sim.generation.spectral.quantitative_table import (
+from hg.sim.generation.spectral.quantitative_table import (
     DEFAULT_COEFF_COLUMN,
     DEFAULT_WAVENUMBER_COLUMN,
     SUPPORTED_QUANTITATIVE_UNITS,

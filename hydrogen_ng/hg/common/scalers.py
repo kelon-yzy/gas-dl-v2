@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from sim.packaging.constants import Z_SCORE_STD_EPSILON
+from hg.sim.packaging.constants import Z_SCORE_STD_EPSILON
 
 
 def load_scaler(scaler_path: Path | str) -> dict[str, object]:

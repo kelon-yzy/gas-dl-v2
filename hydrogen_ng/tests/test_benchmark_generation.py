@@ -4,10 +4,10 @@ import json
 import numpy as np
 import pytest
 
-from pipeline.bundle_waveform_sequence import bundle_waveform_sequence
-from sim.generation import benchmark as benchmark_module
-from sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset, resolve_time_axis_preset
-from sim.generation.slow import _multi_tau_channel_step
+from hg.pipeline.bundle_waveform_sequence import bundle_waveform_sequence
+from hg.sim.generation import benchmark as benchmark_module
+from hg.sim.generation.benchmark import BenchmarkGenerationSpec, generate_benchmark_dataset, resolve_time_axis_preset
+from hg.sim.generation.slow import _multi_tau_channel_step
 
 
 def _read_csv(path):

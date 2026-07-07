@@ -4,18 +4,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON, resolve_target_transform_spec
-from common.windows import resolve_window_config
-from dl.models.registry import MODEL_REGISTRY
-from dl.training.losses import (
+from hg.common.composition import TRAIN_MIN_POSITIVE_HALF_EPSILON, resolve_target_transform_spec
+from hg.common.windows import resolve_window_config
+from hg.dl.models.registry import MODEL_REGISTRY
+from hg.dl.training.losses import (
     LOSS_REGISTRY,
     ILR_MSE_LOSS,
     loss_config_name,
     validate_loss_model_output,
     validate_loss_target_transform,
 )
-from ml.models import REGRESSOR_REGISTRY
-from sim.core.schema import SPLIT_NAMES
+from hg.ml.models import REGRESSOR_REGISTRY
+from hg.sim.core.schema import SPLIT_NAMES
 
 
 ALL_MODALITIES = ("slow", "ultrasonic", "fiber_mic")

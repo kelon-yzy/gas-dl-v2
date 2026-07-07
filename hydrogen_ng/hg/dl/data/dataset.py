@@ -8,11 +8,11 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, get_worker_info
 
-from common.waveform import waveform_array_path
-from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig, resolve_window_config
-from dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
-from dl.data.scalers import apply_scaler, load_scaler
-from dl.data.splits import load_splits, resolve_split_indices
+from hg.common.waveform import waveform_array_path
+from hg.common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig, resolve_window_config
+from hg.dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
+from hg.dl.data.scalers import apply_scaler, load_scaler
+from hg.dl.data.splits import load_splits, resolve_split_indices
 
 MODALITY_OPTIONS = ("slow", "ultrasonic", "fiber_mic")
 """v4 benchmark 支持的输入模态。"""

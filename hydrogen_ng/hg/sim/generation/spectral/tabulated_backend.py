@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from sim.generation.spectral.filters import NDIRFilter, gaussian_filter
-from sim.generation.spectral.integration import integrate_channel_absorbance
+from hg.sim.generation.spectral.filters import NDIRFilter, gaussian_filter
+from hg.sim.generation.spectral.integration import integrate_channel_absorbance
 
 
 @dataclass(frozen=True, slots=True)

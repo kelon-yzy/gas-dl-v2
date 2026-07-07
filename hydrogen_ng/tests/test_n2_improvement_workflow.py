@@ -4,9 +4,9 @@ import json
 import sys
 from pathlib import Path
 
-from pipeline import run_n2_improvement_workflow
-from pipeline.experiment_config import ExperimentConfig
-from pipeline.run_n2_improvement_workflow import format_markdown_plan, planned_steps, run_workflow
+from hg.pipeline import run_n2_improvement_workflow
+from hg.pipeline.experiment_config import ExperimentConfig
+from hg.pipeline.run_n2_improvement_workflow import format_markdown_plan, planned_steps, run_workflow
 
 
 def _config(dataset_dir: Path, output_root: Path, *, experiment_name: str = "formal_full") -> ExperimentConfig:

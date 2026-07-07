@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import math
 
-from sim.generation.optical_crosstalk import apply_optical_crosstalk
-from sim.generation.gas_state import h2o_mole_percent_from_rh
+from hg.sim.generation.optical_crosstalk import apply_optical_crosstalk
+from hg.sim.generation.gas_state import h2o_mole_percent_from_rh
 
 
 PROCESSING_PARAMS = {

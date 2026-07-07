@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
-from sim.generation.benchmark import (
+from hg.sim.generation.benchmark import (
     DEFAULT_HITRAN_CACHE_ROOT,
     DEFAULT_WAVEFORM_PATH_LMS,
     TIME_AXIS_PRESETS,
@@ -15,8 +15,8 @@ from sim.generation.benchmark import (
     generate_benchmark_dataset,
     resolve_time_axis_preset,
 )
-from sim.generation.optical_backend import VALID_OPTICAL_ABSORPTION_BACKENDS
-from sim.generation.phases import PHASE_SCHEDULES
+from hg.sim.generation.optical_backend import VALID_OPTICAL_ABSORPTION_BACKENDS
+from hg.sim.generation.phases import PHASE_SCHEDULES
 
 FORMAL_HITRAN_STANDARD_PRESET = "formal-hitran-standard-6000"
 GENERAL_DEFAULT_SEED = 20260524

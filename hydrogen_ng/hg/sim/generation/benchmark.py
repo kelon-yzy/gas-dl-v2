@@ -10,8 +10,8 @@ from pathlib import Path
 
 import numpy as np
 
-from sim.core.ids import BenchmarkDatasetId
-from sim.core.schema import (
+from hg.sim.core.ids import BenchmarkDatasetId
+from hg.sim.core.schema import (
     COMPONENT_FIELDS,
     CONDITION_GRID_FIELDS,
     MULTI_PATH_PHASES,
@@ -24,24 +24,24 @@ from sim.core.schema import (
     SPLIT_NAMES,
     VALID_STORAGE_FORMATS,
 )
-from sim.generation.conditions import build_label_rows, generate_condition_rows
-from sim.generation.optical_backend import (
+from hg.sim.generation.conditions import build_label_rows, generate_condition_rows
+from hg.sim.generation.optical_backend import (
     EMPIRICAL_ABSORPTION_BACKEND,
     HITRAN_ABSORPTION_BACKEND,
     VALID_OPTICAL_ABSORPTION_BACKENDS,
     hitran_manifest_metadata,
     validate_hitran_benchmark_cache,
 )
-from sim.generation.phases import PHASE_SCHEDULES, resolve_phase_schedule
-from sim.generation.slow import build_sequence_arrays, build_sequence_arrays_chunk
-from sim.generation.waveforms import FiberMicSpec, WaveformSpec
-from sim.packaging.arrays import write_arrays
-from sim.packaging.index import build_sequence_index_rows
-from sim.packaging.io import write_csv, write_json
-from sim.packaging.manifest import build_manifest
-from sim.packaging.scalers import fit_z_score_scalers
-from sim.packaging.splits import build_default_split_rows
-from sim.validation.integrity import validate_benchmark_assets
+from hg.sim.generation.phases import PHASE_SCHEDULES, resolve_phase_schedule
+from hg.sim.generation.slow import build_sequence_arrays, build_sequence_arrays_chunk
+from hg.sim.generation.waveforms import FiberMicSpec, WaveformSpec
+from hg.sim.packaging.arrays import write_arrays
+from hg.sim.packaging.index import build_sequence_index_rows
+from hg.sim.packaging.io import write_csv, write_json
+from hg.sim.packaging.manifest import build_manifest
+from hg.sim.packaging.scalers import fit_z_score_scalers
+from hg.sim.packaging.splits import build_default_split_rows
+from hg.sim.validation.integrity import validate_benchmark_assets
 
 
 DEFAULT_WAVEFORM_PATH_LMS = (0.18, 0.20, 0.22, 0.25, 0.28)  # 200kHz 声程上限 0.3m 约束下的 5 档多光程扫描

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sim.core.schema import SCHEMA_VERSION as DEFAULT_SCHEMA_VERSION
+from hg.sim.core.schema import SCHEMA_VERSION as DEFAULT_SCHEMA_VERSION
 
 
 def build_manifest(

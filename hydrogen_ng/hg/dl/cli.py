@@ -13,27 +13,27 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from common.composition import (
+from hg.common.composition import (
     TARGET_TRANSFORM_OPTIONS,
     replace_zeros_multiplicative,
     resolve_target_transform_spec,
     resolve_target_transform_for_training,
 )
-from common.metrics import conditional_metrics_to_payload
-from common.windows import resolve_window_config, window_to_payload
-from common.splits import load_splits, resolve_split_indices
-from dl.data.augmentation import TimeSeriesAugmentConfig
-from dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
-from dl.data.feature_dataset import V4FeatureMatrixDataset
-from dl.models.registry import MODEL_REGISTRY, build_model
-from dl.training.losses import (
+from hg.common.metrics import conditional_metrics_to_payload
+from hg.common.windows import resolve_window_config, window_to_payload
+from hg.common.splits import load_splits, resolve_split_indices
+from hg.dl.data.augmentation import TimeSeriesAugmentConfig
+from hg.dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
+from hg.dl.data.feature_dataset import V4FeatureMatrixDataset
+from hg.dl.models.registry import MODEL_REGISTRY, build_model
+from hg.dl.training.losses import (
     LOSS_REGISTRY,
     build_loss,
     validate_loss_composition_scheme,
     validate_loss_model_output,
     validate_loss_target_transform,
 )
-from dl.training.trainer import AmpConfig, EarlyStoppingConfig, OPTIMIZER_REGISTRY, Trainer, build_optimizer
+from hg.dl.training.trainer import AmpConfig, EarlyStoppingConfig, OPTIMIZER_REGISTRY, Trainer, build_optimizer
 
 DEFAULT_EVAL_SPLITS = ("val", "test", "extrapolation")
 DEFAULT_DL_CONFIG: dict[str, Any] = {
@@ -762,7 +762,7 @@ def _load_composition_scheme(dataset_dir: Path) -> tuple[str, tuple[str, ...]]:
         component_names = tuple(_load_str_array(label_names_path))
     else:
         # Fallback：legacy 数据集没有 label_names.npy 时，用 hg 默认
-        from sim.core.schema import COMPONENT_FIELDS
+        from hg.sim.core.schema import COMPONENT_FIELDS
 
         component_names = tuple(COMPONENT_FIELDS)
     return composition_scheme, component_names

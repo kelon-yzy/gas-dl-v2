@@ -7,6 +7,6 @@ Kept as a thin re-export so the deep-learning data API stays at
 
 from __future__ import annotations
 
-from common.scalers import apply_scaler, load_scaler
+from hg.common.scalers import apply_scaler, load_scaler
 
 __all__ = ["apply_scaler", "load_scaler"]

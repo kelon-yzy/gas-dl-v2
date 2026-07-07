@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from common.composition import (
+from hg.common.composition import (
     ALR_CH4_TRANSFORM,
     DEFAULT_ZERO_REPLACEMENT_EPSILON,
     ILR_N2_FIRST_TRANSFORM,
@@ -20,7 +20,7 @@ from common.composition import (
     transform_composition_targets,
     inverse_transform_composition_targets,
 )
-from sim.core.schema import COMPONENT_FIELDS
+from hg.sim.core.schema import COMPONENT_FIELDS
 
 
 def test_closure_helpers_preserve_row_totals():
