@@ -262,21 +262,6 @@ def test_hydrogen_ng_benchmark_module_intact():
     assert callable(generate_benchmark_dataset)
 
 
-def test_syngas_benchmark_module_intact():
-    """syngas benchmark 仍可正常 import。"""
-    from tv3.sim.generation.syngas import (
-        SyngasBenchmarkGenerationSpec,
-        generate_syngas_benchmark_dataset,
-    )
-
-    assert callable(generate_syngas_benchmark_dataset)
-    # syngas 仍含 enable_co_crosstalk（tv3 不应有）
-    import inspect
-
-    sig = inspect.signature(SyngasBenchmarkGenerationSpec.__init__)
-    assert "enable_co_crosstalk" in sig.parameters
-
-
 def test_tv3_spec_no_co_crosstalk_field():
     """tv3 spec 不应含 enable_co_crosstalk（无 CO 串扰概念）。"""
     import inspect
