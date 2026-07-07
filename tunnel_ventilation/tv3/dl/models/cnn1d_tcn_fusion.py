@@ -179,11 +179,70 @@ class PhaseStatMLP(nn.Module):
         return self.net(phase_stats)
 
 
+class FiLMModulation(nn.Module):
+    """slow context 调制波形 embedding：z' = γ ⊙ z + β。
+
+    初始化为恒等（γ=1, β=0），避免早期破坏编码器特征。父模型 ``_init_weights``
+    会用 Kaiming 重置 Linear 权重，因此恒等初始化需在父模型 ``apply(_init_weights)``
+    之后通过 ``reset_identity`` 重新建立。
+    """
+
+    def __init__(self, context_dim: int, feature_dim: int):
+        super().__init__()
+        if context_dim < 1 or feature_dim < 1:
+            raise ValueError("FiLMModulation requires context_dim>=1 and feature_dim>=1")
+        self.feature_dim = feature_dim
+        self.proj = nn.Linear(context_dim, 2 * feature_dim)
+        self.reset_identity()
+
+    def reset_identity(self) -> None:
+        """重置为恒等调制：γ=1, β=0。"""
+        nn.init.zeros_(self.proj.weight)
+        nn.init.zeros_(self.proj.bias)
+        self.proj.bias.data[: self.feature_dim].fill_(1.0)  # γ=1（前半段）
+
+    def forward(self, feature: torch.Tensor, context: torch.Tensor) -> torch.Tensor:
+        gamma, beta = self.proj(context).chunk(2, dim=-1)
+        return gamma * feature + beta
+
+
+class GatedFusion(nn.Module):
+    """门控加权融合替代直接 concat：g_i = σ(W[ẑ_0; ...; ẑ_n])。
+
+    每个分支 embedding 由一个 gate 加权后拼接，gate 输入是全部分支 concat。
+    输出维度等于各分支维度之和（与 concat 一致），TCN 输入维度不变。
+    中性初始化下 gate 输出倍率为 1，初始行为与 concat 一致。
+    """
+
+    def __init__(self, *dims: int):
+        super().__init__()
+        if not dims:
+            raise ValueError("GatedFusion requires at least one branch dim")
+        if any(d < 1 for d in dims):
+            raise ValueError("GatedFusion branch dims must be >= 1")
+        total = sum(dims)
+        self.gates = nn.ModuleList([nn.Linear(total, d) for d in dims])
+        self.reset_neutral()
+
+    def reset_neutral(self) -> None:
+        """重置为中性门控：2 * sigmoid(0) = 1。"""
+        for gate in self.gates:
+            nn.init.zeros_(gate.weight)
+            nn.init.zeros_(gate.bias)
+
+    def forward(self, *embeddings: torch.Tensor) -> torch.Tensor:
+        if len(embeddings) != len(self.gates):
+            raise ValueError(f"GatedFusion expected {len(self.gates)} embeddings, got {len(embeddings)}")
+        concat = torch.cat(embeddings, dim=-1)
+        weighted = [2.0 * torch.sigmoid(gate(concat)) * emb for gate, emb in zip(self.gates, embeddings, strict=True)]
+        return torch.cat(weighted, dim=-1)
+
+
 class CNN1DTCNFusionRegressor(BaseRegressor):
     """V4-compatible CNN1D-TCN fusion regressor.
 
     Expected input format is NTC with channels ordered as:
-    slow[8] + ultrasonic[1000] + fiber_mic[2000].
+    slow + ultrasonic + optional fiber_mic.
 
     output_mode supports:
     - ``"gas_head"``: bounded simplex output using GasHeadNormalize (default, original behavior).
@@ -213,6 +272,9 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         shared_hidden_dims: Sequence[int] = (128, 64),
         output_prior: Sequence[float] = (9.288469, 75.755157, 4.994778, 9.961745),
         output_mode: str = "gas_head",
+        raw_output_prior: Sequence[float] | None = None,
+        fusion_layer_norm: bool = False,
+        fusion_mode: str = "concat",
         phase_stat_dim: int = 0,
         phase_stat_hidden: int = 128,
         phase_stat_norm_mean: Sequence[float] | None = None,
@@ -266,6 +328,37 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
             embedding_dim=slow_embedding_dim,
         )
 
+        # 层 2：拼接前可选 LayerNorm，稳定各分支 embedding 尺度（默认关，保留 v2 行为）
+        self.fusion_layer_norm = bool(fusion_layer_norm)
+        if self.fusion_layer_norm:
+            self.ultrasonic_norm = nn.LayerNorm(waveform_embedding_dim)
+            self.fiber_mic_norm = nn.LayerNorm(waveform_embedding_dim) if fiber_mic_channels > 0 else None
+            self.slow_norm = nn.LayerNorm(slow_embedding_dim)
+        else:
+            self.ultrasonic_norm = None
+            self.fiber_mic_norm = None
+            self.slow_norm = None
+
+        # 层 3：FiLM 调制 + gated fusion（默认 concat，保留 v2 行为）
+        self.fusion_mode = str(fusion_mode)
+        if self.fusion_mode not in {"concat", "film_gate"}:
+            raise ValueError(f"fusion_mode must be one of ['concat', 'film_gate'], got {self.fusion_mode!r}")
+        if self.fusion_mode == "film_gate" and not self.fusion_layer_norm:
+            raise ValueError("fusion_mode='film_gate' requires fusion_layer_norm=true")
+        if self.fusion_mode == "film_gate":
+            self.film_modulation = FiLMModulation(
+                context_dim=slow_embedding_dim,
+                feature_dim=waveform_embedding_dim,
+            )
+            gate_dims: list[int] = [waveform_embedding_dim]
+            if fiber_mic_channels > 0:
+                gate_dims.append(waveform_embedding_dim)
+            gate_dims.append(slow_embedding_dim)
+            self.gated_fusion = GatedFusion(*gate_dims)
+        else:
+            self.film_modulation = None
+            self.gated_fusion = None
+
         n_waveform_encoders = 1 + (1 if fiber_mic_channels > 0 else 0)
         fusion_channels = waveform_embedding_dim * n_waveform_encoders + slow_embedding_dim
         layers: list[nn.Module] = []
@@ -309,6 +402,22 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
             self.output_head = nn.Linear(h2, out_dim)
         self.output_mode = output_mode
         self.apply(self._init_weights)
+        if output_mode == "raw3" and raw_output_prior is not None:
+            self._init_raw_output_prior(raw_output_prior, out_dim)
+        # FiLM 恒等初始化需在 _init_weights 之后重建：apply 会用 Kaiming 重置 Linear 权重，
+        # 破坏 γ=1/β=0 的恒等启动，导致早期 slow context 强扰动 ultrasonic 特征。
+        if self.fusion_mode == "film_gate":
+            self.film_modulation.reset_identity()
+            self.gated_fusion.reset_neutral()
+
+    def _init_raw_output_prior(self, raw_output_prior: Sequence[float], out_dim: int) -> None:
+        if len(raw_output_prior) != out_dim:
+            raise ValueError(f"raw_output_prior must contain {out_dim} values")
+        prior = torch.tensor(raw_output_prior, dtype=self.output_head.bias.dtype)
+        if not bool(torch.isfinite(prior).all()):
+            raise ValueError("raw_output_prior values must be finite")
+        with torch.no_grad():
+            self.output_head.bias.copy_(prior)
 
     def forward(self, x: torch.Tensor, **kwargs: object) -> torch.Tensor:
         if x.ndim != 3:
@@ -322,12 +431,34 @@ class CNN1DTCNFusionRegressor(BaseRegressor):
         slow = x[:, :, :slow_end]
         ultrasonic = x[:, :, slow_end:ultrasonic_end]
 
-        parts = [self.ultrasonic_encoder(ultrasonic)]
+        ultrasonic_emb = self.ultrasonic_encoder(ultrasonic)
+        slow_emb = self.slow_encoder(slow)
+        fiber_emb = None
         if self.fiber_mic_encoder is not None:
             fiber_mic = x[:, :, ultrasonic_end:]
-            parts.append(self.fiber_mic_encoder(fiber_mic))
-        parts.append(self.slow_encoder(slow))
-        fused = torch.cat(parts, dim=-1)
+            fiber_emb = self.fiber_mic_encoder(fiber_mic)
+
+        # 层 2：拼接前可选 LayerNorm，稳定各分支 embedding 尺度
+        if self.ultrasonic_norm is not None:
+            ultrasonic_emb = self.ultrasonic_norm(ultrasonic_emb)
+        if fiber_emb is not None and self.fiber_mic_norm is not None:
+            fiber_emb = self.fiber_mic_norm(fiber_emb)
+        if self.slow_norm is not None:
+            slow_emb = self.slow_norm(slow_emb)
+
+        if self.fusion_mode == "film_gate":
+            # 层 3：slow context 调制 ultrasonic，再门控加权融合各分支
+            ultrasonic_mod = self.film_modulation(ultrasonic_emb, slow_emb)
+            if fiber_emb is not None:
+                fused = self.gated_fusion(ultrasonic_mod, fiber_emb, slow_emb)
+            else:
+                fused = self.gated_fusion(ultrasonic_mod, slow_emb)
+        else:
+            parts = [ultrasonic_emb]
+            if fiber_emb is not None:
+                parts.append(fiber_emb)
+            parts.append(slow_emb)
+            fused = torch.cat(parts, dim=-1)
         feats = self.tcn(fused.transpose(1, 2))
         pooled = torch.cat([feats[:, :, -1], feats.mean(dim=-1), feats.amax(dim=-1)], dim=-1)
 

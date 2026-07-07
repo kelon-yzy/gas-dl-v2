@@ -17,6 +17,9 @@ from tv3.dl.data.splits import load_splits, resolve_split_indices
 MODALITY_OPTIONS = ("slow", "ultrasonic", "fiber_mic")
 """v4 benchmark 支持的输入模态。"""
 
+WAVEFORM_STATS_OPTIONS = ("log_std", "log_max_abs")
+"""可追加到 slow 分支的逐帧波形幅度统计。"""
+
 
 class V4BenchmarkDataset(Dataset):
     """v4 正式 benchmark PyTorch Dataset。
@@ -55,6 +58,8 @@ class V4BenchmarkDataset(Dataset):
         window: dict[str, object] | WindowConfig | None = None,
         phase_windows: tuple[dict[str, object] | WindowConfig | None, ...] | None = None,
         dequantize_waveforms: bool = False,
+        normalize_waveforms: bool = False,
+        waveform_stats_features: tuple[str, ...] = (),
         phase_stats_path: Path | str | None = None,
         slow_channels: tuple[str, ...] | None = None,
     ):
@@ -66,6 +71,8 @@ class V4BenchmarkDataset(Dataset):
         self._augment_config = augment_config
         self._augment_seed = augment_seed
         self._dequantize_waveforms = bool(dequantize_waveforms)
+        self._normalize_waveforms = bool(normalize_waveforms)
+        self._waveform_stats_features = tuple(waveform_stats_features)
         self._augment_rng: np.random.Generator | None = None
         self._window = resolve_window_config(window)
         self._phase_windows = _resolve_phase_windows(phase_windows)
@@ -73,6 +80,7 @@ class V4BenchmarkDataset(Dataset):
             raise ValueError("window and phase_windows cannot be combined")
 
         _validate_modalities(self._modalities)
+        _validate_waveform_stats_features(self._waveform_stats_features)
         self._slow_channels = tuple(slow_channels) if slow_channels is not None else None
         self._slow_channel_indices = _resolve_slow_channel_indices(
             dataset_dir, self._slow_channels, self._modalities
@@ -184,6 +192,8 @@ class V4BenchmarkDataset(Dataset):
 
     def _build_single_input(self, src_idx: int, window_masks: dict[int, np.ndarray] | None) -> np.ndarray:
         parts: list[np.ndarray] = []
+        waveform_parts: list[np.ndarray] = []
+        waveform_stat_parts: list[np.ndarray] = []
         if self._slow is not None:
             sl = self._slow[src_idx]
             if self._scaler is not None:
@@ -193,26 +203,30 @@ class V4BenchmarkDataset(Dataset):
                 sl = sl[:, self._slow_channel_indices]
             parts.append(sl)
         if self._ultrasonic is not None:
-            parts.append(
-                self._waveform_values(
-                    self._ultrasonic,
-                    self._ultrasonic_scale,
-                    src_idx,
-                    window_masks,
-                    modality="ultrasonic",
-                )
+            values, stats = self._waveform_values(
+                self._ultrasonic,
+                self._ultrasonic_scale,
+                src_idx,
+                window_masks,
+                modality="ultrasonic",
             )
+            waveform_parts.append(values)
+            if stats is not None:
+                waveform_stat_parts.append(stats)
         if self._fiber_mic is not None:
-            parts.append(
-                self._waveform_values(
-                    self._fiber_mic,
-                    self._fiber_mic_scale,
-                    src_idx,
-                    window_masks,
-                    modality="fiber_mic",
-                )
+            values, stats = self._waveform_values(
+                self._fiber_mic,
+                self._fiber_mic_scale,
+                src_idx,
+                window_masks,
+                modality="fiber_mic",
             )
+            waveform_parts.append(values)
+            if stats is not None:
+                waveform_stat_parts.append(stats)
 
+        parts.extend(waveform_stat_parts)
+        parts.extend(waveform_parts)
         x = np.concatenate(parts, axis=-1) if len(parts) > 1 else parts[0]
         if self._augment_config is not None:
             x = augment_sequence(x, self._augment_config, self._ensure_augment_rng())
@@ -234,13 +248,25 @@ class V4BenchmarkDataset(Dataset):
         window_masks: dict[int, np.ndarray] | None,
         *,
         modality: str,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, np.ndarray | None]:
         values = waveform[src_idx]
         if self._dequantize_waveforms:
             if scale is None:
                 raise ValueError(f"{modality}_scale is required when dequantize_waveforms=true")
             values = values.astype(np.float32) * scale[src_idx].astype(np.float32)[:, np.newaxis]
-        return self._apply_window(values, src_idx, window_masks)
+        elif self._waveform_stats_features:
+            values = values.astype(np.float32)
+        stats = _waveform_stats(values, self._waveform_stats_features) if self._waveform_stats_features else None
+        if self._normalize_waveforms:
+            # per-timestep z-score：每帧波形点独立 zero-mean unit-var。
+            # 对标 wav2vec 2.0 整段波形 z-score；tv3 每帧独立承载一个声学事件，按帧归一化更贴合物理结构。
+            mean = values.mean(axis=-1, keepdims=True)
+            std = np.maximum(values.std(axis=-1, keepdims=True), 1e-6)
+            values = (values - mean) / std
+        values = self._apply_window(values, src_idx, window_masks)
+        if stats is not None:
+            stats = self._apply_window(stats, src_idx, window_masks)
+        return values, stats
 
 
 def _validate_modalities(modalities: tuple[str, ...]) -> None:
@@ -249,6 +275,26 @@ def _validate_modalities(modalities: tuple[str, ...]) -> None:
     for m in modalities:
         if m not in MODALITY_OPTIONS:
             raise ValueError(f"Unknown modality: {m!r}. Available: {MODALITY_OPTIONS}")
+
+
+def _validate_waveform_stats_features(features: tuple[str, ...]) -> None:
+    unknown = set(features) - set(WAVEFORM_STATS_OPTIONS)
+    if unknown:
+        raise ValueError(f"Unknown waveform stats features: {sorted(unknown)}. Available: {WAVEFORM_STATS_OPTIONS}")
+
+
+def _waveform_stats(values: np.ndarray, features: tuple[str, ...]) -> np.ndarray:
+    blocks: list[np.ndarray] = []
+    abs_values = np.abs(values)
+    for feature in features:
+        if feature == "log_std":
+            block = np.log1p(values.std(axis=-1, keepdims=True))
+        elif feature == "log_max_abs":
+            block = np.log1p(abs_values.max(axis=-1, keepdims=True))
+        else:
+            raise ValueError(f"Unsupported waveform stats feature: {feature!r}")
+        blocks.append(block.astype(np.float32, copy=False))
+    return np.concatenate(blocks, axis=-1).astype(np.float32, copy=False)
 
 
 def _resolve_slow_channel_indices(

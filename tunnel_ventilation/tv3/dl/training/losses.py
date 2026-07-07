@@ -331,19 +331,39 @@ def _resolve_weighted_loss_kwargs(
         return kwargs
     resolved = dict(kwargs)
     weighting = resolved.pop("weighting", None)
+    weight_normalization = str(resolved.pop("weight_normalization", "none"))
+    if weight_normalization not in {"none", "mean_one"}:
+        raise ValueError(f"{loss_name} weight_normalization must be one of ['none', 'mean_one']")
     if weighting is None:
         if "component_weights" not in resolved:
-            raise ValueError(f"{loss_name} requires component_weights or weighting='inverse_train_var'")
+            raise ValueError(
+                f"{loss_name} requires component_weights or weighting in ['inverse_train_var', 'fixed']"
+            )
+        resolved["component_weights"] = _normalize_component_weights(
+            resolved["component_weights"],
+            normalization=weight_normalization,
+        )
         return resolved
-    if weighting != "inverse_train_var":
-        raise ValueError(f"{loss_name} unknown weighting: {weighting!r}")
-    if "component_weights" in resolved:
-        raise ValueError(f"{loss_name} cannot combine component_weights with weighting='inverse_train_var'")
-    if train_targets is None:
-        raise ValueError(f"{loss_name} weighting='inverse_train_var' requires train_targets")
-    component_count = _weighted_loss_component_count(loss_name, resolved)
-    resolved["component_weights"] = _inverse_train_variance_weights(train_targets, component_count)
-    return resolved
+    if weighting == "inverse_train_var":
+        if "component_weights" in resolved:
+            raise ValueError(f"{loss_name} cannot combine component_weights with weighting='inverse_train_var'")
+        if train_targets is None:
+            raise ValueError(f"{loss_name} weighting='inverse_train_var' requires train_targets")
+        component_count = _weighted_loss_component_count(loss_name, resolved)
+        weights = _inverse_train_variance_weights(train_targets, component_count)
+        resolved["component_weights"] = _normalize_component_weights(weights, normalization=weight_normalization)
+        return resolved
+    if weighting == "fixed":
+        if "loss_weights" not in resolved:
+            raise ValueError(f"{loss_name} weighting='fixed' requires loss_weights")
+        if "component_weights" in resolved:
+            raise ValueError(f"{loss_name} cannot combine component_weights with weighting='fixed'")
+        resolved["component_weights"] = _normalize_component_weights(
+            resolved.pop("loss_weights"),
+            normalization=weight_normalization,
+        )
+        return resolved
+    raise ValueError(f"{loss_name} unknown weighting: {weighting!r}")
 
 
 def _weighted_loss_component_count(loss_name: str, kwargs: dict[str, object]) -> int:
@@ -365,3 +385,18 @@ def _inverse_train_variance_weights(train_targets: object, component_count: int)
         raise ValueError("inverse_train_var requires positive train variance for every selected component")
     weights = 1.0 / variances
     return tuple(float(value) for value in weights.tolist())
+
+
+def _normalize_component_weights(weights: object, *, normalization: str) -> tuple[float, ...]:
+    values = torch.as_tensor(tuple(weights), dtype=torch.float32)
+    if normalization == "none":
+        return tuple(float(value) for value in values.tolist())
+    if normalization == "mean_one":
+        if values.numel() < 1:
+            raise ValueError("weight_normalization='mean_one' requires at least one weight")
+        mean = torch.mean(values)
+        if not bool(torch.isfinite(mean)) or float(mean.item()) <= 0.0:
+            raise ValueError("weight_normalization='mean_one' requires positive finite mean weight")
+        values = values / mean
+        return tuple(float(value) for value in values.tolist())
+    raise ValueError(f"unknown weight_normalization: {normalization!r}")

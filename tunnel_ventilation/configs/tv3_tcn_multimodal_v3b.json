@@ -1,0 +1,77 @@
+{
+  "dataset_dir": "data/tv3-formal-6000",
+  "output_dir": "outputs/tv3_tcn_multimodal_v3b",
+  "model": "cnn1d_tcn_fusion",
+  "model_kwargs": {
+    "output_mode": "raw3",
+    "slow_channels": 7,
+    "ultrasonic_channels": 5000,
+    "fiber_mic_channels": 0,
+    "waveform_embedding_dim": 64,
+    "waveform_adc_scale": 1.0,
+    "acoustic_channels": [16, 32, 64, 64],
+    "acoustic_kernel_size": 7,
+    "acoustic_dropout": 0.15,
+    "slow_hidden_dim": 32,
+    "slow_embedding_dim": 64,
+    "tcn_channels": [128, 128, 128],
+    "tcn_kernel_size": 3,
+    "tcn_dropout": 0.30,
+    "shared_hidden_dims": [128, 64]
+  },
+  "modalities": "slow,ultrasonic",
+  "scaler_path": "data/tv3-formal-6000/scalers/scaler_slow_sequence.json",
+  "dequantize_waveforms": true,
+  "normalize_waveforms": true,
+  "waveform_stats_features": "log_std,log_max_abs",
+  "augment": null,
+  "epochs": 50,
+  "batch_size": 16,
+  "num_workers": 4,
+  "pin_memory": true,
+  "persistent_workers": true,
+  "prefetch_factor": 4,
+  "seed": 20260704,
+  "device": "cuda",
+  "loss": {
+    "name": "weighted_component_mse",
+    "weighting": "fixed",
+    "loss_weights": [1.0, 2.0, 1.0],
+    "component_count": 3
+  },
+  "optimizer": "adamw",
+  "lr": 0.0001,
+  "weight_decay": 0.0001,
+  "grad_clip_norm": 1.0,
+  "eval_splits": "val,test,extrapolation",
+  "checkpoint_name": "checkpoint.pt",
+  "early_stopping": {
+    "enabled": true,
+    "monitor": "val_loss",
+    "patience": 10,
+    "min_delta": 0.0,
+    "mode": "min"
+  },
+  "scheduler": {
+    "name": "reduce_on_plateau",
+    "factor": 0.5,
+    "patience": 5,
+    "min_lr": 1e-6
+  },
+  "amp": {
+    "enabled": true,
+    "dtype": "float16"
+  },
+  "performance": {
+    "cudnn_benchmark": true,
+    "tf32": true,
+    "compile": false,
+    "compile_mode": "default"
+  },
+  "progress": {
+    "enabled": true,
+    "stdout": true,
+    "jsonl": true,
+    "jsonl_name": "metrics_live.jsonl"
+  }
+}
