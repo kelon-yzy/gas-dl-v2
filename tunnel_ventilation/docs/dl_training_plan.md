@@ -173,6 +173,91 @@ tv3 的 `cnn1d_tcn_fusion` 多模态配置必须使用 `output_mode="raw3"`、`o
 - syngas 基线已验证现有架构在多组分回归上的有效性
 - 新结构（注意力通道融合、物理约束层等）属于阶段 Ⅲ 扩展
 
+> **2026-07-07 实测修正**：此策略在阶段 Ⅰ 成立，但 v2（cnn1d_tcn_fusion @ 6000 序列）实测发现 raw 波形与 slow 标量尺度失衡导致训练发散，仅靠降 lr + slow scaler 修复了训练动力学但 R² 全负。需要在输入/模型层补归一化（见 §3.4），这不属于"新增模型结构"，而是让现有 fusion 架构能正常工作的必要预处理。真正的结构改动（FiLM 调制、gated fusion）仍归阶段 Ⅲ。
+
+### 3.4 raw 波形尺度问题与归一化方案（2026-07-07）
+
+v2 实测暴露的核心问题：fusion 模型把 5000 维 raw 超声波形与 7 维 slow 标量拼接进 TCN，两者尺度差几个数量级。数据层 [dataset.py:242](../../tv3/dl/data/dataset.py) 只对 slow 做 z-score（可选），波形 dequantize 后只除 `waveform_adc_scale=5.0`，无归一化。模型层 [cnn1d_tcn_fusion.py:325-330](../../tv3/dl/models/cnn1d_tcn_fusion.py) 拼接 embedding 前也无归一化。降 lr + slow scaler 只压慢了发散，没解决根因（train_loss 仍 6517 起步）。
+
+#### 文献标杆做法
+
+**wav2vec 2.0（Baevski 2020, arXiv:2006.11477）—— raw 波形工业标杆**：
+- 输入前归一化："The raw waveform input to the encoder is normalized to zero mean and unit variance."——整段波形做 z-score
+- 编码器每块 = 时序卷积 + **LayerNorm** + GELU（不是 BatchNorm）
+- 首层卷积 kernel=10, stride=5
+
+**UTOPYA（Pessoa 2026, arXiv:2605.18188）—— 8 模态融合**：
+- 五阶段：模态独立编码器 → FiLM 条件化 → 跨模态 attention → gated fusion → 多任务头
+- 各模态独立编码到共享维度 d_model=128，不直接拼接 raw 输入
+- 时序 TCN 每块用 **weight normalization**；FiLM context 用 **LayerNorm** 稳定尺度
+- FiLM 关键稳定性技巧：初始化 γ=1, β=0（恒等启动），避免早期破坏编码器特征
+- gated fusion：`g_i = σ(W[ẑ_i;c])`，门控依赖模态内容和 context，缺模态时自动重归一化
+
+**UTOPYA normalization 消融（重要负面结论）**：instance normalization、Mixup、ensembling、test-time augmentation、stochastic weight averaging 在数据稀缺场景下都无效或损害泛化。对 tv3（6000 序列小样本）的直接警示：InstanceNorm 不要无脑上，smoothing-based 正则化与回归任务有张力。
+
+**PyTorch normalization 层选型**：
+
+| 层 | 归一化维度 | batch 依赖 | tv3 适用性 |
+| --- | --- | --- | --- |
+| BatchNorm1d | 跨 N 和 L，每通道 | 强依赖，batch≤8 失效 | tv3 batch=16 临界，小样本风险 |
+| LayerNorm | 跨 C，每样本独立 | 无 | 推荐：时序、小 batch 稳 |
+| InstanceNorm | 每样本每通道 | 无 | UTOPYA 报告无效，慎用 |
+| GroupNorm | C 分组 | 无 | 推荐：保留通道间结构 |
+
+#### 针对 tv3 的三层解决方案（按成本从低到高）
+
+**层 1：数据层波形 z-score（成本最低，应最先做）**
+
+对标 wav2vec 2.0。在 `dataset.py:242` dequantize 后加 per-timestep z-score：
+
+```python
+values = values.astype(np.float32) * scale[src_idx].astype(np.float32)[:, np.newaxis]
+if self._normalize_waveforms:
+    mean = values.mean(axis=-1, keepdims=True)
+    std = values.std(axis=-1, keepdims=True) + 1e-6
+    values = (values - mean) / std
+```
+
+每帧 5000 点独立 zero-mean unit-var，raw 波形与 slow scaler 后的标量在同一量级。`waveform_adc_scale` 归一化后可去掉。预期直接解决 train_loss 6517 起步问题。
+
+**层 2：模型层拼接前 LayerNorm（成本中）**
+
+对标 UTOPYA"各编码器投影到共享维度"。在 `cnn1d_tcn_fusion.py:325-330` 拼接前给每个模态 embedding 加 LayerNorm：
+
+```python
+self.ultrasonic_norm = nn.LayerNorm(waveform_embedding_dim)
+self.slow_norm = nn.LayerNorm(slow_embedding_dim)
+# forward:
+parts = [self.ultrasonic_norm(self.ultrasonic_encoder(ultrasonic))]
+parts.append(self.slow_norm(self.slow_encoder(slow)))
+```
+
+不依赖 batch size，对 batch=16 和 6000 序列小样本都稳。与层 1 独立，可叠加。
+
+**层 3：FiLM 调制 + gated fusion（成本最高，UTOPYA 同款）**
+
+若层 1+2 仍不够（O₂ R² 低于 R0 的 0.603），按 UTOPYA 架构重构融合层：
+- FiLM：slow embedding 作 context 调制 ultrasonic embedding，`z'_ultra = γ ⊙ z_ultra + β`，γ/β 由 slow 生成，初始化 γ=1, β=0
+- gated fusion：`g = σ(W[ẑ_ultra; ẑ_slow])`，加权融合替代直接 concat
+
+符合 tv3 物理结构：O₂ 主要辨识力在超声，slow 提供 T/P/RH 环境 context，用 slow 调制超声比直接拼接更合理。
+
+#### 执行顺序与验证
+
+1. 层 1（数据层 z-score）——改 dataset 一行 + 配置开关，本地 smoke 验证后服务器重跑 v3
+2. 若不够，叠加层 2（拼接前 LayerNorm）
+3. 若仍不够，上层 3（FiLM+gated fusion）
+
+每层单 seed 50 epoch，看 val O₂ R² 能否超过 R0 的 0.603。层 1、2 安全（z-score 是输入归一化非正则化，LayerNorm 是 UTOPYA 自用）；InstanceNorm/Mixup/SWA 按 UTOPYA 消融结论不盲目加。
+
+#### 文献来源
+
+- wav2vec 2.0: Baevski et al. 2020, arXiv:2006.11477
+- UTOPYA: Pessoa et al. 2026, arXiv:2605.18188
+- FiLM 原始: Perez et al. 2018, arXiv:1709.07871
+- LayerNorm: Ba et al. 2016, arXiv:1607.06450
+- Weight Normalization: Salimans & Kingma 2016, arXiv:1602.07868
+
 ## 4. Loss 选择
 
 ### 4.1 推荐 Loss
