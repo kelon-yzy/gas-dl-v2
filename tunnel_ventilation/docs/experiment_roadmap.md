@@ -43,7 +43,7 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 
 ### 方向 B：加入波形模态重跑（进行中 🔶）
 
-配置：`configs/experiment/tv3/tv3_tcn_multimodal.json`（cnn1d_tcn_fusion，slow+ultrasonic+fiber_mic，`output_mode="raw3"`，batch_size=2 受 8GB 显存限制，AMP fp16）
+配置：`configs/tv3_tcn_multimodal.json`（cnn1d_tcn_fusion，slow+ultrasonic+fiber_mic，`output_mode="raw3"`，batch_size=2 受 8GB 显存限制，AMP fp16）
 
 首轮 epoch 趋势：
 
@@ -67,7 +67,7 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 - `src/ml/rocket_features.py`：tv3 `physics_stats_v1` 特征缓存，覆盖 `slow + ultrasonic_tof_s + ultrasonic_tof_observed_s + ultrasonic_peak_index + ultrasonic_sound_speed_m_per_s + ultrasonic_sound_speed_estimated_m_per_s + ultrasonic_alpha_true_npm + ultrasonic_tof_quality + ultrasonic_tof_accepted`
 - `src/ml/rocket_training.py`：`StandardScaler + RidgeCV` 主链路，保留 `ridge_closed_form` 对照
 - `src/pipeline/run_tv3_rocket_baseline.py`：tv3 专用 CLI，输出 `train/val/test/extrapolation` 指标 JSON
-- `configs/experiment/tv3/tv3_rocket_ridge.json`：R0 默认配置
+- `configs/tv3_rocket_ridge.json`：R0 默认配置
 - `tests/test_rocket_features.py`、`tests/test_tv3_rocket_pipeline.py`：smoke 验证已通过
 
 当前范围只覆盖 R0：
@@ -93,7 +93,7 @@ R0 physics_stats -> 判断 O2 是否已有非零信号
 目的：端到端链路验证（32 序列、32 时步）。
 
 ```powershell
-python -m pipeline.generate_tunnel_ventilation_benchmark `
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark `
     --output-root data --dataset tv3-smoke --sequences 32 --seed 20260704 `
     --timesteps 32 --dt-s 0.5 --optical-absorption-backend empirical_v1 --workers 1
 ```
@@ -133,7 +133,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark `
 | 6000 序列 | 172 GB            | 29 GB                  | -83% |
 
 ```bash
-python -m pipeline.generate_tunnel_ventilation_benchmark \
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
     --output-root data --dataset tv3-formal --sequences 600 --seed 20260704 \
     --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 \
     --storage memmap --workers 4 --skip-fiber-mic
@@ -145,7 +145,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
 
 ### Ⅰ-3 配置矩阵 ✅ 已完成
 
-5 个基线配置和 1 个多模态方向 B 配置在 `configs/experiment/tv3/` 下：
+5 个基线配置和 1 个多模态方向 B 配置在 `configs/` 下：
 
 | 配置文件                      | 模型                 | Loss                   | 特殊参数                                                        |
 | ------------------------- | ------------------ | ---------------------- | ----------------------------------------------------------- |

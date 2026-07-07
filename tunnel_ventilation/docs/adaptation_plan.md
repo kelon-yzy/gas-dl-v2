@@ -23,7 +23,7 @@
 - sum_abs_error 在 tv3 下计算（数据层 sum=100% 闭包，模型层不强制归一化）
 - HITRAN 后端阶段 1 未实现，CLI 拒绝 `hitran_hapi_v1`
 - **2026-07-05 存储优化**：tv3 默认 `WaveformSpec(per_timestep_scale=True, waveform_dtype="int16")` + CLI `--skip-fiber-mic`；物理 ADC 仍 20-bit，存储 int16 + per-timestep scale（误差/噪声 ≈ 1%）；fiber_mic 代码保留但默认不生成；数据集 17 GB → 3 GB（600 序列）
-- **2026-07-06 固定特征回归分支**：已新增 `src/ml/rocket_features.py`、`src/ml/rocket_training.py`、`src/pipeline/run_tv3_rocket_baseline.py` 与 `configs/experiment/tv3/tv3_rocket_ridge.json`；阶段 A 先支持 `physics_stats + RidgeCV`，用于把 O₂ / N₂ 物理信号验证与端到端 DL 训练失败解耦
+- **2026-07-06 固定特征回归分支**：已新增 `src/ml/rocket_features.py`、`src/ml/rocket_training.py`、`src/pipeline/run_tv3_rocket_baseline.py` 与 `configs/tv3_rocket_ridge.json`；阶段 A 先支持 `physics_stats + RidgeCV`，用于把 O₂ / N₂ 物理信号验证与端到端 DL 训练失败解耦
 
 首轮基线结果（slow-only，600 序列）：
 - Ridge: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌
@@ -153,7 +153,7 @@ O₂ 和 N₂ 均为同核双原子分子，无永久偶极矩，基频振动不
 #### D3. tv3-smoke 生成与验证
 
 ```powershell
-python -m pipeline.generate_tunnel_ventilation_benchmark `
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark `
     --output-root data --dataset tv3-smoke --sequences 32 --seed 20260704 `
     --timesteps 32 --dt-s 0.5 --optical-absorption-backend empirical_v1 --workers 1
 ```
@@ -180,7 +180,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark `
 
 #### E3. 配置矩阵
 
-在 `configs/experiment/tv3/` 下创建 5 个配置文件：
+在 `configs/` 下创建 5 个配置文件：
 
 | 配置 | 模型 | Loss |
 |------|------|------|
@@ -215,12 +215,12 @@ python -m pipeline.generate_tunnel_ventilation_benchmark `
 | `src/sim/generation/tunnel_ventilation/_parallel.py` | 新增 | D | ✅ 已完成 |
 | `src/sim/generation/tunnel_ventilation/benchmark.py` | 新增 | D | ✅ 已完成 |
 | `src/pipeline/generate_tunnel_ventilation_benchmark.py` | 新增 | D | ✅ 已完成 |
-| `configs/experiment/tv3/tv3_baseline.json` | 新增 | E | ✅ 已完成 |
-| `configs/experiment/tv3/tv3_tcn.json` | 新增 | E | ✅ 已完成 |
-| `configs/experiment/tv3/tv3_lstm.json` | 新增 | E | ✅ 已完成 |
-| `configs/experiment/tv3/tv3_patchtst.json` | 新增 | E | ✅ 已完成 |
-| `configs/experiment/tv3/tv3_ridge.json` | 新增 | E | ✅ 已完成 |
-| `configs/experiment/tv3/tv3_tcn_multimodal.json` | 新增/修正 | E | ✅ 已完成（`raw3` 直接三输出） |
+| `configs/tv3_baseline.json` | 新增 | E | ✅ 已完成 |
+| `configs/tv3_tcn.json` | 新增 | E | ✅ 已完成 |
+| `configs/tv3_lstm.json` | 新增 | E | ✅ 已完成 |
+| `configs/tv3_patchtst.json` | 新增 | E | ✅ 已完成 |
+| `configs/tv3_ridge.json` | 新增 | E | ✅ 已完成 |
+| `configs/tv3_tcn_multimodal.json` | 新增/修正 | E | ✅ 已完成（`raw3` 直接三输出） |
 | `scripts/run_tv3_baseline.py` | 新增/修正 | E | ✅ 已完成（seeds=42/123/456；非零退出码不再按 metrics.json 误判成功） |
 | `tests/test_tunnel_ventilation_schema.py` | 新增 | A | ✅ 已完成（18 tests） |
 | `tests/test_tunnel_ventilation_physics.py` | 新增 | B | ✅ 已完成（25 tests） |
@@ -240,7 +240,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark `
 
 ```powershell
 # 1. tv3-smoke 链路验证
-python -m pipeline.generate_tunnel_ventilation_benchmark `
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark `
     --output-root data --dataset tv3-smoke --sequences 32 --seed 20260704 `
     --timesteps 32 --dt-s 0.5 --optical-absorption-backend empirical_v1 --workers 1
 
@@ -251,7 +251,7 @@ python -m pytest tests/test_tunnel_ventilation_*.py -v
 python -m pytest
 
 # 4. DL 单 seed 训练验证（需 tv3-formal 或临时改用 tv3-smoke 路径）
-python -m dl.cli --config configs/experiment/tv3/tv3_baseline.json
+python -m tv3.dl.cli --config configs/tv3_baseline.json
 ```
 
 实际结果（2026-07-04）：

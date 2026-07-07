@@ -111,7 +111,7 @@ schema_version = "tunnel-ventilation-1"
 |---|---|
 | smoke 数据集 | `tv3-smoke` |
 | 正式数据集 | `tv3-formal` |
-| 配置目录 | `configs/experiment/tv3/` |
+| 配置目录 | `configs/` |
 | 生成入口 | `pipeline.generate_tunnel_ventilation_benchmark` |
 | schema 文件 | `src/sim/core/tunnel_ventilation_schema.py` |
 | 生成子包 | `src/sim/generation/tunnel_ventilation/` |
@@ -185,7 +185,7 @@ schema_version = "tunnel-ventilation-1"
 ## 最小闭环建议
 
 ```powershell
-python -m pipeline.generate_tunnel_ventilation_benchmark `
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark `
     --output-root data --dataset tv3-smoke --sequences 32 --seed 20260704 `
     --timesteps 32 --dt-s 0.5 --optical-absorption-backend empirical_v1 --workers 1
 

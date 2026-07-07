@@ -118,7 +118,7 @@ class Trainer:
         target_transform: str | dict[str, Any] | TargetTransformSpec | None = None,
         *,
         component_names: tuple[str, ...] = DEFAULT_COMPONENT_FIELDS,
-        composition_scheme: str = HYDROGEN_NG_SCHEME,
+        composition_scheme: str = TUNNEL_VENTILATION_SCHEME,
     ):
         if composition_scheme not in _VALID_SCHEMES:
             raise ValueError(

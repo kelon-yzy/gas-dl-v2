@@ -19,7 +19,7 @@
   - 输出 `train / val / test / extrapolation` 指标与 top feature group 诊断
 - `src/pipeline/run_tv3_rocket_baseline.py`
   - 支持 `--feature-set physics_stats --head ridgecv`
-- `configs/experiment/tv3/tv3_rocket_ridge.json`
+- `configs/tv3_rocket_ridge.json`
   - 提供 R0 默认配置
 - 测试
   - `tests/test_rocket_features.py`
@@ -262,9 +262,9 @@ input_dim
 | `src/ml/rocket_features.py`                         | 固定 kernel 生成、chunk 波形读取、MiniRocket / MultiRocket 特征提取、缓存写入 |
 | `src/ml/rocket_training.py`                         | RidgeCV / ElasticNetCV / small MLP 训练与评估                   |
 | `src/pipeline/run_tv3_rocket_baseline.py`           | tv3 专用编排脚本，生成缓存并跑实验矩阵                                      |
-| `configs/experiment/tv3/tv3_rocket_ridge.json`      | MiniRocket + RidgeCV 配置                                    |
-| `configs/experiment/tv3/tv3_rocket_elasticnet.json` | MultiRocket + ElasticNetCV 配置                              |
-| `configs/experiment/tv3/tv3_rocket_mlp.json`        | MultiRocket + 小 MLP 配置                                     |
+| `configs/tv3_rocket_ridge.json`      | MiniRocket + RidgeCV 配置                                    |
+| `configs/tv3_rocket_elasticnet.json` | MultiRocket + ElasticNetCV 配置                              |
+| `configs/tv3_rocket_mlp.json`        | MultiRocket + 小 MLP 配置                                     |
 | `tests/test_rocket_features.py`                     | kernel、shape、缓存、可复现性测试                                     |
 | `tests/test_tv3_rocket_pipeline.py`                 | 小数据 smoke pipeline 测试                                      |
 
@@ -273,7 +273,7 @@ input_dim
 - `src/ml/rocket_features.py`：`physics_stats_v1` 特征缓存与 split 对齐校验
 - `src/ml/rocket_training.py`：`RidgeCV` / `ridge_closed_form` 的首轮训练与评估
 - `src/pipeline/run_tv3_rocket_baseline.py`：tv3 `physics_stats` 实验入口
-- `configs/experiment/tv3/tv3_rocket_ridge.json`：R0 配置
+- `configs/tv3_rocket_ridge.json`：R0 配置
 - `tests/test_rocket_features.py`、`tests/test_tv3_rocket_pipeline.py`：阶段 A smoke 测试
 
 ### 6.2 可复用现有文件
@@ -428,8 +428,8 @@ R0 -> R1 -> R3 -> R2 / R4 -> R5 -> R6
 本地 smoke：
 
 ```powershell
-python -m pipeline.generate_tunnel_ventilation_benchmark --output-root data --dataset tv3-rocket-smoke --sequences 32 --timesteps 64 --workers 1
-python -m pipeline.run_tv3_rocket_baseline --dataset-dir data\tv3-rocket-smoke --feature-set physics_stats --head ridgecv --output-dir outputs\tv3_rocket_smoke\r0
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark --output-root data --dataset tv3-rocket-smoke --sequences 32 --timesteps 64 --workers 1
+python -m tv3.pipeline.run_tv3_rocket_baseline --dataset-dir data\tv3-rocket-smoke --feature-set physics_stats --head ridgecv --output-dir outputs\tv3_rocket_smoke\r0
 python -m pytest tests/test_rocket_features.py -v
 python -m pytest tests/test_tv3_rocket_pipeline.py -v
 ```
@@ -437,20 +437,20 @@ python -m pytest tests/test_tv3_rocket_pipeline.py -v
 服务器正式：
 
 ```bash
-python -m pipeline.run_tv3_rocket_baseline \
+python -m tv3.pipeline.run_tv3_rocket_baseline \
   --dataset-dir data/tv3-formal-6000 \
   --feature-set physics_stats \
   --head ridgecv \
   --output-dir outputs/tv3_rocket/r0
 
-python -m pipeline.run_tv3_rocket_baseline \
+python -m tv3.pipeline.run_tv3_rocket_baseline \
   --dataset-dir data/tv3-formal-6000 \
   --feature-set minirocket_ultra_v1 \
   --head ridgecv \
   --chunk-size 64 \
   --output-dir outputs/tv3_rocket/r1
 
-python -m pipeline.run_tv3_rocket_baseline \
+python -m tv3.pipeline.run_tv3_rocket_baseline \
   --dataset-dir data/tv3-formal-6000 \
   --feature-set multirocket_ultra_v1 \
   --head elasticnetcv \

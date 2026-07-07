@@ -100,7 +100,7 @@ def sample_tunnel_ventilation(n_samples: int, seed: int) -> np.ndarray:
 
 ### 3.2 实现要求
 
-- 分层边界值写入配置文件（`configs/experiment/tv3/state_thresholds.json`），不散落在代码中
+- 分层边界值写入配置文件（`configs/state_thresholds.json`），不散落在代码中
 - 分层标签不作为模型输入，仅用于评估分层
 - 每种状态在正式数据集中应有足够样本量（建议 ≥ 总量的 10%）
 

@@ -9,7 +9,6 @@
 - sum_abs_error 不为 None（tv3 数据 sum=100% 闭包，可计算监控值）
 - 闭包类 loss 在 tv3 下被拒绝
 - target_transform 在 tv3 下被拒绝
-- hydrogen_ng / syngas 路径不受影响
 """
 from __future__ import annotations
 
@@ -81,22 +80,6 @@ class TestLossCompositionSchemeValidation:
         ):
             # 不应抛错
             validate_loss_composition_scheme(loss_name, "tunnel_ventilation")
-
-    def test_closure_losses_still_rejected_for_syngas(self):
-        """syngas 闭包 loss 拒绝未被破坏。"""
-        for loss_name in (COMPOSITIONAL_MSE_LOSS, FREE_COMPONENT_MSE_LOSS):
-            with pytest.raises(ValueError, match="closure"):
-                validate_loss_composition_scheme(loss_name, "syngas")
-
-    def test_all_losses_accepted_for_hydrogen_ng(self):
-        """hydrogen_ng 场景下闭包类 loss 仍然合法。"""
-        for loss_name in (
-            "mse",
-            COMPOSITIONAL_MSE_LOSS,
-            FREE_COMPONENT_MSE_LOSS,
-            WEIGHTED_COMPONENT_MSE_LOSS,
-        ):
-            validate_loss_composition_scheme(loss_name, "hydrogen_ng")
 
 
 class TestTv3BaselineScript:
@@ -304,26 +287,6 @@ class TestTrainerCompositionScheme:
         )
         assert trainer.composition_scheme == "tunnel_ventilation"
 
-    def test_trainer_rejects_target_transform_on_syngas(self):
-        """syngas target_transform 拒绝未被破坏。"""
-        import torch
-        from torch import nn
-        from tv3.common.composition import TargetTransformSpec
-        from tv3.dl.training.trainer import Trainer
-
-        model = nn.Linear(3, 4)
-        opt = torch.optim.Adam(model.parameters())
-        spec = TargetTransformSpec(name="ilr_n2_first", epsilon=1e-4)
-        with pytest.raises(ValueError, match="syngas"):
-            Trainer(
-                model=model,
-                optimizer=opt,
-                loss_fn=nn.MSELoss(),
-                device="cpu",
-                target_transform=spec,
-                composition_scheme="syngas",
-            )
-
     def test_trainer_rejects_unknown_scheme(self):
         import torch
         from torch import nn
@@ -339,59 +302,3 @@ class TestTrainerCompositionScheme:
                 device="cpu",
                 composition_scheme="bogus_scheme",
             )
-
-
-# ---------------------------------------------------------------------------
-# 隔离性
-# ---------------------------------------------------------------------------
-
-
-class TestHydrogenNgUnaffected:
-    def test_legacy_hg_benchmark_still_loads_with_default_scheme(self, tmp_path: Path):
-        """hydrogen_ng 数据集即使 manifest 无 composition_scheme 字段也能 fallback。"""
-        from tv3.sim.generation.benchmark import (
-            BenchmarkGenerationSpec,
-            generate_benchmark_dataset,
-        )
-
-        generate_benchmark_dataset(
-            tmp_path,
-            BenchmarkGenerationSpec(
-                dataset_slug="hg-dl-smoke",
-                sequence_count=8,
-                seed=7,
-                timesteps=16,
-                storage="npz",
-                optical_absorption_backend="empirical_v1",
-            ),
-        )
-        dataset_dir = tmp_path / "hg-dl-smoke"
-        output_dir = tmp_path / "runs" / "hg-baseline"
-        parser = build_dl_cli_parser()
-        args = parser.parse_args(
-            [
-                "--dataset-dir",
-                str(dataset_dir),
-                "--output-dir",
-                str(output_dir),
-                "--model",
-                "cnn1d",
-                "--model-kwargs",
-                '{"hidden_channels":[4],"kernel_size":3,"dropout":0.0}',
-                "--loss",
-                "mse",
-                "--epochs",
-                "1",
-                "--batch-size",
-                "4",
-                "--eval-splits",
-                "val",
-            ]
-        )
-        payload = run_dl_cli(args)
-        # hg：8 通道、按 N2 分箱、计算 sum_abs_error
-        assert payload["model_config"]["in_channels"] == 8
-        assert payload["model_config"]["out_dim"] == 4
-        cond_keys = set(payload["evaluations"]["val"]["conditional_metrics"])
-        assert cond_keys == {"n2_bins", "ch4_bins"}
-        assert payload["evaluations"]["val"]["sum_abs_error"] is not None

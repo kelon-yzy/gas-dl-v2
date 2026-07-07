@@ -64,7 +64,7 @@ python -m pytest tests/test_tunnel_ventilation_schema.py \
 ### 3.1 tv3-smoke 链路验证（可选，~30 秒）
 
 ```bash
-python -m pipeline.generate_tunnel_ventilation_benchmark \
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
     --output-root data --dataset tv3-smoke --sequences 32 --seed 20260704 \
     --timesteps 32 --dt-s 0.5 --optical-absorption-backend empirical_v1 --workers 1
 ```
@@ -82,7 +82,7 @@ python -m pipeline.generate_tunnel_ventilation_benchmark \
 ### 3.2 tv3-formal 正式集（600 序列，~1–2 分钟，int16 + 跳过 fiber_mic）
 
 ```bash
-python -m pipeline.generate_tunnel_ventilation_benchmark \
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
     --output-root data --dataset tv3-formal --sequences 600 --seed 20260704 \
     --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 \
     --storage memmap --workers 4 --skip-fiber-mic
@@ -142,8 +142,8 @@ python scripts/run_tv3_baseline.py --dry-run
 多模态配置 `tv3_tcn_multimodal.json` 默认 `batch_size=2`（受本地 8 GB 显存限制）、`modalities="slow,ultrasonic,fiber_mic"`。当前数据集跳过了 fiber_mic，需用 `--modalities slow,ultrasonic` 覆盖。RTX 5880 48 GB 可调大 batch_size：
 
 ```bash
-python -m dl.cli \
-    --config configs/experiment/tv3/tv3_tcn_multimodal.json \
+python -m tv3.dl.cli \
+    --config configs/tv3_tcn_multimodal.json \
     --modalities slow,ultrasonic \
     --batch-size 8 \
     --output-dir outputs/tv3_tcn_multimodal/s42 \
@@ -170,8 +170,8 @@ batch_size 选择建议（slow+ultrasonic 两模态，无 fiber_mic，显存占�
 
 ```bash
 for seed in 42 123 456; do
-    python -m dl.cli \
-        --config configs/experiment/tv3/tv3_tcn_multimodal.json \
+    python -m tv3.dl.cli \
+        --config configs/tv3_tcn_multimodal.json \
         --modalities slow,ultrasonic \
         --batch-size 8 \
         --output-dir outputs/tv3_tcn_multimodal/s${seed} \
@@ -221,7 +221,7 @@ scp user@server:/path/to/gas-dl-v2/tv3_results_metrics.tar.gz .
 600 序列对 DL 严重不足。若服务器资源允许，可生成 6000 序列。int16 + 跳过 fiber_mic 时磁盘/内存需求大幅降低：
 
 ```bash
-python -m pipeline.generate_tunnel_ventilation_benchmark \
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
     --output-root data --dataset tv3-formal-6000 --sequences 6000 --seed 20260704 \
     --timesteps 512 --dt-s 0.5 --optical-absorption-backend empirical_v1 \
     --storage memmap --workers 4 --skip-fiber-mic

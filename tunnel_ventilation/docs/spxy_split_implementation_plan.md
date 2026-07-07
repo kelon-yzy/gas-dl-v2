@@ -334,7 +334,7 @@ else:
 pytest tests/test_spxy_split.py -v
 
 # 确保 tv3 benchmark 生成仍可通过（random 与 spxy_v1）
-python -m pipeline.generate_tunnel_ventilation_benchmark \
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
     --dataset tv3-spxy-test --sequences 32 --workers 1 \
     --split-strategy spxy_v1 \
     --extrapolation-strategy y_margin_ood

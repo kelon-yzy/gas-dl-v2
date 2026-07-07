@@ -10,7 +10,6 @@
 - slow_channels 不含 V_NDIR_CH4
 - HITRAN 后端被拒绝（阶段 1 未实现）
 - 组分总量严格闭包 sum=100%
-- hydrogen_ng / syngas 生成路径完全不受影响
 """
 from __future__ import annotations
 
@@ -241,37 +240,9 @@ def test_tv3_benchmark_hitran_backend_rejected(tmp_path):
     assert not (tmp_path / "tv3-hitran-test").exists()
 
 
-# ---------------------------------------------------------------------------
-# 隔离性：hydrogen_ng / syngas benchmark 不受影响
-# ---------------------------------------------------------------------------
-
-
-def test_hydrogen_ng_benchmark_module_intact():
-    """hydrogen_ng benchmark 仍可正常 import 并保持原签名。"""
-    from tv3.sim.generation.benchmark import (
-        BenchmarkGenerationSpec,
-        generate_benchmark_dataset,
-    )
-    import inspect
-
-    sig = inspect.signature(BenchmarkGenerationSpec.__init__)
-    assert "dataset_slug" in sig.parameters
-    # tv3 字段不能渗透进 hg spec
-    assert "composition_scheme" not in sig.parameters
-    assert "background_fields" not in sig.parameters
-    assert callable(generate_benchmark_dataset)
-
-
 def test_tv3_spec_no_co_crosstalk_field():
     """tv3 spec 不应含 enable_co_crosstalk（无 CO 串扰概念）。"""
     import inspect
 
     sig = inspect.signature(TunnelVentilationBenchmarkGenerationSpec.__init__)
     assert "enable_co_crosstalk" not in sig.parameters
-
-
-def test_hydrogen_ng_schema_unchanged():
-    """全局 hg COMPONENT_FIELDS 仍是 (x_H2, x_CH4, x_CO2, x_N2)。"""
-    from tv3.sim.core.schema import COMPONENT_FIELDS as HG_FIELDS
-
-    assert HG_FIELDS == ("x_H2", "x_CH4", "x_CO2", "x_N2")

@@ -1,7 +1,7 @@
 """掘进通风场景 benchmark 生成 CLI。
 
 用法（empirical，阶段 1 唯一支持的后端）：
-    python -m pipeline.generate_tunnel_ventilation_benchmark \
+    python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
         --output-root data \
         --dataset tv3-smoke \
         --sequences 32 \

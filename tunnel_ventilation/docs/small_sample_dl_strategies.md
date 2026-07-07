@@ -67,8 +67,8 @@ DL 模型容量大（`cnn1d_tcn_fusion` 含 acoustic_channels [16,32,64,64] + tc
 **实现方式**（零代码改动，仅 CLI 参数）：
 
 ```bash
-python -m dl.cli \
-    --config configs/experiment/tv3/tv3_tcn_multimodal.json \
+python -m tv3.dl.cli \
+    --config configs/tv3_tcn_multimodal.json \
     --modalities slow,ultrasonic \
     --batch-size 8 --output-dir outputs/tv3_tcn_multimodal_aug/s42 --seed 42 \
     --augment '{"jitter_std":0.001,"amplitude_scale_range":[0.9,1.1],"gaussian_noise_std":0.0005,"apply_prob":0.5}'

@@ -6,21 +6,12 @@
 - N2 范围 [73.80, 81.97] 自动满足
 - labels 写入 3 列预测目标（含 x_N2）
 - BACKGROUND_FIELDS 为空
-- 不影响 hydrogen_ng / syngas schema
 """
 from __future__ import annotations
 
 import numpy as np
 import pytest
 
-from tv3.sim.core.schema import (
-    COMPONENT_FIELDS as HG_COMPONENT_FIELDS,
-    SLOW_CHANNELS as HG_SLOW_CHANNELS,
-)
-from tv3.sim.core.syngas_schema import (
-    BACKGROUND_FIELDS as SG_BACKGROUND_FIELDS,
-    COMPONENT_FIELDS as SG_COMPONENT_FIELDS,
-)
 from tv3.sim.core.tunnel_ventilation_schema import (
     BACKGROUND_FIELDS as TV_BACKGROUND_FIELDS,
     COMPONENT_FIELDS as TV_COMPONENT_FIELDS,
@@ -57,18 +48,6 @@ def test_tunnel_ventilation_slow_channels_7_no_v_ndir_ch4():
     assert "V_NDIR_CO2" in TV_SLOW_CHANNELS
     assert "V_NDIR_CO" not in TV_SLOW_CHANNELS
     assert TV_SLOW_DYNAMIC_CHANNELS == ("V_NDIR_CO2", "V_TCS")
-
-
-def test_hydrogen_ng_schema_unchanged():
-    """hydrogen_ng COMPONENT_FIELDS 未被影响。"""
-    assert HG_COMPONENT_FIELDS == ("x_H2", "x_CH4", "x_CO2", "x_N2")
-    assert len(HG_SLOW_CHANNELS) == 8
-
-
-def test_syngas_schema_unchanged():
-    """syngas schema 未被影响。"""
-    assert SG_COMPONENT_FIELDS == ("x_H2", "x_CH4", "x_CO2", "x_CO")
-    assert SG_BACKGROUND_FIELDS == ("x_N2",)
 
 
 # ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@
 
 ## 实施状态（截至 2026-07-06）
 
-仿真链路适配（阶段 1–3）+ DL 训练适配（阶段 4）+ formal 数据集 + 初步基线已落地。tv3-formal（600 序列）已生成，Ridge/TCN 基线已完成首轮。2026-07-06 新增固定特征回归分支第一阶段：`physics_stats + RidgeCV` 已实现，包含 `src/ml/rocket_features.py`、`src/ml/rocket_training.py`、`src/pipeline/run_tv3_rocket_baseline.py`、`configs/experiment/tv3/tv3_rocket_ridge.json`，并已通过 smoke 测试。阶段 5 现拆为两条线并行：一条继续整理 DL / baseline 结果，一条推进 rocket 物理特征与后续 MiniRocket / MultiRocket。2026-07-05 审查修复后，tv3 多模态 fusion 使用 `raw3` 三输出，`gas_head` / `target_transform` 在 tv3 路径下显式拒绝。2026-07-05 存储优化：tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`，数据集 17 GB → 3 GB（600 序列），精度损失可忽略（误差/噪声 ≈ 1%），光纤代码保留可恢复，详见 [server_training_guide.md](server_training_guide.md)。
+仿真链路适配（阶段 1–3）+ DL 训练适配（阶段 4）+ formal 数据集 + 初步基线已落地。tv3-formal（600 序列）已生成，Ridge/TCN 基线已完成首轮。2026-07-06 新增固定特征回归分支第一阶段：`physics_stats + RidgeCV` 已实现，包含 `src/ml/rocket_features.py`、`src/ml/rocket_training.py`、`src/pipeline/run_tv3_rocket_baseline.py`、`configs/tv3_rocket_ridge.json`，并已通过 smoke 测试。阶段 5 现拆为两条线并行：一条继续整理 DL / baseline 结果，一条推进 rocket 物理特征与后续 MiniRocket / MultiRocket。2026-07-05 审查修复后，tv3 多模态 fusion 使用 `raw3` 三输出，`gas_head` / `target_transform` 在 tv3 路径下显式拒绝。2026-07-05 存储优化：tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`，数据集 17 GB → 3 GB（600 序列），精度损失可忽略（误差/噪声 ≈ 1%），光纤代码保留可恢复，详见 [server_training_guide.md](server_training_guide.md)。
 
 | 阶段 | 范围 | 状态 |
 |------|------|------|
@@ -49,14 +49,14 @@
 | 慢通道 | `src/sim/generation/tunnel_ventilation/slow.py` | ✅ |
 | Benchmark 编排 | `src/sim/generation/tunnel_ventilation/benchmark.py` | ✅ |
 | CLI | `src/pipeline/generate_tunnel_ventilation_benchmark.py` | ✅ |
-| DL 配置 | `configs/experiment/tv3/tv3_{baseline,tcn,lstm,patchtst,ridge}.json` | ✅ |
+| DL 配置 | `configs/tv3_{baseline,tcn,lstm,patchtst,ridge}.json` | ✅ |
 | 训练编排 | `scripts/run_tv3_baseline.py` | ✅ |
 | Rocket 物理特征 | `src/ml/rocket_features.py` | ✅（阶段 A） |
 | Rocket 训练与评估 | `src/ml/rocket_training.py` | ✅（阶段 A） |
 | Rocket CLI | `src/pipeline/run_tv3_rocket_baseline.py` | ✅（阶段 A） |
-| Rocket 配置 | `configs/experiment/tv3/tv3_rocket_ridge.json` | ✅（阶段 A） |
+| Rocket 配置 | `configs/tv3_rocket_ridge.json` | ✅（阶段 A） |
 
-阶段 1–4 + 编排脚本已落地，DL CLI（`python -m dl.cli --config configs/experiment/tv3/tv3_baseline.json`）可直接消费 tv3 数据集。Rocket 阶段 A 现已支持 `python -m pipeline.run_tv3_rocket_baseline --dataset-dir data/tv3-rocket-smoke --feature-set physics_stats --head ridgecv --output-dir outputs/tv3_rocket_smoke/r0`。阶段 5 的 tv3-formal 已按 600 序列规模生成；完整 15-run 基线矩阵和 rocket 正式集结果仍需继续执行。
+阶段 1–4 + 编排脚本已落地，DL CLI（`python -m tv3.dl.cli --config configs/tv3_baseline.json`）可直接消费 tv3 数据集。Rocket 阶段 A 现已支持 `python -m tv3.pipeline.run_tv3_rocket_baseline --dataset-dir data/tv3-rocket-smoke --feature-set physics_stats --head ridgecv --output-dir outputs/tv3_rocket_smoke/r0`。阶段 5 的 tv3-formal 已按 600 序列规模生成；完整 15-run 基线矩阵和 rocket 正式集结果仍需继续执行。
 
 ## 编码前检查点
 

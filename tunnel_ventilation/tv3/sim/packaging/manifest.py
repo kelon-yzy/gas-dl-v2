@@ -25,17 +25,17 @@ def build_manifest(
     acoustic_model_metadata: dict[str, object] | None = None,
     sim_revision: dict[str, object] | None = None,
     schema_version: str = DEFAULT_SCHEMA_VERSION,
-    composition_scheme: str = "hydrogen_ng",
+    composition_scheme: str = "tunnel_ventilation",
     background_fields: tuple[str, ...] = (),
 ) -> dict[str, object]:
     """Build a benchmark manifest.
 
     composition_scheme:
-        "hydrogen_ng" (default, sum=100% closure) or "syngas" (sum<100%, N2 as
-        background). Downstream loaders use this to switch label semantics.
+        "tunnel_ventilation" (default, CO2/O2/N2 sum=100% closure, no residual
+        head). Downstream loaders use this to switch label semantics.
     background_fields:
-        Components that participate in physics but are not predicted (e.g.
-        ("x_N2",) for syngas). Empty tuple for hydrogen_ng.
+        Components that participate in physics but are not predicted. Empty
+        tuple for tunnel_ventilation (all three components are predicted).
     """
     manifest = {
         "schema_version": schema_version,
