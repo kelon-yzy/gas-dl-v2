@@ -13,15 +13,16 @@ outputs/*.zip
 !outputs/summary/.gitkeep
 !outputs/reports/.gitkeep
 !outputs/archive/.gitkeep
-data/hitran_cache*/
-data/sg4-*/
-# tv3 数据集（fiber_mic_int32.npy 11.7GB / ultrasonic_int32.npy 5.9GB，超 GitHub 100MB 限制，由 CLI 重新生成）
-data/tv3-*/
-data/_archived_pre_200khz/
-data/_archived_pre_phys_strict/
-# wv4-smoke 波形数组（int32/20-bit 采样点 ×5 后单文件超 GitHub 100MB 限制），本地生成不进 git
-data/wv4-smoke/sequences/*.npy
-data/wv4-smoke/sequences/*.npz
+# 共享光谱缓存与归档（shared/）
+shared/hitran_cache*/
+shared/hitran_cache_windowed/
+shared/_archived/
+# 场景数据集（各子工程 data/，大文件不进 git）
+syngas/data/sg4-*/
+tunnel_ventilation/data/tv3-*/
+# wv4 波形数组（大文件，本地生成不进 git；manifest/metadata/splits 等小文件保留跟踪）
+hydrogen_ng/data/wv4-*/sequences/*.npy
+hydrogen_ng/data/wv4-*/sequences/*.npz
 logs/
 .ace-tool/
 .claude/

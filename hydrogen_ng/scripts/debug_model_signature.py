@@ -1,14 +1,8 @@
 #!/usr/bin/env python
 """诊断脚本：检查 CNN1DTCNFusionRegressor 的实际签名"""
-import sys
 import inspect
-from pathlib import Path
 
-# 添加 src 到路径
-src_path = Path(__file__).parent / "src"
-sys.path.insert(0, str(src_path))
-
-from dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
+from hg.dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
 
 # 获取 __init__ 的签名
 sig = inspect.signature(CNN1DTCNFusionRegressor.__init__)
