@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from sim.generation.spectral.filters import NDIRFilter
-from sim.generation.spectral.hitran_backend import HitranGasSpec, HitranGridSpec
+from tv3.sim.generation.spectral.filters import NDIRFilter
+from tv3.sim.generation.spectral.hitran_backend import HitranGasSpec, HitranGridSpec
 
 
 SPECTRAL_DEFAULTS_CONFIG_PATH = Path(__file__).resolve().parents[4] / "configs" / "data" / "spectral-defaults.json"

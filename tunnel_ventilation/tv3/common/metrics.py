@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 
 import numpy as np
 
-from sim.core.schema import COMPONENT_FIELDS
+from tv3.sim.core.schema import COMPONENT_FIELDS
 
 
 R2_ZERO_VARIANCE_EPSILON = 1e-12

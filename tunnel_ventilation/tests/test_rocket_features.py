@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ml.rocket_features import (
+from tv3.ml.rocket_features import (
     RocketFeatureConfig,
     build_tv3_physics_feature_cache,
     load_cached_split_feature_matrix,
@@ -13,7 +13,7 @@ from ml.rocket_features import (
 
 
 def _make_tv3_smoke_dataset(tmp_path: Path, slug: str = "tv3-rocket-smoke", sequences: int = 16) -> Path:
-    from sim.generation.tunnel_ventilation import (
+    from tv3.sim.generation.tunnel_ventilation import (
         TunnelVentilationBenchmarkGenerationSpec,
         generate_tunnel_ventilation_benchmark_dataset,
     )

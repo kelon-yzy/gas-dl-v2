@@ -17,8 +17,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sim.core.schema import SPLIT_NAMES
-from sim.packaging.spxy_split import (
+from tv3.sim.core.schema import SPLIT_NAMES
+from tv3.sim.packaging.spxy_split import (
     SpxySplitError,
     _build_scaled_split_features,
     _kmeans_boundary_select,
@@ -35,7 +35,7 @@ from sim.packaging.spxy_split import (
 
 def _make_test_data(n: int = 40, timesteps: int = 16, seed: int = 42):
     """构造测试数据：真实 conditions + 随机 arrays（SPXY 只用统计特征，不要求物理真实）。"""
-    from sim.generation.tunnel_ventilation.conditions import (
+    from tv3.sim.generation.tunnel_ventilation.conditions import (
         generate_tunnel_ventilation_condition_rows,
     )
 
@@ -239,7 +239,7 @@ def test_diagnostics_nn_to_train_distance_for_non_train_splits():
 
 
 def test_random_split_unchanged_and_deterministic():
-    from sim.packaging.splits import build_default_split_rows
+    from tv3.sim.packaging.splits import build_default_split_rows
 
     conditions, _, _ = _make_test_data(n=20)
     rows1 = build_default_split_rows(conditions, seed=42)
@@ -284,7 +284,7 @@ def test_alpha_extremes_run_without_error():
 
 
 def test_validate_spec_rejects_spxy_without_ood():
-    from sim.generation.tunnel_ventilation.benchmark import (
+    from tv3.sim.generation.tunnel_ventilation.benchmark import (
         TunnelVentilationBenchmarkGenerationSpec,
         _validate_spec,
     )
@@ -302,7 +302,7 @@ def test_validate_spec_rejects_spxy_without_ood():
 
 
 def test_validate_spec_rejects_ood_on_random():
-    from sim.generation.tunnel_ventilation.benchmark import (
+    from tv3.sim.generation.tunnel_ventilation.benchmark import (
         TunnelVentilationBenchmarkGenerationSpec,
         _validate_spec,
     )
@@ -325,7 +325,7 @@ def test_validate_spec_rejects_ood_on_random():
 
 
 def test_benchmark_spxy_v1_end_to_end(tmp_path):
-    from sim.generation.tunnel_ventilation import (
+    from tv3.sim.generation.tunnel_ventilation import (
         TunnelVentilationBenchmarkGenerationSpec,
         generate_tunnel_ventilation_benchmark_dataset,
     )
@@ -356,7 +356,7 @@ def test_benchmark_spxy_v1_end_to_end(tmp_path):
 
 
 def test_benchmark_lhs_stratified_end_to_end(tmp_path):
-    from sim.generation.tunnel_ventilation import (
+    from tv3.sim.generation.tunnel_ventilation import (
         TunnelVentilationBenchmarkGenerationSpec,
         generate_tunnel_ventilation_benchmark_dataset,
     )
@@ -391,7 +391,7 @@ def test_recompute_split_end_to_end(tmp_path):
     import subprocess
     import sys
 
-    from sim.generation.tunnel_ventilation import (
+    from tv3.sim.generation.tunnel_ventilation import (
         TunnelVentilationBenchmarkGenerationSpec,
         generate_tunnel_ventilation_benchmark_dataset,
     )

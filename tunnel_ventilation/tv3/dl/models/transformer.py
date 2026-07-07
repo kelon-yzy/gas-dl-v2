@@ -5,8 +5,8 @@ import math
 import torch
 from torch import nn
 
-from dl.models.base import BaseRegressor
-from dl.models.heads import build_regression_head
+from tv3.dl.models.base import BaseRegressor
+from tv3.dl.models.heads import build_regression_head
 
 
 class TransformerRegressor(BaseRegressor):

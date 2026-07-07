@@ -5,14 +5,14 @@ from typing import Sequence
 import torch
 from torch import nn
 
-from dl.models.base import BaseRegressor
-from dl.models.cnn1d_tcn_fusion import (
+from tv3.dl.models.base import BaseRegressor
+from tv3.dl.models.cnn1d_tcn_fusion import (
     DeepAcousticEncoder1D,
     GasCoordinateHead,
     GasHeadNormalize,
     SlowFeatureEncoder,
 )
-from dl.models.tcn import TemporalBlock
+from tv3.dl.models.tcn import TemporalBlock
 
 
 class WindowedFusionEncoder(nn.Module):

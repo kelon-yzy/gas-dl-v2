@@ -4,8 +4,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from ml.features import MLFeatureConfig
-from ml.training import MLTrainingResult, train_regressor_on_dataset
+from tv3.ml.features import MLFeatureConfig
+from tv3.ml.training import MLTrainingResult, train_regressor_on_dataset
 
 
 DEFAULT_PHASE_WINDOWS = ("baseline", "exposure", "steady", "recovery")

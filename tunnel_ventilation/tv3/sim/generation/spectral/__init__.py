@@ -1,5 +1,5 @@
-from sim.generation.spectral.cache import SpectralCacheKey, cache_path, read_cached_spectrum, write_cached_spectrum
-from sim.generation.spectral.defaults import (
+from tv3.sim.generation.spectral.cache import SpectralCacheKey, cache_path, read_cached_spectrum, write_cached_spectrum
+from tv3.sim.generation.spectral.defaults import (
     DEFAULT_HITRAN_GAS_SPECS,
     DEFAULT_HITRAN_GRID_SPECS,
     DEFAULT_NDIR_FILTERS,
@@ -15,8 +15,8 @@ from sim.generation.spectral.defaults import (
     get_syngas_hitran_grid,
     get_syngas_ndir_filter,
 )
-from sim.generation.spectral.filters import NDIRFilter, gaussian_filter
-from sim.generation.spectral.hitran_backend import (
+from tv3.sim.generation.spectral.filters import NDIRFilter, gaussian_filter
+from tv3.sim.generation.spectral.hitran_backend import (
     BOLTZMANN_J_PER_K,
     HITRAN_ABSORPTION_BACKEND,
     STANDARD_ATMOSPHERE_PA,
@@ -28,15 +28,15 @@ from sim.generation.spectral.hitran_backend import (
     convert_hitran_coeff_to_per_percent_m,
     hitran_cache_key,
 )
-from sim.generation.spectral.integration import integrate_channel_absorbance
-from sim.generation.spectral.quantitative_table import (
+from tv3.sim.generation.spectral.integration import integrate_channel_absorbance
+from tv3.sim.generation.spectral.quantitative_table import (
     QUANTITATIVE_TABLE_BACKEND,
     SUPPORTED_QUANTITATIVE_UNITS,
     convert_quantitative_coeff_to_per_percent_m,
     load_quantitative_spectrum_csv,
     resample_spectrum_to_grid,
 )
-from sim.generation.spectral.tabulated_backend import (
+from tv3.sim.generation.spectral.tabulated_backend import (
     PreparedTabulatedSpectra,
     TabulatedSpectrum,
     compute_prepared_tabulated_ndir_absorbance,

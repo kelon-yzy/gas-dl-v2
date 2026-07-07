@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from collections.abc import Iterable, Mapping
 
-from sim.core.schema import SPLIT_NAMES
+from tv3.sim.core.schema import SPLIT_NAMES
 
 
 def build_split_groups(

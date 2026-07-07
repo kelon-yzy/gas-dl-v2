@@ -23,10 +23,10 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from sim.core.tunnel_ventilation_schema import SPLIT_FIELDS, SPLIT_NAMES
-from sim.packaging.io import write_csv, write_json
-from sim.packaging.splits import build_default_split_rows
-from sim.packaging.spxy_split import (
+from tv3.sim.core.tunnel_ventilation_schema import SPLIT_FIELDS, SPLIT_NAMES
+from tv3.sim.packaging.io import write_csv, write_json
+from tv3.sim.packaging.splits import build_default_split_rows
+from tv3.sim.packaging.spxy_split import (
     SpxySplitError,
     build_lhs_stratified_split_with_summary,
     build_spxy_split_with_summary,

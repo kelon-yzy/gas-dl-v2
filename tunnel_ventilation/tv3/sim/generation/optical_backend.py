@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from sim.generation.gas_state import h2o_mole_percent_from_rh, hitran_pressure_atm, hitran_temperature_k
-from sim.generation.spectral import (
+from tv3.sim.generation.gas_state import h2o_mole_percent_from_rh, hitran_pressure_atm, hitran_temperature_k
+from tv3.sim.generation.spectral import (
     DEFAULT_HITRAN_GAS_SPECS,
     HITRAN_ABSORPTION_BACKEND,
     HitranGasSpec,

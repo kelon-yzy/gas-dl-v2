@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Sequence
 
-from ml.rocket_features import (
+from tv3.ml.rocket_features import (
     DEFAULT_EARLY_FRACTIONS,
     DEFAULT_FEATURE_BUILDER,
     DEFAULT_PHASE_WINDOWS,
@@ -13,7 +13,7 @@ from ml.rocket_features import (
     DEFAULT_PHYSICS_ARRAYS,
     RocketFeatureConfig,
 )
-from ml.rocket_training import (
+from tv3.ml.rocket_training import (
     DEFAULT_RIDGE_ALPHAS,
     rocket_training_payload,
     train_tv3_rocket_regressor,

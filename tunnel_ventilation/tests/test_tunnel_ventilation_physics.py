@@ -15,8 +15,8 @@ import random
 
 import pytest
 
-from sim.generation import acoustic_physics as hg_acoustic
-from sim.generation.tunnel_ventilation.acoustic_physics import (
+from tv3.sim.generation import acoustic_physics as hg_acoustic
+from tv3.sim.generation.tunnel_ventilation.acoustic_physics import (
     PROCESSING_PARAMS_V2,
     _hidden_absorption_co2,
     _hidden_lambda_mix,

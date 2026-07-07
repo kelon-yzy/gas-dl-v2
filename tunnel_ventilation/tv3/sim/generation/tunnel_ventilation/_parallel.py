@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from sim.generation.tunnel_ventilation.slow import build_sequence_arrays
+from tv3.sim.generation.tunnel_ventilation.slow import build_sequence_arrays
 
 # benchmark.py 定义的 ARRAY_KEYS 由调用方传入，避免循环 import。
 ArrayKeys = tuple[str, ...]
@@ -39,7 +39,7 @@ def build_arrays_parallel(
     dt_s / seed / multi_path_phase / path_lms / stage_jitter /
     optical_absorption_backend / hitran_cache_root 属性。
     """
-    from sim.generation.tunnel_ventilation.benchmark import default_chunk_size
+    from tv3.sim.generation.tunnel_ventilation.benchmark import default_chunk_size
 
     chunk_size = spec.chunk_size or default_chunk_size(len(conditions), spec.workers)  # type: ignore[attr-defined]
     temp_dir = Path(spec.temp_dir) if spec.temp_dir is not None else staging_dir / ".chunks"  # type: ignore[attr-defined]

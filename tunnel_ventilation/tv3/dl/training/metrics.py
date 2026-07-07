@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import torch
 
-from common.metrics import R2_ZERO_VARIANCE_EPSILON, RegressionMetrics
-from sim.core.schema import COMPONENT_FIELDS
+from tv3.common.metrics import R2_ZERO_VARIANCE_EPSILON, RegressionMetrics
+from tv3.sim.core.schema import COMPONENT_FIELDS
 
 
 def regression_metrics(y_pred: torch.Tensor, y_true: torch.Tensor) -> RegressionMetrics:

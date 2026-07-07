@@ -13,15 +13,15 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sim.core.schema import (
+from tv3.sim.core.schema import (
     COMPONENT_FIELDS as HG_COMPONENT_FIELDS,
     SLOW_CHANNELS as HG_SLOW_CHANNELS,
 )
-from sim.core.syngas_schema import (
+from tv3.sim.core.syngas_schema import (
     BACKGROUND_FIELDS as SG_BACKGROUND_FIELDS,
     COMPONENT_FIELDS as SG_COMPONENT_FIELDS,
 )
-from sim.core.tunnel_ventilation_schema import (
+from tv3.sim.core.tunnel_ventilation_schema import (
     BACKGROUND_FIELDS as TV_BACKGROUND_FIELDS,
     COMPONENT_FIELDS as TV_COMPONENT_FIELDS,
     COMPOSITION_SCHEME as TV_COMPOSITION_SCHEME,
@@ -29,7 +29,7 @@ from sim.core.tunnel_ventilation_schema import (
     SLOW_CHANNELS as TV_SLOW_CHANNELS,
     SLOW_DYNAMIC_CHANNELS as TV_SLOW_DYNAMIC_CHANNELS,
 )
-from sim.generation.tunnel_ventilation import (
+from tv3.sim.generation.tunnel_ventilation import (
     TUNNEL_VENTILATION_RANGES,
     TunnelVentilationRanges,
     build_tunnel_ventilation_label_rows,

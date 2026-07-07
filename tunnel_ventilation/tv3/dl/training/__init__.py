@@ -1,8 +1,8 @@
 """训练基础组件：loss、metrics、trainer 编排入口。"""
 
-from dl.training.losses import LOSS_REGISTRY, build_loss
-from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
-from dl.training.trainer import (
+from tv3.dl.training.losses import LOSS_REGISTRY, build_loss
+from tv3.dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
+from tv3.dl.training.trainer import (
     OPTIMIZER_REGISTRY,
     EpochMetrics,
     TrainHistory,

@@ -20,12 +20,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sim.core.tunnel_ventilation_schema import (
+from tv3.sim.core.tunnel_ventilation_schema import (
     BACKGROUND_FIELDS,
     COMPONENT_FIELDS,
     SLOW_CHANNELS,
 )
-from sim.generation.tunnel_ventilation import (
+from tv3.sim.generation.tunnel_ventilation import (
     TunnelVentilationBenchmarkGenerationSpec,
     generate_tunnel_ventilation_benchmark_dataset,
 )
@@ -52,11 +52,11 @@ def small_spec(tmp_path) -> TunnelVentilationBenchmarkGenerationSpec:
 
 def test_tv3_slow_build_arrays_basic():
     """build_sequence_arrays 直接调用，验证 7 通道 slow 输出。"""
-    from sim.generation.tunnel_ventilation.conditions import (
+    from tv3.sim.generation.tunnel_ventilation.conditions import (
         generate_tunnel_ventilation_condition_rows,
     )
-    from sim.generation.tunnel_ventilation.slow import build_sequence_arrays
-    from sim.generation.waveforms import FiberMicSpec, WaveformSpec
+    from tv3.sim.generation.tunnel_ventilation.slow import build_sequence_arrays
+    from tv3.sim.generation.waveforms import FiberMicSpec, WaveformSpec
 
     conditions = generate_tunnel_ventilation_condition_rows(4, seed=42)
     arrays = build_sequence_arrays(
@@ -80,11 +80,11 @@ def test_tv3_slow_build_arrays_basic():
 
 def test_tv3_slow_rejects_hitran_backend(tmp_path):
     """HITRAN 后端在阶段 1 应被拒绝。"""
-    from sim.generation.tunnel_ventilation.conditions import (
+    from tv3.sim.generation.tunnel_ventilation.conditions import (
         generate_tunnel_ventilation_condition_rows,
     )
-    from sim.generation.tunnel_ventilation.slow import build_sequence_arrays
-    from sim.generation.waveforms import FiberMicSpec, WaveformSpec
+    from tv3.sim.generation.tunnel_ventilation.slow import build_sequence_arrays
+    from tv3.sim.generation.waveforms import FiberMicSpec, WaveformSpec
 
     conditions = generate_tunnel_ventilation_condition_rows(2, seed=42)
     with pytest.raises(ValueError, match="empirical_v1"):
@@ -248,7 +248,7 @@ def test_tv3_benchmark_hitran_backend_rejected(tmp_path):
 
 def test_hydrogen_ng_benchmark_module_intact():
     """hydrogen_ng benchmark 仍可正常 import 并保持原签名。"""
-    from sim.generation.benchmark import (
+    from tv3.sim.generation.benchmark import (
         BenchmarkGenerationSpec,
         generate_benchmark_dataset,
     )
@@ -264,7 +264,7 @@ def test_hydrogen_ng_benchmark_module_intact():
 
 def test_syngas_benchmark_module_intact():
     """syngas benchmark 仍可正常 import。"""
-    from sim.generation.syngas import (
+    from tv3.sim.generation.syngas import (
         SyngasBenchmarkGenerationSpec,
         generate_syngas_benchmark_dataset,
     )
@@ -287,6 +287,6 @@ def test_tv3_spec_no_co_crosstalk_field():
 
 def test_hydrogen_ng_schema_unchanged():
     """全局 hg COMPONENT_FIELDS 仍是 (x_H2, x_CH4, x_CO2, x_N2)。"""
-    from sim.core.schema import COMPONENT_FIELDS as HG_FIELDS
+    from tv3.sim.core.schema import COMPONENT_FIELDS as HG_FIELDS
 
     assert HG_FIELDS == ("x_H2", "x_CH4", "x_CO2", "x_N2")

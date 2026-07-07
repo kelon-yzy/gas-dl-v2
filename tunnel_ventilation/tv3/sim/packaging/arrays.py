@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from common.waveform import waveform_array_filename
+from tv3.common.waveform import waveform_array_filename
 
 
 def write_arrays(output_dir: Path, arrays: dict[str, object], labels: np.ndarray, sequence_ids: list[str], slow_channel_names: tuple[str, ...], label_names: tuple[str, ...], storage: str, *, ultrasonic_dtype: str = "int16", fiber_dtype: str = "int16") -> dict[str, list[int]]:

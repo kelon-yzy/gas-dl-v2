@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from sim.generation.spectral.tabulated_backend import TabulatedSpectrum
+from tv3.sim.generation.spectral.tabulated_backend import TabulatedSpectrum
 
 
 QUANTITATIVE_TABLE_BACKEND = "quantitative_table_v1"

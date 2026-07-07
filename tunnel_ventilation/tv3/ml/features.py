@@ -7,10 +7,10 @@ import csv
 
 import numpy as np
 
-from common.scalers import apply_scaler, load_scaler
-from common.splits import load_splits, resolve_split_indices
-from common.waveform import waveform_array_path
-from common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig
+from tv3.common.scalers import apply_scaler, load_scaler
+from tv3.common.splits import load_splits, resolve_split_indices
+from tv3.common.waveform import waveform_array_path
+from tv3.common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfig
 
 
 DEFAULT_SEQUENCE_STATISTICS = ("mean", "std", "min", "max", "last", "delta", "slope")

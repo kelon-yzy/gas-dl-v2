@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pipeline.run_tv3_rocket_baseline import main
+from tv3.pipeline.run_tv3_rocket_baseline import main
 
 
 def _make_tv3_smoke_dataset(tmp_path: Path, slug: str = "tv3-rocket-cli-smoke", sequences: int = 16) -> Path:
-    from sim.generation.tunnel_ventilation import (
+    from tv3.sim.generation.tunnel_ventilation import (
         TunnelVentilationBenchmarkGenerationSpec,
         generate_tunnel_ventilation_benchmark_dataset,
     )

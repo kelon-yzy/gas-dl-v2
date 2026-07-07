@@ -3,8 +3,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
-from dl.models.base import BaseRegressor
-from dl.models.heads import TemporalPooling, build_regression_head
+from tv3.dl.models.base import BaseRegressor
+from tv3.dl.models.heads import TemporalPooling, build_regression_head
 
 
 class CNN1DRegressor(BaseRegressor):

@@ -19,12 +19,12 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from sim.generation.optical_backend import (
+from tv3.sim.generation.optical_backend import (
     EMPIRICAL_ABSORPTION_BACKEND,
     VALID_OPTICAL_ABSORPTION_BACKENDS,
 )
-from sim.generation.phases import PHASE_SCHEDULES
-from sim.generation.tunnel_ventilation.benchmark import (
+from tv3.sim.generation.phases import PHASE_SCHEDULES
+from tv3.sim.generation.tunnel_ventilation.benchmark import (
     DEFAULT_WAVEFORM_PATH_LMS,
     TunnelVentilationBenchmarkGenerationSpec,
     default_worker_count,

@@ -24,8 +24,8 @@ from dataclasses import dataclass
 
 from scipy.stats.qmc import LatinHypercube
 
-from sim.core.ids import make_mixture_id, make_sequence_id
-from sim.core.tunnel_ventilation_schema import COMPONENT_FIELDS
+from tv3.sim.core.ids import make_mixture_id, make_sequence_id
+from tv3.sim.core.tunnel_ventilation_schema import COMPONENT_FIELDS
 
 
 # 组分区间（单位 %），见 docs/掘进通风/sampling_design.md §1.1

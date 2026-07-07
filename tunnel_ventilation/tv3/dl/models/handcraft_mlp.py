@@ -5,8 +5,8 @@ from collections.abc import Sequence
 import torch
 from torch import nn
 
-from dl.models.base import BaseRegressor
-from dl.models.cnn1d_tcn_fusion import GasHeadNormalize
+from tv3.dl.models.base import BaseRegressor
+from tv3.dl.models.cnn1d_tcn_fusion import GasHeadNormalize
 
 
 class HandcraftMLPRegressor(BaseRegressor):

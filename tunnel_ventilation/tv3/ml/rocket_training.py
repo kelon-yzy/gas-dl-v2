@@ -9,17 +9,17 @@ import numpy as np
 from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 
-from common.metrics import conditional_metrics_to_payload
-from ml.features import MLFeatureMatrix
-from ml.models import RidgeRegressor
-from ml.rocket_features import (
+from tv3.common.metrics import conditional_metrics_to_payload
+from tv3.ml.features import MLFeatureMatrix
+from tv3.ml.models import RidgeRegressor
+from tv3.ml.rocket_features import (
     RocketFeatureCache,
     RocketFeatureConfig,
     build_tv3_physics_feature_cache,
     default_cache_dir,
     load_cached_split_feature_matrix,
 )
-from ml.training import SplitEvaluation, evaluate_regressor
+from tv3.ml.training import SplitEvaluation, evaluate_regressor
 
 
 DEFAULT_RIDGE_ALPHAS = (1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1.0, 3.0, 10.0, 30.0, 100.0)

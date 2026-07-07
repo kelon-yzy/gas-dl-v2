@@ -4,7 +4,7 @@ from collections import Counter
 
 import numpy as np
 
-from sim.core.schema import (
+from tv3.sim.core.schema import (
     COMPONENT_FIELDS as DEFAULT_COMPONENT_FIELDS,
     LEGACY_CONDITION_FIELDS,
     SLOW_CHANNELS as DEFAULT_SLOW_CHANNELS,

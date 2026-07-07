@@ -5,7 +5,7 @@ from typing import Any
 
 import numpy as np
 
-from sim.core.schema import COMPONENT_FIELDS
+from tv3.sim.core.schema import COMPONENT_FIELDS
 
 
 PERCENT_TOTAL = 100.0

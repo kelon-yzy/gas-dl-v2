@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from common.composition import (
+from tv3.common.composition import (
     aitchison_distance,
     TargetTransformSpec,
     ZeroReplacementAudit,
@@ -15,10 +15,10 @@ from common.composition import (
     resolve_target_transform_for_training,
     transform_composition_targets,
 )
-from common.metrics import CompositionalMetrics, conditional_component_metrics
-from ml.features import MLFeatureConfig, MLFeatureMatrix, load_feature_matrix
-from ml.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
-from ml.models import DynamicStackingSVRRegressor, MeanRegressor, RidgeRegressor, build_regressor
+from tv3.common.metrics import CompositionalMetrics, conditional_component_metrics
+from tv3.ml.features import MLFeatureConfig, MLFeatureMatrix, load_feature_matrix
+from tv3.ml.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
+from tv3.ml.models import DynamicStackingSVRRegressor, MeanRegressor, RidgeRegressor, build_regressor
 
 
 Regressor = MeanRegressor | RidgeRegressor | DynamicStackingSVRRegressor

@@ -11,7 +11,7 @@ import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
-from common.composition import (
+from tv3.common.composition import (
     N2_FIRST_ILR_BASIS,
     ALR_CH4_TRANSFORM,
     ILR_N2_FIRST_TRANSFORM,
@@ -20,9 +20,9 @@ from common.composition import (
     inverse_transform_composition_targets,
     resolve_target_transform_spec,
 )
-from common.metrics import CompositionalMetrics, conditional_component_metrics
-from dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
-from sim.core.schema import COMPONENT_FIELDS as DEFAULT_COMPONENT_FIELDS
+from tv3.common.metrics import CompositionalMetrics, conditional_component_metrics
+from tv3.dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
+from tv3.sim.core.schema import COMPONENT_FIELDS as DEFAULT_COMPONENT_FIELDS
 
 HYDROGEN_NG_SCHEME = "hydrogen_ng"
 SYNGAS_SCHEME = "syngas"

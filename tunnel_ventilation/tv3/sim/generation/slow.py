@@ -1,73 +1,35 @@
-"""掘进通风场景的慢通道序列生成。
-
-与 hydrogen_ng `sim.generation.slow` 和 syngas `sim.generation.syngas.slow` 并存。差异：
-- SLOW_CHANNELS / SLOW_DYNAMIC_CHANNELS 来自 tunnel_ventilation_schema（7 通道）
-- 物理函数走 sim.generation.tunnel_ventilation.acoustic_physics
-- 波形仿真通过 sound_speed_fn / attenuation_fn 注入 tv3 物理，extra_gas_kwargs 透传 x_o2
-- 仅支持 empirical_v1 后端（HITRAN 后端阶段 1 不实现，调用即拒绝）
-- 无光学串扰矩阵（只有 CO2 一个红外活性组分）
-- 无 V_NDIR_CH4 通道（场景无 CH₄）
-
-baseline 语义：blend=0 时标准新鲜空气，blend=1 时实际 CO2/O2/N2 组分。
-
-内存优化：当 temp_dir 传入时，大波形数组（ultrasonic / fiber_mic）改用 memmap 直接落盘，
-避免大序列数场景下 np.zeros 申请几十 GiB RAM 导致 OOM / SIGBUS。
-"""
 from __future__ import annotations
 
 import hashlib
 import math
 import random
-from pathlib import Path
 
 import numpy as np
 
-from tv3.sim.core.tunnel_ventilation_schema import SLOW_CHANNELS, SLOW_DYNAMIC_CHANNELS
+from tv3.sim.core.schema import SLOW_CHANNELS, SLOW_DYNAMIC_CHANNELS
+from tv3.sim.generation.acoustic_physics import PROCESSING_PARAMS, main_sensor_features, thermal_conductivity_sensor_feature
 from tv3.sim.generation.optical_backend import (
     EMPIRICAL_ABSORPTION_BACKEND,
+    HITRAN_ABSORPTION_BACKEND,
     VALID_OPTICAL_ABSORPTION_BACKENDS,
+    compute_hitran_optical_absorption,
 )
-from tv3.sim.generation.phases import PhaseSchedule, resolve_phase_schedule
-from tv3.sim.generation.tunnel_ventilation.acoustic_physics import (
-    PROCESSING_PARAMS,
-    hidden_attenuation_v2,
-    hidden_sound_speed_v2,
-    main_sensor_features,
-    thermal_conductivity_sensor_feature,
-)
-from tv3.sim.generation.waveforms import (
-    FiberMicSpec,
-    WaveformSpec,
-    simulate_fiber_mic_measurement,
-    simulate_waveform_measurement,
-)
+from tv3.sim.generation.phases import PhaseSchedule, phase_boundaries, resolve_phase_schedule
+from tv3.sim.generation.spectral import HitranGridSpec, PreparedTabulatedSpectra
+from tv3.sim.generation.waveforms import FiberMicSpec, WaveformSpec, simulate_fiber_mic_measurement, simulate_waveform_measurement
 
 
-# 系统响应时间常数（与 hydrogen_ng 同量级）
 TAU_RISE_SYSTEM_S = {
+    "V_NDIR_CH4": (8.0, 20.0),
     "V_NDIR_CO2": (6.0, 18.0),
     "V_TCS": (10.0, 35.0),
 }
 TAU_DECAY_SYSTEM_S = {
+    "V_NDIR_CH4": (12.0, 30.0),
     "V_NDIR_CO2": (10.0, 28.0),
     "V_TCS": (20.0, 60.0),
 }
-NOISE_FRACTION = {
-    "V_NDIR_CO2": 0.0025,
-    "V_TCS": 0.003,
-}
-_BASE_SCALE = {
-    "V_NDIR_CO2": 2.5,
-    "V_TCS": 1.5,
-}
-FRESH_AIR_COMPOSITION = {
-    "x_co2": 0.04,
-    "x_o2": 20.90,
-    "x_n2": 79.06,
-}
-
-# tv3 阶段 1 仅支持 empirical 后端；HITRAN 后端待后续阶段实现
-_TV3_VALID_BACKENDS = (EMPIRICAL_ABSORPTION_BACKEND,)
+NOISE_FRACTION = {"V_NDIR_CH4": 0.0025, "V_NDIR_CO2": 0.0025, "V_TCS": 0.003}
 
 
 def build_sequence_arrays(
@@ -78,44 +40,19 @@ def build_sequence_arrays(
     seed: int,
     multi_path_phase: str,
     ultrasonic_spec: WaveformSpec,
-    fiber_mic_spec: FiberMicSpec | None,
+    fiber_mic_spec: FiberMicSpec,
     path_lms: tuple[float, ...],
     phase_schedule: str | PhaseSchedule = "standard_exposure",
     stage_jitter: float = 0.0,
     optical_absorption_backend: str = EMPIRICAL_ABSORPTION_BACKEND,
-    hitran_cache_root: str = "data/hitran_cache_tv3",  # noqa: ARG001 保留参数为兼容接口签名
+    hitran_cache_root: str = "data/hitran_cache",
     start_sequence_index: int = 0,
-    temp_dir: Path | None = None,  # 大波形数组 memmap 落盘目录；None 时沿用 np.zeros
 ) -> dict[str, object]:
     if optical_absorption_backend not in VALID_OPTICAL_ABSORPTION_BACKENDS:
-        raise ValueError(
-            f"optical_absorption_backend must be one of {list(VALID_OPTICAL_ABSORPTION_BACKENDS)}, "
-            f"got {optical_absorption_backend!r}"
-        )
-    if optical_absorption_backend not in _TV3_VALID_BACKENDS:
-        raise ValueError(
-            f"tunnel_ventilation 阶段 1 仅支持 empirical_v1 后端，"
-            f"got {optical_absorption_backend!r}（HITRAN 后端待后续阶段实现）"
-        )
-
+        raise ValueError(f"optical_absorption_backend must be one of {list(VALID_OPTICAL_ABSORPTION_BACKENDS)}, got {optical_absorption_backend!r}")
     sequence_count = len(conditions)
-    use_memmap = temp_dir is not None
-    if use_memmap:
-        temp_dir.mkdir(parents=True, exist_ok=True)
-
     slow = np.zeros((sequence_count, timesteps, len(SLOW_CHANNELS)), dtype=np.float32)
-    # 大波形数组：6000×512×5000 int16 ≈ 28.6 GiB，必须 memmap 落盘避免 OOM
-    if use_memmap:
-        ultrasonic = np.lib.format.open_memmap(
-            str(temp_dir / "ultrasonic.npy"), mode="w+",
-            dtype=np.dtype(ultrasonic_spec.waveform_dtype),
-            shape=(sequence_count, timesteps, ultrasonic_spec.waveform_samples),
-        )
-    else:
-        ultrasonic = np.zeros(
-            (sequence_count, timesteps, ultrasonic_spec.waveform_samples),
-            dtype=np.dtype(ultrasonic_spec.waveform_dtype),
-        )
+    ultrasonic = np.zeros((sequence_count, timesteps, ultrasonic_spec.waveform_samples), dtype=np.dtype(ultrasonic_spec.waveform_dtype))
     ultrasonic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_s = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_observed_s = np.zeros((sequence_count, timesteps), dtype=np.float32)
@@ -125,50 +62,45 @@ def build_sequence_arrays(
     ultrasonic_alpha = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_quality = np.zeros((sequence_count, timesteps), dtype=np.float32)
     ultrasonic_tof_accepted = np.zeros((sequence_count, timesteps), dtype=np.int8)
-    if fiber_mic_spec is not None:
-        if use_memmap:
-            fiber_mic = np.lib.format.open_memmap(
-                str(temp_dir / "fiber_mic.npy"), mode="w+",
-                dtype=np.dtype(fiber_mic_spec.waveform_dtype),
-                shape=(sequence_count, timesteps, fiber_mic_spec.waveform_samples),
-            )
-        else:
-            fiber_mic = np.zeros(
-                (sequence_count, timesteps, fiber_mic_spec.waveform_samples),
-                dtype=np.dtype(fiber_mic_spec.waveform_dtype),
-            )
-        fiber_mic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
+    fiber_mic = np.zeros((sequence_count, timesteps, fiber_mic_spec.waveform_samples), dtype=np.dtype(fiber_mic_spec.waveform_dtype))
+    fiber_mic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
     slow_rows = []
     base_schedule = resolve_phase_schedule(phase_schedule)
+    # 仅 empirical 后端在 standard_exposure + 无 jitter 时复现旧 wv4-smoke 单时间常数动力学；
+    # HITRAN 后端的所有慢通道（含 V_TCS）始终走 equilibrium 多时间常数动力学。
+    is_empirical = optical_absorption_backend == EMPIRICAL_ABSORPTION_BACKEND
+    use_legacy_empirical_dynamics = is_empirical and base_schedule.name == "standard_exposure" and stage_jitter == 0.0
     is_baseline_scan = multi_path_phase == "baseline"
     is_steady_scan = multi_path_phase == "steady"
+    spectra_cache: dict[tuple[str, HitranGridSpec], PreparedTabulatedSpectra] | None = (
+        {} if optical_absorption_backend == HITRAN_ABSORPTION_BACKEND else None
+    )
 
     for seq_index, condition in enumerate(conditions):
         global_sequence_index = start_sequence_index + seq_index
         condition_rng = random.Random(_stable_uint32(seed, global_sequence_index, "condition"))
         sequence_rng = random.Random(_stable_uint32(seed, global_sequence_index, "sequence"))
-        # baseline = 标准新鲜空气，target = 实际 CO2/O2/N2 组分
-        baseline_condition = _main_feature_condition(
-            condition,
-            x_co2=FRESH_AIR_COMPOSITION["x_co2"],
-            x_o2=FRESH_AIR_COMPOSITION["x_o2"],
-            x_n2=FRESH_AIR_COMPOSITION["x_n2"],
-            l_m=float(condition["L_m_base"]),
-        )
+        baseline_condition = _main_feature_condition(condition, 0.0, 0.0, 0.0, 100.0, float(condition["L_m_base"]))
         target_condition = _main_feature_condition(
             condition,
-            x_co2=float(condition["x_CO2"]),
-            x_o2=float(condition["x_O2"]),
-            x_n2=float(condition["x_N2"]),
-            l_m=float(condition["L_m_base"]),
+            float(condition["x_H2"]),
+            float(condition["x_CH4"]),
+            float(condition["x_CO2"]),
+            float(condition["x_N2"]),
+            float(condition["L_m_base"]),
         )
-        baseline_main = main_sensor_features(baseline_condition, condition_rng, f_hz=ultrasonic_spec.center_frequency_hz)
-        target_main = main_sensor_features(target_condition, condition_rng, f_hz=ultrasonic_spec.center_frequency_hz)
+        if optical_absorption_backend == EMPIRICAL_ABSORPTION_BACKEND:
+            baseline_main = main_sensor_features(baseline_condition, condition_rng, f_hz=ultrasonic_spec.center_frequency_hz)
+            target_main = main_sensor_features(target_condition, condition_rng, f_hz=ultrasonic_spec.center_frequency_hz)
+        else:
+            baseline_main = thermal_conductivity_sensor_feature(baseline_condition, condition_rng)
+            target_main = thermal_conductivity_sensor_feature(target_condition, condition_rng)
         slow_params = _channel_dynamic_params(sequence_rng)
         slow_walk = {channel: 0.0 for channel in SLOW_DYNAMIC_CHANNELS}
         schedule = base_schedule.jittered(sequence_rng, stage_jitter)
         phase_intervals = _phase_intervals(schedule, timesteps)
         phase_ids, blends = schedule.resolve_timeline(timesteps)
+        ndir_state: dict[str, float] = {}
         slow_state: dict[str, float] = {}
         for timestep in range(timesteps):
             phase_id = phase_ids[timestep]
@@ -182,15 +114,47 @@ def build_sequence_arrays(
                 path_lms,
             )
             composition = _blend_composition(condition, blend)
-            current = _dynamic_features_from_equilibrium(
-                _blend_equilibrium_features(baseline_main, target_main, blend, channels=SLOW_DYNAMIC_CHANNELS),
-                slow_state,
-                timestep,
-                slow_params,
-                slow_walk,
-                sequence_rng,
-                channels=SLOW_DYNAMIC_CHANNELS,
-            )
+            if is_empirical:
+                if use_legacy_empirical_dynamics:
+                    current = _dynamic_slow_features(baseline_main, target_main, timestep, timesteps, slow_params, slow_walk, sequence_rng)
+                else:
+                    current = _dynamic_features_from_equilibrium(
+                        _blend_equilibrium_features(baseline_main, target_main, blend, channels=SLOW_DYNAMIC_CHANNELS),
+                        slow_state,
+                        timestep,
+                        slow_params,
+                        slow_walk,
+                        sequence_rng,
+                        channels=SLOW_DYNAMIC_CHANNELS,
+                    )
+            else:
+                current = _dynamic_features_from_equilibrium(
+                    _blend_equilibrium_features(baseline_main, target_main, blend, channels=("V_TCS",)),
+                    slow_state,
+                    timestep,
+                    slow_params,
+                    slow_walk,
+                    sequence_rng,
+                    channels=("V_TCS",),
+                )
+                ndir_equilibrium = _hitran_ndir_equilibrium(
+                    condition,
+                    composition=composition,
+                    l_m=current_l_m,
+                    hitran_cache_root=hitran_cache_root,
+                    spectra_cache=spectra_cache,
+                )
+                current.update(
+                    _dynamic_features_from_equilibrium(
+                        ndir_equilibrium,
+                        ndir_state,
+                        timestep,
+                        slow_params,
+                        slow_walk,
+                        sequence_rng,
+                        channels=("V_NDIR_CH4", "V_NDIR_CO2"),
+                    )
+                )
             current["T_C"] = float(condition["T_C_base"])
             current["P_MPa"] = float(condition["P_MPa_base"])
             current["H_RH"] = float(condition["H_RH_base"])
@@ -198,41 +162,24 @@ def build_sequence_arrays(
             current["piston_position_m"] = current_l_m
             slow_values = [float(current[channel]) for channel in SLOW_CHANNELS]
             slow[seq_index, timestep, :] = np.array(slow_values, dtype=np.float32)
-
-            # 波形仿真：注入 tv3 物理。extra_gas_kwargs 透传 x_o2；
-            # composition dict 含 x_co2/x_o2/x_n2。x_h2/x_ch4 始终为 0。
-            extra_gas = {"x_o2": composition["x_o2"]}
             ultrasonic_result = simulate_waveform_measurement(
-                x_h2=0.0,
-                x_ch4=0.0,
-                x_co2=composition["x_co2"],
-                x_n2=composition["x_n2"],
+                **composition,
                 t_c=float(current["T_C"]),
                 p_mpa=float(current["P_MPa"]),
                 h_rh=float(current["H_RH"]),
                 l_m=float(current["L_m"]),
                 seed=sequence_rng.randrange(0, 2**32),
                 spec=ultrasonic_spec,
-                sound_speed_fn=hidden_sound_speed_v2,
-                attenuation_fn=hidden_attenuation_v2,
-                extra_gas_kwargs=extra_gas,
             )
-            if fiber_mic_spec is not None:
-                fiber_result = simulate_fiber_mic_measurement(
-                    x_h2=0.0,
-                    x_ch4=0.0,
-                    x_co2=composition["x_co2"],
-                    x_n2=composition["x_n2"],
-                    t_c=float(current["T_C"]),
-                    p_mpa=float(current["P_MPa"]),
-                    h_rh=float(current["H_RH"]),
-                    l_m=float(current["L_m"]),
-                    seed=sequence_rng.randrange(0, 2**32),
-                    spec=fiber_mic_spec,
-                    sound_speed_fn=hidden_sound_speed_v2,
-                    attenuation_fn=hidden_attenuation_v2,
-                    extra_gas_kwargs=extra_gas,
-                )
+            fiber_result = simulate_fiber_mic_measurement(
+                **composition,
+                t_c=float(current["T_C"]),
+                p_mpa=float(current["P_MPa"]),
+                h_rh=float(current["H_RH"]),
+                l_m=float(current["L_m"]),
+                seed=sequence_rng.randrange(0, 2**32),
+                spec=fiber_mic_spec,
+            )
             ultrasonic[seq_index, timestep, :] = ultrasonic_result["waveform_int"]
             ultrasonic_scale[seq_index, timestep] = ultrasonic_result["scale_factor"]
             ultrasonic_tof_s[seq_index, timestep] = float(ultrasonic_result["tof_s"])
@@ -243,12 +190,10 @@ def build_sequence_arrays(
             ultrasonic_alpha[seq_index, timestep] = float(ultrasonic_result["alpha_true_npm"])
             ultrasonic_tof_quality[seq_index, timestep] = float(ultrasonic_result["tof_quality"])
             ultrasonic_tof_accepted[seq_index, timestep] = int(ultrasonic_result["tof_accepted"])
-            if fiber_mic_spec is not None:
-                fiber_mic[seq_index, timestep, :] = fiber_result["waveform_int"]
-                fiber_mic_scale[seq_index, timestep] = fiber_result["scale_factor"]
+            fiber_mic[seq_index, timestep, :] = fiber_result["waveform_int"]
+            fiber_mic_scale[seq_index, timestep] = fiber_result["scale_factor"]
             slow_rows.append(_slow_row(condition["sequence_id"], timestep, dt_s, phase_id, current))
-
-    result = {
+    return {
         "slow": slow,
         "ultrasonic": ultrasonic,
         "ultrasonic_scale": ultrasonic_scale,
@@ -260,25 +205,50 @@ def build_sequence_arrays(
         "ultrasonic_alpha_true_npm": ultrasonic_alpha,
         "ultrasonic_tof_quality": ultrasonic_tof_quality,
         "ultrasonic_tof_accepted": ultrasonic_tof_accepted,
+        "fiber_mic": fiber_mic,
+        "fiber_mic_scale": fiber_mic_scale,
         "slow_rows": slow_rows,
     }
-    if fiber_mic_spec is not None:
-        result["fiber_mic"] = fiber_mic
-        result["fiber_mic_scale"] = fiber_mic_scale
-    return result
 
 
-def _main_feature_condition(
-    condition: dict[str, str],
+def build_sequence_arrays_chunk(
+    conditions: list[dict[str, str]],
     *,
-    x_co2: float,
-    x_o2: float,
-    x_n2: float,
-    l_m: float,
-) -> dict[str, str]:
+    timesteps: int,
+    dt_s: float,
+    seed: int,
+    multi_path_phase: str,
+    ultrasonic_spec: WaveformSpec,
+    fiber_mic_spec: FiberMicSpec,
+    path_lms: tuple[float, ...],
+    phase_schedule: str | PhaseSchedule = "standard_exposure",
+    stage_jitter: float = 0.0,
+    optical_absorption_backend: str = EMPIRICAL_ABSORPTION_BACKEND,
+    hitran_cache_root: str = "data/hitran_cache",
+    start_sequence_index: int = 0,
+) -> dict[str, object]:
+    return build_sequence_arrays(
+        conditions,
+        timesteps=timesteps,
+        dt_s=dt_s,
+        seed=seed,
+        multi_path_phase=multi_path_phase,
+        ultrasonic_spec=ultrasonic_spec,
+        fiber_mic_spec=fiber_mic_spec,
+        path_lms=path_lms,
+        phase_schedule=phase_schedule,
+        stage_jitter=stage_jitter,
+        optical_absorption_backend=optical_absorption_backend,
+        hitran_cache_root=hitran_cache_root,
+        start_sequence_index=start_sequence_index,
+    )
+
+
+def _main_feature_condition(condition: dict[str, str], x_h2: float, x_ch4: float, x_co2: float, x_n2: float, l_m: float) -> dict[str, str]:
     return {
+        "x_H2": _fmt(x_h2, 6),
+        "x_CH4": _fmt(x_ch4, 6),
         "x_CO2": _fmt(x_co2, 6),
-        "x_O2": _fmt(x_o2, 6),
         "x_N2": _fmt(x_n2, 6),
         "T_C": condition["T_C_base"],
         "P_MPa": condition["P_MPa_base"],
@@ -288,17 +258,11 @@ def _main_feature_condition(
 
 
 def _blend_composition(condition: dict[str, str], blend: float) -> dict[str, float]:
-    """从标准新鲜空气 baseline 到 target 的线性混合。
-
-    baseline = 常规空气（CO2 0.04%, O2 20.90%, N2 79.06%），
-    target = condition 给出的实际组分。
-    blend ∈ [0, 1]：0 表示 baseline，1 表示 target。
-    """
-    base = FRESH_AIR_COMPOSITION
     return {
-        "x_co2": base["x_co2"] + (float(condition["x_CO2"]) - base["x_co2"]) * blend,
-        "x_o2": base["x_o2"] + (float(condition["x_O2"]) - base["x_o2"]) * blend,
-        "x_n2": base["x_n2"] + (float(condition["x_N2"]) - base["x_n2"]) * blend,
+        "x_h2": float(condition["x_H2"]) * blend,
+        "x_ch4": float(condition["x_CH4"]) * blend,
+        "x_co2": float(condition["x_CO2"]) * blend,
+        "x_n2": 100.0 + (float(condition["x_N2"]) - 100.0) * blend,
     }
 
 
@@ -312,6 +276,66 @@ def _blend_equilibrium_features(
     return {
         channel: float(baseline_main[channel]) + (float(target_main[channel]) - float(baseline_main[channel])) * blend
         for channel in channels
+    }
+
+
+def _dynamic_slow_features(
+    baseline_main: dict[str, float],
+    target_main: dict[str, float],
+    timestep: int,
+    timesteps: int,
+    slow_params: dict[str, dict[str, float]],
+    slow_walk: dict[str, float],
+    sequence_rng: random.Random,
+    channels: tuple[str, ...] = SLOW_DYNAMIC_CHANNELS,
+) -> dict[str, float]:
+    current = {}
+    for channel in channels:
+        value = _channel_value(
+            baseline=float(baseline_main[channel]),
+            target=float(target_main[channel]),
+            timestep=timestep,
+            timesteps=timesteps,
+            tau_rise_system_s=slow_params[channel]["tau_rise_system_s"],
+            tau_decay_system_s=slow_params[channel]["tau_decay_system_s"],
+        )
+        slow_walk[channel] += sequence_rng.gauss(0.0, slow_params[channel]["random_walk_sigma"])
+        value += slow_params[channel]["drift_slope"] * timestep
+        value += slow_walk[channel]
+        value += sequence_rng.gauss(0.0, slow_params[channel]["noise_sigma"])
+        current[channel] = max(1e-9, value)
+    return current
+
+
+def _hitran_ndir_equilibrium(
+    condition: dict[str, str],
+    *,
+    composition: dict[str, float],
+    l_m: float,
+    hitran_cache_root: str,
+    spectra_cache: dict[tuple[str, HitranGridSpec], PreparedTabulatedSpectra] | None,
+) -> dict[str, float]:
+    optical = compute_hitran_optical_absorption(
+        _main_feature_condition(
+            condition,
+            composition["x_h2"],
+            composition["x_ch4"],
+            composition["x_co2"],
+            composition["x_n2"],
+            l_m,
+        ),
+        cache_root=hitran_cache_root,
+        spectra_cache=spectra_cache,
+    )
+    return {
+        "V_NDIR_CH4": max(
+            0.1,
+            PROCESSING_PARAMS["optical_baseline_ch4_init"] * math.exp(-float(optical["absorption_ch4_observed"])),
+        ),
+        "V_NDIR_CO2": max(
+            0.1,
+            PROCESSING_PARAMS["optical_baseline_co2_init"] * math.exp(-float(optical["absorption_co2_observed"])),
+        ),
     }
 
 
@@ -349,7 +373,7 @@ def _channel_dynamic_params(rng: random.Random) -> dict[str, dict[str, float]]:
     for channel in SLOW_DYNAMIC_CHANNELS:
         rise_min, rise_max = TAU_RISE_SYSTEM_S[channel]
         decay_min, decay_max = TAU_DECAY_SYSTEM_S[channel]
-        base_scale = _BASE_SCALE[channel]
+        base_scale = {"V_NDIR_CH4": 2.5, "V_NDIR_CO2": 2.5, "V_TCS": 1.5}[channel]
         params[channel] = {
             "tau_rise_system_s": rng.uniform(rise_min, rise_max),
             "tau_decay_system_s": rng.uniform(decay_min, decay_max),
@@ -376,6 +400,19 @@ def _multi_tau_channel_step(previous: float, target: float, params: dict[str, fl
     if target < previous:
         target = target + (previous - target) * params["recovery_floor_fraction"]
     return previous + (target - previous) * alpha
+
+
+def _channel_value(baseline: float, target: float, timestep: int, timesteps: int, tau_rise_system_s: float, tau_decay_system_s: float) -> float:
+    q1, _, q3 = phase_boundaries(timesteps)
+    if timestep < q1:
+        return baseline
+    if timestep < q3:
+        progress = 1.0 - math.exp(-(timestep - q1 + 1) / tau_rise_system_s)
+        return baseline + (target - baseline) * progress
+    start_progress = 1.0 - math.exp(-(q3 - q1) / tau_rise_system_s)
+    recovery_start = baseline + (target - baseline) * start_progress
+    recovery_progress = math.exp(-(timestep - q3 + 1) / tau_decay_system_s)
+    return baseline + (recovery_start - baseline) * recovery_progress
 
 
 def _path_l_m_for_schedule(
@@ -419,6 +456,7 @@ def _slow_row(sequence_id: str, timestep: int, dt_s: float, phase_id: str, curre
         "timestep": str(timestep),
         "timestamp_s": _fmt(timestep * dt_s, 1),
         "phase_id": phase_id,
+        "V_NDIR_CH4": _fmt(float(current["V_NDIR_CH4"]), 6),
         "V_NDIR_CO2": _fmt(float(current["V_NDIR_CO2"]), 6),
         "V_TCS": _fmt(float(current["V_TCS"]), 6),
         "T_C": _fmt(float(current["T_C"]), 4),

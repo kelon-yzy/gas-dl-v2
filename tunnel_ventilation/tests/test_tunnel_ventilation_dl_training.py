@@ -18,8 +18,8 @@ from pathlib import Path
 
 import pytest
 
-from dl.cli import build_parser as build_dl_cli_parser, run as run_dl_cli
-from dl.training.losses import (
+from tv3.dl.cli import build_parser as build_dl_cli_parser, run as run_dl_cli
+from tv3.dl.training.losses import (
     COMPOSITIONAL_MSE_LOSS,
     FREE_COMPONENT_MSE_LOSS,
     ILR_MSE_LOSS,
@@ -27,8 +27,8 @@ from dl.training.losses import (
     WEIGHTED_FREE_COMPONENT_MSE_LOSS,
     validate_loss_composition_scheme,
 )
-from sim.core.tunnel_ventilation_schema import COMPONENT_FIELDS as TV_COMPONENT_FIELDS
-from sim.generation.tunnel_ventilation import (
+from tv3.sim.core.tunnel_ventilation_schema import COMPONENT_FIELDS as TV_COMPONENT_FIELDS
+from tv3.sim.generation.tunnel_ventilation import (
     TunnelVentilationBenchmarkGenerationSpec,
     generate_tunnel_ventilation_benchmark_dataset,
 )
@@ -271,8 +271,8 @@ class TestTrainerCompositionScheme:
         """tv3 不允许 ILR/ALR target_transform（不使用闭包残差头）。"""
         import torch
         from torch import nn
-        from common.composition import TargetTransformSpec
-        from dl.training.trainer import Trainer
+        from tv3.common.composition import TargetTransformSpec
+        from tv3.dl.training.trainer import Trainer
 
         model = nn.Linear(3, 3)
         opt = torch.optim.Adam(model.parameters())
@@ -291,7 +291,7 @@ class TestTrainerCompositionScheme:
         """tv3 scheme 应被接受（无 target_transform 时）。"""
         import torch
         from torch import nn
-        from dl.training.trainer import Trainer
+        from tv3.dl.training.trainer import Trainer
 
         model = nn.Linear(3, 3)
         opt = torch.optim.Adam(model.parameters())
@@ -308,8 +308,8 @@ class TestTrainerCompositionScheme:
         """syngas target_transform 拒绝未被破坏。"""
         import torch
         from torch import nn
-        from common.composition import TargetTransformSpec
-        from dl.training.trainer import Trainer
+        from tv3.common.composition import TargetTransformSpec
+        from tv3.dl.training.trainer import Trainer
 
         model = nn.Linear(3, 4)
         opt = torch.optim.Adam(model.parameters())
@@ -327,7 +327,7 @@ class TestTrainerCompositionScheme:
     def test_trainer_rejects_unknown_scheme(self):
         import torch
         from torch import nn
-        from dl.training.trainer import Trainer
+        from tv3.dl.training.trainer import Trainer
 
         model = nn.Linear(3, 4)
         opt = torch.optim.Adam(model.parameters())
@@ -349,7 +349,7 @@ class TestTrainerCompositionScheme:
 class TestHydrogenNgUnaffected:
     def test_legacy_hg_benchmark_still_loads_with_default_scheme(self, tmp_path: Path):
         """hydrogen_ng 数据集即使 manifest 无 composition_scheme 字段也能 fallback。"""
-        from sim.generation.benchmark import (
+        from tv3.sim.generation.benchmark import (
             BenchmarkGenerationSpec,
             generate_benchmark_dataset,
         )
@@ -400,7 +400,7 @@ class TestHydrogenNgUnaffected:
 class TestSyngasUnaffected:
     def test_syngas_benchmark_still_loads_with_syngas_scheme(self, tmp_path: Path):
         """syngas 数据集仍能正常训练，conditional_metrics 按 co_bins/ch4_bins 分箱。"""
-        from sim.generation.syngas import (
+        from tv3.sim.generation.syngas import (
             SyngasBenchmarkGenerationSpec,
             generate_syngas_benchmark_dataset,
         )

@@ -24,9 +24,9 @@ from pathlib import Path
 
 import numpy as np
 
-from sim.core.ids import BenchmarkDatasetId
-from sim.core.schema import MULTI_PATH_PHASES, SPLIT_NAMES, VALID_STORAGE_FORMATS
-from sim.core.tunnel_ventilation_schema import (
+from tv3.sim.core.ids import BenchmarkDatasetId
+from tv3.sim.core.schema import MULTI_PATH_PHASES, SPLIT_NAMES, VALID_STORAGE_FORMATS
+from tv3.sim.core.tunnel_ventilation_schema import (
     BACKGROUND_FIELDS,
     COMPONENT_FIELDS,
     COMPOSITION_SCHEME,
@@ -39,25 +39,25 @@ from sim.core.tunnel_ventilation_schema import (
     SLOW_SEQUENCE_FIELDS,
     SPLIT_FIELDS,
 )
-from sim.generation.optical_backend import (
+from tv3.sim.generation.optical_backend import (
     EMPIRICAL_ABSORPTION_BACKEND,
     VALID_OPTICAL_ABSORPTION_BACKENDS,
 )
-from sim.generation.phases import PHASE_SCHEDULES, PhaseSchedule, resolve_phase_schedule
-from sim.generation.tunnel_ventilation.conditions import (
+from tv3.sim.generation.phases import PHASE_SCHEDULES, PhaseSchedule, resolve_phase_schedule
+from tv3.sim.generation.tunnel_ventilation.conditions import (
     L_M_BASE_RANGE,
     build_tunnel_ventilation_label_rows as build_label_rows,
     generate_tunnel_ventilation_condition_rows as generate_condition_rows,
 )
-from sim.generation.tunnel_ventilation.slow import build_sequence_arrays
-from sim.generation.waveforms import FiberMicSpec, WaveformSpec
-from sim.packaging.arrays import write_arrays
-from sim.packaging.index import build_sequence_index_rows
-from sim.packaging.io import write_csv, write_json
-from sim.packaging.manifest import build_manifest
-from sim.packaging.scalers import fit_z_score_scalers
-from sim.packaging.splits import build_default_split_rows
-from sim.validation.integrity import validate_benchmark_assets
+from tv3.sim.generation.tunnel_ventilation.slow import build_sequence_arrays
+from tv3.sim.generation.waveforms import FiberMicSpec, WaveformSpec
+from tv3.sim.packaging.arrays import write_arrays
+from tv3.sim.packaging.index import build_sequence_index_rows
+from tv3.sim.packaging.io import write_csv, write_json
+from tv3.sim.packaging.manifest import build_manifest
+from tv3.sim.packaging.scalers import fit_z_score_scalers
+from tv3.sim.packaging.splits import build_default_split_rows
+from tv3.sim.validation.integrity import validate_benchmark_assets
 
 
 DEFAULT_WAVEFORM_PATH_LMS = (0.18, 0.20, 0.22, 0.25, 0.28)  # 200kHz 声程上限 0.3m 约束下的 5 档多光程扫描
@@ -422,7 +422,7 @@ def _build_split_rows_for_spec(
     lhs_stratified_split_v1: 全量 Y 分箱分层随机四分类。
     """
     if spec.split_strategy == "spxy_v1":
-        from sim.packaging.spxy_split import build_spxy_split_with_summary
+        from tv3.sim.packaging.spxy_split import build_spxy_split_with_summary
 
         rows, extra = build_spxy_split_with_summary(
             conditions,
@@ -434,7 +434,7 @@ def _build_split_rows_for_spec(
         )
         return rows, extra
     if spec.split_strategy == "lhs_stratified_split_v1":
-        from sim.packaging.spxy_split import build_lhs_stratified_split_with_summary
+        from tv3.sim.packaging.spxy_split import build_lhs_stratified_split_with_summary
 
         rows, extra = build_lhs_stratified_split_with_summary(conditions, labels, seed=spec.seed)
         return rows, extra
@@ -481,7 +481,7 @@ def _build_sequence_arrays_for_spec(
             hitran_cache_root=spec.hitran_cache_root,
             temp_dir=waveform_temp,
         )
-    from sim.generation.tunnel_ventilation._parallel import build_arrays_parallel
+    from tv3.sim.generation.tunnel_ventilation._parallel import build_arrays_parallel
 
     return build_arrays_parallel(
         conditions=conditions,
@@ -513,7 +513,7 @@ def _publish_staging_dir(staging_dir: Path, output_dir: Path) -> None:
 
 
 def _cleanup_parallel_temp_arrays(arrays: dict[str, object], array_keys: tuple[str, ...]) -> None:
-    from sim.generation.tunnel_ventilation._parallel import cleanup_parallel_temp_arrays
+    from tv3.sim.generation.tunnel_ventilation._parallel import cleanup_parallel_temp_arrays
 
     cleanup_parallel_temp_arrays(arrays, array_keys)
 

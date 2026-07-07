@@ -7,8 +7,8 @@ from pathlib import Path
 
 import numpy as np
 
-from common.splits import load_splits, resolve_split_indices
-from ml.features import MLFeatureMatrix, sequence_stat_features
+from tv3.common.splits import load_splits, resolve_split_indices
+from tv3.ml.features import MLFeatureMatrix, sequence_stat_features
 
 
 DEFAULT_ROCKET_SEQUENCE_STATISTICS = ("mean", "std", "min", "max", "range", "first", "last", "delta", "slope")

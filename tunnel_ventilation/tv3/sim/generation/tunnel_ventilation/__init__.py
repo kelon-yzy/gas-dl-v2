@@ -10,13 +10,13 @@
 """
 from __future__ import annotations
 
-from sim.generation.tunnel_ventilation.benchmark import (
+from tv3.sim.generation.tunnel_ventilation.benchmark import (
     DEFAULT_WAVEFORM_PATH_LMS,
     TunnelVentilationBenchmarkGenerationSpec,
     default_worker_count,
     generate_tunnel_ventilation_benchmark_dataset,
 )
-from sim.generation.tunnel_ventilation.conditions import (
+from tv3.sim.generation.tunnel_ventilation.conditions import (
     L_M_BASE_RANGE,
     TUNNEL_VENTILATION_RANGES,
     TunnelVentilationRanges,
