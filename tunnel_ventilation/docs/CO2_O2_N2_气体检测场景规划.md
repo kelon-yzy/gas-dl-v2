@@ -113,8 +113,8 @@ schema_version = "tunnel-ventilation-1"
 | 正式数据集 | `tv3-formal` |
 | 配置目录 | `configs/` |
 | 生成入口 | `pipeline.generate_tunnel_ventilation_benchmark` |
-| schema 文件 | `src/sim/core/tunnel_ventilation_schema.py` |
-| 生成子包 | `src/sim/generation/tunnel_ventilation/` |
+| schema 文件 | `tv3/sim/core/tunnel_ventilation_schema.py` |
+| 生成子包 | `tv3/sim/generation/tunnel_ventilation/` |
 
 ## 实施路线
 

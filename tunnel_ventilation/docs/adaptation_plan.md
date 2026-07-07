@@ -23,7 +23,8 @@
 - sum_abs_error 在 tv3 下计算（数据层 sum=100% 闭包，模型层不强制归一化）
 - HITRAN 后端阶段 1 未实现，CLI 拒绝 `hitran_hapi_v1`
 - **2026-07-05 存储优化**：tv3 默认 `WaveformSpec(per_timestep_scale=True, waveform_dtype="int16")` + CLI `--skip-fiber-mic`；物理 ADC 仍 20-bit，存储 int16 + per-timestep scale（误差/噪声 ≈ 1%）；fiber_mic 代码保留但默认不生成；数据集 17 GB → 3 GB（600 序列）
-- **2026-07-06 固定特征回归分支**：已新增 `src/ml/rocket_features.py`、`src/ml/rocket_training.py`、`src/pipeline/run_tv3_rocket_baseline.py` 与 `configs/tv3_rocket_ridge.json`；阶段 A 先支持 `physics_stats + RidgeCV`，用于把 O₂ / N₂ 物理信号验证与端到端 DL 训练失败解耦
+- **2026-07-06 固定特征回归分支**：已新增 `tv3/ml/rocket_features.py`、`tv3/ml/rocket_training.py`、`tv3/pipeline/run_tv3_rocket_baseline.py` 与 `configs/tv3_rocket_ridge.json`；阶段 A 先支持 `physics_stats + RidgeCV`，用于把 O₂ / N₂ 物理信号验证与端到端 DL 训练失败解耦
+- **2026-07-07 场景隔离重构**：tv3 子工程自包含化，原 `src/sim|dl|ml|pipeline|common` 全部迁入 `tunnel_ventilation/tv3/` 下，包名 `tv3`，独立 `pyproject.toml`；以下文件清单中的 `tv3/...` 路径为隔离后的实际位置（重构前位于 `src/...`）
 
 首轮基线结果（slow-only，600 序列）：
 - Ridge: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌
@@ -65,7 +66,7 @@
 
 ### A. Schema 与采样（阶段 1）
 
-#### A1. 创建 `src/sim/core/tunnel_ventilation_schema.py`
+#### A1. 创建 `tv3/sim/core/tunnel_ventilation_schema.py`
 
 ```python
 COMPONENT_FIELDS = ("x_CO2", "x_O2", "x_N2")
@@ -76,7 +77,7 @@ SLOW_CHANNELS = (
 )  # 7 通道，无 V_NDIR_CH4（场景无 CH₄）
 ```
 
-#### A2. 创建 `src/sim/generation/tunnel_ventilation/conditions.py`
+#### A2. 创建 `tv3/sim/generation/tunnel_ventilation/conditions.py`
 
 - 组分范围：CO₂ 0.03–5.00%，O₂ 18.00–21.20%，N₂ = 100 - CO₂ - O₂
 - LHS 采样在 (CO₂, O₂) 二维空间进行
@@ -95,7 +96,7 @@ SLOW_CHANNELS = (
 
 参考 [../dl_model_architecture.md §13.5](../dl_model_architecture.md#135-声学物理acoustic_physicspy) 中的现有实现。
 
-#### B1. 创建 `src/sim/generation/tunnel_ventilation/acoustic_physics.py`
+#### B1. 创建 `tv3/sim/generation/tunnel_ventilation/acoustic_physics.py`
 
 纯组分物性常数（具体数值见 [physics_references.md](physics_references.md)）：
 
@@ -141,14 +142,14 @@ O₂ 和 N₂ 均为同核双原子分子，无永久偶极矩，基频振动不
 
 参考 [../dl_model_architecture.md §13.4](../dl_model_architecture.md#134-慢通道动力学slowpy)（慢通道动力学）和 [§13.8](../dl_model_architecture.md#138-打包与校验packaging--validation)（打包与校验）。
 
-#### D1. 创建 `src/sim/generation/tunnel_ventilation/slow.py`
+#### D1. 创建 `tv3/sim/generation/tunnel_ventilation/slow.py`
 
 8 个慢通道，与 hg 默认通道组织方式相同。气体组分输入替换为 CO₂/O₂/N₂。动力学模式复用 multi-tau 双指数（`_multi_tau_channel_step`），phase schedule 复用 `standard_exposure` 预设（[§13.9](../dl_model_architecture.md#139-phase-schedule-系统phasepy)）。phase blend 的 baseline 语义固定为标准新鲜空气（CO₂ 0.04%、O₂ 20.90%、N₂ 79.06%），不是纯 N₂。
 
 #### D2. Benchmark 编排
 
-- `src/sim/generation/tunnel_ventilation/benchmark.py`：数据生成编排
-- `src/pipeline/generate_tunnel_ventilation_benchmark.py`：CLI 入口
+- `tv3/sim/generation/tunnel_ventilation/benchmark.py`：数据生成编排
+- `tv3/pipeline/generate_tunnel_ventilation_benchmark.py`：CLI 入口
 
 #### D3. tv3-smoke 生成与验证
 
@@ -169,7 +170,7 @@ python -m tv3.pipeline.generate_tunnel_ventilation_benchmark `
 
 #### E1. Dataset 加载兼容
 
-`src/dl/data/dataset.py` 通过 `manifest.composition_scheme` 自动适配。如果现有代码已支持 manifest 驱动加载，则无需修改。
+`tv3/dl/data/dataset.py` 通过 `manifest.composition_scheme` 自动适配。如果现有代码已支持 manifest 驱动加载，则无需修改。
 
 #### E2. Loss / Metrics 适配
 
@@ -207,14 +208,14 @@ python -m tv3.pipeline.generate_tunnel_ventilation_benchmark `
 
 | 文件 | 改动类型 | 阶段 | 实际结果 |
 |------|----------|------|----------|
-| `src/sim/core/tunnel_ventilation_schema.py` | 新增 | A | ✅ 已完成 |
-| `src/sim/generation/tunnel_ventilation/__init__.py` | 新增 | A | ✅ 已完成 |
-| `src/sim/generation/tunnel_ventilation/conditions.py` | 新增 | A | ✅ 已完成 |
-| `src/sim/generation/tunnel_ventilation/acoustic_physics.py` | 新增 | B | ✅ 已完成 |
-| `src/sim/generation/tunnel_ventilation/slow.py` | 新增 | D | ✅ 已完成 |
-| `src/sim/generation/tunnel_ventilation/_parallel.py` | 新增 | D | ✅ 已完成 |
-| `src/sim/generation/tunnel_ventilation/benchmark.py` | 新增 | D | ✅ 已完成 |
-| `src/pipeline/generate_tunnel_ventilation_benchmark.py` | 新增 | D | ✅ 已完成 |
+| `tv3/sim/core/tunnel_ventilation_schema.py` | 新增 | A | ✅ 已完成 |
+| `tv3/sim/generation/tunnel_ventilation/__init__.py` | 新增 | A | ✅ 已完成 |
+| `tv3/sim/generation/tunnel_ventilation/conditions.py` | 新增 | A | ✅ 已完成 |
+| `tv3/sim/generation/tunnel_ventilation/acoustic_physics.py` | 新增 | B | ✅ 已完成 |
+| `tv3/sim/generation/tunnel_ventilation/slow.py` | 新增 | D | ✅ 已完成 |
+| `tv3/sim/generation/tunnel_ventilation/_parallel.py` | 新增 | D | ✅ 已完成 |
+| `tv3/sim/generation/tunnel_ventilation/benchmark.py` | 新增 | D | ✅ 已完成 |
+| `tv3/pipeline/generate_tunnel_ventilation_benchmark.py` | 新增 | D | ✅ 已完成 |
 | `configs/tv3_baseline.json` | 新增 | E | ✅ 已完成 |
 | `configs/tv3_tcn.json` | 新增 | E | ✅ 已完成 |
 | `configs/tv3_lstm.json` | 新增 | E | ✅ 已完成 |
@@ -226,15 +227,15 @@ python -m tv3.pipeline.generate_tunnel_ventilation_benchmark `
 | `tests/test_tunnel_ventilation_physics.py` | 新增 | B | ✅ 已完成（25 tests） |
 | `tests/test_tunnel_ventilation_benchmark.py` | 新增 | D | ✅ 已完成（18 tests） |
 | `tests/test_tunnel_ventilation_dl_training.py` | 新增 | E | ✅ 已完成（13 tests） |
-| `src/dl/data/dataset.py` | 兼容检查 | E | ✅ 无需修改（manifest 驱动自动适配） |
-| `src/dl/models/cnn1d_tcn_fusion.py` | 修改 | E | ✅ 已完成（新增 `raw3` 输出模式） |
-| `src/dl/training/losses.py` | 修改 | E | ✅ 已完成（tv3 拒绝闭包 loss + gas-head 校验） |
-| `src/ml/training.py` | 修改 | E | ✅ 已完成（按 `composition_scheme` 选择 `o2_bins/co2_bins`，tv3 拒绝 target_transform） |
-| `src/dl/training/trainer.py` | 修改 | E | ✅ 已完成（tv3 scheme + bin components + sum_abs_error） |
-| `src/sim/generation/waveforms.py` | 修改 | E | ✅ 已完成（`_digitize_waveform` 支持 `per_timestep_scale`；WaveformSpec/FiberMicSpec 添加字段） |
-| `src/sim/packaging/arrays.py` | 修改 | E | ✅ 已完成（`write_arrays` 支持可选 fiber_mic） |
-| `src/sim/validation/integrity.py` | 修改 | E | ✅ 已完成（`_validate_array_shapes` 支持可选 fiber_mic） |
-| `docs/掘进通风/server_training_guide.md` | 新增 | E | ✅ 已完成（Linux + RTX 5880 48GB 服务器训练操作手册） |
+| `tv3/dl/data/dataset.py` | 兼容检查 | E | ✅ 无需修改（manifest 驱动自动适配） |
+| `tv3/dl/models/cnn1d_tcn_fusion.py` | 修改 | E | ✅ 已完成（新增 `raw3` 输出模式） |
+| `tv3/dl/training/losses.py` | 修改 | E | ✅ 已完成（tv3 拒绝闭包 loss + gas-head 校验） |
+| `tv3/ml/training.py` | 修改 | E | ✅ 已完成（按 `composition_scheme` 选择 `o2_bins/co2_bins`，tv3 拒绝 target_transform） |
+| `tv3/dl/training/trainer.py` | 修改 | E | ✅ 已完成（tv3 scheme + bin components + sum_abs_error） |
+| `tv3/sim/generation/waveforms.py` | 修改 | E | ✅ 已完成（`_digitize_waveform` 支持 `per_timestep_scale`；WaveformSpec/FiberMicSpec 添加字段） |
+| `tv3/sim/packaging/arrays.py` | 修改 | E | ✅ 已完成（`write_arrays` 支持可选 fiber_mic） |
+| `tv3/sim/validation/integrity.py` | 修改 | E | ✅ 已完成（`_validate_array_shapes` 支持可选 fiber_mic） |
+| `docs/server_training_guide.md` | 新增 | E | ✅ 已完成（Linux + RTX 5880 48GB 服务器训练操作手册） |
 
 ## 六、验证流程
 

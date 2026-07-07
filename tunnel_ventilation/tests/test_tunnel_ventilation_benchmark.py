@@ -246,3 +246,11 @@ def test_tv3_spec_no_co_crosstalk_field():
 
     sig = inspect.signature(TunnelVentilationBenchmarkGenerationSpec.__init__)
     assert "enable_co_crosstalk" not in sig.parameters
+
+
+def test_generic_tv3_default_hitran_cache_root_uses_workspace_shared_cache():
+    from tv3.sim.generation.benchmark import DEFAULT_HITRAN_CACHE_ROOT
+
+    workspace_root = Path(__file__).resolve().parents[2]
+
+    assert Path(DEFAULT_HITRAN_CACHE_ROOT) == workspace_root / "shared" / "hitran_cache"

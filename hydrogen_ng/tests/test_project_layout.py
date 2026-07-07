@@ -24,4 +24,4 @@ def test_ensure_project_layout_creates_expected_directories(tmp_path):
 def test_default_hitran_cache_root_uses_workspace_shared_cache():
     workspace_root = Path(__file__).resolve().parents[2]
 
-    assert Path(DEFAULT_HITRAN_CACHE_ROOT) == workspace_root / "data" / "hitran_cache"
+    assert Path(DEFAULT_HITRAN_CACHE_ROOT) == workspace_root / "shared" / "hitran_cache"

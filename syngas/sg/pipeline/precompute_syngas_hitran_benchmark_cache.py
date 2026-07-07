@@ -7,7 +7,7 @@ HITRAN 后端预计算所需 (channel, gas, T, P) 谱线缓存。结构与 hg �
 
 用法：
     python -m sg.pipeline.precompute_syngas_hitran_benchmark_cache \
-        --cache-root data/hitran_cache \
+        --cache-root ../shared/hitran_cache \
         --sequences 32 \
         --seed 20260626 \
         --workers 4

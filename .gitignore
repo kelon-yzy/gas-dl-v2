@@ -3,20 +3,13 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .venv/
-outputs/runs/*
-outputs/summary/*
-outputs/reports/*
-outputs/archive/*
-outputs/logs/
-outputs/*.zip
-!outputs/runs/.gitkeep
-!outputs/summary/.gitkeep
-!outputs/reports/.gitkeep
-!outputs/archive/.gitkeep
+# 根级历史运行产物（阶段 4 后不再跟踪）
+/outputs/
+/experiments/
 # 共享光谱缓存与归档（shared/）
-shared/hitran_cache*/
-shared/hitran_cache_windowed/
-shared/_archived/
+/shared/hitran_cache*/
+/shared/hitran_cache_windowed/
+/shared/_archived/
 # 场景数据集（各子工程 data/，大文件不进 git）
 syngas/data/sg4-*/
 tunnel_ventilation/data/tv3-*/
@@ -31,7 +24,6 @@ node_modules/
 package-lock.json
 package.json
 nul
-outputs/
 .slim/deepwork/
 
 # rcdw_mgda 生成产物（可通过 scripts 重新生成）

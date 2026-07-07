@@ -15,4 +15,4 @@ def default_hitran_cache_root() -> str:
         return configured
 
     workspace_root = Path(__file__).resolve().parents[4]
-    return str(workspace_root / "data" / "hitran_cache")
+    return str(workspace_root / "shared" / "hitran_cache")

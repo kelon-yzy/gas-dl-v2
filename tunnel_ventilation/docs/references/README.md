@@ -14,7 +14,7 @@
 
 | 本目录文献 | 对应速查表 | 目标代码文件 |
 |---|---|---|
-| `co2_o2_n2_gas_properties.md` | [../physics_references.md](../physics_references.md) | `src/sim/generation/tunnel_ventilation/acoustic_physics.py` |
+| `co2_o2_n2_gas_properties.md` | [../physics_references.md](../physics_references.md) | `tv3/sim/generation/tunnel_ventilation/acoustic_physics.py` |
 | `tunnel_ventilation_sensing_survey.md` | — | 场景设计与可行性判断依据 |
 
 ## 使用说明

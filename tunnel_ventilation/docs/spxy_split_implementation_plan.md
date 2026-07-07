@@ -6,7 +6,7 @@
 
 ### 1.1 当前划分机制的问题
 
-当前 tv3 数据集划分 (`src/sim/packaging/splits.py`) 为纯随机 shuffle：
+当前 tv3 数据集划分 (`tv3/sim/packaging/splits.py`) 为纯随机 shuffle：
 
 1. 提取所有 `mixture_id` → `random.Random(seed).shuffle()` → 按 70/15/10/5% 比例切片
 2. tv3 中 `mixture_id` 与 `sequence_id` **一一对应**（`M000001` ≈ `Q000001`），分组无实际效果
@@ -173,10 +173,10 @@ val/test 不再由递归 SPXY 产生，而是从 ID 剩余样本做 Y 分箱分�
 
 ### 4.4 代码结构
 
-新增文件 `src/sim/packaging/spxy_split.py`，与现有 `splits.py` 并存：
+新增文件 `tv3/sim/packaging/spxy_split.py`，与现有 `splits.py` 并存：
 
 ```python
-# src/sim/packaging/spxy_split.py
+# tv3/sim/packaging/spxy_split.py
 
 def build_spxy_split_rows(
     conditions: list[dict[str, str]],
@@ -272,7 +272,7 @@ def _spxy_select_train(
 实际改动点：
 
 1. `TunnelVentilationBenchmarkGenerationSpec` 增加字段：`split_strategy: str = "random"`、`spxy_alpha: float = 0.5`、`extrapolation_strategy: str = "none"`。
-2. CLI `src/pipeline/generate_tunnel_ventilation_benchmark.py` 增加 `--split-strategy`、`--spxy-alpha`、`--extrapolation-strategy`。
+2. CLI `tv3/pipeline/generate_tunnel_ventilation_benchmark.py` 增加 `--split-strategy`、`--spxy-alpha`、`--extrapolation-strategy`。
 3. `benchmark.py` 的生成顺序调整为：conditions → arrays → labels → split rows → validation → scalers。
 4. `_split_summary` 的 `split_policy` 必须区分 `random_mixture_id_split_v4`、`spxy_v1:y_margin_ood`、`lhs_stratified_split_v1` 等来源。
 5. `validate_benchmark_assets` 与 DL 侧读取接口保持 split CSV 格式不变。
@@ -570,7 +570,7 @@ tv3 的两个核心需求——**(a) 训练集覆盖 Y 全范围**（O₂/N₂ �
 > 审查日期：2026-07-06
 > 审查对象：第 1–8 章主体 SPXY 实施方案
 > 与附录 A 的关系：本附录是对主体方案的审查，正是审查中发现"SPXY 对 DL 适用性证据不足"（B.3.2），触发了附录 A 的对照方法调研。两附录合起来构成"评估主体方案 → 调研替代方法"的完整过程。
-> 核实方式：通过 CrossRef/Semantic Scholar 逐篇验证 DOI、作者、年份、引用数；读取 `src/sim/packaging/splits.py`、`src/sim/generation/tunnel_ventilation/benchmark.py`、`src/pipeline/generate_tunnel_ventilation_benchmark.py` 核对实现假设。
+> 核实方式：通过 CrossRef/Semantic Scholar 逐篇验证 DOI、作者、年份、引用数；读取 `tv3/sim/packaging/splits.py`、`tv3/sim/generation/tunnel_ventilation/benchmark.py`、`tv3/pipeline/generate_tunnel_ventilation_benchmark.py` 核对实现假设。
 
 ## B.1 文献核实结论
 

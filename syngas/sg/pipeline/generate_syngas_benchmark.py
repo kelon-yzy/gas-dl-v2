@@ -12,11 +12,11 @@
 
 用法（HITRAN，需先跑 precompute_syngas_hitran_benchmark_cache）：
     python -m sg.pipeline.precompute_syngas_hitran_benchmark_cache \
-        --cache-root data/hitran_cache --sequences 32 --seed 20260626 --workers 4
+        --cache-root ../shared/hitran_cache --sequences 32 --seed 20260626 --workers 4
     python -m sg.pipeline.generate_syngas_benchmark \
         --output-root data --dataset sg4-hitran-smoke --sequences 32 --seed 20260626 \
         --timesteps 32 --dt-s 0.5 \
-        --optical-absorption-backend hitran_hapi_v1 --hitran-cache-root data/hitran_cache
+        --optical-absorption-backend hitran_hapi_v1 --hitran-cache-root ../shared/hitran_cache
 
 HITRAN 后端通过 ``cache_only_prechecked`` 策略：生成前先 ``validate_hitran_syngas_benchmark_cache``
 扫描所需 (channel, gas, T, P) cache 是否齐备，缺失即抛 ``MissingHitranBenchmarkCacheError``。

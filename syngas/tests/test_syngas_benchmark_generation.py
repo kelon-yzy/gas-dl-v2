@@ -249,3 +249,14 @@ def test_default_schema_points_to_syngas_fields():
     assert DEFAULT_SCHEMA_VERSION == "v4-syngas-1"
     assert DEFAULT_COMPONENT_FIELDS == COMPONENT_FIELDS
     assert DEFAULT_BACKGROUND_FIELDS == BACKGROUND_FIELDS
+
+
+def test_default_hitran_cache_roots_use_workspace_shared_cache():
+    from sg.sim.generation.benchmark import DEFAULT_HITRAN_CACHE_ROOT as generic_cache_root
+    from sg.sim.generation.syngas.benchmark import DEFAULT_HITRAN_CACHE_ROOT as syngas_cache_root
+
+    workspace_root = Path(__file__).resolve().parents[2]
+    expected = workspace_root / "shared" / "hitran_cache"
+
+    assert Path(generic_cache_root) == expected
+    assert Path(syngas_cache_root) == expected

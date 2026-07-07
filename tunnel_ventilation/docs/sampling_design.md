@@ -1,7 +1,7 @@
 # 掘进通风三组分采样设计
 
 > 本文档定义 CO₂/O₂/N₂ 三组分的 LHS 采样方案、联合约束、状态分层标签与验收标准。
-> 实现入口：`src/sim/generation/tunnel_ventilation/conditions.py`
+> 实现入口：`tv3/sim/generation/tunnel_ventilation/conditions.py`
 
 ## 一、组分区间
 

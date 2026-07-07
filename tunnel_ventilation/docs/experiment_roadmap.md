@@ -64,9 +64,9 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 
 当前已落地内容：
 
-- `src/ml/rocket_features.py`：tv3 `physics_stats_v1` 特征缓存，覆盖 `slow + ultrasonic_tof_s + ultrasonic_tof_observed_s + ultrasonic_peak_index + ultrasonic_sound_speed_m_per_s + ultrasonic_sound_speed_estimated_m_per_s + ultrasonic_alpha_true_npm + ultrasonic_tof_quality + ultrasonic_tof_accepted`
-- `src/ml/rocket_training.py`：`StandardScaler + RidgeCV` 主链路，保留 `ridge_closed_form` 对照
-- `src/pipeline/run_tv3_rocket_baseline.py`：tv3 专用 CLI，输出 `train/val/test/extrapolation` 指标 JSON
+- `tv3/ml/rocket_features.py`：tv3 `physics_stats_v1` 特征缓存，覆盖 `slow + ultrasonic_tof_s + ultrasonic_tof_observed_s + ultrasonic_peak_index + ultrasonic_sound_speed_m_per_s + ultrasonic_sound_speed_estimated_m_per_s + ultrasonic_alpha_true_npm + ultrasonic_tof_quality + ultrasonic_tof_accepted`
+- `tv3/ml/rocket_training.py`：`StandardScaler + RidgeCV` 主链路，保留 `ridge_closed_form` 对照
+- `tv3/pipeline/run_tv3_rocket_baseline.py`：tv3 专用 CLI，输出 `train/val/test/extrapolation` 指标 JSON
 - `configs/tv3_rocket_ridge.json`：R0 默认配置
 - `tests/test_rocket_features.py`、`tests/test_tv3_rocket_pipeline.py`：smoke 验证已通过
 

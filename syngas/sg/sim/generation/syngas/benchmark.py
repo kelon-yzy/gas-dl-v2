@@ -61,7 +61,9 @@ from sg.sim.validation.integrity import validate_benchmark_assets
 
 
 DEFAULT_WAVEFORM_PATH_LMS = (0.18, 0.20, 0.22, 0.25, 0.28)  # 200kHz 声程上限 0.3m 约束下的 5 档多光程扫描
-DEFAULT_HITRAN_CACHE_ROOT = "data/hitran_cache_syngas"
+DEFAULT_HITRAN_CACHE_ROOT = str(
+    Path(__file__).resolve().parents[5] / "shared" / "hitran_cache"
+)
 DEFAULT_MAX_WORKERS = 24
 ARRAY_KEYS = (
     "slow",

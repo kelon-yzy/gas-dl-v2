@@ -2,7 +2,7 @@
 
 > 本文档提供 CO₂/O₂/N₂ 三组分的可编码物性常数。
 > 详细文献来源见 [references/co2_o2_n2_gas_properties.md](references/co2_o2_n2_gas_properties.md)。
-> 目标代码文件：`src/sim/generation/tunnel_ventilation/acoustic_physics.py`
+> 目标代码文件：`tv3/sim/generation/tunnel_ventilation/acoustic_physics.py`
 >
 > CO₂ 和 N₂ 的部分常数已在主线代码中使用（来源：[../dl_model_architecture.md §13.5](../dl_model_architecture.md#135-声学物理acoustic_physicspy)，原始数据为 NIST @298.15 K），标注为 `[代码已有]`。
 > O₂ 为新增组分，参数来源见各表"来源"列。

@@ -1,7 +1,7 @@
 # CO₂/O₂/N₂ 气体物性参数文献汇总
 
 > 本文档汇集掘进通风场景所需的三组分纯组分及混合物性参数的文献来源。
-> 标注 `[代码已有]` 的条目已在主线 `src/sim/generation/acoustic_physics.py` 中使用（来源 NIST @298.15 K），可直接复用。
+> 标注 `[代码已有]` 的条目已在主线 `tv3/sim/generation/acoustic_physics.py` 中使用（来源 NIST @298.15 K），可直接复用。
 > O₂ 参数来源见各表"来源"列；置信度标注于关键条目。
 >
 > **数据核实状态（2026-07-04 经 smart-search 多源验证）**：O₂ cp 经 NIST WebBook Shomate 方程手算确认；O₂ λ/η 经 NIST/CRC/Engineering ToolBox/NBS TN.350 交叉确认；O₂ 弛豫机制经 Bass 1990 JASA 公式确认；CO₂ NDIR 滤光片经 Umicore/MicroHybrid datasheet 确认。

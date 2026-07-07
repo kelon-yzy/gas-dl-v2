@@ -8,16 +8,16 @@
 
 已完成：
 
-- `src/ml/rocket_features.py`
+- `tv3/ml/rocket_features.py`
   - 实现 `physics_stats_v1` 特征缓存
   - 覆盖 full / phase / early 三类窗口统计
   - 支持 `slow + ultrasonic_tof_s + ultrasonic_tof_observed_s + ultrasonic_peak_index + ultrasonic_sound_speed_m_per_s + ultrasonic_sound_speed_estimated_m_per_s + ultrasonic_alpha_true_npm + ultrasonic_tof_quality + ultrasonic_tof_accepted`
   - 写出 `feature_matrix_{split}.npy`、`feature_names.json`、`feature_manifest.json`
-- `src/ml/rocket_training.py`
+- `tv3/ml/rocket_training.py`
   - 实现 `StandardScaler + RidgeCV`
   - 保留 `ridge_closed_form` 对照路径
   - 输出 `train / val / test / extrapolation` 指标与 top feature group 诊断
-- `src/pipeline/run_tv3_rocket_baseline.py`
+- `tv3/pipeline/run_tv3_rocket_baseline.py`
   - 支持 `--feature-set physics_stats --head ridgecv`
 - `configs/tv3_rocket_ridge.json`
   - 提供 R0 默认配置
@@ -257,22 +257,22 @@ input_dim
 
 ### 6.1 新增文件
 
-| 文件                                                  | 职责                                                         |
-| --------------------------------------------------- | ---------------------------------------------------------- |
-| `src/ml/rocket_features.py`                         | 固定 kernel 生成、chunk 波形读取、MiniRocket / MultiRocket 特征提取、缓存写入 |
-| `src/ml/rocket_training.py`                         | RidgeCV / ElasticNetCV / small MLP 训练与评估                   |
-| `src/pipeline/run_tv3_rocket_baseline.py`           | tv3 专用编排脚本，生成缓存并跑实验矩阵                                      |
-| `configs/tv3_rocket_ridge.json`      | MiniRocket + RidgeCV 配置                                    |
-| `configs/tv3_rocket_elasticnet.json` | MultiRocket + ElasticNetCV 配置                              |
-| `configs/tv3_rocket_mlp.json`        | MultiRocket + 小 MLP 配置                                     |
-| `tests/test_rocket_features.py`                     | kernel、shape、缓存、可复现性测试                                     |
-| `tests/test_tv3_rocket_pipeline.py`                 | 小数据 smoke pipeline 测试                                      |
+| 文件                                        | 职责                                                         |
+| ----------------------------------------- | ---------------------------------------------------------- |
+| `tv3/ml/rocket_features.py`               | 固定 kernel 生成、chunk 波形读取、MiniRocket / MultiRocket 特征提取、缓存写入 |
+| `tv3/ml/rocket_training.py`               | RidgeCV / ElasticNetCV / small MLP 训练与评估                   |
+| `tv3/pipeline/run_tv3_rocket_baseline.py` | tv3 专用编排脚本，生成缓存并跑实验矩阵                                      |
+| `configs/tv3_rocket_ridge.json`           | MiniRocket + RidgeCV 配置                                    |
+| `configs/tv3_rocket_elasticnet.json`      | MultiRocket + ElasticNetCV 配置                              |
+| `configs/tv3_rocket_mlp.json`             | MultiRocket + 小 MLP 配置                                     |
+| `tests/test_rocket_features.py`           | kernel、shape、缓存、可复现性测试                                     |
+| `tests/test_tv3_rocket_pipeline.py`       | 小数据 smoke pipeline 测试                                      |
 
 阶段 A 当前实际职责更精确地说是：
 
-- `src/ml/rocket_features.py`：`physics_stats_v1` 特征缓存与 split 对齐校验
-- `src/ml/rocket_training.py`：`RidgeCV` / `ridge_closed_form` 的首轮训练与评估
-- `src/pipeline/run_tv3_rocket_baseline.py`：tv3 `physics_stats` 实验入口
+- `tv3/ml/rocket_features.py`：`physics_stats_v1` 特征缓存与 split 对齐校验
+- `tv3/ml/rocket_training.py`：`RidgeCV` / `ridge_closed_form` 的首轮训练与评估
+- `tv3/pipeline/run_tv3_rocket_baseline.py`：tv3 `physics_stats` 实验入口
 - `configs/tv3_rocket_ridge.json`：R0 配置
 - `tests/test_rocket_features.py`、`tests/test_tv3_rocket_pipeline.py`：阶段 A smoke 测试
 
@@ -280,12 +280,12 @@ input_dim
 
 | 文件                               | 复用点                                  |
 | -------------------------------- | ------------------------------------ |
-| `src/ml/features.py`             | slow / waveform 统计特征、multi-window 逻辑 |
-| `src/ml/models.py`               | 现有 `RidgeRegressor` 可作为最小依赖对照        |
-| `src/common/metrics.py`          | per-component R2 / MAE / RMSE        |
-| `src/common/splits.py`           | split CSV 解析                         |
-| `src/common/waveform.py`         | int16 / int32 waveform 路径解析          |
-| `src/dl/models/handcraft_mlp.py` | 如接口合适，可复用小 MLP                       |
+| `tv3/ml/features.py`             | slow / waveform 统计特征、multi-window 逻辑 |
+| `tv3/ml/models.py`               | 现有 `RidgeRegressor` 可作为最小依赖对照        |
+| `tv3/common/metrics.py`          | per-component R2 / MAE / RMSE        |
+| `tv3/common/splits.py`           | split CSV 解析                         |
+| `tv3/common/waveform.py`         | int16 / int32 waveform 路径解析          |
+| `tv3/dl/models/handcraft_mlp.py` | 如接口合适，可复用小 MLP                       |
 
 ## 7. 特征缓存契约
 
@@ -385,9 +385,9 @@ R0 -> R1 -> R3 -> R2 / R4 -> R5 -> R6
 
 ### 阶段 A：P0 物理特征基线
 
-1. [已完成] 新增 `src/ml/rocket_features.py` 中的物理序列特征读取函数。
+1. [已完成] 新增 `tv3/ml/rocket_features.py` 中的物理序列特征读取函数。
 2. [已完成] 支持从 `ultrasonic_tof_s`、`ultrasonic_sound_speed_estimated_m_per_s` 等数组提取 full / phase / early stats。
-3. [已完成] 新增 `src/ml/rocket_training.py`，先接 RidgeCV。
+3. [已完成] 新增 `tv3/ml/rocket_training.py`，先接 RidgeCV。
 4. [已完成] 新增 `run_tv3_rocket_baseline.py --feature-set physics_stats --head ridgecv`。
 5. [已完成] 跑 32 序列 smoke，确认输出格式。
 6. [未完成] 跑服务器正式数据集 R0 并回填结果。
