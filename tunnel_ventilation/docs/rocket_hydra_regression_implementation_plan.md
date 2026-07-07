@@ -2,9 +2,9 @@
 
 > 目标：针对 tv3 掘进通风数据集，在当前端到端 DL 训练失效的前提下，优先实现固定卷积核时序特征 + Ridge / ElasticNet / 小 MLP 的稳健回归链路，用于判断超声波形是否真实携带 O2 / N2 可辨识信号。
 
-## 0. 实施进度（截至 2026-07-06）
+## 0. 实施进度（截至 2026-07-07）
 
-阶段 A 已完成最小可运行落地，但正式集结果还未回填。
+阶段 A 已完成最小可运行落地，R0 正式集结果已回填（6000 序列，`data/tv3-formal-6000`，产物 `outputs/tv3_rocket/r0/metrics.json`）。
 
 已完成：
 
@@ -30,11 +30,35 @@
 python -m pytest tests/test_rocket_features.py tests/test_tv3_rocket_pipeline.py -v
 ```
 
+### R0 正式集实测结果（2026-07-07）
+
+数据集 `tv3-formal-6000`（6000 序列，int16 + skip-fiber-mic），特征数 1080，`RidgeCV` 选定 `alpha=0.0001`。
+
+per-component R²：
+
+| 组分 | train | val | test | extrapolation |
+| --- |:---:|:---:|:---:|:---:|
+| x_CO2 | 0.994 | 0.993 | 0.993 | 0.992 |
+| x_O2 | 0.661 | 0.603 | 0.639 | 0.557 |
+| x_N2 | 0.939 | 0.925 | 0.934 | 0.923 |
+
+整体 R²：val 0.901 / test 0.911 / extrapolation 0.898；`sum_abs_error` 各 split 均 ~6e-7（标签闭包天然满足）。
+
+诊断要点：
+
+- 三个组分的 top-5 feature group 完全一致，均由超声物理量主导：`ultrasonic_alpha_true_npm` > `ultrasonic_sound_speed_m_per_s` > `ultrasonic_tof_s` > `ultrasonic_tof_quality` > `ultrasonic_tof_observed_s`；slow 通道未进入 top-5，O₂ 辨识几乎全部来自超声物理特征。
+- O₂ 整体 val R²=0.603，但 `o2_bins` 四个窄分箱内 R² 全部为负（-9.2 ~ -2.6）。含义：模型能区分 O₂ 高/低大档，但在窄浓度区间内无法做精细分辨（区间方差小、残差稍大即 R² 大幅变负）。
+
+对照 §9.2 决策阈值：
+
+- `R0 O2 R2 > 0.30` ✅ 显著超过（val 0.603），TOF / sound_speed / alpha 已携带可用 O₂ 信号，物理特征路线成立。
+- `R0 O2 R2 仍约 0` ❌ 未触发，raw waveform 路线不是 R0 结论下的必需项，但是否继续上 MiniRocket 取决于能否把 O₂ 推到 §9.2 的 R3 验收线 0.70。
+
 未完成：
 
-- 正式集 R0 指标回填
 - MiniRocket / MultiRocket 波形特征
 - ElasticNetCV / 小 MLP / Hydra
+- R1 起的实验矩阵
 
 ## 1. 结论先行
 
@@ -390,7 +414,7 @@ R0 -> R1 -> R3 -> R2 / R4 -> R5 -> R6
 3. [已完成] 新增 `tv3/ml/rocket_training.py`，先接 RidgeCV。
 4. [已完成] 新增 `run_tv3_rocket_baseline.py --feature-set physics_stats --head ridgecv`。
 5. [已完成] 跑 32 序列 smoke，确认输出格式。
-6. [未完成] 跑服务器正式数据集 R0 并回填结果。
+6. [已完成 2026-07-07] 跑服务器正式数据集 R0 并回填结果（`tv3-formal-6000`，val O₂ R²=0.603，详见 §0）。
 
 ### 阶段 B：MiniRocket-style 特征
 

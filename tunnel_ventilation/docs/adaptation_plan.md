@@ -29,7 +29,7 @@
 首轮基线结果（slow-only，600 序列）：
 - Ridge: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌
 - TCN: 全组分 R²≈0（600 序列对 DL 严重不足）
-- Rocket 阶段 A：smoke 测试已通过，正式集结果待回填
+- Rocket 阶段 A：smoke 测试已通过；R0 正式集（6000 序列）已回填——val CO₂ R²=0.993、O₂ R²=0.603、N₂ R²=0.925，O₂ 物理特征有正信号但窄分箱 R² 全负
 - 详见 [experiment_roadmap.md](experiment_roadmap.md) 基线结果分析与 rocket 方向 C
 
 ---

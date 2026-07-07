@@ -33,19 +33,21 @@
 
 ### 2.2 获取代码
 
+> 2026-07-07 场景隔离重构后，tv3 是自包含子工程（包名 `tv3`，独立 `pyproject.toml`）。所有命令在 `tunnel_ventilation/` 子目录下执行，不再用根目录 `requirements.txt`。
+
 ```bash
 git clone https://github.com/kelon-yzy/gas-dl-v2.git
-cd gas-dl-v2
-git checkout feat/ultrasonic-200khz-adc-20bit-alignment
+cd gas-dl-v2/tunnel_ventilation
 
 python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
-> `requirements.txt` 内容为 `-e .[dev]`，会安装 numpy / scipy / scikit-learn / torch / hitran-api / pytest。
-> 若服务器无 GPU 版 torch，需先按 [PyTorch 官方指南](https://pytorch.org/get-started/locally/) 安装匹配 CUDA 的版本，再 `pip install -r requirements.txt`。
+> `pyproject.toml` 依赖为 numpy / scipy / scikit-learn / torch，`[dev]` 额外装 pytest。
+> 若服务器无 GPU 版 torch，需先按 [PyTorch 官方指南](https://pytorch.org/get-started/locally/) 安装匹配 CUDA 的版本，再 `pip install -e ".[dev]"`。
+> 数据集不进 git（`data/*` 在 `.gitignore` 中），在服务器上由 CLI 重新生成或物理拷贝到 `tunnel_ventilation/data/` 下。
 
 ### 2.3 验证安装
 
