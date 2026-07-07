@@ -1,0 +1,7 @@
+{
+  "model": "ridge",
+  "alpha": 1.0,
+  "modalities": "slow",
+  "sequence_statistics": "mean,std,min,max,last,delta,slope",
+  "dataset_dir": "data/tv3-formal"
+}
