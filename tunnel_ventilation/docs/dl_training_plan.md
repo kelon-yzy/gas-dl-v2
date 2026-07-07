@@ -75,6 +75,67 @@ N₂ 在空气中占比 73.8–82%，绝对值大但动态范围仅约 8 个百�
 - 归一化策略（per-component 标准化）已由 scaler 在数据加载时处理
 - Loss 权重 [1.0, 2.0, 1.0] 不需要对 N₂ 额外加权（N₂ 通过声学通道可观测，且占比高时信号稳定）
 
+### 2.5 模态实现现状与实测验证（2026-07-07）
+
+本节补充各模态仿真链路的代码实现现状，并用 R0（6000 序列 physics_stats+RidgeCV）与 v2（fusion DL）实测结果验证物理可辨识性判断。
+
+#### 4 类模态与物理来源
+
+| 模态 | 通道/规模 | 物理来源 | 默认状态 |
+| --- | --- | --- | --- |
+| slow 慢通道 | 7 通道 | V_NDIR_CO2/V_TCS 动态 + T_C/P_MPa/H_RH/L_m/piston 静态 | 可用 |
+| ultrasonic 超声 | 5000 点/帧 | 声速 + 衰减 + TOF（Lagrange 分数延迟） | 可用 |
+| fiber_mic 光纤麦克风 | 10000 点/帧 | 声压 → 光纤干涉相位解调 | 默认跳过（`--skip-fiber-mic`），代码保留可恢复 |
+| NDIR 光学 | 并入 slow 的 V_NDIR_CO2 | CO2 红外吸收（empirical_v1） | empirical 可用，HITRAN 被硬禁用 |
+
+#### slow 7 通道的动态性
+
+只有 **V_NDIR_CO2 和 V_TCS 两个通道有动态物理响应**，其余 5 个是环境基准或已知几何量：
+
+| 通道 | 物理模型 | 动态性 | 组分辨识力 |
+| --- | --- | --- | --- |
+| V_NDIR_CO2 | `2.5·exp(-α_co2)`，α_co2 = 0.045·CO2 + 0.0006·RH + 0.012·P + 0.00015·(T-25) | 双 tau 上升/下降 | CO2 强 |
+| V_TCS | `1.1 + 15·(λ_mix-0.026) + 0.004·(T-20)`，λ_mix 用 WMS 混合（CO2=0.0166, O2=0.0264, N2=0.0258 W/m·K） | 双 tau 上升/下降 | O2/N2 热导差 2.3%，弱 |
+| T_C / P_MPa / H_RH | 静态 = condition base 值 | 无 | 无（环境条件） |
+| L_m / piston_position_m | phase schedule 驱动，5 档扫描 0.18-0.28m | 扫描阶段线性 | 无（已知量） |
+
+这解释了 slow-only Ridge O₂ R²=-0.05 的原因：slow 通道里 O₂ 信息几乎只靠 V_TCS 的 2.3% 热导差。
+
+#### ultrasonic 模态：O₂ 主要辨识力来源
+
+`tv3/sim/generation/tunnel_ventilation/acoustic_physics.py` 实现：
+
+- 声速 `c = sqrt(γ_mix·R·T/M_mix)`，O2(0.032) vs N2(0.028) 摩尔质量差 14.3% → 声速差 ~6.4%（~22 m/s）
+- 衰减 `α = α_classical + α_co2 + α_n2 + α_o2 + α_h2o`，其中 **α_o2=0**（O2 V-T 弛豫频率 ~24Hz/atm，200kHz 载波下工程取 0）——O₂ 辨识力来自声速，不来自衰减
+- 波形：200kHz 载波、1MS/s 采样、20-bit ADC、5000 点/帧、Lagrange 5 阶分数延迟 FIR（亚样本 TOF 精度 <0.002μs）
+- 存储：int16 + per-timestep scale，物理 ADC 20-bit，存储压缩 17→3 GB
+
+#### 光学模态：仅 CO2，无串扰
+
+- empirical_v1：`α_co2 = 0.045·CO2 + 0.0006·RH + 0.012·P + 0.00015·(T-25)`，纯经验线性公式 + Beer-Lambert
+- HITRAN 后端代码完整实现（`spectral/` 7 文件，含 HAPI Voigt 线形 + 滤光片积分）但被 `slow.py:70` / `benchmark.py:66` 硬禁用，CLI 拒绝 `hitran_hapi_v1`
+- 无光学串扰：tv3 只有 CO2 一个红外活性组分，`optical_crosstalk_policy: "tv3_empirical_co2_only_no_crosstalk"`，O2/N2 同核双原子无红外吸收
+
+#### R0/v2 实测对物理判断的验证
+
+| 物理判断 | 实测结果 | 验证状态 |
+| --- | --- | --- |
+| O₂ 辨识力主要来自超声声速差 | R0 top-5 特征全是 `physics:ultrasonic_*`（alpha_true > sound_speed > tof），slow 未进 top-5；val O₂ R²=0.603 | ✅ 验证 |
+| slow 通道对 O₂ 几乎无信号 | slow-only Ridge O₂ R²=-0.05 | ✅ 验证 |
+| O₂ 衰减不贡献（α_o2=0） | R0 top-1 是 `ultrasonic_alpha_true_npm`（衰减），但该衰减主要由 CO2/N2/H2O 贡献，非 O2 | ⚠️ 间接（衰减特征对 O2 的贡献是通过与其他组分的耦合，不是 O2 自身衰减） |
+| CO2 通过 V_NDIR_CO2 直接可测 | R0 val CO2 R²=0.993 | ✅ 验证 |
+| N2 动态范围窄（~8%），边际可辨识 | R0 val N2 R²=0.925，但 `o2_bins` 窄分箱内 R2 全负（档级可分辨、档内难精细） | ✅ 验证（N2 同样有档内分辨难题） |
+
+#### v2 DL fusion 失效在模态层面的解释
+
+v2（cnn1d_tcn_fusion，slow+ultrasonic，6000 序列）val R²全负、N2 R²=-43。模态层面根因：fusion 把 5000 维 raw 波形 + 7 维 slow 直接拼接进 CNN，波形单帧原始电压幅度与 slow 标量尺度差几个数量级，虽 `waveform_adc_scale=5.0` 做了缩放，但第一层卷积同时处理两种尺度梯度，lr=1e-4 仍压不住。**DL fusion 想用 raw 波形，但 raw 波形进网络的尺度问题未解决**——这正是 R1 MiniRocket 的切入点：固定核提取波形特征再池化成标量给 Ridge，绕开 raw 波形进网络的尺度问题。
+
+#### 模态层面对下一步的指向
+
+1. **R1 MiniRocket 切入点正确**：R0 用物理统计量拿 0.603，MiniRocket 的固定核 + 池化能把 raw 波形变成标量特征给 Ridge，避开 DL 训练动力学和 raw 波形尺度两个问题。物理上 Lagrange 分数延迟 FIR 实现了亚样本 TOF 位移，raw 波形里是有 O2 信号的，问题是 Ridge 能否从卷积特征里提取出来。
+2. **fiber_mic 可作增量备选**：当前跳过是为省存储，fiber_mic 携带声压相位信息可能对 O2/N2 有额外辨识力。若 R1 在 slow+ultrasonic 下达不到 0.70 验收线，恢复 fiber_mic（去掉 `--skip-fiber-mic` 重新生成）是备选增量。
+3. **HITRAN 光学后端对 O2 无帮助**：HITRAN 只提升 CO2 光学保真度，O2/N2 本就无红外吸收。方案 §9 Ⅲ-2（HITRAN 后端）优先级低，不解决 O2 问题。
+
 ## 3. 模型选型
 
 ### 3.1 复用策略

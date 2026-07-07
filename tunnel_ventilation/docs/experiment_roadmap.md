@@ -11,17 +11,17 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
                                                 →  data/tv3-formal/  →  dl.cli + tv3_*.json  →  metrics
 ```
 
-| 已完成                    | 说明                                                                     |
-| ---------------------- | ---------------------------------------------------------------------- |
-| 仿真链路适配（阶段 1–3）         | schema/物理/慢通道/benchmark/CLI 全部落地，tv3-smoke 生成通过                        |
-| DL 训练适配（阶段 4）          | losses/trainer 适配 tv3 scheme，CLI 端到端训练通过                               |
-| tv3-smoke 生成           | 32 序列链路验证通过                                                            |
-| tv3-formal 生成          | 600 序列 512 时步生成通过（int16 + skip-fiber-mic，3 GB；详见 Ⅰ-2）                  |
-| 存储优化（2026-07-05）       | int16 + per-timestep scale + `--skip-fiber-mic`；数据集 17→3 GB，误差/噪声 ≈ 1% |
-| DL 配置矩阵                | 5 个基线配置 + `tv3_tcn_multimodal.json` + 编排脚本已创建；fusion 配置使用 `raw3` 三输出   |
-| CNN1D 1 epoch 验证       | 管线正常，3 组分 metrics + o2_bins/co2_bins 分箱 + sum_abs_error 可计算            |
-| TCN 50 epochs（seed=42） | val R²≈0（CO₂=-0.05, O₂=-0.14, N₂=-0.53），600 序列对 DL 不够                  |
-| Ridge 基线               | val: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌（见下方分析）                 |
+| 已完成                                         | 说明                                                                               |
+| ------------------------------------------- | -------------------------------------------------------------------------------- |
+| 仿真链路适配（阶段 1–3）                              | schema/物理/慢通道/benchmark/CLI 全部落地，tv3-smoke 生成通过                                  |
+| DL 训练适配（阶段 4）                               | losses/trainer 适配 tv3 scheme，CLI 端到端训练通过                                         |
+| tv3-smoke 生成                                | 32 序列链路验证通过                                                                      |
+| tv3-formal 生成                               | 600 序列 512 时步生成通过（int16 + skip-fiber-mic，3 GB；详见 Ⅰ-2）                            |
+| 存储优化（2026-07-05）                            | int16 + per-timestep scale + `--skip-fiber-mic`；数据集 17→3 GB，误差/噪声 ≈ 1%           |
+| DL 配置矩阵                                     | 5 个基线配置 + `tv3_tcn_multimodal.json` + 编排脚本已创建；fusion 配置使用 `raw3` 三输出             |
+| CNN1D 1 epoch 验证                            | 管线正常，3 组分 metrics + o2_bins/co2_bins 分箱 + sum_abs_error 可计算                      |
+| TCN 50 epochs（seed=42）                      | val R²≈0（CO₂=-0.05, O₂=-0.14, N₂=-0.53），600 序列对 DL 不够                            |
+| Ridge 基线                                    | val: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌（见下方分析）                           |
 | Rocket 阶段 A（2026-07-06 落地，2026-07-07 R0 回填） | `physics_stats + RidgeCV` 链路落地；R0 正式集（6000 序列）val O₂ R²=0.603、CO₂=0.993、N₂=0.925 |
 
 ### 初步基线结果分析（2026-07-04）
@@ -48,10 +48,12 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 原配置 `configs/tv3_tcn_multimodal.json` 在服务器 6000 序列上跑过，best epoch=1、O₂ R²≈0，DL 失效。结合 R0（同 6000 序列 physics_stats+RidgeCV val O₂ R²=0.603），排除"数据量不足"和"数据无信号"，根因是训练动力学或输入尺度问题。
 
 本地 600 序列历史 `metrics_live.jsonl` 诊断佐证：
+
 - slow-only TCN（`tv3_tcn_s42`）：best epoch=20，train 1336→15 正常收敛，val R²=-0.31（600 序列过拟合）。
 - fusion（`tv3_tcn_multimodal/s42`）：train 28756→62 持续下降，val_loss epoch 5 后剧烈震荡（43→119→183→80→215），best epoch=10 但 val R²=-98，数值发散。
 
 三个叠加根因：
+
 1. `lr=0.001` 对多模态输入过大（train_loss 首轮暴跌跨过最优区间，val 剧烈震荡）
 2. `scaler_path=null`，slow 通道尺度差异大（T_C≈24、H_RH≈50、L_m≈0.24）未标准化，与波形拼接后梯度失衡
 3. 波形侧 `dequantize_waveforms=true` + `waveform_adc_scale=5.0` 压到 ±0.2 量级，尺度本身合理
@@ -60,14 +62,14 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 
 新增 `configs/tv3_tcn_multimodal_v2.json`，保留原配置作失效对照：
 
-| 参数 | 原值 | v2 | 依据 |
-| --- | --- | --- | --- |
-| `lr` | 0.001 | 0.0001 | rocket 方案 §5.3 建议 1e-4；fusion 默认 1e-3 致 val 震荡 |
-| `batch_size` | 32 | 16 | 降梯度方差，缓解震荡 |
-| `scaler_path` | null | `data/tv3-formal-6000/scalers/scaler_slow_sequence.json` | slow 通道 z-score 标准化 |
-| `modalities` | slow,ultrasonic,fiber_mic | slow,ultrasonic | 数据集跳过 fiber_mic |
-| `eval_splits` | val,test | val,test,extrapolation | 与 R0 三 split 对照 |
-| `output_dir` | `outputs/tv3_tcn_multimodal` | `outputs/tv3_tcn_multimodal_v2` | 不覆盖原产物 |
+| 参数            | 原值                           | v2                                                       | 依据                                             |
+| ------------- | ---------------------------- | -------------------------------------------------------- | ---------------------------------------------- |
+| `lr`          | 0.001                        | 0.0001                                                   | rocket 方案 §5.3 建议 1e-4；fusion 默认 1e-3 致 val 震荡 |
+| `batch_size`  | 32                           | 16                                                       | 降梯度方差，缓解震荡                                     |
+| `scaler_path` | null                         | `data/tv3-formal-6000/scalers/scaler_slow_sequence.json` | slow 通道 z-score 标准化                            |
+| `modalities`  | slow,ultrasonic,fiber_mic    | slow,ultrasonic                                          | 数据集跳过 fiber_mic                                |
+| `eval_splits` | val,test                     | val,test,extrapolation                                   | 与 R0 三 split 对照                                |
+| `output_dir`  | `outputs/tv3_tcn_multimodal` | `outputs/tv3_tcn_multimodal_v2`                          | 不覆盖原产物                                         |
 
 本地 smoke（tv3-smoke7，16 序列）已验证 v2 配置端到端跑通：scaler 7 通道维度匹配、train/val/test/extrapolation 四 split 评估正常。
 
@@ -78,10 +80,10 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 - val O₂ R² ≤ 0.603 但训练正常 → DL 当前架构上限低于 R0，转 R1 MiniRocket
 - best epoch 仍为 1 → 配置调整不够，进一步诊断 grad 规模 / loss 权重尺度
 
-| 未完成                 | 阻塞程度               |
-| ------------------- | ------------------ |
-| v2 配置服务器单 seed 验证 | 进行中（路径 4） |
-| 完整基线训练（15 runs）     | 阻塞 Ⅱ，待 v2 验证后 |
+| 未完成                  | 阻塞程度                     |
+| -------------------- | ------------------------ |
+| v2 配置服务器单 seed 验证    | 进行中（路径 4）                |
+| 完整基线训练（15 runs）      | 阻塞 Ⅱ，待 v2 验证后            |
 | Rocket R1 MiniRocket | R0 已判定物理特征有正信号，待 v2 结果决定 |
 
 ### 方向 C：固定特征 Rocket 基线（2026-07-06 已启动）
@@ -111,6 +113,24 @@ R0 physics_stats -> 判断 O2 是否已有非零信号
    -> 若 R0 已满足应用需求（缺氧档级报警），可优先回补 DL 15-run 基线
    -> 若需连续精度，再做 R1 MiniRocket
 ```
+
+### 方向 D：模态链路完整度评估（2026-07-07）
+
+R0/v2 实测后，对各模态仿真链路现状与下一步价值做一次盘点（详见 [dl_training_plan.md §2.5](dl_training_plan.md#25-模态实现现状与实测验证2026-07-07)）。
+
+| 模态 | 物理实现 | 存储 | DL 可用 | 对 O₂ 价值 | 下一步优先级 |
+| --- | --- | --- | --- | --- | --- |
+| slow（7 通道） | 完整 | slow.npy | ✅ | 弱（仅 V_TCS 2.3% 热导差） | 已被 R0 用满 |
+| ultrasonic | 完整（200kHz/20bit/Lagrange TOF） | int16 + per-timestep scale | ✅ | 强（声速差 6.4%，R0 top 特征来源） | R1 MiniRocket 主战场 |
+| fiber_mic | 完整（反射+解调） | 同上 | 默认跳过 | 待验证（声压相位或对 O₂/N₂ 有增量） | R1 不达标时作增量备选 |
+| NDIR 光学 | empirical 完整，HITRAN 禁用 | 并入 slow | ✅ | 无（O₂/N₂ 无红外吸收） | HITRAN 后端优先级低，不解决 O₂ |
+
+关键结论：
+
+- R0 已把 slow + ultrasonic 物理统计量用满（val O₂ R²=0.603），剩余 0.10 到 0.70 验收线的缺口在 raw 波形未利用。
+- v2 DL fusion 证明 raw 波形直接进网络有尺度问题，R1 MiniRocket 用固定核 + 池化绕开此问题，是当前最合理的增量方向。
+- fiber_mic 是 R1 不达标时的备选，需重新生成数据集（去掉 `--skip-fiber-mic`）。
+- HITRAN 光学后端（原 §9 Ⅲ-2）对 O₂ 无帮助，优先级下调。
 
 ---
 
