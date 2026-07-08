@@ -10,16 +10,16 @@
 
 ## 场景定义
 
-| 项目 | 设定 |
-|---|---|
-| 场景名称 | 掘进通风三组分检测 |
-| 建议数据集前缀 | `tv3-*` |
-| 建议 schema_version | `tunnel-ventilation-1` |
-| 组分 | `x_CO2`、`x_O2`、`x_N2` |
-| 数据一致性 | 组分总量按气体组成数据校验，训练输出不做闭包残差预测 |
-| 预测目标 | `x_CO2`、`x_O2`、`x_N2` 三组分均作为 label 直接输出 |
-| 主要任务 | 回归三组分浓度；按通风状态做分层评估 |
-| 非目标范围 | 暂不加入 `CH4`、`CO`、粉尘、湿度报警逻辑或法规阈值判定 |
+| 项目                | 设定                                      |
+| ----------------- | --------------------------------------- |
+| 场景名称              | 掘进通风三组分检测                               |
+| 建议数据集前缀           | `tv3-*`                                 |
+| 建议 schema_version | `tunnel-ventilation-1`                  |
+| 组分                | `x_CO2`、`x_O2`、`x_N2`                   |
+| 数据一致性             | 组分总量按气体组成数据校验，训练输出不做闭包残差预测              |
+| 预测目标              | `x_CO2`、`x_O2`、`x_N2` 三组分均作为 label 直接输出 |
+| 主要任务              | 回归三组分浓度；按通风状态做分层评估                      |
+| 非目标范围             | 暂不加入 `CH4`、`CO`、粉尘、湿度报警逻辑或法规阈值判定        |
 
 ## 组分语义
 
@@ -37,15 +37,15 @@
 
 以下区间用于仿真数据规划，不直接作为现场安全报警阈值。
 
-| 变量 | 建议范围 | 用途 |
-|---|---:|---|
-| `x_CO2` | 0.03-5.00 % | 覆盖新鲜空气、通风不足与局部积聚 |
-| `x_O2` | 18.00-21.20 % | 覆盖正常空气到低氧扰动 |
-| `x_N2` | 73.80-81.97 % | 空气主背景；作为直接 label 输出 |
-| `T_C` | 沿用现有链路范围，必要时场景化收窄 | 环境温度扰动 |
-| `P_MPa` | 沿用现有链路范围，必要时场景化收窄 | 压力变化 |
-| `H_RH` | 沿用现有链路范围，必要时场景化收窄 | 湿度对声学、热导与光学通道的影响 |
-| `L_m` / `path_lms` | 沿用 v6 物理严格化链路 | 与 200 kHz 超声传播和多光程扫描保持一致 |
+| 变量                 | 建议范围              | 用途                       |
+| ------------------ | -----------------:| ------------------------ |
+| `x_CO2`            | 0.03-5.00 %       | 覆盖新鲜空气、通风不足与局部积聚         |
+| `x_O2`             | 18.00-21.20 %     | 覆盖正常空气到低氧扰动              |
+| `x_N2`             | 73.80-81.97 %     | 空气主背景；作为直接 label 输出      |
+| `T_C`              | 沿用现有链路范围，必要时场景化收窄 | 环境温度扰动                   |
+| `P_MPa`            | 沿用现有链路范围，必要时场景化收窄 | 压力变化                     |
+| `H_RH`             | 沿用现有链路范围，必要时场景化收窄 | 湿度对声学、热导与光学通道的影响         |
+| `L_m` / `path_lms` | 沿用 v6 物理严格化链路     | 与 200 kHz 超声传播和多光程扫描保持一致 |
 
 ### 采样规则
 
@@ -56,12 +56,12 @@
 
 ### 建议状态分层
 
-| 状态 | 判定依据 | 目的 |
-|---|---|---|
-| `fresh_air` | 低 `CO2`、接近常规空气的 `O2` | 检查正常区间精度 |
-| `ventilation_decay` | `CO2` 上升且 `O2` 下降 | 检查通风变差趋势 |
-| `co2_accumulation` | `CO2` 高值但 `O2` 未必同步大幅下降 | 检查 CO2 通道贡献 |
-| `oxygen_depletion` | `O2` 低值 | 检查 O2 可辨识性 |
+| 状态                  | 判定依据                    | 目的          |
+| ------------------- | ----------------------- | ----------- |
+| `fresh_air`         | 低 `CO2`、接近常规空气的 `O2`    | 检查正常区间精度    |
+| `ventilation_decay` | `CO2` 上升且 `O2` 下降       | 检查通风变差趋势    |
+| `co2_accumulation`  | `CO2` 高值但 `O2` 未必同步大幅下降 | 检查 CO2 通道贡献 |
+| `oxygen_depletion`  | `O2` 低值                 | 检查 O2 可辨识性  |
 
 具体边界应写入配置文件，避免散落在生成、训练和评估代码中。
 
@@ -69,14 +69,14 @@
 
 本场景第一阶段不新增硬件链路，直接复用 `dl_model_architecture.md` 第十三节中的仿真框架。
 
-| 模块 | 复用方式 | 本场景仅变动 |
-|---|---|---|
-| slow 变量 | 复用现有 8 slow 通道组织方式 | 气体组分输入改为 `CO2 / O2 / N2` |
-| ultrasonic 波形 | 复用 200 kHz、1 MS/s、20-bit ADC、5000 点窗口 | 声速与衰减物理参数换成三组分空气背景；tv3 默认 int16 + per-timestep scale 存储 |
-| fiber_mic 波形 | 复用 10000 点窗口与反射 / 相位解调链路 | 气体物性输入换成三组分空气背景；tv3 默认 `--skip-fiber-mic` 跳过生成（代码保留） |
-| phase schedule | 复用 baseline、exposure、steady、recovery 四阶段 | 状态语义映射为通风扰动 |
-| packaging / validation | 复用 arrays、manifest、scalers、splits、integrity | labels 改为三列；N2 不进 background_fields |
-| HITRAN / empirical 光学 | 复用现有后端开关 | 第一阶段只保留 CO2 相关吸收差异，O2 / N2 不新增光学专用通道 |
+| 模块                     | 复用方式                                        | 本场景仅变动                                                  |
+| ---------------------- | ------------------------------------------- | ------------------------------------------------------- |
+| slow 变量                | 复用现有 8 slow 通道组织方式                          | 气体组分输入改为 `CO2 / O2 / N2`                                |
+| ultrasonic 波形          | 复用 200 kHz、1 MS/s、20-bit ADC、5000 点窗口       | 声速与衰减物理参数换成三组分空气背景；tv3 默认 int16 + per-timestep scale 存储 |
+| fiber_mic 波形           | 复用 10000 点窗口与反射 / 相位解调链路                    | 气体物性输入换成三组分空气背景；tv3 默认 `--skip-fiber-mic` 跳过生成（代码保留）    |
+| phase schedule         | 复用 baseline、exposure、steady、recovery 四阶段    | 状态语义映射为通风扰动                                             |
+| packaging / validation | 复用 arrays、manifest、scalers、splits、integrity | labels 改为三列；N2 不进 background_fields                     |
+| HITRAN / empirical 光学  | 复用现有后端开关                                    | 第一阶段只保留 CO2 相关吸收差异，O2 / N2 不新增光学专用通道                    |
 
 第一阶段不规划 `V_paramagnetic_O2`、风速通道或新传感器。如果后续要加入 O2 专用硬件，应作为新阶段单独设计。
 
@@ -107,18 +107,18 @@ schema_version = "tunnel-ventilation-1"
 
 ### 命名建议
 
-| 类型 | 建议命名 |
-|---|---|
-| smoke 数据集 | `tv3-smoke` |
-| 正式数据集 | `tv3-formal` |
-| 配置目录 | `configs/` |
-| 生成入口 | `pipeline.generate_tunnel_ventilation_benchmark` |
-| schema 文件 | `tv3/sim/core/tunnel_ventilation_schema.py` |
-| 生成子包 | `tv3/sim/generation/tunnel_ventilation/` |
+| 类型        | 建议命名                                             |
+| --------- | ------------------------------------------------ |
+| smoke 数据集 | `tv3-smoke`                                      |
+| 正式数据集     | `tv3-formal`                                     |
+| 配置目录      | `configs/`                                       |
+| 生成入口      | `pipeline.generate_tunnel_ventilation_benchmark` |
+| schema 文件 | `tv3/sim/core/tunnel_ventilation_schema.py`      |
+| 生成子包      | `tv3/sim/generation/tunnel_ventilation/`         |
 
 ## 实施路线
 
-> 实施状态（2026-07-06）：阶段 1–3 仿真链路 + 阶段 4 DL/ML 适配 + tv3-formal（600 序列）+ Ridge/TCN 首轮基线已落地；固定特征回归分支阶段 A（`physics_stats + RidgeCV`）已实现并通过 smoke。完整 15 runs 基线矩阵、rocket 正式集结果与后续 ablation 待继续执行。详见 [adaptation_plan.md](adaptation_plan.md) §实施进度 与 [rocket_hydra_regression_implementation_plan.md](rocket_hydra_regression_implementation_plan.md)。
+> 实施状态（2026-07-08）：阶段 1–3 仿真链路 + 阶段 4 DL/ML 适配 + tv3-formal（600 序列）+ Ridge/TCN 首轮基线已落地；固定特征回归分支阶段 A/B（`physics_stats / MiniRocket + RidgeCV`，R0/R1a/R1b）已完成，D0 oracle/observed/tof_only/slow_only 四组特征拆分实验已在本地 600 序列完成并可视化分析（见 `outputs/tv3_d0_local/d0_analysis.png` 与 [掘进通风项目记忆库.md](掘进通风项目记忆库.md)）。完整 15 runs 基线矩阵、服务器端 `tv3-formal-6000` 重跑与后续 D1/D2 物理引导深度学习方案待继续执行。详见 [adaptation_plan.md](adaptation_plan.md) §实施进度、[rocket_hydra_regression_implementation_plan.md](rocket_hydra_regression_implementation_plan.md) 与 [三组分检测深度学习新框架方案.md](三组分检测深度学习新框架方案.md)。
 
 ### 阶段 1：契约与采样 ✅
 
@@ -167,11 +167,11 @@ schema_version = "tunnel-ventilation-1"
 
 ### 回归性能验收 🔶 首轮结果（slow-only，600 序列）
 
-| 组分 | 最低标准 | Ridge (val) | TCN (val) | 状态 |
-|------|----------|:----------:|:---------:|------|
-| CO₂ | R²≥0.95, MAE≤0.30 | R²=0.91, MAE=0.34 | R²=-0.05 | Ridge 接近达标，DL 数据量不足 |
-| O₂ | R²≥0.70, MAE≤0.50 | R²=-0.05, MAE=0.81 | R²=-0.14 | ❌ 物理可辨识性不足，触发停止条件 |
-| N₂ | R²≥0.80, MAE≤0.80 | R²=0.65, MAE=0.92 | R²=-0.53 | ❌ Ridge 接近但未达标 |
+| 组分  | 最低标准              | Ridge (val)        | TCN (val) | 状态                  |
+| --- | ----------------- |:------------------:|:---------:| ------------------- |
+| CO₂ | R²≥0.95, MAE≤0.30 | R²=0.91, MAE=0.34  | R²=-0.05  | Ridge 接近达标，DL 数据量不足 |
+| O₂  | R²≥0.70, MAE≤0.50 | R²=-0.05, MAE=0.81 | R²=-0.14  | ❌ 物理可辨识性不足，触发停止条件   |
+| N₂  | R²≥0.80, MAE≤0.80 | R²=0.65, MAE=0.92  | R²=-0.53  | ❌ Ridge 接近但未达标      |
 
 详见 [experiment_roadmap.md](experiment_roadmap.md) 基线结果分析。
 

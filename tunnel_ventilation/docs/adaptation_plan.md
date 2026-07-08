@@ -4,7 +4,7 @@
 > 场景目标、组分定义和数据契约见 [CO2_O2_N2_气体检测场景规划.md](CO2_O2_N2_气体检测场景规划.md)。
 > 仿真框架详细说明见 [../dl_model_architecture.md §13](../dl_model_architecture.md#十三仿真框架dl-输入数据来源)，本文档在其基础上做组分替换和场景适配。
 
-## 实施进度（截至 2026-07-06）
+## 实施进度（截至 2026-07-08）
 
 | 阶段 | 范围 | 状态 |
 |------|------|------|
@@ -12,7 +12,7 @@
 | 2 | 声学 / 热导 / 光学物理适配 | ✅ 已完成（25 tests） |
 | 3 | 慢通道 + benchmark + CLI | ✅ 已完成（18 tests） |
 | 4 | DL 训练适配 | ✅ 已完成（13 tests） |
-| 5 | formal 数据集 + 基线训练 | 🔶 进行中（tv3-formal 600 序列已生成 + Ridge/TCN 首轮基线完成 + rocket 阶段 A 已落地） |
+| 5 | formal 数据集 + 基线训练 | 🔶 进行中（tv3-formal 6000 clean + R0/R1a/R1b + D0 六组 clean 6000 完成，D2 优先/D1 暂缓，待执行） |
 
 已落地契约：
 - `composition_scheme = "tunnel_ventilation"`，`schema_version = "tunnel-ventilation-1"`
@@ -25,6 +25,7 @@
 - **2026-07-05 存储优化**：tv3 默认 `WaveformSpec(per_timestep_scale=True, waveform_dtype="int16")` + CLI `--skip-fiber-mic`；物理 ADC 仍 20-bit，存储 int16 + per-timestep scale（误差/噪声 ≈ 1%）；fiber_mic 代码保留但默认不生成；数据集 17 GB → 3 GB（600 序列）
 - **2026-07-06 固定特征回归分支**：已新增 `tv3/ml/rocket_features.py`、`tv3/ml/rocket_training.py`、`tv3/pipeline/run_tv3_rocket_baseline.py` 与 `configs/tv3_rocket_ridge.json`；阶段 A 先支持 `physics_stats + RidgeCV`，用于把 O₂ / N₂ 物理信号验证与端到端 DL 训练失败解耦
 - **2026-07-07 场景隔离重构**：tv3 子工程自包含化，原 `src/sim|dl|ml|pipeline|common` 全部迁入 `tunnel_ventilation/tv3/` 下，包名 `tv3`，独立 `pyproject.toml`；以下文件清单中的 `tv3/...` 路径为隔离后的实际位置（重构前位于 `src/...`）
+- **2026-07-08 D0 oracle/observed 特征拆分（clean 6000 完成）**：6 组 Ridge 配置（oracle/observed/tof_only/slow_only/no_tof/no_tcs）在服务器 tv3-formal-6000（CLEAN）上完成；新增 `scripts/check_slow_channels.py` 核查工具；oracle 膨胀 0.18、o2_bins 物理极限确认，结论 D2 优先、D1 暂缓，详见 [掘进通风项目记忆库.md §6.4](掘进通风项目记忆库.md)
 
 首轮基线结果（slow-only，600 序列）：
 - Ridge: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌

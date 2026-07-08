@@ -1,0 +1,60 @@
+{
+  "dataset_dir": "data/tv3-smoke7",
+  "output_dir": "outputs/tv3_d2/tof_phasenet_smoke",
+  "model": "tof_phase_net",
+  "model_kwargs": {
+    "output_mode": "raw3",
+    "slow_channels": 7,
+    "ultrasonic_channels": 5000,
+    "fiber_mic_channels": 0,
+    "sample_rate_hz": 1000000.0,
+    "carrier_hz": 200000.0,
+    "raw_output_prior": "auto"
+  },
+  "modalities": "slow,ultrasonic",
+  "scaler_path": "data/tv3-smoke7/scalers/scaler_slow_sequence.json",
+  "dequantize_waveforms": true,
+  "normalize_waveforms": true,
+  "waveform_stats_features": "log_std,log_max_abs",
+  "aux_target_arrays": {
+    "tof_true_s": "ultrasonic_tof_s",
+    "tof_observed_s": "ultrasonic_tof_observed_s",
+    "peak_index": "ultrasonic_peak_index",
+    "tof_quality": "ultrasonic_tof_quality",
+    "tof_accepted": "ultrasonic_tof_accepted"
+  },
+  "loss": {
+    "name": "d2_tof_phase_loss",
+    "component_loss": {
+      "name": "weighted_component_mse",
+      "weighting": "fixed",
+      "loss_weights": [1.0, 2.0, 1.0],
+      "component_count": 3
+    },
+    "aux_weights": {
+      "tof_s": 0.2,
+      "peak_index": 0.05
+    }
+  },
+  "epochs": 2,
+  "batch_size": 4,
+  "num_workers": 0,
+  "pin_memory": false,
+  "persistent_workers": false,
+  "seed": 20260704,
+  "device": "cpu",
+  "optimizer": "adamw",
+  "lr": 0.001,
+  "weight_decay": 0.0,
+  "grad_clip_norm": 1.0,
+  "eval_splits": "val,test",
+  "early_stopping": {
+    "enabled": false
+  },
+  "scheduler": {
+    "name": "none"
+  },
+  "amp": {
+    "enabled": false
+  }
+}

@@ -3,9 +3,9 @@
 > 本目录规划掘进通风场景下的 `CO₂ / O₂ / N₂` 三组分气体检测任务。
 > 该场景面向巷道通风状态感知与气体组成估计，仿真链路复用 [../dl_model_architecture.md](../dl_model_architecture.md) 第十三节，只替换组分种类、组分范围和场景命名。
 
-## 实施状态（截至 2026-07-06）
+## 实施状态（截至 2026-07-08）
 
-仿真链路适配（阶段 1–3）+ DL 训练适配（阶段 4）+ formal 数据集 + 初步基线已落地。tv3-formal（600 序列）已生成，Ridge/TCN 基线已完成首轮。2026-07-06 新增固定特征回归分支第一阶段：`physics_stats + RidgeCV` 已实现，包含 `tv3/ml/rocket_features.py`、`tv3/ml/rocket_training.py`、`tv3/pipeline/run_tv3_rocket_baseline.py`、`configs/tv3_rocket_ridge.json`，并已通过 smoke 测试。2026-07-07 场景隔离重构后，tv3 成为自包含子工程（包名 `tv3`，独立 `pyproject.toml`），原 `src/` 下的 sim/dl/ml/pipeline/common 全部迁入 `tv3/` 下，`pip install -e ./tunnel_ventilation` 后以 `python -m tv3.xxx` 调用。阶段 5 现拆为两条线并行：一条继续整理 DL / baseline 结果，一条推进 rocket 物理特征与后续 MiniRocket / MultiRocket。2026-07-05 审查修复后，tv3 多模态 fusion 使用 `raw3` 三输出，`gas_head` / `target_transform` 在 tv3 路径下显式拒绝。2026-07-05 存储优化：tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`，数据集 17 GB → 3 GB（600 序列），精度损失可忽略（误差/噪声 ≈ 1%），光纤代码保留可恢复，详见 [server_training_guide.md](server_training_guide.md)。
+仿真链路适配（阶段 1–3）+ DL 训练适配（阶段 4）+ formal 数据集 + 初步基线已落地。tv3-formal（600 序列）已生成，Ridge/TCN 基线已完成首轮。2026-07-06 新增固定特征回归分支第一阶段：`physics_stats + RidgeCV` 已实现；2026-07-08 完成 D0 六组特征拆分实验（clean tv3-formal-6000，含 `scripts/check_slow_channels.py` 核查工具），确认 oracle 膨胀 0.18、o2_bins 物理极限，结论 D2 优先、D1 暂缓。2026-07-07 场景隔离重构后，tv3 成为自包含子工程（包名 `tv3`，独立 `pyproject.toml`），原 `src/` 下的 sim/dl/ml/pipeline/common 全部迁入 `tv3/` 下，`pip install -e ./tunnel_ventilation` 后以 `python -m tv3.xxx` 调用。阶段 5 当前主线：推进 D2（可微 TOF-PhaseNet）+ R5'（observed + 小 MLP）预检，D1 暂缓。2026-07-05 审查修复后，tv3 多模态 fusion 使用 `raw3` 三输出，`gas_head` / `target_transform` 在 tv3 路径下显式拒绝。2026-07-05 存储优化：tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`，数据集 17 GB → 3 GB（600 序列），精度损失可忽略（误差/噪声 ≈ 1%），光纤代码保留可恢复，详见 [server_training_guide.md](server_training_guide.md)。
 
 | 阶段 | 范围 | 状态 |
 |------|------|------|
@@ -13,7 +13,7 @@
 | 2 | 声学 / 热导 / 光学物理适配 | ✅ 已完成（25 tests） |
 | 3 | 慢通道 + benchmark + CLI | ✅ 已完成（18 tests） |
 | 4 | DL 训练适配 | ✅ 已完成（13 tests） |
-| 5 | formal 数据集 + 基线训练 + ablation | 🔶 进行中（tv3-formal 已生成 + Ridge/TCN 首轮基线完成 + rocket 阶段 A 已落地） |
+| 5 | formal 数据集 + 基线训练 + ablation | 🔶 进行中（tv3-formal 6000 clean + R0/R1a/R1b + D0 六组 clean 6000 完成，D2 优先/D1 暂缓，待执行） |
 
 ## 阅读顺序
 
@@ -28,9 +28,11 @@
 | 7 | [server_training_guide.md](server_training_guide.md) | 服务器训练操作手册：环境/生成/训练/回收完整步骤（Linux + RTX 5880 48GB） | 在服务器上执行正式训练 |
 | 8 | [small_sample_dl_strategies.md](small_sample_dl_strategies.md) | 小样本 DL 训练策略：9 类策略（数据增强/正则化/轻量模型/集成/蒸馏/元学习/自监督/半监督/物理约束）+ 文献 + 优先级 | 600 序列约束下提升 DL 表现 |
 | 9 | [rocket_hydra_regression_implementation_plan.md](rocket_hydra_regression_implementation_plan.md) | 固定特征回归专项方案：physics_stats / MiniRocket / MultiRocket / Hydra 的实现与验收路线 | 判断超声波形是否真实提升 O₂ / N₂ 可辨识性 |
-| 10 | [波形特征提取算法评估.md](波形特征提取算法评估.md) | 现有 CNN1D 对 5000 点波形特征提取能力不足的算法评估：10 类算法排序、对比表、文献锚点、实施步骤 | 选择替代/补充 encoder 架构、判断 TOF/MultiRocket/wav2vec 适用性 |
-| 11 | [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md) | Top3 算法(TOF 提取/MultiRocket/wav2vec)的可落地 PyTorch 实现示例与接入方式 | 落地所选算法时参考代码骨架 |
-| 12 | [references/README.md](references/README.md) | 文献报告索引和证据来源入口 | 追溯参数来源、补充文献 |
+| 10 | [三组分检测深度学习新框架方案.md](三组分检测深度学习新框架方案.md) | 物理引导深度学习新框架：D0 oracle 拆分、D1 PatchTST/iTransformer、D2 可微 TOF-PhaseNet、D3 GasGraph、D4 Ridge-teacher、D5 自监督预训练 | 端到端 raw waveform DL 失效后选择后续主路线 |
+| 11 | [d2_tof_phasenet_implementation_plan.md](d2_tof_phasenet_implementation_plan.md) | D2 可微 TOF-PhaseNet 实施计划：工程入口、阶段步骤、辅助监督、验收与停止条件 | 开始实现 D2 前端、loss、metrics 和正式配置 |
+| 12 | [波形特征提取算法评估.md](波形特征提取算法评估.md) | 现有 CNN1D 对 5000 点波形特征提取能力不足的算法评估：10 类算法排序、对比表、文献锚点、实施步骤 | 选择替代/补充 encoder 架构、判断 TOF/MultiRocket/wav2vec 适用性 |
+| 13 | [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md) | Top3 算法(TOF 提取/MultiRocket/wav2vec)的可落地 PyTorch 实现示例与接入方式 | 落地所选算法时参考代码骨架 |
+| 14 | [references/README.md](references/README.md) | 文献报告索引和证据来源入口 | 追溯参数来源、补充文献 |
 
 ## 已确认的初始约束
 
@@ -57,8 +59,10 @@
 | Rocket 训练与评估 | `tv3/ml/rocket_training.py` | ✅（阶段 A） |
 | Rocket CLI | `tv3/pipeline/run_tv3_rocket_baseline.py` | ✅（阶段 A） |
 | Rocket 配置 | `configs/tv3_rocket_ridge.json` | ✅（阶段 A） |
+| D0 特征拆分配置 | `configs/tv3_d0_{oracle,observed,tof_only,slow_only,no_tof,no_tcs}_ridge.json` | ✅（clean tv3-formal-6000 已完成） |
+| D0 结果分析脚本 | `scripts/analyze_d0_results.py` / `scripts/check_slow_channels.py` | ✅（可视化 + slow 通道核查） |
 
-阶段 1–4 + 编排脚本已落地，DL CLI（`python -m tv3.dl.cli --config configs/tv3_baseline.json`）可直接消费 tv3 数据集。Rocket 阶段 A 现已支持 `python -m tv3.pipeline.run_tv3_rocket_baseline --dataset-dir data/tv3-rocket-smoke --feature-set physics_stats --head ridgecv --output-dir outputs/tv3_rocket_smoke/r0`。阶段 5 的 tv3-formal 已按 600 序列规模生成；完整 15-run 基线矩阵和 rocket 正式集结果仍需继续执行。
+阶段 1–4 + 编排脚本已落地，DL CLI（`python -m tv3.dl.cli --config configs/tv3_baseline.json`）可直接消费 tv3 数据集。Rocket 阶段 A 支持 `python -m tv3.pipeline.run_tv3_rocket_baseline --dataset-dir data/tv3-rocket-smoke --feature-set physics_stats --head ridgecv --output-dir outputs/tv3_rocket_smoke/r0`。D0 六组特征拆分已在 clean tv3-formal-6000 完成，`scripts/check_slow_channels.py` 核查数据集无 V_NDIR_CH4，结论 oracle 膨胀 0.18、D2 优先/D1 暂缓，详细判读见 [掘进通风项目记忆库.md](掘进通风项目记忆库.md)。
 
 ## 编码前检查点
 
@@ -82,6 +86,7 @@
 - [dl_training_plan.md](dl_training_plan.md)：DL 训练方案。通道可辨识性分析、模型选型、Loss 选择、实验矩阵、验收标准。
 - [server_training_guide.md](server_training_guide.md)：服务器训练操作手册。Linux + RTX 5880 48GB 环境下的完整执行步骤（环境/生成/训练/回收）。
 - [small_sample_dl_strategies.md](small_sample_dl_strategies.md)：小样本 DL 训练策略。9 类策略（数据增强/正则化/轻量模型/集成/蒸馏/元学习/自监督/半监督/物理约束）的原理、文献、tv3 适用性、优先级。
+- [d2_tof_phasenet_implementation_plan.md](d2_tof_phasenet_implementation_plan.md)：D2 可微 TOF-PhaseNet 实施计划。围绕 raw ultrasonic waveform 到 TOF / phase 的可微提取，明确工程入口、阶段步骤、辅助监督、验收指标与停止条件。
 - [波形特征提取算法评估.md](波形特征提取算法评估.md)：高维波形特征提取算法评估。现有 CNN1D 对 5000 点超声波形特征提取能力不足的诊断、10 类替代算法排序、对比表、文献锚点与实施步骤。
 - [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md)：Top3 算法代码示例。TOF 物理特征提取/MultiRocket 固定核分支/wav2vec 式 raw 编码器的 PyTorch 实现与接入方式。
 

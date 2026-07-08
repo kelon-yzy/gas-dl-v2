@@ -1,0 +1,23 @@
+{
+  "dataset_dir": "data/tv3-formal",
+  "output_dir": "outputs/tv3_d0_local/oracle_ridge",
+  "feature_set": "physics_stats",
+  "head": "ridgecv",
+  "feature_builder": "d0_oracle_physics_stats_v1",
+  "include_slow": true,
+  "physics_arrays": [
+    "ultrasonic_tof_s",
+    "ultrasonic_tof_observed_s",
+    "ultrasonic_peak_index",
+    "ultrasonic_sound_speed_m_per_s",
+    "ultrasonic_sound_speed_estimated_m_per_s",
+    "ultrasonic_alpha_true_npm",
+    "ultrasonic_tof_quality",
+    "ultrasonic_tof_accepted"
+  ],
+  "sequence_statistics": ["mean","std","min","max","range","first","last","delta","slope"],
+  "phase_windows": ["baseline","exposure","steady","recovery"],
+  "early_fractions": [0.25,0.5,0.75],
+  "eval_splits": ["val","test","extrapolation"],
+  "ridge_alphas": [0.0001,0.0003,0.001,0.003,0.01,0.03,0.1,0.3,1.0,3.0,10.0,30.0,100.0]
+}

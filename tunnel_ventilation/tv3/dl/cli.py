@@ -75,6 +75,8 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "performance": {"cudnn_benchmark": False, "tf32": False, "compile": False, "compile_mode": "default"},
     "progress": {"enabled": True, "stdout": True, "jsonl": True, "jsonl_name": "metrics_live.jsonl"},
     "grad_clip_norm": 0.0,
+    "aux_target_arrays": None,
+    "aux_metrics": None,
     "json": False,
 }
 
@@ -239,6 +241,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         augment_config=augment_config,
         augment_seed=int(args.augment_seed),
         slow_channels=slow_channels,
+        aux_target_arrays=args.aux_target_arrays,
     )
     sample_x, sample_y = train_dataset[0]
     in_channels, timesteps = _infer_input_shape(sample_x, input_format)
@@ -259,16 +262,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     # cnn1d_tcn_fusion: 当 modalities 不含 fiber_mic 时自动设 fiber_mic_channels=0
     if args.model == "cnn1d_tcn_fusion" and "fiber_mic" not in modalities:
         model_config.setdefault("fiber_mic_channels", 0)
+    # tof_phase_net: 同样自动设 fiber_mic_channels=0；waveform stats 计入 slow_channels
+    if args.model == "tof_phase_net":
+        model_config.setdefault("fiber_mic_channels", 0)
+        model_config.setdefault("slow_channels", slow_channel_count)
+        model_config.setdefault("ultrasonic_channels", 5000)
     waveform_stats_channel_count = _waveform_stats_channel_count(modalities, waveform_stats_features)
     if args.model == "cnn1d_tcn_fusion" and waveform_stats_channel_count > 0:
         model_config["slow_channels"] = int(model_config.get("slow_channels", slow_channel_count)) + waveform_stats_channel_count
-    if (
-        args.model == "cnn1d_tcn_fusion"
-        and model_config.get("output_mode") == "raw3"
-        and "raw_output_prior" not in model_config
-        and target_transform is None
-    ):
-        model_config["raw_output_prior"] = _target_mean_prior(train_labels, out_dim)
+    if args.model == "tof_phase_net" and waveform_stats_channel_count > 0:
+        model_config["slow_channels"] = int(model_config.get("slow_channels", slow_channel_count)) + waveform_stats_channel_count
+    _resolve_raw_output_prior(args.model, model_config, train_labels, out_dim, target_transform=target_transform)
     if phase_stats_path is not None and train_dataset.has_phase_stats:
         model_config["phase_stat_dim"] = train_dataset.phase_stat_dim
         if phase_scaler_path is not None and phase_scaler_path.is_file():
@@ -338,6 +342,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         slow_channels=slow_channels,
         normalize_waveforms=args.normalize_waveforms,
         waveform_stats_features=waveform_stats_features,
+        aux_target_arrays=args.aux_target_arrays,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = args.output_dir / args.checkpoint_name
@@ -402,6 +407,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             slow_channels=slow_channels,
             normalize_waveforms=args.normalize_waveforms,
             waveform_stats_features=waveform_stats_features,
+            aux_target_arrays=args.aux_target_arrays,
         )
         if loader is not None:
             evaluations[split] = _evaluation_payload(
@@ -538,7 +544,7 @@ def _load_config(path: Path) -> dict[str, Any]:
         raise ValueError(f"DL config must be valid JSON: {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ValueError("DL config must be a JSON object")
-    allowed = set(DEFAULT_DL_CONFIG) | {"dataset_dir", "output_dir"}
+    allowed = set(DEFAULT_DL_CONFIG) | {"dataset_dir", "output_dir", "aux_target_arrays", "aux_metrics"}
     unknown = set(payload) - allowed
     if unknown:
         raise ValueError(f"Unknown DL config keys: {sorted(unknown)}")
@@ -713,6 +719,7 @@ def _build_dataset(
     augment_config: TimeSeriesAugmentConfig | None = None,
     augment_seed: int = 0,
     slow_channels: tuple[str, ...] | None = None,
+    aux_target_arrays: dict[str, str] | None = None,
 ):
     if input_format == "FEATURES":
         if slow_channels is not None:
@@ -741,6 +748,7 @@ def _build_dataset(
         augment_config=augment_config,
         augment_seed=augment_seed,
         slow_channels=slow_channels,
+        aux_target_arrays=aux_target_arrays,
     )
 
 
@@ -879,10 +887,32 @@ def _target_mean_prior(train_labels: np.ndarray, out_dim: int) -> list[float]:
     return [float(value) for value in prior.tolist()]
 
 
+def _resolve_raw_output_prior(
+    model_name: str,
+    model_config: dict[str, Any],
+    train_labels: np.ndarray,
+    out_dim: int,
+    *,
+    target_transform: object | None,
+) -> None:
+    if target_transform is not None:
+        return
+    uses_raw3_prior = (
+        model_name == "cnn1d_tcn_fusion" and model_config.get("output_mode") == "raw3"
+    ) or model_name == "tof_phase_net"
+    if not uses_raw3_prior:
+        return
+    if "raw_output_prior" not in model_config or model_config.get("raw_output_prior") == "auto":
+        model_config["raw_output_prior"] = _target_mean_prior(train_labels, out_dim)
+
+
 def _validate_waveform_normalization_config(args: argparse.Namespace, model_config: dict[str, Any]) -> None:
     if not args.normalize_waveforms:
         return
-    if args.model != "cnn1d_tcn_fusion":
+    if args.model not in ("cnn1d_tcn_fusion", "tof_phase_net"):
+        return
+    # tof_phase_net does not use waveform_adc_scale; skip the adc_scale check
+    if args.model == "tof_phase_net":
         return
     try:
         waveform_adc_scale = float(model_config.get("waveform_adc_scale", 524287.0))
@@ -901,6 +931,9 @@ def _resolved_loss_payload(loss_fn: nn.Module) -> dict[str, Any]:
     component_count = getattr(loss_fn, "component_count", None)
     if component_count is not None:
         payload["component_count"] = int(component_count)
+    aux_weights = getattr(loss_fn, "aux_weights", None)
+    if aux_weights is not None:
+        payload["aux_weights"] = dict(aux_weights)
     return payload
 
 
@@ -1183,6 +1216,7 @@ def _optional_loader(
     slow_channels: tuple[str, ...] | None = None,
     normalize_waveforms: bool = False,
     waveform_stats_features: tuple[str, ...] = (),
+    aux_target_arrays: dict[str, str] | None = None,
 ) -> DataLoader | None:
     dataset = _build_dataset(
         dataset_dir,
@@ -1198,6 +1232,7 @@ def _optional_loader(
         slow_channels=slow_channels,
         normalize_waveforms=normalize_waveforms,
         waveform_stats_features=waveform_stats_features,
+        aux_target_arrays=aux_target_arrays,
     )
     if len(dataset) == 0:
         return None
@@ -1223,6 +1258,7 @@ def _evaluation_payload(result: dict[str, Any]) -> dict[str, Any]:
         ),
         "conditional_metrics": conditional_metrics_to_payload(result["conditional_metrics"]),
         "sum_abs_error": result["sum_abs_error"],
+        "auxiliary_metrics": result.get("auxiliary_metrics"),
     }
 
 

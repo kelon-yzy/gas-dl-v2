@@ -62,6 +62,7 @@ class V4BenchmarkDataset(Dataset):
         waveform_stats_features: tuple[str, ...] = (),
         phase_stats_path: Path | str | None = None,
         slow_channels: tuple[str, ...] | None = None,
+        aux_target_arrays: dict[str, str] | None = None,
     ):
         dataset_dir = Path(dataset_dir)
         self._dataset_dir = dataset_dir
@@ -113,6 +114,18 @@ class V4BenchmarkDataset(Dataset):
         self._phase_stats_path = Path(phase_stats_path) if phase_stats_path is not None else None
         self._has_phase_stats = self._phase_stats_path is not None and self._phase_stats_path.is_file()
 
+        self._aux_target_arrays: dict[str, str] = {}
+        if aux_target_arrays is not None:
+            if not isinstance(aux_target_arrays, dict) or not aux_target_arrays:
+                raise ValueError("aux_target_arrays must be a non-empty dict mapping key -> npy filename")
+            for key, filename in aux_target_arrays.items():
+                if not isinstance(key, str) or not key.strip():
+                    raise ValueError(f"aux_target_arrays keys must be non-empty strings, got {key!r}")
+                if not isinstance(filename, str) or not filename.strip():
+                    raise ValueError(f"aux_target_arrays values must be non-empty strings, got {filename!r}")
+            self._aux_target_arrays = {str(k): str(v) for k, v in aux_target_arrays.items()}
+        self._aux_data: dict[str, np.ndarray] = {}
+
         if not lazy:
             self._load_arrays()
 
@@ -125,11 +138,20 @@ class V4BenchmarkDataset(Dataset):
         src_idx = self.indices[idx]
         xs = self._build_input(src_idx)
         y = torch.from_numpy(self._labels[src_idx].copy())
+        result: dict[str, torch.Tensor] = {"x": xs}
         if self._has_phase_stats:
             if self._phase_stats is None:
                 self._load_arrays()
             phase_vec = torch.from_numpy(self._phase_stats[src_idx].copy())
-            return {"x": xs, "phase_stats": phase_vec}, y
+            result["phase_stats"] = phase_vec
+        if self._aux_target_arrays:
+            aux = {
+                key: torch.from_numpy(self._aux_data[key][src_idx].copy())
+                for key in self._aux_target_arrays
+            }
+            result["aux_targets"] = aux
+        if len(result) > 1 or "x" not in result:
+            return result, y
         return xs, y
 
     @property
@@ -153,6 +175,7 @@ class V4BenchmarkDataset(Dataset):
         state["_fiber_mic_scale"] = None
         state["_labels"] = None
         state["_phase_stats"] = None
+        state["_aux_data"] = {}
         state["_augment_rng"] = None
         return state
 
@@ -172,6 +195,28 @@ class V4BenchmarkDataset(Dataset):
                 self._fiber_mic_scale = np.load(seq_dir / "fiber_mic_scale.npy", mmap_mode="r")
         if self._has_phase_stats and self._phase_stats is None:
             self._phase_stats = np.load(self._phase_stats_path, mmap_mode="r")
+        if self._aux_target_arrays and not self._aux_data:
+            self._load_aux_arrays()
+
+    def _load_aux_arrays(self) -> None:
+        seq_dir = self._dataset_dir / "sequences"
+        n_sequences = len(self._sequence_ids)
+        for key, filename in self._aux_target_arrays.items():
+            path = seq_dir / f"{filename}.npy"
+            if not path.is_file():
+                raise FileNotFoundError(f"aux_target_arrays[{key!r}]: file not found: {path}")
+            arr = np.load(path, mmap_mode="r")
+            if arr.ndim != 2:
+                raise ValueError(
+                    f"aux_target_arrays[{key!r}]: expected 2D array (N, T), got shape {arr.shape}"
+                )
+            if arr.shape[0] != n_sequences:
+                raise ValueError(
+                    f"aux_target_arrays[{key!r}]: expected {n_sequences} sequences, got {arr.shape[0]}"
+                )
+            if not np.isfinite(arr).all():
+                raise ValueError(f"aux_target_arrays[{key!r}]: contains non-finite values")
+            self._aux_data[key] = arr
 
     def _ensure_augment_rng(self) -> np.random.Generator:
         # 多 worker DataLoader 下，每个 worker 进程按 worker_id 派生独立 RNG，

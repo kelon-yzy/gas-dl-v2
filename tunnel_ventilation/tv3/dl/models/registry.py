@@ -11,6 +11,7 @@ from tv3.dl.models.lstm import LSTMRegressor
 from tv3.dl.models.patchtst import PatchTSTRegressor
 from tv3.dl.models.phase_window_tcn import PhaseWindowTCNRegressor
 from tv3.dl.models.tcn import TCNRegressor
+from tv3.dl.models.tof_phase_net import TOFPhaseNetRegressor
 from tv3.dl.models.transformer import TransformerRegressor
 
 MODEL_REGISTRY: dict[str, type[nn.Module] | Callable[..., nn.Module]] = {
@@ -21,6 +22,7 @@ MODEL_REGISTRY: dict[str, type[nn.Module] | Callable[..., nn.Module]] = {
     "patchtst": PatchTSTRegressor,
     "phase_window_tcn": PhaseWindowTCNRegressor,
     "tcn": TCNRegressor,
+    "tof_phase_net": TOFPhaseNetRegressor,
     "transformer": TransformerRegressor,
 }
 

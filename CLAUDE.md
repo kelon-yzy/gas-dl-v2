@@ -8,7 +8,7 @@
 
 - **掺氢天然气（hydrogen_ng）**：H₂/CH₄/CO₂/N₂，sum=100% 闭包。benchmark `wv4-*`。
 - **合成气 / 煤气化制气（syngas）**：H₂/CH₄/CO₂/CO，N₂ 为背景气，sum<100%。Stage Ⅰ 基线 + Stage Ⅱ ablation 完成，benchmark `sg4-smoke` / `sg4-formal`（empirical 后端，6000 序列）可用，HITRAN 后端待补。独立模块路径。
-- **掘进通风（tunnel_ventilation）**：CO₂/O₂/N₂，sum=100% 严格闭包但模型层不使用闭包残差头。N₂ 升格为显式预测目标，O₂ 为同核双原子（无红外活性，仅声学+TCS 间接推断）。阶段 1–4 链路 + DL 适配已落地，benchmark `tv3-smoke` 与 600 序列 `tv3-formal` 可用，Ridge/TCN 首轮基线已完成；多模态 fusion 必须用 `raw3` 直接三输出。2026-07-05 存储优化：tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`（数据集 17→3 GB，误差/噪声 ≈ 1%，光纤代码保留可恢复，见 `docs/掘进通风/server_training_guide.md`）。独立模块路径。
+- **掘进通风（tunnel_ventilation）**：CO₂/O₂/N₂，sum=100% 严格闭包但模型层不使用闭包残差头。N₂ 升格为显式预测目标，O₂ 为同核双原子（无红外活性，仅声学+TCS 间接推断）。阶段 1–4 链路 + DL 适配已落地，benchmark `tv3-smoke` 与 `tv3-formal`（600 序列，旧 schema 含 V_NDIR_CH4，待重新生成）/ `tv3-formal-6000`（clean，7 通道无 V_NDIR_CH4）可用，Ridge/TCN 首轮基线 + R0/R1a/R1b + D0 六组特征拆分（clean 6000）已完成；D0 确认 oracle 膨胀 0.18（oracle val O₂ R²=0.6025 vs observed 0.4226）、o2_bins 物理极限，结论 D2 优先、D1 暂缓；多模态 fusion 必须用 `raw3` 直接三输出。2026-07-05 存储优化：tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`（数据集 17→3 GB，误差/噪声 ≈ 1%，光纤代码保留可恢复，见 `docs/掘进通风/server_training_guide.md`）。独立模块路径。
 
 ## 代码结构
 
