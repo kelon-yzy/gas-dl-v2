@@ -82,9 +82,9 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 
 | 未完成                  | 阻塞程度                     |
 | -------------------- | ------------------------ |
-| v2 配置服务器单 seed 验证    | 进行中（路径 4）                |
-| 完整基线训练（15 runs）      | 阻塞 Ⅱ，待 v2 验证后            |
-| Rocket R1 MiniRocket | R0 已判定物理特征有正信号，待 v2 结果决定 |
+| ~~v2 配置服务器单 seed 验证~~ | **已由 v3_l2 证伪**（见 [dl_training_plan.md §11.4](dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880)）：三层归一化后 best epoch 不再是 1，但 val R²=+0.019 仍远逊 R0 的 0.918，P-9c 触发 |
+| 完整基线训练（15 runs）      | 阻塞 Ⅱ，DL 端到端 raw 波形路线当前架构上限低于 R0，优先推进 R1 固定特征 |
+| Rocket R1 MiniRocket | R0 已越过"有无信号"判断点（val O₂ R²=0.603），R1 重定位为"raw 波形相对 R0 标量序列的增量"，见 [rocket_hydra_regression_implementation_plan.md §4.2](rocket_hydra_regression_implementation_plan.md#42-p0-bminirocket-style-超声帧特征r1-定位重写) |
 
 ### 方向 C：固定特征 Rocket 基线（2026-07-06 已启动）
 
@@ -107,23 +107,26 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 建议执行顺序更新为：
 
 ```text
-R0 physics_stats -> 判断 O2 是否已有非零信号
-  -> 已确认 O2 val R2=0.603，非近均值预测
-  -> 待决策：是否上 R1 MiniRocket 把 O2 推向 0.70 验收线
-   -> 若 R0 已满足应用需求（缺氧档级报警），可优先回补 DL 15-run 基线
-   -> 若需连续精度，再做 R1 MiniRocket
+R0 physics_stats (val O2 R2=0.603) -> R1 定位已重写（2026-07-08）
+  -> R1a MiniRocket(标量序列) 先导对照 -> R1b MiniRocket(raw 5000 点) 增量验证
+  -> R1b - R1a >= 0.05: raw 波形有增量 -> R3 MultiRocket -> R2/R4 -> R5 -> R6
+  -> R1b - R1a < 0.05: raw 波形无增量 -> 转方向 D（fiber_mic, R3f）或 TOF 工程端到端可微版
+  -> 若 R3/R3f O2 R2 仍 < 0.70 但 > 0.50: 现有通道边际可用，优先优化特征与 split
+  -> 若 R3/R3f O2 R2 < 0.50: 转 O2 专用通道
 ```
+
+详见 [rocket_hydra_regression_implementation_plan.md §4.2/§8/§9.2](rocket_hydra_regression_implementation_plan.md#42-p0-bminirocket-style-超声帧特征r1-定位重写)。
 
 ### 方向 D：模态链路完整度评估（2026-07-07）
 
 R0/v2 实测后，对各模态仿真链路现状与下一步价值做一次盘点（详见 [dl_training_plan.md §2.5](dl_training_plan.md#25-模态实现现状与实测验证2026-07-07)）。
 
-| 模态 | 物理实现 | 存储 | DL 可用 | 对 O₂ 价值 | 下一步优先级 |
-| --- | --- | --- | --- | --- | --- |
-| slow（7 通道） | 完整 | slow.npy | ✅ | 弱（仅 V_TCS 2.3% 热导差） | 已被 R0 用满 |
-| ultrasonic | 完整（200kHz/20bit/Lagrange TOF） | int16 + per-timestep scale | ✅ | 强（声速差 6.4%，R0 top 特征来源） | R1 MiniRocket 主战场 |
-| fiber_mic | 完整（反射+解调） | 同上 | 默认跳过 | 待验证（声压相位或对 O₂/N₂ 有增量） | R1 不达标时作增量备选 |
-| NDIR 光学 | empirical 完整，HITRAN 禁用 | 并入 slow | ✅ | 无（O₂/N₂ 无红外吸收） | HITRAN 后端优先级低，不解决 O₂ |
+| 模态         | 物理实现                          | 存储                         | DL 可用 | 对 O₂ 价值                 | 下一步优先级               |
+| ---------- | ----------------------------- | -------------------------- | ----- | ----------------------- | -------------------- |
+| slow（7 通道） | 完整                            | slow.npy                   | ✅     | 弱（仅 V_TCS 2.3% 热导差）     | 已被 R0 用满             |
+| ultrasonic | 完整（200kHz/20bit/Lagrange TOF） | int16 + per-timestep scale | ✅     | 强（声速差 6.4%，R0 top 特征来源） | R1 MiniRocket 主战场    |
+| fiber_mic  | 完整（反射+解调）                     | 同上                         | 默认跳过  | 待验证（声压相位或对 O₂/N₂ 有增量）   | R1 不达标时作增量备选         |
+| NDIR 光学    | empirical 完整，HITRAN 禁用        | 并入 slow                    | ✅     | 无（O₂/N₂ 无红外吸收）          | HITRAN 后端优先级低，不解决 O₂ |
 
 关键结论：
 
@@ -373,7 +376,7 @@ python scripts/run_tv3_baseline.py
 Ⅰ-1 tv3-smoke ──→ Ⅰ-2 tv3-formal ──→ Ⅰ-3 配置矩阵 ──→ Ⅰ-4 基线训练
                                                                 │
                                                                 ▼
-                                                         Ⅱ-0 TCN probe
+                                                         Ⅱ-0 TCN probe  ⏳ 待执行
                                                                 │
                                           ┌─────────────┬───────┤
                                           ▼             ▼       ▼
@@ -392,6 +395,10 @@ python scripts/run_tv3_baseline.py
                     └──────────┬───────────┘
                                ▼
                     Ⅲ-2/3/4 HITRAN/阶段/分层
+
+注（2026-07-08）：P-9c 已确认触发（fusion v3_l2 O₂ R²=-0.061 < 0.50，见
+[dl_training_plan.md §10](dl_training_plan.md#10-推荐执行顺序)）。但 Ⅱ-0 probe 尚未执行，
+当前直接推进方向 C 的 R1a/R1b 先导对照（固定特征路线），probe 可与 R1a 并行。
 ```
 
 ## 风险提醒

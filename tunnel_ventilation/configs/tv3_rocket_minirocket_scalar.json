@@ -1,0 +1,43 @@
+{
+  "dataset_dir": "data/tv3-formal-6000",
+  "output_dir": "outputs/tv3_rocket/r1a",
+  "feature_set": "minirocket_scalar",
+  "feature_builder": "minirocket_scalar_v1",
+  "head": "ridgecv",
+  "include_slow": true,
+  "physics_arrays": [
+    "ultrasonic_alpha_true_npm",
+    "ultrasonic_sound_speed_m_per_s",
+    "ultrasonic_tof_s"
+  ],
+  "sequence_statistics": [
+    "mean",
+    "std",
+    "min",
+    "max",
+    "slope"
+  ],
+  "num_kernels": 128,
+  "kernel_lengths": [7, 9, 11],
+  "kernel_seed": 42,
+  "eval_splits": [
+    "val",
+    "test",
+    "extrapolation"
+  ],
+  "ridge_alphas": [
+    0.0001,
+    0.0003,
+    0.001,
+    0.003,
+    0.01,
+    0.03,
+    0.1,
+    0.3,
+    1.0,
+    3.0,
+    10.0,
+    30.0,
+    100.0
+  ]
+}

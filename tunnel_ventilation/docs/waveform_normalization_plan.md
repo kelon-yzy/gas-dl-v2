@@ -1,7 +1,7 @@
 # tv3 raw 波形归一化实施计划
 
 > 本文档落地 [dl_training_plan.md §3.4](dl_training_plan.md#34-raw-波形尺度问题与归一化方案2026-07-07) 的三层归一化方案,给出每层的精确改动点、代码片段、配置开关、验证标准与风险。2026-07-07 复审后补齐四项工程收口:归一化前幅度统计侧通道、inverse-var 权重 mean-one 归一化、CLI `--no-*` 回退开关、增强通道边界推断。
->
+> 
 > 前置:v2(`tv3_tcn_multimodal_v2`,cnn1d_tcn_fusion @ 6000 序列,slow+ultrasonic)实测 val R² 全负,已确认 raw 波形与 slow 标量尺度失衡是主因。本文档不重复物理判断,只解决工程落地。
 
 ## 1. 目标与非目标
@@ -147,7 +147,7 @@ waveform_stats_features=("log_std", "log_max_abs")
 启用后,每个波形模态每帧追加 `log_std` / `log_max_abs` 两列到 slow 分支,顺序为 `slow + waveform_stats + waveform`。CLI 会自动把 `cnn1d_tcn_fusion.model_kwargs.slow_channels` 从物理 slow 通道数 7 扩展为 9（仅启用 ultrasonic 时）,避免 z-score 抹掉幅度/能量线索。
 
 3. `cli.py` 加配置开关:
-
+   
    - `DEFAULT_DL_CONFIG` 第 49 行后加 `"normalize_waveforms": False`
    - `_build_dataset` 签名(第 620 行)加 `normalize_waveforms: bool` 参数,第 646 行传入 `V4BenchmarkDataset`
    - `run()` 中 train 构造(第 212 行)、val `_optional_loader` 调用(第 295 行)、eval splits 循环(第 357 行,遍历 val/test/extrapolation)传 `normalize_waveforms=args.normalize_waveforms`
@@ -419,41 +419,42 @@ v2 用 `inverse_train_var`，文档 §4.1 推荐 [1,2,1]。本计划在 §5.1 �
 
 ## 9. 改动文件清单
 
-| 层   | 文件                                      | 改动                                                                          |
-| --- | --------------------------------------- | --------------------------------------------------------------------------- |
-| 1   | `tv3/dl/data/dataset.py`                | 构造函数加 `normalize_waveforms` / `waveform_stats_features`;`_waveform_values` 加 per-timestep z-score 与归一化前幅度统计 |
-| 1   | `tv3/dl/cli.py`                         | `DEFAULT_DL_CONFIG` 加默认值;全链路传参;metrics/run_config 记录;归一化契约校验;`--no-*` 回退开关 |
-| 1   | `configs/tv3_tcn_multimodal_v3.json`    | 新建,基于 v2 改 `normalize_waveforms`/`waveform_adc_scale`,保留 inverse_train_var  |
-| 1   | `configs/tv3_tcn_multimodal_v3b.json`   | 新建(可选),v3 基础上改 loss weighting 为 fixed [1,2,1],用于对照归因                        |
-| 2   | `tv3/dl/models/cnn1d_tcn_fusion.py`     | `__init__` 加 LayerNorm 模块;`forward` 拼接前过 norm;加 `fusion_layer_norm` 开关      |
-| 2   | `configs/tv3_tcn_multimodal_v3_l2.json` | 新建                                                                          |
-| 3   | `tv3/dl/models/cnn1d_tcn_fusion.py`     | 新增 `FiLMModulation`/`GatedFusion` 类;`__init__` 加 `fusion_mode`;`forward` 分支 |
-| 3   | `configs/tv3_tcn_multimodal_v3_l3.json` | 新建                                                                          |
-| 测试  | `tests/test_tv3_waveform_normalization.py` | 新增 z-score、幅度统计侧通道、LayerNorm、FiLM/gate、loss weighting、CLI 配置边界测试             |
+| 层   | 文件                                         | 改动                                                                                                          |
+| --- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| 1   | `tv3/dl/data/dataset.py`                   | 构造函数加 `normalize_waveforms` / `waveform_stats_features`;`_waveform_values` 加 per-timestep z-score 与归一化前幅度统计 |
+| 1   | `tv3/dl/cli.py`                            | `DEFAULT_DL_CONFIG` 加默认值;全链路传参;metrics/run_config 记录;归一化契约校验;`--no-*` 回退开关                                  |
+| 1   | `configs/tv3_tcn_multimodal_v3.json`       | 新建,基于 v2 改 `normalize_waveforms`/`waveform_adc_scale`,保留 inverse_train_var                                  |
+| 1   | `configs/tv3_tcn_multimodal_v3b.json`      | 新建(可选),v3 基础上改 loss weighting 为 fixed [1,2,1],用于对照归因                                                        |
+| 2   | `tv3/dl/models/cnn1d_tcn_fusion.py`        | `__init__` 加 LayerNorm 模块;`forward` 拼接前过 norm;加 `fusion_layer_norm` 开关                                      |
+| 2   | `configs/tv3_tcn_multimodal_v3_l2.json`    | 新建                                                                                                          |
+| 3   | `tv3/dl/models/cnn1d_tcn_fusion.py`        | 新增 `FiLMModulation`/`GatedFusion` 类;`__init__` 加 `fusion_mode`;`forward` 分支                                 |
+| 3   | `configs/tv3_tcn_multimodal_v3_l3.json`    | 新建                                                                                                          |
+| 测试  | `tests/test_tv3_waveform_normalization.py` | 新增 z-score、幅度统计侧通道、LayerNorm、FiLM/gate、loss weighting、CLI 配置边界测试                                            |
 
 ## 10. 与 dl_training_plan.md 的对应关系
 
-本计划是 §3.4 的工程落地,不改变 §3.4 的技术结论。落地后需回填:
+本计划是 §3.4 的工程落地,不改变 §3.4 的技术结论。落地后已回填:
 
-- §10 执行顺序表 P-4 状态(基线训练)更新为层 1/2/3 结果。
-- §2.5 v2 失效解释的"raw 波形尺度问题"标注为已解决(层 1)。
-- 若层 3 达标,§9.2 T3(平衡融合 + Modality Dropout)与本计划层 3 的关系需说明(层 3 是 T3 的简化版,未含 Modality Dropout)。
+- §10 执行顺序表 P-4b 状态更新为"代码+服务器验证全部完成"，记录 v3_l2 最优结果及 P-9c 确认触发。
+- §2.5 v2 失效解释更新：不仅是 raw 波形输入尺度问题，更关键的是 encoder 输出 embedding 尺度不对齐（层 2 LayerNorm 为主要改善）。
+- §3.4 执行顺序标记三层实测结果，确认均未达标。
+- P-9c 从"预警"升级为"已确认触发"：fusion v3_l2 O₂ R²=-0.061 < 0.50。
 
-层 3 若仍不达标,进入 §10 P-9c(阶段 Ⅲ-1 O₂ 专用通道)的判断。
+层 3 仍不达标,按 §10 进入 P-9c（阶段 Ⅲ-1 O₂ 专用通道）的判断。
 
 ## 11. 实施记录（2026-07-07）
 
 ### 11.1 代码落地状态
 
-| 层   | 文件                                         | 改动                                                         | 状态   |
-| --- | ------------------------------------------ | ---------------------------------------------------------- | ---- |
-| 1   | `tv3/dl/data/dataset.py`                   | `normalize_waveforms` 参数 + per-timestep z-score + `waveform_stats_features` 幅度统计侧通道 | ✅    |
+| 层   | 文件                                         | 改动                                                                                         | 状态   |
+| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------ | ---- |
+| 1   | `tv3/dl/data/dataset.py`                   | `normalize_waveforms` 参数 + per-timestep z-score + `waveform_stats_features` 幅度统计侧通道        | ✅    |
 | 1   | `tv3/dl/cli.py`                            | `--normalize-waveforms/--no-normalize-waveforms` 开关 + 全链路传参 + metrics/run_config 记录 + 契约校验 | ✅    |
-| 2   | `tv3/dl/models/cnn1d_tcn_fusion.py`        | `fusion_layer_norm` 开关 + ultrasonic/fiber/slow LayerNorm   | ✅    |
-| 3   | 同上                                         | `FiLMModulation`（含恒等初始化）+ `GatedFusion` + `fusion_mode` 分支 | ✅    |
-| 补齐  | `tv3/dl/training/losses.py`                | `weighted_component_mse` 加 `weighting:"fixed"` 分支 + `weight_normalization:"mean_one"` | ✅    |
-| 配置  | `configs/`                                 | `tv3_tcn_multimodal_v3` / `v3b` / `v3_l2` / `v3_l3`        | ✅    |
-| 测试  | `tests/test_tv3_waveform_normalization.py` | 26 个归一化专项测试                                             | ✅ 全过 |
+| 2   | `tv3/dl/models/cnn1d_tcn_fusion.py`        | `fusion_layer_norm` 开关 + ultrasonic/fiber/slow LayerNorm                                   | ✅    |
+| 3   | 同上                                         | `FiLMModulation`（含恒等初始化）+ `GatedFusion` + `fusion_mode` 分支                                 | ✅    |
+| 补齐  | `tv3/dl/training/losses.py`                | `weighted_component_mse` 加 `weighting:"fixed"` 分支 + `weight_normalization:"mean_one"`      | ✅    |
+| 配置  | `configs/`                                 | `tv3_tcn_multimodal_v3` / `v3b` / `v3_l2` / `v3_l3`                                        | ✅    |
+| 测试  | `tests/test_tv3_waveform_normalization.py` | 26 个归一化专项测试                                                                                | ✅ 全过 |
 
 专项验证通过:`test_tv3_waveform_normalization.py` 26 passed;相邻 DL 回归联跑 `test_tv3_waveform_normalization.py + test_tunnel_ventilation_dl_training.py` 35 passed。
 
@@ -490,12 +491,98 @@ v2 用 `inverse_train_var`，文档 §4.1 推荐 [1,2,1]。本计划在 §5.1 �
 - **起步 train_loss 未达 §6.1 S1 的"< 100"目标**（smoke 上 2.6 万）。分析：encoder 内部 `BatchNorm1d` 已部分抹平波形输入尺度差异,z-score 对起步 forward loss 影响有限；起步 loss 高更可能来自 `inverse_train_var` 在小样本上的极端权重 + output head 初始化。
 - 这提示 §2/§3.4 把 v2 失效主因完全归结为"raw 波形尺度失衡"可能不完全准确,但 z-score 仍有正面价值（val_loss 改善）。
 
-### 11.4 待服务器验证
+### 11.4 服务器验证结果（tv3-formal-6000，50 epoch，单 seed，RTX 5880）
 
-smoke 32 序列无法复现 formal 6000 序列动态,§6.1 S2/S3/S4 必须在服务器 formal-6000 上跑：
+四组实验均在 `tv3-formal-6000`（6000 序列 / 600 mixture）上完成，patience=10 early stopping，seed=20260704。
 
-- S2：v3（inverse_train_var）50 epoch 单 seed,看 val O₂ R² > 0（超过 v2 的 -3.12）
-- 若未达 0.603,依次叠加 v3_l2（层 2）、v3_l3（层 3）
-- v3b 可选,归因 loss weighting 的独立影响
+#### 11.4.1 总览
 
-服务器配置已就绪,四个配置 `device=cuda`/`amp=true`/`num_workers=4` 已配好,直接可用。
+| 配置 | 改动 | best ep | val_loss | val R² | val MAE (%) | early stop ep |
+| --- | --- | ---:| ---:| ---:| ---:| ---:|
+| R0 (Ridge) | 传统 ML 基线 | — | — | **0.918** | **0.28** | — |
+| v2 | 原始 fusion, adc=5.0 | 6 | 86.99 | -295 | 18.47 | 16 |
+| **v3** | +z-score +幅度统计 +inv-var | 11 | 6.53 | -3.03 | 2.22 | 21 |
+| **v3b** | 同 v3, loss 改 fixed [1,2,1] | 3 | 5.78 | -1.66 | 1.77 | 13 |
+| **v3_l2** | v3 + fusion LayerNorm | 14 | **1.48** | **+0.019** | **1.13** | 24 |
+| **v3_l3** | v3_l2 + FiLM gate | 10 | 1.48 | -0.001 | 1.14 | 20 |
+
+#### 11.4.2 各组分 best epoch 指标
+
+| 配置 | CO₂ R² | O₂ R² | N₂ R² | CO₂ MAE | O₂ MAE | N₂ MAE | sum_abs_err |
+| --- | ---:| ---:| ---:| ---:| ---:| ---:| ---:|
+| R0 (Ridge) | 0.994 | 0.661 | 0.939 | 0.09 | 0.42 | 0.33 | — |
+| v2 | -33.7 | -111.2 | -545 | 7.18 | 9.27 | 38.9 | — |
+| **v3** | -5.97 | -3.42 | -0.73 | 3.28 | 1.62 | 1.77 | 3.59 |
+| **v3b** | -2.96 | -1.55 | -0.72 | 2.34 | 1.19 | 1.78 | 3.09 |
+| **v3_l2** | **+0.040** | -0.061 | **+0.028** | **1.21** | **0.82** | **1.36** | **0.12** |
+| **v3_l3** | +0.003 | -0.004 | -0.002 | 1.24 | 0.80 | 1.39 | 0.03 |
+
+#### 11.4.3 与 §6.3 验证标准的对比
+
+| 指标 | v2 基线 | 层 1 目标 | 层 1 实际 | 层 2 目标 | 层 2 实际 | 层 3 目标 | 层 3 实际 |
+| --- | ---:| ---:| ---:| ---:| ---:| ---:| ---:|
+| train_loss 起步 | 6517 | < 100 | 10389 ❌ | 同层 1 | 891 ❌ | 同层 1 | 750 ❌ |
+| val O₂ R² best | -3.12 | > 0 | -3.42 ❌ | > 层 1 | -0.061 ✅ | ≥ 0.603 | -0.004 ❌ |
+| val N₂ R² best | -43.17 | > 0 | -0.73 ❌ | > 层 1 | +0.028 ✅ | > 0 | -0.002 ❌ |
+| val CO₂ R² best | -0.34 | > 0.5 | -5.97 ❌ | > 0.8 | +0.040 ❌ | > 0.9 | +0.003 ❌ |
+
+**结论：没有任何一层达到计划设定的目标。** 最好的 v3_l2 在 R² 上仅略微为正（0.019），距离 R0 Ridge 基线的 0.918 差距巨大。
+
+#### 11.4.4 逐层归因分析
+
+**层 1（v3 vs v2）——z-score 解决了训练崩溃，但 R² 仍全负**
+
+v2 完全失败（R² 在 -100 到 -500），v3 把 val_loss 从 87 降到 6.5，R² 从 -295 升到 -3.0。z-score 确实解决了训练不收敛，但 R² 仍然全负。train_loss 第 1 epoch 仍高达 10389（起步高于 v2 的 6517），但第 2 epoch 即降到 24.3、第 3 epoch 降到 1.55 并趋于稳定。起步 loss 高源于 `raw_output_prior` 初始化后第一轮梯度更新未生效，不代表 z-score 无效。
+
+**v3b vs v3——fixed [1,2,1] 优于 inverse_train_var**
+
+v3b 在所有指标上优于 v3：val R² -1.66 vs -3.03，val MAE 1.77 vs 2.22，收敛更快（best epoch 3 vs 11）。inverse_train_var 的权重 [0.73, 1.76, 0.51] 把 N₂ 权重压到 0.51（N₂ 方差大→反比权重小），削弱了 N₂ 的学习信号。fixed [1,2,1] 对 N₂ 保留了 1.0 权重，O₂ 显式加权 2.0。两者 N₂ R² 几乎相同（-0.72 vs -0.73），但 CO₂ 和 O₂ 差距明显。
+
+**层 2（v3_l2 vs v3）——fusion LayerNorm 是最关键的改进**
+
+这是四组实验中最大的单步提升：val_loss 从 6.53 降到 1.48（4.4 倍），R² 首次转正到 +0.019，val MAE 从 2.22 降到 1.13（减半），O₂ MAE 从 1.62 降到 0.82（减半），sum_abs_error 从 3.59% 降到 0.12%。LayerNorm 在 embedding 拼接前对齐了 ultrasonic encoder 和 slow encoder 输出的尺度，效果比输入层的 z-score 更直接。这说明 v2 失效的关键不仅是"raw 波形输入尺度大"，更在于"两个 encoder 输出的 embedding 尺度不一致导致 TCN 无法有效融合"。
+
+**层 3（v3_l3 vs v3_l2）——FiLM + gated fusion 无额外收益**
+
+v3_l3 与 v3_l2 几乎一致，val_loss 从 1.476 微增到 1.483，R² 从 +0.019 回退到 -0.001。FiLM 调制和门控融合增加了模型复杂度但没有带来收益，可能原因：当前架构的表达力不是瓶颈，而是 CNN1D encoder 从 waveform 中提取的特征本身缺乏区分性；600 mixture 的数据量也不足以支撑更复杂的融合架构。
+
+#### 11.4.5 test / extrapolation 泛化验证
+
+v3b 和 v3_l2 的 test set 结果与 val set 基本一致，未见过拟合：
+
+| 配置 | test R² | test MAE | extrap R²（仅 v3b） |
+| --- | ---:| ---:| ---:|
+| v3b | -1.66 | 1.78 | -1.56 |
+| v3_l2 | +0.014 | 1.14 | —（未配置） |
+| v3_l3 | -0.004 | 1.16 | — |
+
+v3b 的 extrapolation split R² = -1.56，与 val/test 持平，说明模型在外推区域也没有严重退化。
+
+#### 11.4.6 条件分析（O₂ 分箱）
+
+v3_l2 在 O₂ 浓度中间段（18.8%–20.4%）表现最好，O₂ MAE 降到 0.42–0.46%；但在高 O₂ 段（20.4%–21.2%）和低 O₂ 段（18.0%–18.8%），O₂ MAE 回升到 1.19–1.22%，R² 降到 -27 至 -30。这与 O₂ 浓度范围窄（18%–21%、仅 3 个百分点跨度）导致 bin 内方差极小有关——R² 的分母很小，微小偏差就会导致 R² 深度负值。
+
+CO₂ 分箱中，v3_l2 在中间段（1.3%–3.8%）MAE 仅 0.54–0.67%，但在低 CO₂ 段（0–1.3%）和高 CO₂ 段（3.8%–5.0%）MAE 分别为 1.66% 和 1.90%，存在明显的边界效应。
+
+### 11.5 结论与后续方向
+
+#### 三层归一化方案的整体评价
+
+三层方案成功地把 fusion 模型从完全失败（v2, R² = -295）带到了勉强有效（v3_l2, R² ≈ 0），但距离 R0 Ridge 基线（R² = 0.918）仍有数量级差距。三层中 **fusion LayerNorm（层 2）贡献了绝大部分改善**，z-score（层 1）解决了"不崩溃"，FiLM/gate（层 3）无额外收益。
+
+#### DL fusion 远逊于 Ridge 的根因分析
+
+1. **Ridge 的优势在于特征层面**：Ridge 直接在 7 个 slow 特征上做线性回归，这些特征（V_NDIR_CO2、V_TCS 等）与目标有强线性/近线性相关，Ridge 天然适合这种场景。
+2. **CNN1D encoder 未从 waveform 中提取到有效特征**：5000 点 raw waveform 经 4 层 CNN1D → 64 维 embedding，这个 embedding 可能只捕获了波形的粗糙统计量（能量、包络），而非物理上关键的 TOF（飞行时间）差异。TOF 差异体现在亚样本级别的相位偏移（~0.002μs），通用 CNN 架构难以精确提取。
+3. **数据量不足**：600 mixture / 6000 序列对于端到端从 waveform 学习组分浓度而言偏少，模型难以泛化。
+4. **slow 分支被淹没**：虽然 LayerNorm 对齐了 embedding 尺度，但 TCN 融合后 slow 分支的 7/9 个强特征的信息可能在 128 维 concat 空间中被 64 维 waveform embedding 稀释。
+
+#### 后续可选方向
+
+按计划 §10，三层方案未达标后进入 P-9c（阶段 Ⅲ-1）。可选路径：
+
+1. **v3_l2 + fixed [1,2,1]**：v3b 证明 fixed [1,2,1] 优于 inverse_train_var，但 v3b 未叠加 LayerNorm。在 v3_l2 基础上改用 fixed [1,2,1] 可能进一步改善。
+2. **O₂ 专用通道**（§10 P-9c）：为 O₂ 设计专用的声学特征提取通道，而非共用通用 CNN1D encoder。
+3. **混合架构**：slow 分支直接用线性头（对齐 Ridge 的优势），waveform 分支作为辅助特征拼接进来。
+4. **TOF 特征工程**：不依赖 CNN1D 端到端学习 TOF，而是在数据层显式提取 TOF 作为额外 slow 特征（类似 `waveform_stats_features` 的思路）。
+5. **数据增强 + 更大数据集**：当前 augment=null，可尝试启用增强；或增大 formal 集规模。

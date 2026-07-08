@@ -11,6 +11,10 @@ from sklearn.preprocessing import StandardScaler
 
 from tv3.common.metrics import conditional_metrics_to_payload
 from tv3.ml.features import MLFeatureMatrix
+from tv3.ml.minirocket_features import (
+    MiniRocketFeatureConfig,
+    build_minirocket_feature_cache,
+)
 from tv3.ml.models import RidgeRegressor
 from tv3.ml.rocket_features import (
     RocketFeatureCache,
@@ -77,7 +81,7 @@ class _ScaledClosedFormRidgeRegressor:
 def train_tv3_rocket_regressor(
     dataset_dir: Path | str,
     *,
-    feature_config: RocketFeatureConfig | None = None,
+    feature_config: RocketFeatureConfig | MiniRocketFeatureConfig | None = None,
     cache_dir: Path | str | None = None,
     head: str = "ridgecv",
     train_split: str = "train",
@@ -86,10 +90,25 @@ def train_tv3_rocket_regressor(
     closed_form_alpha: float = 1.0,
 ) -> RocketTrainingResult:
     dataset_dir = Path(dataset_dir)
-    feature_config = feature_config or RocketFeatureConfig()
-    cache_path = Path(cache_dir) if cache_dir is not None else default_cache_dir(dataset_dir, feature_config.feature_builder)
-    feature_cache = build_tv3_physics_feature_cache(dataset_dir, cache_dir=cache_path, config=feature_config)
+    if feature_config is None:
+        feature_config = RocketFeatureConfig()
+    feature_builder = feature_config.feature_builder
+    cache_path = Path(cache_dir) if cache_dir is not None else default_cache_dir(dataset_dir, feature_builder)
+    if isinstance(feature_config, MiniRocketFeatureConfig):
+        feature_cache = build_minirocket_feature_cache(dataset_dir, cache_dir=cache_path, config=feature_config)
+    else:
+        feature_cache = build_tv3_physics_feature_cache(dataset_dir, cache_dir=cache_path, config=feature_config)
     train_matrix = load_cached_split_feature_matrix(dataset_dir, cache_path, split=train_split)
+    # RocketFeatureCache 与 MiniRocketFeatureCache 字段兼容;统一进 RocketFeatureCache 供 payload 用
+    if not isinstance(feature_cache, RocketFeatureCache):
+        feature_cache = RocketFeatureCache(
+            dataset_dir=feature_cache.dataset_dir,
+            cache_dir=feature_cache.cache_dir,
+            feature_config=feature_config,
+            feature_names=feature_cache.feature_names,
+            label_names=feature_cache.label_names,
+            split_sequence_counts=feature_cache.split_sequence_counts,
+        )
     model = _build_head(head, ridge_alphas=ridge_alphas, closed_form_alpha=closed_form_alpha)
     model.fit(train_matrix.x, train_matrix.y, feature_names=train_matrix.feature_names)
 

@@ -1,10 +1,25 @@
 # MiniRocket / MultiRocket / Hydra 回归基线实施规划
 
 > 目标：针对 tv3 掘进通风数据集，在当前端到端 DL 训练失效的前提下，优先实现固定卷积核时序特征 + Ridge / ElasticNet / 小 MLP 的稳健回归链路，用于判断超声波形是否真实携带 O2 / N2 可辨识信号。
+>
+> **2026-07-08 定位修正**：R0 实测 val O₂ R²=0.603 已越过本规划原设的 R1 判断点（R0 O₂ R²>0.30 即物理特征路线成立）。R1 的科学问题从"raw 波形有无 O₂ 信号"变更为"raw 波形卷积特征能否在 R0 已用满物理标量序列的基础上再贡献至 0.70 验收线"。本规划已据 [dl_training_plan.md §11.4](dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880)（v3_l2 DL fusion 实测 R²=+0.019）与 [波形特征提取算法评估.md](波形特征提取算法评估.md)（10 算法排序）重写 §2/§3/§4.2/§8/§9.2/§10。
 
-## 0. 实施进度（截至 2026-07-07）
+## 0. 实施进度（截至 2026-07-07，状态更新 2026-07-08）
 
 阶段 A 已完成最小可运行落地，R0 正式集结果已回填（6000 序列，`data/tv3-formal-6000`，产物 `outputs/tv3_rocket/r0/metrics.json`）。
+
+### 2026-07-08 状态更新
+
+R0 之后的关键变化已由同日完成的两项工作验证，本规划据此修正 R1 定位：
+
+| 变化 | 来源 | 对本规划的影响 |
+|------|------|--------------|
+| DL fusion 三层归一化后仍失效（v3_l2 val R²=+0.019，远逊于 R0 的 0.918） | [dl_training_plan.md §11.4.1](dl_training_plan.md#1141-总览) | §2.2 的"固定特征路线"预判从推论升级为已验证结论；R1 不再是"规避 DL 崩溃的保险"，而是主推方向 |
+| P-9c 触发（fusion O₂ R²=-0.061 < 0.50） | [dl_training_plan.md §10](dl_training_plan.md#10-推荐执行顺序) | 端到端 DL raw 波形路线当前架构上限低于物理特征基线，本规划成为 O₂ 推至 0.70 的主路线 |
+| 10 算法排序：Top1 TOF 工程(9.5) / Top2 MultiRocket(9.0) / Top5 wav2vec(8.0) | [波形特征提取算法评估.md](波形特征提取算法评估.md) | R0 实质已是 Top1 的离线实现（用满 `ultrasonic_tof_s` 等标量序列）；R1 raw 波形卷积特征需对照 R0 而非从零起步 |
+| fiber_mic 定位 | [experiment_roadmap.md 方向 D](experiment_roadmap.md) | fiber_mic 是已跳过的现有模态而非新传感器，§3 边界已对齐 |
+
+R0 落在原 §9.2 决策阈值的"边际可用"区间（0.50–0.70），距 0.70 验收线剩 0.097 缺口。R1 必须回答的新问题：**raw 波形卷积特征能否填补这 0.097，而不是"raw 波形有无信号"**。
 
 已完成：
 
@@ -36,11 +51,11 @@ python -m pytest tests/test_rocket_features.py tests/test_tv3_rocket_pipeline.py
 
 per-component R²：
 
-| 组分 | train | val | test | extrapolation |
-| --- |:---:|:---:|:---:|:---:|
-| x_CO2 | 0.994 | 0.993 | 0.993 | 0.992 |
-| x_O2 | 0.661 | 0.603 | 0.639 | 0.557 |
-| x_N2 | 0.939 | 0.925 | 0.934 | 0.923 |
+| 组分    | train | val   | test  | extrapolation |
+| ----- |:-----:|:-----:|:-----:|:-------------:|
+| x_CO2 | 0.994 | 0.993 | 0.993 | 0.992         |
+| x_O2  | 0.661 | 0.603 | 0.639 | 0.557         |
+| x_N2  | 0.939 | 0.925 | 0.934 | 0.923         |
 
 整体 R²：val 0.901 / test 0.911 / extrapolation 0.898；`sum_abs_error` 各 split 均 ~6e-7（标签闭包天然满足）。
 
@@ -49,16 +64,16 @@ per-component R²：
 - 三个组分的 top-5 feature group 完全一致，均由超声物理量主导：`ultrasonic_alpha_true_npm` > `ultrasonic_sound_speed_m_per_s` > `ultrasonic_tof_s` > `ultrasonic_tof_quality` > `ultrasonic_tof_observed_s`；slow 通道未进入 top-5，O₂ 辨识几乎全部来自超声物理特征。
 - O₂ 整体 val R²=0.603，但 `o2_bins` 四个窄分箱内 R² 全部为负（-9.2 ~ -2.6）。含义：模型能区分 O₂ 高/低大档，但在窄浓度区间内无法做精细分辨（区间方差小、残差稍大即 R² 大幅变负）。
 
-对照 §9.2 决策阈值：
+对照 §9.2 决策阈值（已按 R0 结果重写，见 §9.2）：
 
-- `R0 O2 R2 > 0.30` ✅ 显著超过（val 0.603），TOF / sound_speed / alpha 已携带可用 O₂ 信号，物理特征路线成立。
-- `R0 O2 R2 仍约 0` ❌ 未触发，raw waveform 路线不是 R0 结论下的必需项，但是否继续上 MiniRocket 取决于能否把 O₂ 推到 §9.2 的 R3 验收线 0.70。
+- R0 val O₂ R²=0.603，落在"边际可用（0.50–0.70）"区间，物理特征路线成立但距 0.70 验收线剩 0.097。
+- "raw 波形有无 O₂ 信号"已由 R0 的 `ultrasonic_tof_s`/`sound_speed`/`alpha_true` 间接回答（top-5 全是超声物理标量）；R1 要回答的是 raw 5000 点卷积特征能否提供这些标量之外的增量。
 
 未完成：
 
-- MiniRocket / MultiRocket 波形特征
+- MiniRocket / MultiRocket 波形特征（R1 定位已修正，见 §4.2）
 - ElasticNetCV / 小 MLP / Hydra
-- R1 起的实验矩阵
+- R1 起的实验矩阵（R1 加先导对照，见 §8）
 
 ## 1. 结论先行
 
@@ -98,19 +113,21 @@ tv3-formal-6000
   - 已生成声学辅助数组：`ultrasonic_tof_s`、`ultrasonic_tof_observed_s`、`ultrasonic_sound_speed_estimated_m_per_s`、`ultrasonic_peak_index`、`ultrasonic_alpha_true_npm` 等。
 - 难点：O2 无直接光学通道，主要依赖 O2 / N2 声速差和 TCS 弱差异。
 
-### 2.2 当前失效模式
+### 2.2 失效模式（2026-07-08 据 §11.4 实测重写）
 
-已知事实：
+已知事实（R0 + v3_l2 实测后）：
 
-- slow-only Ridge 能预测 CO2，但 O2 接近均值预测。
-- 端到端 TCN / fusion 在 600 序列下不收敛。
-- 用户补充：服务器 6000 序列下当前 DL 算法仍训练失效，最佳 epoch 为 1。
+- slow-only Ridge 能预测 CO₂（R²=0.91），但 O₂≈均值预测（R²=-0.05）。
+- R0（slow + 超声物理标量序列 + RidgeCV）val O₂ R²=0.603，物理特征路线有效但未达 0.70。
+- DL fusion 三层归一化后最优 v3_l2：val R²=+0.019 / O₂ R²=-0.061，远逊于 R0 的 0.918；P-9c 触发（fusion O₂ R²<0.50）。
 
-推论：
+已验证结论（原为 2026-07-07 的推论，现据 §11.4 实测确认）：
 
-1. 仅扩大样本量未解决训练问题，当前端到端 DL 链路存在训练动力学或输入尺度问题。
-2. 必须先引入固定特征路线，避免所有结论都被 DL 训练崩溃污染。
-3. 如果 ROCKET 类特征也无法让 O2 R2 超过 0.50，则应优先判断现有通道物理可辨识性不足，而不是继续换大模型。
+1. 仅扩大样本量未解决 DL 训练问题：6000 序列下 v2 best epoch=1、v3_l2 虽训练正常但 R² 仍≈0。根因是 encoder 架构（`avg+max` 池化对平移不敏感，丢掉亚样本 TOF 相位），不是样本量也不是融合层（v3_l3 的 FiLM/gate 无额外收益佐证）。
+2. 固定特征路线已成为主推方向：DL 端到端 raw 波形路线当前架构上限低于物理特征基线（0.019 vs 0.918），固定特征不再是"规避 DL 崩溃的保险"，而是把 O₂ 推向 0.70 的主路线。
+3. R0 已用满超声物理标量序列（tof_s / sound_speed / alpha_true 等），R1 的 raw 波形卷积特征需对照 R0 证明增量，而非从零起步重复"raw 波形有无信号"的判断。
+
+**停止条件仍生效**：若 R1/R3（含 fiber_mic 增量）O₂ R² 仍 < 0.50，则判断现有通道物理可辨识性不足，转向 O₂ 专用传感器，不再在 ROCKET 特征上投入。
 
 ## 3. 不变量与边界
 
@@ -118,13 +135,14 @@ tv3-formal-6000
 2. 不使用 `compositional_mse`、`ilr_mse`、`free_component_mse` 或 target transform。
 3. 不把 `mixture_id` 回退或重写为 `sequence_id`。
 4. 不用训练失败时的静默 fallback；任何 NaN、维度不匹配、缓存缺失都应直接失败。
-5. 不先引入新传感器；本方案只验证现有 slow + ultrasonic 的信号极限。
+5. 本方案只验证现有四模态（slow / ultrasonic / fiber_mic / NDIR）的信号极限，不引入新传感器。**fiber_mic 是已跳过的现有模态而非新传感器**：当前 `--skip-fiber-mic` 是存储优化，代码保留可恢复。R1 在 slow+ultrasonic 下若不达 0.70，恢复 fiber_mic（重新生成数据集去掉 `--skip-fiber-mic`）作 R3 增量备选，与 [experiment_roadmap.md 方向 D](experiment_roadmap.md) 一致。
 6. 不一次性加载完整 6000 x 512 x 5000 波形到内存；必须 chunk 流式生成特征缓存。
 7. 先实现可复现、可审计、可缓存的特征管线，再接回归头。
+8. **R1 必须对照 R0 而非从零起步**：R0 已用满 `ultrasonic_tof_s`/`sound_speed`/`alpha_true` 等物理标量序列，R1 的 raw 波形卷积特征需证明在这些标量之外的增量（至少 O₂ R² 提升 > 0.05 才算有效），否则不应继续堆 R3/Hydra。
 
 ## 4. 算法路线
 
-### 4.1 P0-A：物理序列统计基线
+### 4.1 P0-A：物理序列统计基线（已落地为 R0）
 
 输入数组：
 
@@ -147,12 +165,18 @@ tv3-formal-6000
 - `ElasticNetCV`
 - 现有 closed-form `RidgeRegressor` 作为最小依赖对照。
 
-目的：
+**已验证结论（R0 实测）**：无需 raw waveform，TOF / sound_speed / alpha 序列统计已使 val O₂ R²=0.603，物理特征路线成立。原"如果 P0-A 的 O2 R2 仍约 0，raw waveform 路线才有必要"的判断点已被跳过——R0 远超该判断线。
 
-- 判断无需 raw waveform 时，TOF / sound_speed 是否已足够解释 O2。
-- 如果 P0-A 的 O2 R2 仍约 0，raw waveform 路线才有必要。
+**P0-A 在新定位下的角色**：作为 R1 的对照基线（R1 必须在 R0 之上证明增量），不再是"判断 raw 波形是否必要"的前置门。R0 实质上是 [波形特征提取算法评估.md](波形特征提取算法评估.md) Top1（TOF 物理特征工程 + Ridge，得分 9.5）的离线实现——它消费的是仿真侧已计算好的 `ultrasonic_*` 标量序列，不是从 raw 5000 点波形端到端提取。
 
-### 4.2 P0-B：MiniRocket-style 超声帧特征
+### 4.2 P0-B：MiniRocket-style 超声帧特征（R1 定位重写）
+
+**R1 的新科学问题**：R0 已用满超声物理标量序列（tof_s / sound_speed / alpha_true，top-5 全是这些标量），val O₂ R²=0.603。R1 要回答的不是"raw 5000 点波形有无 O₂ 信号"（R0 间接已有答案），而是 **raw 波形的固定核卷积特征能否提供这些标量之外的增量，把 O₂ R² 从 0.603 推向 0.70**。
+
+这个新问题要求 R1 先做小规模对照，而不是直接上全量 MiniRocket：
+
+1. **R1a 对照先导**：MiniRocket 作用于 raw 波形 vs 作用于 R0 已用的标量序列，哪个对 O₂ 有增量。若 MiniRocket(raw) 不优于 MiniRocket(tof_s 序列)，说明 raw 5000 点的额外信息有限，R1 应转向别的增量方向（fiber_mic 或 TOF 工程的端到端可微版）。
+2. **R1b 全量推进**：仅当 R1a 证明 raw 波形有增量时，才上全量 MiniRocket（num_kernels 512 起步）。
 
 输入形态：
 
@@ -160,12 +184,12 @@ tv3-formal-6000
 one sequence ultrasonic: (T=512, L=5000)
 ```
 
-不建议把 `(512, 5000)` 直接 flatten 成长序列。第一版按“帧内波形 + 跨 timestep 池化”处理：
+不建议把 `(512, 5000)` 直接 flatten 成长序列。按"帧内波形 + 跨 timestep 池化"处理：
 
 1. 对每个 timestep 的 5000 点超声帧应用固定 1D 卷积核。
 2. 每个 kernel 对每帧输出 PPV 与 max 两类统计。
 3. 对 512 帧的 kernel 统计再做 sequence pooling：mean, std, min, max, slope。
-4. 拼接 slow / TOF / sound_speed 统计。
+4. 拼接 slow / TOF / sound_speed 统计（与 R0 特征拼接，不是替换）。
 
 第一版 MiniRocket-style 不是完整复刻论文实现，而是项目内可控的固定核特征器：
 
@@ -180,6 +204,8 @@ one sequence ultrasonic: (T=512, L=5000)
 - 不引入额外大依赖。
 - 避免把 6000 序列全部波形一次性展开。
 - 直接针对超声 TOF 微小位移与衰减形态。
+
+**与 R0 的关键差异**：R0 的 `ultrasonic_tof_s` 等是仿真生成时用 Lagrange 分数延迟 FIR 计算的显式 TOF（亚样本精度 <0.002μs），MiniRocket 从 raw 波形隐式学到的卷积模式若与这些显式 TOF 信息冗余，则 R1 增量有限。R1a 对照正是为确认这一点。实现代码骨架见 [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md) 示例 2。
 
 ### 4.3 P1：MultiRocket-style 多池化增强
 
@@ -350,16 +376,18 @@ data/<dataset>/features/rocket/
 - 重新运行相同 seed 必须得到完全相同 feature matrix。
 - 任何 NaN / Inf 直接报错。
 
-## 8. 实验矩阵
+## 8. 实验矩阵（2026-07-08 据 R0 结果重写）
 
 第一轮只跑 6000 数据集，不再用 600 数据集做主结论。
 
 | 实验 ID | 特征                                        | 模型           | 目的         |
 | ----- | ----------------------------------------- | ------------ | ---------- |
-| R0    | slow + TOF / sound_speed stats            | RidgeCV      | 最小声学信号验证   |
-| R1    | MiniRocket ultrasonic + slow stats        | RidgeCV      | 主 baseline |
+| R0    | slow + TOF / sound_speed stats            | RidgeCV      | 已完成：物理标量序列基线，val O₂ R²=0.603 |
+| R1a   | MiniRocket(tof_s 序列) + slow              | RidgeCV      | **先导对照**：MiniRocket 作用于 R0 已用的标量序列，定 MiniRocket 在标量上的上限 |
+| R1b   | MiniRocket(raw 5000 点) + slow stats        | RidgeCV      | **增量验证**：raw 波形卷积特征对 R0 的增量，仅在 R1a 证明 raw 优于标量时推进 |
 | R2    | MiniRocket ultrasonic + slow stats        | ElasticNetCV | 稀疏性诊断      |
 | R3    | MultiRocket ultrasonic + slow + TOF stats | RidgeCV      | 多池化增强      |
+| R3f   | R3 + fiber_mic（需重新生成数据集） | RidgeCV | **fiber_mic 增量备选**：仅当 R3 O₂ R² < 0.70 时启用，对齐 [experiment_roadmap.md 方向 D](experiment_roadmap.md) |
 | R4    | MultiRocket ultrasonic + slow + TOF stats | ElasticNetCV | 高维特征选择     |
 | R5    | MultiRocket ultrasonic + slow + TOF stats | small MLP    | 轻量非线性增益    |
 | R6    | Hydra-style ultrasonic + slow + TOF stats | RidgeCV      | 第二轮候选      |
@@ -367,8 +395,12 @@ data/<dataset>/features/rocket/
 推荐执行顺序：
 
 ```text
-R0 -> R1 -> R3 -> R2 / R4 -> R5 -> R6
+R0(已完成) -> R1a(先导对照) -> R1b(增量验证)
+  -> R1b 有增量: R3 -> R2 / R4 -> R5 -> R6
+  -> R1b 无增量: 转方向 D(fiber_mic, R3f) 或 TOF 工程端到端可微版
 ```
+
+**R1a 的判定标准**：若 R1b(val O₂ R²) − R1a(val O₂ R²) < 0.05，说明 raw 5000 点波形相对 R0 标量序列无显著增量，R1b 后续（R3/Hydra）不应继续堆 raw 波形特征。
 
 ## 9. 指标与验收
 
@@ -383,17 +415,22 @@ R0 -> R1 -> R3 -> R2 / R4 -> R5 -> R6
 - `sum_abs_error`
 - `o2_bins` / `co2_bins` conditional metrics
 
-### 9.2 决策阈值
+### 9.2 决策阈值（2026-07-08 据 R0 实测重写）
 
-| 结果                            | 决策                                                   |
-| ----------------------------- | ---------------------------------------------------- |
-| R0 O2 R2 > 0.30               | TOF / sound_speed 已有可用 O2 信号，优先做物理特征路线               |
-| R1/R3 O2 R2 > R0 + 0.10       | raw ultrasonic waveform 提供额外 O2 信息，继续 ROCKET / Hydra |
-| R3 O2 R2 >= 0.70              | 现有通道达到最低验收，可进入消融与稳定性验证                               |
-| R3 O2 R2 0.50 到 0.70          | 现有通道边际可用，优先优化特征与 split，不急于加新传感器                      |
-| R3 O2 R2 < 0.50               | 当前通道组合不足，转向 O2 专用通道评估                                |
-| Ridge 正常但 MLP best epoch=1    | MLP 训练配置问题，不影响 ROCKET 特征有效性判断                        |
-| Ridge / ElasticNet / MLP 全部失败 | 优先查数据集、split、label、scale，不换模型                        |
+R0 val O₂ R²=0.603 已落在"边际可用"区间，下表标注已达成与待判断的阈值：
+
+| 结果                            | 决策                                                   | R0 后状态 |
+| ----------------------------- | ---------------------------------------------------- | -------- |
+| R0 O2 R2 > 0.30               | TOF / sound_speed 已有可用 O2 信号，优先做物理特征路线               | ✅ 已达成（0.603） |
+| R1b O2 R² > R0 + 0.05        | raw ultrasonic waveform 相对 R0 标量序列提供额外 O2 信息，继续 ROCKET / Hydra | ⏳ 待 R1b 验证 |
+| R1b O2 R² − R1a O2 R² < 0.05  | raw 5000 点波形无显著增量，转 fiber_mic 或 TOF 工程端到端可微版 | ⏳ 待 R1a/R1b 对照 |
+| R3 O2 R2 >= 0.70              | 现有通道达到最低验收，可进入消融与稳定性验证                               | ⏳ 距 0.097 缺口 |
+| R3 O2 R2 0.50 到 0.70          | 现有通道边际可用，优先优化特征与 split，不急于加新传感器                      | ✅ R0 已在此区间 |
+| R3 O2 R2 < 0.50               | 当前通道组合不足，转向 O2 专用通道评估                                | ❌ R0 已远离此区间 |
+| Ridge 正常但 MLP best epoch=1    | MLP 训练配置问题，不影响 ROCKET 特征有效性判断                        | — |
+| Ridge / ElasticNet / MLP 全部失败 | 优先查数据集、split、label、scale，不换模型                        | — |
+
+**关键变化**：原阈值"R1/R3 O2 R2 > R0 + 0.10"在 R0=0.603 的新基线上过于宽松——R0 已用满标量序列，R1 的 raw 波形增量应至少 0.05 才算有效（否则与 R0 的 `ultrasonic_tof_s` 冗余）。把 +0.10 降为 +0.05 是对"R0 已越过有无信号判断点"的直接反映。
 
 ### 9.3 最低验收
 
@@ -416,22 +453,25 @@ R0 -> R1 -> R3 -> R2 / R4 -> R5 -> R6
 5. [已完成] 跑 32 序列 smoke，确认输出格式。
 6. [已完成 2026-07-07] 跑服务器正式数据集 R0 并回填结果（`tv3-formal-6000`，val O₂ R²=0.603，详见 §0）。
 
-### 阶段 B：MiniRocket-style 特征
+### 阶段 B：MiniRocket-style 特征（R1 定位重写）
 
-1. 实现 deterministic kernel generator。
+**前置认知**：R0 已用满超声物理标量序列（tof_s / sound_speed / alpha_true），val O₂ R²=0.603。阶段 B 不再是"验证 raw 波形有无信号"，而是"raw 波形卷积特征能否在 R0 标量之上贡献增量"。因此先做 R1a 对照，再决定是否上 R1b 全量。
+
+1. 实现 deterministic kernel generator（seed 固定，num_kernels=128 小规模先导）。
 2. 实现 chunk waveform reader，支持 int16 / int32 + scale dequantization。
-3. 每个 sequence 逐帧提取 kernel PPV / max，再跨 timestep pooling。
-4. 写入 feature cache。
-5. 接 RidgeCV 与 ElasticNetCV。
-6. 跑 R1 / R2。
+3. **R1a 先导对照**：MiniRocket 作用于 R0 已用的 `ultrasonic_tof_s` / `sound_speed` 等一维标量序列（不是 raw 5000 点），跑 RidgeCV，记录 val O₂ R²。这定下"MiniRocket 在标量上的上限"。
+4. **R1b 增量验证**：MiniRocket 作用于 raw 5000 点波形 + 拼接 R0 标量统计，跑 RidgeCV，记录 val O₂ R²。
+5. 写入 feature cache（两套：`minirocket_scalar_v1` / `minirocket_raw_v1`）。
+6. 判定：R1b − R1a < 0.05 → raw 波形无增量，阶段 C/D 不再堆 raw 波形，转方向 D（fiber_mic）或 [波形特征提取算法评估.md](波形特征提取算法评估.md) Top1 端到端可微 TOF；R1b − R1a ≥ 0.05 → 推进 R1b 全量（num_kernels 512 起步）与 R2。
 
-### 阶段 C：MultiRocket-style 增强
+### 阶段 C：MultiRocket-style 增强（仅在 R1b 证明 raw 波形有增量后）
 
 1. 增加 first-order difference waveform。
 2. 增加 mean / std pooling。
 3. 增加 phase-aware pooling。
 4. 控制特征维度并记录 feature groups。
 5. 跑 R3 / R4。
+6. **若 R3 O₂ R² < 0.70 且 R3 与 0.70 缺口仍大**：启 R3f（恢复 fiber_mic 重新生成数据集，对齐 [experiment_roadmap.md 方向 D](experiment_roadmap.md)）作 R3 之外的增量。
 
 ### 阶段 D：小 MLP
 
@@ -442,7 +482,7 @@ R0 -> R1 -> R3 -> R2 / R4 -> R5 -> R6
 
 ### 阶段 E：Hydra-style 第二轮
 
-1. 在 MiniRocket 有正信号后再实现。
+1. 在 MiniRocket 有正信号（R1b − R1a ≥ 0.05）后再实现。
 2. 增加 competing kernel groups。
 3. 输出 group-level activation counts。
 4. 跑 R6。
@@ -469,10 +509,17 @@ python -m tv3.pipeline.run_tv3_rocket_baseline \
 
 python -m tv3.pipeline.run_tv3_rocket_baseline \
   --dataset-dir data/tv3-formal-6000 \
-  --feature-set minirocket_ultra_v1 \
+  --feature-set minirocket_scalar_v1 \
   --head ridgecv \
   --chunk-size 64 \
-  --output-dir outputs/tv3_rocket/r1
+  --output-dir outputs/tv3_rocket/r1a
+
+python -m tv3.pipeline.run_tv3_rocket_baseline \
+  --dataset-dir data/tv3-formal-6000 \
+  --feature-set minirocket_raw_v1 \
+  --head ridgecv \
+  --chunk-size 64 \
+  --output-dir outputs/tv3_rocket/r1b
 
 python -m tv3.pipeline.run_tv3_rocket_baseline \
   --dataset-dir data/tv3-formal-6000 \
@@ -482,14 +529,18 @@ python -m tv3.pipeline.run_tv3_rocket_baseline \
   --output-dir outputs/tv3_rocket/r4
 ```
 
-## 12. 风险与排查
+> `--feature-set` 的具体取值以 `run_tv3_rocket_baseline.py` 实际支持为准；`minirocket_scalar_v1` / `minirocket_raw_v1` 为阶段 B 新增的 R1a/R1b 两套缓存，落地时按 §7 特征缓存契约实现。
+
+## 12. 风险与排查（2026-07-08 增补 R1 定位相关风险）
 
 | 风险               | 触发信号                 | 处理                                               |
 | ---------------- | -------------------- | ------------------------------------------------ |
-| 波形特征生成太慢         | R1 特征生成超过可接受时间       | 减 kernel_count，先只用 TOF 附近窗口                      |
+| 波形特征生成太慢         | R1b 特征生成超过可接受时间       | 减 kernel_count，先只用 TOF 附近窗口                      |
 | 特征维度太高           | RidgeCV 内存过高         | 降 kernel_count，使用 float32 cache，分组训练             |
-| O2 仍不可预测         | R3 O2 R2 < 0.50      | 转 O2 专用通道，不继续堆 DL                                |
-| CO2 下降明显         | CO2 R2 低于 slow Ridge | 检查 scaler、slow 通道漂移、split 对齐                     |
+| raw 波形无增量        | R1b − R1a < 0.05     | 不继续堆 raw 波形特征，转方向 D（fiber_mic, R3f）或 Top1 端到端可微 TOF |
+| R1a/R1b 对照被跳过    | 直接上 R1b 全量无 R1a 基线    | R1a 是 R1b 的判定基线，跳过则 R1b 增量无法归因，必须先跑           |
+| O2 仍不可预测         | R3/R3f O2 R2 < 0.50  | 转 O2 专用通道，不继续堆 DL                                |
+| CO2 下降明显         | CO2 R2 低于 R0 slow Ridge | 检查 scaler、slow 通道漂移、split 对齐                 |
 | MLP best epoch=1 | Ridge 正常但 MLP 崩      | 降 lr，检查 target scale 和 loss 权重                   |
 | 所有头都失败           | R0 到 R5 都异常          | 检查 labels、split、feature row order、manifest 与实际数组 |
 
@@ -499,16 +550,18 @@ python -m tv3.pipeline.run_tv3_rocket_baseline \
 | ------------- | -------------------------------------------------------------------------------------------- | -------------------------- |
 | ROCKET        | Dempster et al. 2020, Data Mining and Knowledge Discovery, DOI: `10.1007/s10618-020-00701-z` | 固定随机卷积核 + 线性分类器，本项目迁移为回归特征 |
 | MiniRocket    | Dempster et al. 2021, KDD, DOI: `10.1145/3447548.3467231`                                    | 更快更确定的卷积核特征                |
+| MultiRocket   | Tan et al. 2022, Data Mining and Knowledge Discovery, DOI: `10.1007/s10618-022-00844-1`     | 多池化算子(PPV/mean/std/slope)，201 引 |
 | Hydra         | Dempster et al. 2023, Data Mining and Knowledge Discovery, DOI: `10.1007/s10618-023-00939-3` | competing kernels，作为第二轮增强  |
 | InceptionTime | Fawaz et al. 2020, Data Mining and Knowledge Discovery, DOI: `10.1007/s10618-020-00710-y`    | 多尺度卷积时序建模参考                |
+| 算法排序与代码示例     | [波形特征提取算法评估.md](波形特征提取算法评估.md) / [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md) | 10 算法排序：Top1 TOF 工程(9.5) / Top2 MultiRocket(9.0) / Top5 wav2vec(8.0) |
 
-## 14. 完成定义
+## 14. 完成定义（2026-07-08 据 R1 新定位重写）
 
 本方案完成时，应具备：
 
 1. 一个可复现的 ROCKET 特征缓存格式。
-2. 至少 R0、R1、R3 三个实验完成。
+2. 至少 R0（已完成）、R1a、R1b 三个实验完成，且 R1b 相对 R1a 的增量已明确判定。
 3. RidgeCV / ElasticNetCV / small MLP 三类 head 至少两个可跑通。
-4. 明确回答：当前 ultrasonic 是否提升 O2 / N2。
-5. 明确回答：端到端 DL 失效是否与数据物理不可辨识无关。
-6. 给出下一步分叉：继续 Hydra / 轻量卷积，或转 O2 专用通道。
+4. 明确回答：raw 5000 点波形的卷积特征相对 R0 已用满的超声标量序列有无增量（R1b − R1a 是否 ≥ 0.05）。
+5. 明确回答：端到端 DL 失效是否与数据物理不可辨识无关（[dl_training_plan.md §11.4](dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880) 已验证：DL 失效在 encoder 架构，非物理不可辨识）。
+6. 给出下一步分叉：R1b 有增量→继续 Hydra/轻量卷积；R1b 无增量→转 fiber_mic（R3f）或 O₂ 专用通道。

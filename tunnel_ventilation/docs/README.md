@@ -28,7 +28,9 @@
 | 7 | [server_training_guide.md](server_training_guide.md) | 服务器训练操作手册：环境/生成/训练/回收完整步骤（Linux + RTX 5880 48GB） | 在服务器上执行正式训练 |
 | 8 | [small_sample_dl_strategies.md](small_sample_dl_strategies.md) | 小样本 DL 训练策略：9 类策略（数据增强/正则化/轻量模型/集成/蒸馏/元学习/自监督/半监督/物理约束）+ 文献 + 优先级 | 600 序列约束下提升 DL 表现 |
 | 9 | [rocket_hydra_regression_implementation_plan.md](rocket_hydra_regression_implementation_plan.md) | 固定特征回归专项方案：physics_stats / MiniRocket / MultiRocket / Hydra 的实现与验收路线 | 判断超声波形是否真实提升 O₂ / N₂ 可辨识性 |
-| 10 | [references/README.md](references/README.md) | 文献报告索引和证据来源入口 | 追溯参数来源、补充文献 |
+| 10 | [波形特征提取算法评估.md](波形特征提取算法评估.md) | 现有 CNN1D 对 5000 点波形特征提取能力不足的算法评估：10 类算法排序、对比表、文献锚点、实施步骤 | 选择替代/补充 encoder 架构、判断 TOF/MultiRocket/wav2vec 适用性 |
+| 11 | [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md) | Top3 算法(TOF 提取/MultiRocket/wav2vec)的可落地 PyTorch 实现示例与接入方式 | 落地所选算法时参考代码骨架 |
+| 12 | [references/README.md](references/README.md) | 文献报告索引和证据来源入口 | 追溯参数来源、补充文献 |
 
 ## 已确认的初始约束
 
@@ -80,6 +82,8 @@
 - [dl_training_plan.md](dl_training_plan.md)：DL 训练方案。通道可辨识性分析、模型选型、Loss 选择、实验矩阵、验收标准。
 - [server_training_guide.md](server_training_guide.md)：服务器训练操作手册。Linux + RTX 5880 48GB 环境下的完整执行步骤（环境/生成/训练/回收）。
 - [small_sample_dl_strategies.md](small_sample_dl_strategies.md)：小样本 DL 训练策略。9 类策略（数据增强/正则化/轻量模型/集成/蒸馏/元学习/自监督/半监督/物理约束）的原理、文献、tv3 适用性、优先级。
+- [波形特征提取算法评估.md](波形特征提取算法评估.md)：高维波形特征提取算法评估。现有 CNN1D 对 5000 点超声波形特征提取能力不足的诊断、10 类替代算法排序、对比表、文献锚点与实施步骤。
+- [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md)：Top3 算法代码示例。TOF 物理特征提取/MultiRocket 固定核分支/wav2vec 式 raw 编码器的 PyTorch 实现与接入方式。
 
 ### 参数与文献
 

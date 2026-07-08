@@ -1,7 +1,7 @@
 # 掘进通风 DL 训练适配方案
 
 > 本文档定义掘进通风场景（CO₂/O₂/N₂）的深度学习训练策略，涵盖通道可辨识性分析、模型选型、Loss 选择、配置模板、实验矩阵与验收标准。
->
+> 
 > 前置依赖：仿真链路（阶段 1–3）完成，`tv3-formal` 数据集可用。
 > 仿真适配方案见 [adaptation_plan.md](adaptation_plan.md)，实验编排见 [experiment_roadmap.md](experiment_roadmap.md)。
 
@@ -130,7 +130,9 @@ N₂ 在空气中占比 73.8–82%，绝对值大但动态范围仅约 8 个百�
 
 v2（cnn1d_tcn_fusion，slow+ultrasonic，6000 序列）val R²全负、N2 R²=-43。模态层面根因：fusion 把 5000 维 raw 波形 + 7 维 slow 直接拼接进 CNN，波形单帧原始电压幅度与 slow 标量尺度差几个数量级，虽 `waveform_adc_scale=5.0` 做了缩放，但第一层卷积同时处理两种尺度梯度，lr=1e-4 仍压不住。**DL fusion 想用 raw 波形，但 raw 波形进网络的尺度问题未解决**——这正是 R1 MiniRocket 的切入点：固定核提取波形特征再池化成标量给 Ridge，绕开 raw 波形进网络的尺度问题。
 
-> **2026-07-07 实施修正**：三层归一化方案（见 §3.4 / [waveform_normalization_plan.md](waveform_normalization_plan.md)）已落地并经复审收口。当前 v3 系列不仅做 per-timestep z-score,还用 `waveform_stats_features="log_std,log_max_abs"` 保留归一化前幅度统计,用 `raw3` train-label 均值初始化输出头,并把 `inverse_train_var` 显式 mean-one 归一化。smoke 验证显示 z-score 改善了 val_loss 趋势（v3 比 v2 低 3 倍且持续下降），但起步 train_loss 未大幅下降——encoder 内部 `BatchNorm1d` 已部分抹平波形输入尺度差异。正式结论待服务器 formal-6000 验证。
+> **2026-07-07 实施修正**：三层归一化方案（见 §3.4 / [waveform_normalization_plan.md](waveform_normalization_plan.md)）已落地并经复审收口。当前 v3 系列不仅做 per-timestep z-score,还用 `waveform_stats_features="log_std,log_max_abs"` 保留归一化前幅度统计,用 `raw3` train-label 均值初始化输出头,并把 `inverse_train_var` 显式 mean-one 归一化。
+> 
+> **2026-07-07 formal-6000 验证结论**：三层归一化方案把 v2 从 R²=-295 提升到 v3_l2 R²=+0.019，但仍远逊于 R0 Ridge（R²=0.918）。v2 失效的根因不仅是"raw 波形输入尺度"（层 1 z-score 解决了不崩溃但 R² 仍全负），更关键的是"encoder 输出 embedding 尺度不对齐"（层 2 LayerNorm 贡献了 val_loss 从 6.5 降到 1.5 的全部改善）。CNN1D encoder 从 5000 点 raw waveform 中提取的 64 维 embedding 缺乏组分区分性——可能只捕获了粗糙统计量而非物理关键的亚样本 TOF 差异。这进一步支持 R1 MiniRocket 路线：固定核提取特征 + Ridge 回归。
 
 #### 模态层面对下一步的指向
 
@@ -225,7 +227,9 @@ if self._normalize_waveforms:
 
 每帧 5000 点独立 zero-mean unit-var，raw 波形与 slow scaler 后的标量在同一量级。`waveform_adc_scale` 归一化后可去掉。预期直接解决 train_loss 6517 起步问题。
 
-> **2026-07-07 实施修正**：层 1 已落地（[waveform_normalization_plan.md](waveform_normalization_plan.md) §11）。smoke 验证未证实"直接解决起步 loss"的预期——起步 train_loss 在 z-score on/off 下接近（encoder 内 BatchNorm 已抹平输入尺度），但 val_loss 改善 3 倍且持续下降。复审后新增 `waveform_stats_features` 保留幅度/能量线索,`waveform_adc_scale=1.0` 与 `dequantize_waveforms=true` 由 CLI 强校验。正式验证待服务器 formal-6000。
+> **2026-07-07 实施修正**：层 1 已落地（[waveform_normalization_plan.md](waveform_normalization_plan.md) §11）。smoke 验证未证实"直接解决起步 loss"的预期——起步 train_loss 在 z-score on/off 下接近（encoder 内 BatchNorm 已抹平输入尺度），但 val_loss 改善 3 倍且持续下降。复审后新增 `waveform_stats_features` 保留幅度/能量线索,`waveform_adc_scale=1.0` 与 `dequantize_waveforms=true` 由 CLI 强校验。
+> 
+> **2026-07-07 formal-6000 验证结论**：三层方案全部未达目标。v3_l2（z-score + LayerNorm）为最优，val R²=+0.019 / MAE=1.13%，但距 R0 Ridge 基线 R²=0.918 差距巨大。fusion LayerNorm（层 2）贡献了绝大部分改善（val_loss 6.5→1.5），FiLM/gate（层 3）无额外收益。v2 失效的关键不仅是输入尺度问题，更在于 encoder 输出 embedding 的尺度不对齐。fixed [1,2,1] 优于 inverse_train_var。详见 waveform_normalization_plan.md §11.4。
 
 **层 1b：归一化前幅度统计侧通道（复审补齐）**
 
@@ -262,11 +266,11 @@ parts.append(self.slow_norm(self.slow_encoder(slow)))
 
 #### 执行顺序与验证
 
-1. 层 1（数据层 z-score）——改 dataset 一行 + 配置开关，本地 smoke 验证后服务器重跑 v3
-2. 若不够，叠加层 2（拼接前 LayerNorm）
-3. 若仍不够，上层 3（FiLM+gated fusion）
+1. 层 1（数据层 z-score）——✅ v3 val R²=-3.03, v3b val R²=-1.66, 未达 >0 目标
+2. 叠加层 2（拼接前 LayerNorm）——✅ v3_l2 val R²=+0.019, 首次转正但远未达 0.603
+3. 上层 3（FiLM+gated fusion）——✅ v3_l3 val R²=-0.001, 与层 2 持平, 无额外收益
 
-每层单 seed 50 epoch，看 val O₂ R² 能否超过 R0 的 0.603。层 1、2 安全（z-score 是输入归一化非正则化，LayerNorm 是 UTOPYA 自用）；InstanceNorm/Mixup/SWA 按 UTOPYA 消融结论不盲目加。
+每层单 seed 50 epoch，看 val O₂ R² 能否超过 R0 的 0.603。**结果：三层均未达标**，最好 v3_l2 O₂ R²=-0.061。P-9c 已确认触发，进入阶段 Ⅲ-1 判断。
 
 复审后的工程约束:
 
@@ -282,6 +286,8 @@ parts.append(self.slow_norm(self.slow_encoder(slow)))
 - FiLM 原始: Perez et al. 2018, arXiv:1709.07871
 - LayerNorm: Ba et al. 2016, arXiv:1607.06450
 - Weight Normalization: Salimans & Kingma 2016, arXiv:1602.07868
+
+> **2026-07-08 补充**：针对三层方案未达标的根因(encoder 架构而非融合层),已对 10 类高维波形特征提取算法做系统评估与排序。结论:首推 **显式 TOF 物理特征工程**(得分 9.5)、次推 **MultiRocket 固定核卷积**(9.0)、再补 **wav2vec 式 raw 编码器**(8.0);现有 `DeepAcousticEncoder1D` 的 `avg+max` 池化对平移不敏感,而 TOF 差异恰是位置偏移,这是池化掉的关键信号。详见 [波形特征提取算法评估.md](波形特征提取算法评估.md) 与 [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md)。
 
 ## 4. Loss 选择
 
@@ -607,10 +613,13 @@ P-1  生成 tv3-smoke（链路验证）                               ✅ 已完
 P-2  生成 tv3-formal（600 序列 / 512 时步）                   ✅ 已完成（由原 6000 规模调整，受内存/磁盘限制）
 P-3  创建 5 个 tv3 配置 + 编排脚本                            ✅ 已完成
 P-4  基线训练（5 模型 × 3 seeds = 15 runs）                   🔶 首轮 TCN+Ridge 完成；脚本 seeds/失败处理已修正，完整 15 runs 待决策
-P-4b 三层归一化方案（§3.4 / waveform_normalization_plan.md）  ✅ 代码落地并复审收口（dataset/cli/model/losses + v3/v3b/v3_l2/v3_l3 配置 + 26 专项测试）
-     补齐：waveform_stats_features 幅度统计、raw3 输出 prior、inverse_var mean-one、resolved_loss 记录、CLI --no-* 回退
-     本地 smoke：v3 val_loss 比 v2 低 3 倍且下降；起步 loss 未达 <100（BatchNorm 已抹平输入尺度）
-     服务器 formal 验证：S2(v3 50ep)→S3(v3_l2)→S4(v3_l3)，看 val O₂ R² > 0.603   ⏳ 待执行
+P-4b 三层归一化方案（§3.4 / waveform_normalization_plan.md）  ✅ 代码+服务器验证全部完成
+     代码：dataset/cli/model/losses + v3/v3b/v3_l2/v3_l3 配置 + 26 专项测试
+     formal-6000 结果：v3_l2(z-score+LayerNorm) 最优，val R²=+0.019 / MAE=1.13%
+     ❌ 未达目标：val O₂ R²=-0.061（目标 ≥0.603），CO₂ R²=+0.04（目标 ≥0.9）
+     归因：LayerNorm 贡献最大（val_loss 6.5→1.5），FiLM/gate 无额外收益
+     loss weighting：fixed [1,2,1] 优于 inverse_train_var（v3b vs v3）
+     详见 waveform_normalization_plan.md §11.4
 P-5  TCN hidden probe（§9.2 T1，低成本诊断，决定后续分叉）     ⏳ 待执行
 P-6  通道消融（阶段 Ⅱ-1，6 runs）                             ⏳ 待执行
 P-7  O₂ 可辨识性消融（阶段 Ⅱ-2，4 runs）                      ⏳ 待执行
@@ -618,10 +627,10 @@ P-8  Loss 消融（阶段 Ⅱ-3，5 runs）                            ⏳ 待�
 P-9  汇总分析 + probe 结果，决定是否进入阶段 Ⅲ                 ⏳ 待执行
      P-9a 若 probe 显示信息在融合阶段丢失 → T2 模态辅助头 + T3 平衡融合
      P-9b 若 probe 显示前端未提取 → T5 ROCKET 分支
-     P-9c 若所有通道组合 O₂ R² < 0.50 → 阶段 Ⅲ-1 O₂ 专用通道  ⚠️ Ridge O₂ R²≈0 已触发，待加入波形模态验证
+     P-9c 若所有通道组合 O₂ R² < 0.50 → 阶段 Ⅲ-1 O₂ 专用通道  ⚠️ 已确认触发：fusion v3_l2 O₂ R²=-0.061 < 0.50
 ```
 
-> **首轮基线触发 P-9c 预警**：Ridge (slow-only, 600 序列) O₂ R²=-0.05 < 0.50。但当前仅 slow-only 模态，未使用超声波形（O₂/N₂ 声速差的直接载体）。建议先加入波形模态（方向 B）重跑，确认 O₂ 是否真的不可辨识，再决定是否进入阶段 Ⅲ-1。
+> **P-9c 确认触发**：Ridge (slow-only) O₂ R²=-0.05，fusion v3_l2 (slow+ultrasonic) O₂ R²=-0.061。加入波形模态后 O₂ R² 仍未转正，CNN1D encoder 未能从 raw waveform 中提取有效的 O₂ 区分特征。三层归一化方案（z-score + LayerNorm + FiLM）的最好结果是 v3_l2 val R²=+0.019（整体），距 R0 Ridge 基线 R²=0.918 差距巨大。后续可选方向：(1) v3_l2+fixed [1,2,1] 对照；(2) TOF 特征工程——显式提取 TOF 作为 slow 特征；(3) O₂ 专用声学 encoder；(4) 混合架构（slow 线性头 + waveform 辅助）。
 
 停止条件：
 
