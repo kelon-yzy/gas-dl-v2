@@ -180,12 +180,8 @@ def _load_config(path: Path) -> dict[str, Any]:
 
 def _parse_csv(value: Any) -> tuple[str, ...]:
     if isinstance(value, (list, tuple)):
-        parts = tuple(str(item).strip() for item in value if str(item).strip())
-    else:
-        parts = tuple(item.strip() for item in str(value).split(",") if item.strip())
-    if not parts:
-        raise ValueError("comma-separated argument must not be empty")
-    return parts
+        return tuple(str(item).strip() for item in value if str(item).strip())
+    return tuple(item.strip() for item in str(value).split(",") if item.strip())
 
 
 def _parse_optional_csv(value: Any | None) -> tuple[str, ...] | None:
