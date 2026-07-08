@@ -10,15 +10,19 @@ R1b 在 raw 5000 点波形上跑帧内卷积 + 跨 timestep 池化验证增量�
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 from tv3.common.splits import load_splits, resolve_split_indices
 from tv3.common.waveform import waveform_array_path
 from tv3.ml.features import sequence_stat_features
+
+logger = logging.getLogger(__name__)
 
 # R1a 默认用 R0 top-3 物理标量序列(alpha_true > sound_speed > tof,见 §0 诊断)
 DEFAULT_MINIROCKET_PHYSICS_ARRAYS = (
@@ -238,21 +242,20 @@ def _build_scalar_block(
 
     每条 physics_array 形状 (N, T),视为长度 T 的一维序列,核在 T 上滑动(valid 卷积)。
     R1a 不做跨 timestep 池化:序列本身即"时序",PPV/max 是每核一个标量。
+    向量化:逐核跨所有序列一次 scipy.signal.correlate,避免 Python 序列循环。
     """
     feature_blocks: list[np.ndarray] = []
     feature_names: list[str] = []
     for array_name in config.physics_arrays:
         array = np.load(dataset_dir / "sequences" / f"{array_name}.npy", mmap_mode="r")[split_indices].astype(np.float32)
-        # array 形状 (N, T)
         n_sequences = array.shape[0]
-        # 每核 2 统计(PPV, max) → (N, num_kernels * 2)
         per_kernel_stats = np.zeros((n_sequences, config.num_kernels, 2), dtype=np.float32)
-        for seq_idx in range(n_sequences):
-            series = array[seq_idx]
-            for k_idx, (weight, bias) in enumerate(zip(kernels.weights, kernels.biases, strict=True)):
-                conv = np.correlate(series, weight, mode="valid") + bias
-                per_kernel_stats[seq_idx, k_idx, 0] = float(np.mean(conv > 0))  # PPV
-                per_kernel_stats[seq_idx, k_idx, 1] = float(np.max(conv))  # max
+        for k_idx, (weight, bias) in enumerate(zip(kernels.weights, kernels.biases, strict=True)):
+            # 跨所有序列一次互相关:sliding_window_view 沿时序滑窗,einsum 直积
+            windows = sliding_window_view(array, weight.shape[0], axis=-1)  # (N, T-K+1, K)
+            conv = np.einsum("ntk,k->nt", windows, weight, optimize=True) + bias
+            per_kernel_stats[:, k_idx, 0] = (conv > 0).mean(axis=-1)  # PPV
+            per_kernel_stats[:, k_idx, 1] = conv.max(axis=-1)  # max
         block = per_kernel_stats.reshape(n_sequences, config.num_kernels * 2)
         feature_blocks.append(block)
         for k_idx in range(config.num_kernels):
@@ -270,44 +273,72 @@ def _build_raw_block(
 ) -> tuple[np.ndarray, tuple[str, ...]]:
     """R1b:对 raw 5000 点波形逐帧固定核卷积,跨 timestep 池化。
 
-    波形形状 (N, T, L),scale (N, T) 反量化到电压,可选 per-frame z-score。
-    每帧每核出 PPV + max → (N, T, num_kernels*2),再跨 T 用 sequence_stat_features 池化。
+    formal-6000 朴素加载会 OOM(6000×512×5000×4 ≈ 61 GB int32)。
+    逐序列 mmap 读取:每次只实化单序列 (T, L) ≈ 10 MB,峰值可控。
+    按核长度分组批量 einsum,即时池化,不存 (N, T, K, 2) 中间数组。
     """
-    waveform_int = np.load(waveform_array_path(dataset_dir, "ultrasonic"), mmap_mode="r")[split_indices]
+    waveform_path = waveform_array_path(dataset_dir, "ultrasonic")
     scale = np.load(dataset_dir / "sequences" / "ultrasonic_scale.npy", mmap_mode="r")[split_indices].astype(np.float32)
-    # 反量化到电压:per-timestep scale 广播到 5000 点
-    waveform = waveform_int.astype(np.float32) * scale[..., np.newaxis]
-    n_sequences, timesteps, _ = waveform.shape
+    n_sequences = len(split_indices)
+    waveform_mmap = np.load(waveform_path, mmap_mode="r")
+    timesteps = int(waveform_mmap.shape[1])
+    n_stats = len(config.sequence_statistics)
+    out_dim = config.num_kernels * 2 * n_stats
+    out = np.zeros((n_sequences, out_dim), dtype=np.float32)
 
-    if config.raw_zscore:
-        # per-frame z-score,对标 dataset.py normalize_waveforms(整段 zero-mean unit-var)
-        mean = waveform.mean(axis=-1, keepdims=True)
-        std = np.maximum(waveform.std(axis=-1, keepdims=True), 1e-6)
-        waveform = (waveform - mean) / std
-
-    # 每帧每核出 (PPV, max) → (N, T, num_kernels*2)
-    frame_stats = np.zeros((n_sequences, timesteps, config.num_kernels, 2), dtype=np.float32)
-    for seq_idx in range(n_sequences):
-        for t_idx in range(timesteps):
-            frame = waveform[seq_idx, t_idx]
-            for k_idx, (weight, bias) in enumerate(zip(kernels.weights, kernels.biases, strict=True)):
-                conv = np.correlate(frame, weight, mode="valid") + bias
-                frame_stats[seq_idx, t_idx, k_idx, 0] = float(np.mean(conv > 0))
-                frame_stats[seq_idx, t_idx, k_idx, 1] = float(np.max(conv))
-    # 合并核与统计维:(N, T, num_kernels*2)
-    frame_features = frame_stats.reshape(n_sequences, timesteps, config.num_kernels * 2)
-    # 跨 timestep 池化:复用 sequence_stat_features,channel_names 即每核每统计
-    channel_names = []
-    for k_idx in range(config.num_kernels):
-        channel_names.append(f"kernel{k_idx}:ppv")
-        channel_names.append(f"kernel{k_idx}:max")
-    pooled, names = sequence_stat_features(
-        frame_features,
-        channel_names=tuple(channel_names),
-        statistics=config.sequence_statistics,
-        prefix="minirocket_raw",
+    # channel_names 与 sequence_stat_features 内部拼接规则一致:外层 stat,内层 channel
+    channel_names = tuple(
+        f"kernel{k_idx}:{stat_kind}"
+        for k_idx in range(config.num_kernels)
+        for stat_kind in ("ppv", "max")
     )
-    return pooled, names
+    progress_every = max(1, n_sequences // 20)  # 约 5% 步进
+    for i, global_idx in enumerate(split_indices):
+        # 逐序列 mmap 读,实化 (T, L);scale[i] (T,) 广播到每帧
+        frame_block = waveform_mmap[global_idx].astype(np.float32) * scale[i][..., np.newaxis]
+        if config.raw_zscore:
+            # per-frame z-score,对标 dataset.py normalize_waveforms
+            mean = frame_block.mean(axis=-1, keepdims=True)
+            std = np.maximum(frame_block.std(axis=-1, keepdims=True), 1e-6)
+            frame_block = (frame_block - mean) / std
+        # 按核长度分组批量 einsum:同长度核一次矩阵乘,控 conv 中间内存峰值
+        # (逐核 Python 循环在 formal-6000 上过慢;分组后仅 3 次 einsum,覆盖全部核)
+        ppv_acc = np.zeros((timesteps, config.num_kernels), dtype=np.float32)
+        mx_acc = np.zeros((timesteps, config.num_kernels), dtype=np.float32)
+        length_groups: dict[int, list[int]] = {}
+        for k_idx, length in enumerate(kernels.lengths):
+            length_groups.setdefault(int(length), []).append(k_idx)
+        for length, k_idxs in length_groups.items():
+            w_group = np.stack([kernels.weights[k] for k in k_idxs]).astype(np.float32)  # (G, length)
+            b_group = np.asarray([kernels.biases[k] for k in k_idxs], dtype=np.float32)
+            windows = sliding_window_view(frame_block, length, axis=-1)  # (T, L-length+1, length)
+            conv = np.einsum("tlk,gk->tgl", windows, w_group, optimize=True) + b_group[None, :, None]
+            ppv_acc[:, k_idxs] = (conv > 0).mean(axis=-1)
+            mx_acc[:, k_idxs] = conv.max(axis=-1)
+        kernel_frame_stats = np.zeros((timesteps, config.num_kernels * 2), dtype=np.float32)
+        kernel_frame_stats[:, 0::2] = ppv_acc
+        kernel_frame_stats[:, 1::2] = mx_acc
+        # 跨 T 池化:复用 sequence_stat_features,(1, T, C) → (1, C*n_stats)
+        pooled, _ = sequence_stat_features(
+            kernel_frame_stats[np.newaxis, :, :],
+            channel_names=channel_names,
+            statistics=config.sequence_statistics,
+            prefix="minirocket_raw",
+        )
+        out[i] = pooled[0]
+        if (i + 1) % progress_every == 0 or (i + 1) == n_sequences:
+            logger.info("minirocket_raw: %d/%d sequences done", i + 1, n_sequences)
+    return out, _raw_feature_names(config)
+
+
+def _raw_feature_names(config: MiniRocketFeatureConfig) -> tuple[str, ...]:
+    """生成 R1b 特征名,顺序与 sequence_stat_features 输出列对齐:外层 stat,内层 kernel+stat_kind。"""
+    names: list[str] = []
+    for stat in config.sequence_statistics:
+        for k_idx in range(config.num_kernels):
+            names.append(f"minirocket_raw:kernel{k_idx}:ppv:{stat}")
+            names.append(f"minirocket_raw:kernel{k_idx}:max:{stat}")
+    return tuple(names)
 
 
 def _validate_config(config: MiniRocketFeatureConfig) -> None:
