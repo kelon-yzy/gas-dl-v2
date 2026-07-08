@@ -23,6 +23,7 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 | TCN 50 epochs（seed=42）                      | val R²≈0（CO₂=-0.05, O₂=-0.14, N₂=-0.53），600 序列对 DL 不够                            |
 | Ridge 基线                                    | val: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌（见下方分析）                           |
 | Rocket 阶段 A（2026-07-06 落地，2026-07-07 R0 回填） | `physics_stats + RidgeCV` 链路落地；R0 正式集（6000 序列）val O₂ R²=0.603、CO₂=0.993、N₂=0.925 |
+| D0 oracle/observed 特征拆分（2026-07-08 交付） | 6 组 Ridge 配置 + `run_d0_{minimal,all}.sh` 脚本已交付；`_parse_csv` 支持空 `physics_arrays`；oracle 特征语义已源码溯源确认；待服务器端运行 |
 
 ### 初步基线结果分析（2026-07-04）
 
@@ -80,11 +81,11 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 - val O₂ R² ≤ 0.603 但训练正常 → DL 当前架构上限低于 R0，转 R1 MiniRocket
 - best epoch 仍为 1 → 配置调整不够，进一步诊断 grad 规模 / loss 权重尺度
 
-| 未完成                  | 阻塞程度                     |
-| -------------------- | ------------------------ |
-| ~~v2 配置服务器单 seed 验证~~ | **已由 v3_l2 证伪**（见 [dl_training_plan.md §11.4](dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880)）：三层归一化后 best epoch 不再是 1，但 val R²=+0.019 仍远逊 R0 的 0.918，P-9c 触发 |
-| 完整基线训练（15 runs）      | 阻塞 Ⅱ，DL 端到端 raw 波形路线当前架构上限低于 R0，优先推进 R1 固定特征 |
-| Rocket R1 MiniRocket | R0 已越过"有无信号"判断点（val O₂ R²=0.603），R1 重定位为"raw 波形相对 R0 标量序列的增量"，见 [rocket_hydra_regression_implementation_plan.md §4.2](rocket_hydra_regression_implementation_plan.md#42-p0-bminirocket-style-超声帧特征r1-定位重写) |
+| 未完成                      | 阻塞程度                                                                                                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~v2 配置服务器单 seed 验证~~    | **已由 v3_l2 证伪**（见 [dl_training_plan.md §11.4](dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880)）：三层归一化后 best epoch 不再是 1，但 val R²=+0.019 仍远逊 R0 的 0.918，P-9c 触发 |
+| 完整基线训练（15 runs）          | 阻塞 Ⅱ，DL 端到端 raw 波形路线当前架构上限低于 R0，优先推进 R1 固定特征                                                                                                                                           |
+| ~~Rocket R1 MiniRocket~~ | **R1a/R1b 已完成（2026-07-08）**：R1b−R1a=−0.71 < 0.05，raw 波形卷积路线证伪。下一步 R5（R0 特征 + 小 MLP）验证线性极限，R3f（fiber_mic）待评估，见 [rocket_hydra §0/§8](rocket_hydra_regression_implementation_plan.md)     |
 
 ### 方向 C：固定特征 Rocket 基线（2026-07-06 已启动）
 
@@ -98,24 +99,25 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 - `configs/tv3_rocket_ridge.json`：R0 默认配置
 - `tests/test_rocket_features.py`、`tests/test_tv3_rocket_pipeline.py`：smoke 验证已通过
 
-当前范围只覆盖 R0：
+当前范围（2026-07-08 R1a/R1b 完成后更新）：
 
-- 已实现：`physics_stats`
-- 已完成：R0 正式集（6000 序列）指标产出——val CO₂ R²=0.993、O₂ R²=0.603、N₂ R²=0.925；O₂ 整体有正信号但窄分箱 R² 全负（档级可分辨、档内难精细分辨）
-- 未实现：MiniRocket / MultiRocket / ElasticNetCV / 小 MLP / Hydra
+- 已实现：`physics_stats`（R0）、`minirocket_scalar`（R1a）、`minirocket_raw`（R1b）
+- 已完成：R0 val CO₂ R²=0.993、O₂ R²=0.603、N₂ R²=0.925；R1a val O₂ R²=0.515；R1b val O₂ R²=-0.195
+- **R1b − R1a = −0.71 < 0.05**：raw 波形卷积路线证伪，R3/R4/R6 不推进
+- 未实现：小 MLP（R5，改为 R0 特征 + MLP，优先）、fiber_mic 增量（R3f，待评估）
 
-建议执行顺序更新为：
+建议执行顺序更新为（据 R1a/R1b 实测）：
 
 ```text
-R0 physics_stats (val O2 R2=0.603) -> R1 定位已重写（2026-07-08）
-  -> R1a MiniRocket(标量序列) 先导对照 -> R1b MiniRocket(raw 5000 点) 增量验证
-  -> R1b - R1a >= 0.05: raw 波形有增量 -> R3 MultiRocket -> R2/R4 -> R5 -> R6
-  -> R1b - R1a < 0.05: raw 波形无增量 -> 转方向 D（fiber_mic, R3f）或 TOF 工程端到端可微版
-  -> 若 R3/R3f O2 R2 仍 < 0.70 但 > 0.50: 现有通道边际可用，优先优化特征与 split
-  -> 若 R3/R3f O2 R2 < 0.50: 转 O2 专用通道
+R0(✅ 0.603) -> R1a(✅ 0.515) -> R1b(✅ -0.195)
+  -> R1b - R1a = -0.71 < 0.05: raw 波形卷积路线证伪
+  -> 不推进 R3/R4/R6(raw 波形特征)
+  -> R5(R0 特征 + 小 MLP)优先: 验证线性极限
+  -> R3f(fiber_mic)待评估: 需先确认 fiber_mic 是否与 R1b 同样失效
+  -> 若 R5 无增益且 R3f 失效: 接受 R0(0.603)作为现有通道极限
 ```
 
-详见 [rocket_hydra_regression_implementation_plan.md §4.2/§8/§9.2](rocket_hydra_regression_implementation_plan.md#42-p0-bminirocket-style-超声帧特征r1-定位重写)。
+详见 [rocket_hydra_regression_implementation_plan.md §0/§8/§9.2](rocket_hydra_regression_implementation_plan.md)。
 
 ### 方向 D：模态链路完整度评估（2026-07-07）
 
