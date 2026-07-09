@@ -78,6 +78,34 @@ class _ScaledClosedFormRidgeRegressor:
         return self.model.predict(x_scaled).astype(np.float32, copy=False)
 
 
+class _TabPFNMultiRegressor:
+    """TabPFN 多输出回归头。原生单输出，按标签列拆分 per-target 回归器。"""
+
+    def __init__(self, *, device: str = "auto", n_estimators: int = 8, random_state: int = 0):
+        from tabpfn import TabPFNRegressor
+
+        self._make = lambda: TabPFNRegressor(
+            device=device,
+            n_estimators=n_estimators,
+            random_state=random_state,
+        )
+        self._models: list = []
+
+    def fit(self, x: np.ndarray, y: np.ndarray, *, feature_names=None) -> "_TabPFNMultiRegressor":
+        y = np.asarray(y, dtype=np.float64)
+        if y.ndim == 1:
+            y = y[:, None]
+        x_arr = np.asarray(x, dtype=np.float64)
+        self._models = [self._make() for _ in range(y.shape[1])]
+        for col, model in enumerate(self._models):
+            model.fit(x_arr, y[:, col])
+        return self
+
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        x_arr = np.asarray(x, dtype=np.float64)
+        return np.column_stack([m.predict(x_arr) for m in self._models]).astype(np.float32, copy=False)
+
+
 def train_tv3_rocket_regressor(
     dataset_dir: Path | str,
     *,
@@ -88,6 +116,7 @@ def train_tv3_rocket_regressor(
     eval_splits: tuple[str, ...] = ("val", "test", "extrapolation"),
     ridge_alphas: tuple[float, ...] = DEFAULT_RIDGE_ALPHAS,
     closed_form_alpha: float = 1.0,
+    device: str = "auto",
 ) -> RocketTrainingResult:
     dataset_dir = Path(dataset_dir)
     if feature_config is None:
@@ -109,7 +138,7 @@ def train_tv3_rocket_regressor(
             label_names=feature_cache.label_names,
             split_sequence_counts=feature_cache.split_sequence_counts,
         )
-    model = _build_head(head, ridge_alphas=ridge_alphas, closed_form_alpha=closed_form_alpha)
+    model = _build_head(head, ridge_alphas=ridge_alphas, closed_form_alpha=closed_form_alpha, device=device)
     model.fit(train_matrix.x, train_matrix.y, feature_names=train_matrix.feature_names)
 
     evaluations: dict[str, SplitEvaluation] = {}
@@ -168,12 +197,14 @@ def write_rocket_training_payload(result: RocketTrainingResult, output_path: Pat
     return payload
 
 
-def _build_head(head: str, *, ridge_alphas: tuple[float, ...], closed_form_alpha: float) -> Any:
+def _build_head(head: str, *, ridge_alphas: tuple[float, ...], closed_form_alpha: float, device: str = "auto") -> Any:
     if head == "ridgecv":
         return _ScaledRidgeCVRegressor(alphas=ridge_alphas)
     if head == "ridge_closed_form":
         return _ScaledClosedFormRidgeRegressor(alpha=closed_form_alpha)
-    raise ValueError(f"unsupported rocket head {head!r}. available=('ridgecv', 'ridge_closed_form')")
+    if head == "tabpfn":
+        return _TabPFNMultiRegressor(device=device)
+    raise ValueError(f"unsupported rocket head {head!r}. available=('ridgecv', 'ridge_closed_form', 'tabpfn')")
 
 
 def _validate_feature_contract(matrix: MLFeatureMatrix, reference: MLFeatureMatrix) -> None:
@@ -197,6 +228,8 @@ def _model_diagnostics(
         assert model.model.coef_ is not None
         coef = np.asarray(model.model.coef_.T, dtype=np.float64)
         selected_alpha = float(model.model.alpha)
+    elif head == "tabpfn":
+        return {"note": "TabPFN has no linear coefficients; diagnostics unavailable"}
     else:
         raise ValueError(f"unsupported diagnostics head {head!r}")
     if coef.ndim == 1:

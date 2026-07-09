@@ -51,6 +51,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "eval_splits": "val,test,extrapolation",
     "ridge_alphas": ",".join(str(value) for value in DEFAULT_RIDGE_ALPHAS),
     "closed_form_alpha": 1.0,
+    "device": "auto",
 }
 
 FEATURE_SET_TO_BUILDER = {
@@ -68,7 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, default=None, help="Where to write metrics.json.")
     parser.add_argument("--cache-dir", type=Path, default=None, help="Optional feature cache directory.")
     parser.add_argument("--feature-set", choices=("physics_stats", "minirocket_scalar", "minirocket_raw"), default=None, help="Feature family to run.")
-    parser.add_argument("--head", choices=("ridgecv", "ridge_closed_form"), default=None, help="Regression head.")
+    parser.add_argument("--head", choices=("ridgecv", "ridge_closed_form", "tabpfn"), default=None, help="Regression head.")
     parser.add_argument("--feature-builder", type=str, default=None, help="Feature builder cache name. Overrides feature_set's default mapping if given.")
     parser.add_argument("--include-slow", type=str, default=None, help="true/false.")
     parser.add_argument("--slow-channels", type=str, default=None, help="Comma-separated slow channel allowlist.")
@@ -84,6 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--eval-splits", type=str, default=None, help="Comma-separated eval splits.")
     parser.add_argument("--ridge-alphas", type=str, default=None, help="Comma-separated RidgeCV alphas.")
     parser.add_argument("--closed-form-alpha", type=float, default=None, help="Alpha for ridge_closed_form.")
+    parser.add_argument("--device", type=str, default=None, help="Device for tabpfn head (auto/cuda/cpu).")
     return parser
 
 
@@ -116,6 +118,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         eval_splits=_parse_csv(args.eval_splits),
         ridge_alphas=_parse_float_csv(args.ridge_alphas),
         closed_form_alpha=args.closed_form_alpha,
+        device=args.device,
     )
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

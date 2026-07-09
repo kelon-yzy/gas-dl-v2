@@ -1,10 +1,20 @@
 # D2 可微 TOF-PhaseNet 实施计划
 
-> 状态：实施前规划
-> 日期：2026-07-08
+> 状态：已实施 + 已训练 → **证伪（2026-07-09）**
+> 日期：2026-07-08（规划）/ 2026-07-09（训练结论回填）
 > 依据：[掘进通风项目记忆库.md](掘进通风项目记忆库.md)、[三组分检测深度学习新框架方案.md](三组分检测深度学习新框架方案.md)、现有 `tv3.dl` 训练入口与 D0 clean 6000 结果。
 
-## 结论
+## 训练结论（2026-07-09，tv3-formal-6000，seed=20260704）
+
+**D2 证伪，raw waveform 端到端路线停止推进。** 产物 `outputs/tv3_d2/tof_phasenet_s20260704/`，early stop @ ep23（best ep11）。计划里预设的"若 TOF auxiliary 无法优于 observed 估计器就停止"停止条件已触发。
+
+- **主任务失败**：O2 val R²=−0.015 / test −0.011 / extrap −0.012，相对 D0-observed（0.4226/0.4571/0.3708）Δ≈−0.44，反向崩溃。CO2 0.854、N2 0.588 也全面低于 D0（0.988/0.880）。O2 退化为均值预测（整体 R²≈0，o2_bins 内 −28~−2.6）。
+- **辅助 TOF 假象**：D2 softargmax TOF MAE=84.2μs、corr=0.99945，observed 估计器 MAE=82.0μs、corr=0.99946，`d2_minus_observed_tof_mae_s=+2.2μs`（D2 更差，验收线未过）。corr 高是 L_m 声程扫描（0.18–0.28m）主导的假象，84μs 绝对精度不足以支撑 O2 亚微秒级 TOF 残差辨识。
+- **后续**：可部署 baseline 回到 D0-observed；DL 若继续优先 R5'（physics_stats + 小 MLP，标量空间）。详见记忆库 §6.4 末"D2 训练结果证伪"。
+
+---
+
+## 结论（实施前规划，保留原文）
 
 D2 的实施重点不是继续加深普通 CNN 融合模型，而是把 raw ultrasonic waveform 中的 TOF / phase / peak 信息显式、可微地提取出来，再接入三组分直接回归。第一版应采用 fixed matched filter + envelope + softargmax lag 的最小闭环，先验证辅助 TOF 任务是否学得动；若 TOF auxiliary 无法优于现有 observed TOF 估计器，应停止 raw waveform 深挖，不继续叠复杂可学习滤波器。
 
@@ -459,6 +469,8 @@ python -m tv3.dl.cli --config configs/tv3_d2_tof_phasenet.json
 3. Auxiliary 明显改善但 O2 主任务不提升：暂停 D2 主线，转向 D4 residual 或 D1 observed-physics sequence。
 4. O2 提升只出现在 val，不出现在 test / extrapolation：视为不通过，优先检查 split 或过拟合。
 5. 为跑通而需要把 oracle 特征作为输入：直接判定路线违规。
+
+> **实际触发（2026-07-09）**：停止条件 **2 触发**（D2 TOF MAE 84.2μs > observed 82.0μs，`d2_minus_observed_tof_mae_s=+2.2μs`）；主任务验收也未过（O2 三 split 均为负，Δ≈−0.44 << +0.05）。auxiliary 未改善且主任务崩溃，比停止条件 3 更差。**判定：D2 raw waveform 端到端路线不通过，停止推进 learnable filter / deeper Transformer。**
 
 ## 暂不做
 
