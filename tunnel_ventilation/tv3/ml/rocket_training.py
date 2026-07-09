@@ -23,6 +23,7 @@ from tv3.ml.rocket_features import (
     default_cache_dir,
     load_cached_split_feature_matrix,
 )
+from tv3.ml.mlp_head import MlpHeadConfig, _ScaledMLPRegressor
 from tv3.ml.training import SplitEvaluation, evaluate_regressor
 
 
@@ -117,6 +118,7 @@ def train_tv3_rocket_regressor(
     ridge_alphas: tuple[float, ...] = DEFAULT_RIDGE_ALPHAS,
     closed_form_alpha: float = 1.0,
     device: str = "auto",
+    mlp_config: MlpHeadConfig | None = None,
 ) -> RocketTrainingResult:
     dataset_dir = Path(dataset_dir)
     if feature_config is None:
@@ -138,8 +140,22 @@ def train_tv3_rocket_regressor(
             label_names=feature_cache.label_names,
             split_sequence_counts=feature_cache.split_sequence_counts,
         )
-    model = _build_head(head, ridge_alphas=ridge_alphas, closed_form_alpha=closed_form_alpha, device=device)
-    model.fit(train_matrix.x, train_matrix.y, feature_names=train_matrix.feature_names)
+    resolved_mlp_config = mlp_config or MlpHeadConfig(device=device)
+    model = _build_head(
+        head,
+        ridge_alphas=ridge_alphas,
+        closed_form_alpha=closed_form_alpha,
+        device=device,
+        mlp_config=resolved_mlp_config,
+    )
+    fit_kwargs: dict[str, Any] = {"feature_names": train_matrix.feature_names}
+    if head == "mlp":
+        val_matrix = load_cached_split_feature_matrix(dataset_dir, cache_path, split="val")
+        _validate_feature_contract(val_matrix, train_matrix)
+        fit_kwargs["x_val"] = val_matrix.x
+        fit_kwargs["y_val"] = val_matrix.y
+        fit_kwargs["label_names"] = train_matrix.label_names
+    model.fit(train_matrix.x, train_matrix.y, **fit_kwargs)
 
     evaluations: dict[str, SplitEvaluation] = {}
     for split_name in (train_split, *eval_splits):
@@ -197,14 +213,23 @@ def write_rocket_training_payload(result: RocketTrainingResult, output_path: Pat
     return payload
 
 
-def _build_head(head: str, *, ridge_alphas: tuple[float, ...], closed_form_alpha: float, device: str = "auto") -> Any:
+def _build_head(
+    head: str,
+    *,
+    ridge_alphas: tuple[float, ...],
+    closed_form_alpha: float,
+    device: str = "auto",
+    mlp_config: MlpHeadConfig | None = None,
+) -> Any:
     if head == "ridgecv":
         return _ScaledRidgeCVRegressor(alphas=ridge_alphas)
     if head == "ridge_closed_form":
         return _ScaledClosedFormRidgeRegressor(alpha=closed_form_alpha)
     if head == "tabpfn":
         return _TabPFNMultiRegressor(device=device)
-    raise ValueError(f"unsupported rocket head {head!r}. available=('ridgecv', 'ridge_closed_form', 'tabpfn')")
+    if head == "mlp":
+        return _ScaledMLPRegressor(config=mlp_config or MlpHeadConfig(device=device))
+    raise ValueError(f"unsupported rocket head {head!r}. available=('ridgecv', 'ridge_closed_form', 'tabpfn', 'mlp')")
 
 
 def _validate_feature_contract(matrix: MLFeatureMatrix, reference: MLFeatureMatrix) -> None:
@@ -230,6 +255,13 @@ def _model_diagnostics(
         selected_alpha = float(model.model.alpha)
     elif head == "tabpfn":
         return {"note": "TabPFN has no linear coefficients; diagnostics unavailable"}
+    elif head == "mlp":
+        return {
+            "hidden_dims": list(model.hidden_dims),
+            "parameter_count": model.parameter_count,
+            "best_epoch": model.best_epoch,
+            "best_val_o2_r2": model.best_val_o2_r2,
+        }
     else:
         raise ValueError(f"unsupported diagnostics head {head!r}")
     if coef.ndim == 1:

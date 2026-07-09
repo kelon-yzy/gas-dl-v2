@@ -1,0 +1,59 @@
+{
+  "dataset_dir": "data/tv3-smoke",
+  "output_dir": "outputs/tv3_r5/mlp_observed_smoke",
+  "feature_set": "physics_stats",
+  "head": "mlp",
+  "feature_builder": "d0_observed_physics_stats_v1",
+  "include_slow": true,
+  "physics_arrays": [
+    "ultrasonic_tof_observed_s",
+    "ultrasonic_peak_index",
+    "ultrasonic_sound_speed_estimated_m_per_s",
+    "ultrasonic_tof_quality",
+    "ultrasonic_tof_accepted"
+  ],
+  "sequence_statistics": [
+    "mean",
+    "std",
+    "min",
+    "max",
+    "range",
+    "first",
+    "last",
+    "delta",
+    "slope"
+  ],
+  "phase_windows": [
+    "baseline",
+    "exposure",
+    "steady",
+    "recovery"
+  ],
+  "early_fractions": [
+    0.25,
+    0.5,
+    0.75
+  ],
+  "eval_splits": [
+    "val",
+    "test",
+    "extrapolation"
+  ],
+  "device": "auto",
+  "mlp_hidden_dims": [
+    64,
+    32
+  ],
+  "mlp_dropout": 0.1,
+  "mlp_weight_decay": 0.0001,
+  "mlp_lr": 0.001,
+  "mlp_batch_size": 32,
+  "mlp_max_epochs": 5,
+  "mlp_patience": 2,
+  "mlp_loss_weights": [
+    1.0,
+    2.0,
+    1.0
+  ],
+  "seed": 20260704
+}

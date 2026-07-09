@@ -22,6 +22,7 @@ from tv3.ml.rocket_features import (
     DEFAULT_PHYSICS_ARRAYS,
     RocketFeatureConfig,
 )
+from tv3.ml.mlp_head import MlpHeadConfig
 from tv3.ml.rocket_training import (
     DEFAULT_RIDGE_ALPHAS,
     rocket_training_payload,
@@ -52,6 +53,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "ridge_alphas": ",".join(str(value) for value in DEFAULT_RIDGE_ALPHAS),
     "closed_form_alpha": 1.0,
     "device": "auto",
+    "mlp_hidden_dims": "256,128",
+    "mlp_dropout": 0.1,
+    "mlp_weight_decay": 1e-4,
+    "mlp_lr": 1e-3,
+    "mlp_batch_size": 256,
+    "mlp_max_epochs": 200,
+    "mlp_patience": 20,
+    "mlp_loss_weights": "1.0,2.0,1.0",
+    "seed": 20260704,
 }
 
 FEATURE_SET_TO_BUILDER = {
@@ -69,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, default=None, help="Where to write metrics.json.")
     parser.add_argument("--cache-dir", type=Path, default=None, help="Optional feature cache directory.")
     parser.add_argument("--feature-set", choices=("physics_stats", "minirocket_scalar", "minirocket_raw"), default=None, help="Feature family to run.")
-    parser.add_argument("--head", choices=("ridgecv", "ridge_closed_form", "tabpfn"), default=None, help="Regression head.")
+    parser.add_argument("--head", choices=("ridgecv", "ridge_closed_form", "tabpfn", "mlp"), default=None, help="Regression head.")
     parser.add_argument("--feature-builder", type=str, default=None, help="Feature builder cache name. Overrides feature_set's default mapping if given.")
     parser.add_argument("--include-slow", type=str, default=None, help="true/false.")
     parser.add_argument("--slow-channels", type=str, default=None, help="Comma-separated slow channel allowlist.")
@@ -85,7 +95,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--eval-splits", type=str, default=None, help="Comma-separated eval splits.")
     parser.add_argument("--ridge-alphas", type=str, default=None, help="Comma-separated RidgeCV alphas.")
     parser.add_argument("--closed-form-alpha", type=float, default=None, help="Alpha for ridge_closed_form.")
-    parser.add_argument("--device", type=str, default=None, help="Device for tabpfn head (auto/cuda/cpu).")
+    parser.add_argument("--device", type=str, default=None, help="Device for tabpfn/mlp head (auto/cuda/cpu).")
+    parser.add_argument("--mlp-hidden-dims", type=str, default=None, help="Comma-separated MLP hidden layer sizes.")
+    parser.add_argument("--mlp-dropout", type=float, default=None, help="MLP dropout rate.")
+    parser.add_argument("--mlp-weight-decay", type=float, default=None, help="AdamW weight decay for MLP.")
+    parser.add_argument("--mlp-lr", type=float, default=None, help="AdamW learning rate for MLP.")
+    parser.add_argument("--mlp-batch-size", type=int, default=None, help="MLP mini-batch size.")
+    parser.add_argument("--mlp-max-epochs", type=int, default=None, help="MLP maximum training epochs.")
+    parser.add_argument("--mlp-patience", type=int, default=None, help="MLP early-stop patience on val O2 R2.")
+    parser.add_argument("--mlp-loss-weights", type=str, default=None, help="Comma-separated per-target MLP loss weights.")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for MLP training.")
     return parser
 
 
@@ -119,12 +138,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         ridge_alphas=_parse_float_csv(args.ridge_alphas),
         closed_form_alpha=args.closed_form_alpha,
         device=args.device,
+        mlp_config=_build_mlp_config(args) if args.head == "mlp" else None,
     )
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = write_rocket_training_payload(result, output_dir / "metrics.json")
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
+
+
+def _build_mlp_config(args: argparse.Namespace) -> MlpHeadConfig:
+    return MlpHeadConfig(
+        hidden_dims=_parse_int_csv(args.mlp_hidden_dims),
+        dropout=float(args.mlp_dropout),
+        weight_decay=float(args.mlp_weight_decay),
+        lr=float(args.mlp_lr),
+        batch_size=int(args.mlp_batch_size),
+        max_epochs=int(args.mlp_max_epochs),
+        patience=int(args.mlp_patience),
+        loss_weights=_parse_float_csv(args.mlp_loss_weights),
+        device=str(args.device),
+        seed=int(args.seed),
+    )
 
 
 def _build_physics_config(args: argparse.Namespace, feature_builder: str) -> RocketFeatureConfig:
