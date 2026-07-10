@@ -1,6 +1,6 @@
 """SPXY + OOD 数据集划分单元测试。
 
-覆盖 docs/掘进通风/spxy_split_implementation_plan.md §5.3 要求：
+覆盖 tunnel_ventilation/docs/active/spxy_split_implementation_plan.md §5.3 要求：
 1. X/Y scaler 在距离计算前生效
 2. _spxy_select_train 结果确定、无重复、比例正确
 3. 向量化实现与小 N 朴素实现结果一致

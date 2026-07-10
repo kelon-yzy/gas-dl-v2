@@ -1,6 +1,6 @@
 """掘进通风场景的 LHS 采样。
 
-实现见 docs/掘进通风/sampling_design.md。
+实现见 tunnel_ventilation/docs/foundation/sampling_design.md。
 
 采样策略：在 (x_CO2, x_O2) 二维空间做 LHS，x_N2 = 100 - x_CO2 - x_O2
 被动计算。N2 在本场景是显式预测目标，写入 condition grid 和 labels。
@@ -28,7 +28,7 @@ from tv3.sim.core.ids import make_mixture_id, make_sequence_id
 from tv3.sim.core.tunnel_ventilation_schema import COMPONENT_FIELDS
 
 
-# 组分区间（单位 %），见 docs/掘进通风/sampling_design.md §1.1
+# 组分区间（单位 %），见 tunnel_ventilation/docs/foundation/sampling_design.md §1.1
 @dataclass(frozen=True)
 class TunnelVentilationRanges:
     co2: tuple[float, float] = (0.03, 5.00)

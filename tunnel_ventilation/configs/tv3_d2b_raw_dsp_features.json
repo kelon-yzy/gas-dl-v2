@@ -1,0 +1,26 @@
+{
+  "dataset_dir": "data/tv3-formal-6000",
+  "cache_dir": "data/tv3-formal-6000/features/raw_dsp/raw_dsp_frame_v1",
+  "template_mode": "train_baseline_median",
+  "template_source_split": "train",
+  "template_max_frames": 512,
+  "template_pre_samples": 25,
+  "template_post_samples": 33,
+  "template_min_snr_db": 20.0,
+  "template_reference_peak_polarity": -1,
+  "chunk_size_sequences": 12,
+  "workers": 12,
+  "max_sequences": null,
+  "raw_dsp": {
+    "sound_speed_min_m_per_s": 250.0,
+    "sound_speed_max_m_per_s": 400.0,
+    "delay_min_s": 0.00004,
+    "delay_max_s": 0.00013,
+    "min_corr_peak": 0.5,
+    "min_peak_to_sidelobe_ratio": 1.1,
+    "min_snr_db": 10.0,
+    "max_peak_width_samples": 12.0,
+    "sidelobe_exclusion_samples": 8,
+    "calibration_min_frames": 4
+  }
+}

@@ -4,7 +4,7 @@
 
 建立一个独立于掺氢天然气与合成气主线的掘进通风气体检测场景，用于模拟并评估 `CO2 / O2 / N2` 三组分浓度估计能力。
 
-该场景的仿真链路复用 [../dl_model_architecture.md](../dl_model_architecture.md) 第十三节：沿用 slow 变量、超声波形、光纤麦克风波形、phase schedule、打包与校验流程，只替换组分种类、组分范围和场景命名。
+该场景的仿真链路复用 [../dl_model_architecture.md](../../../hydrogen_ng/docs/dl_model_architecture.md) 第十三节：沿用 slow 变量、超声波形、光纤麦克风波形、phase schedule、打包与校验流程，只替换组分种类、组分范围和场景命名。
 
 该场景的核心问题不是识别复杂燃料气组成，而是在空气主背景下捕捉通风稀释、人员与设备扰动、局部积聚等因素导致的 `CO2`、`O2`、`N2` 组成变化。`N2` 是显式预测输出，不再作为闭包残差补全项。
 
@@ -118,7 +118,7 @@ schema_version = "tunnel-ventilation-1"
 
 ## 实施路线
 
-> 实施状态（2026-07-08）：阶段 1–3 仿真链路 + 阶段 4 DL/ML 适配 + tv3-formal（600 序列）+ Ridge/TCN 首轮基线已落地；固定特征回归分支阶段 A/B（`physics_stats / MiniRocket + RidgeCV`，R0/R1a/R1b）已完成，D0 oracle/observed/tof_only/slow_only 四组特征拆分实验已在本地 600 序列完成并可视化分析（见 `outputs/tv3_d0_local/d0_analysis.png` 与 [掘进通风项目记忆库.md](掘进通风项目记忆库.md)）。完整 15 runs 基线矩阵、服务器端 `tv3-formal-6000` 重跑与后续 D1/D2 物理引导深度学习方案待继续执行。详见 [adaptation_plan.md](adaptation_plan.md) §实施进度、[rocket_hydra_regression_implementation_plan.md](rocket_hydra_regression_implementation_plan.md) 与 [三组分检测深度学习新框架方案.md](三组分检测深度学习新框架方案.md)。
+> 实施状态（2026-07-08）：阶段 1–3 仿真链路 + 阶段 4 DL/ML 适配 + tv3-formal（600 序列）+ Ridge/TCN 首轮基线已落地；固定特征回归分支阶段 A/B（`physics_stats / MiniRocket + RidgeCV`，R0/R1a/R1b）已完成，D0 oracle/observed/tof_only/slow_only 四组特征拆分实验已在本地 600 序列完成并可视化分析（见 `outputs/tv3_d0_local/d0_analysis.png` 与 [掘进通风项目记忆库.md](../掘进通风项目记忆库.md)）。完整 15 runs 基线矩阵、服务器端 `tv3-formal-6000` 重跑与后续 D1/D2 物理引导深度学习方案待继续执行。详见 [adaptation_plan.md](adaptation_plan.md) §实施进度、[rocket_hydra_regression_implementation_plan.md](../archive/completed/rocket_hydra_regression_implementation_plan.md) 与 [三组分检测深度学习新框架方案.md](../archive/legacy/三组分检测深度学习新框架方案.md)。
 
 ### 阶段 1：契约与采样 ✅
 
@@ -141,7 +141,7 @@ schema_version = "tunnel-ventilation-1"
 
 ### 阶段 4：算法框架 ✅（DL/ML 适配完成，首轮基线已执行）
 
-训练适配已完成：losses/trainer 与 ML baseline 均按 `composition_scheme="tunnel_ventilation"` 处理 tv3，conditional metrics 使用 `o2_bins/co2_bins`，闭包类 loss、`target_transform` 和 `gas_head` 在 tv3 下拒绝。基线训练 + ablation 见 [dl_training_plan.md](dl_training_plan.md) §10 推荐执行顺序 P-2 ~ P-9。
+训练适配已完成：losses/trainer 与 ML baseline 均按 `composition_scheme="tunnel_ventilation"` 处理 tv3，conditional metrics 使用 `o2_bins/co2_bins`，闭包类 loss、`target_transform` 和 `gas_head` 在 tv3 下拒绝。基线训练 + ablation 见 [dl_training_plan.md](../archive/legacy/dl_training_plan.md) §10 推荐执行顺序 P-2 ~ P-9。
 
 ## 验收标准
 
@@ -173,7 +173,7 @@ schema_version = "tunnel-ventilation-1"
 | O₂  | R²≥0.70, MAE≤0.50 | R²=-0.05, MAE=0.81 | R²=-0.14  | ❌ 物理可辨识性不足，触发停止条件   |
 | N₂  | R²≥0.80, MAE≤0.80 | R²=0.65, MAE=0.92  | R²=-0.53  | ❌ Ridge 接近但未达标      |
 
-详见 [experiment_roadmap.md](experiment_roadmap.md) 基线结果分析。
+详见 [experiment_roadmap.md](../archive/legacy/experiment_roadmap.md) 基线结果分析。
 
 ## 主要风险
 

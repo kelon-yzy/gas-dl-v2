@@ -7,7 +7,7 @@
 - 无光学串扰矩阵（只有 CO2 一个红外活性组分）
 - 无 V_NDIR_CH4 通道（场景无 CH₄，无需 NDIR CH4 传感器）
 
-物理常数来源详见 docs/掘进通风/physics_references.md。
+物理常数来源详见 tunnel_ventilation/docs/foundation/physics_references.md。
 
 签名约定：waveforms.py 的 `_compute_physics` 通过
 ``sound_speed_fn(x_h2, x_ch4, x_co2, x_n2, t_c=t_c, **extra)`` 调用，

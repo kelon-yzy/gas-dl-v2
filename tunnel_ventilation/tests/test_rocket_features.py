@@ -4,11 +4,19 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from tv3.ml.rocket_features import (
+    RAW_DSP_FORBIDDEN_SIMULATOR_ARRAYS,
     RocketFeatureConfig,
     build_tv3_physics_feature_cache,
+    d0_raw_dsp_feature_config,
     load_cached_split_feature_matrix,
+    validate_d0_raw_dsp_feature_config,
+)
+from tv3.pipeline.build_tv3_raw_dsp_features import (
+    build_tv3_raw_dsp_feature_cache,
+    preflight_tv3_raw_dsp_dataset,
 )
 
 
@@ -81,3 +89,60 @@ def test_load_cached_split_feature_matrix_aligns_labels_and_sequence_ids(tmp_pat
     assert any(name.startswith("ph_exposure|physics:ultrasonic_tof_s:") for name in matrix.feature_names)
     assert np.isfinite(matrix.x).all()
 
+
+def test_d0_raw_dsp_feature_builder_reads_derived_cache_with_frozen_d0_statistics(tmp_path: Path):
+    dataset_dir = _make_tv3_smoke_dataset(tmp_path, sequences=16)
+    preflight = preflight_tv3_raw_dsp_dataset(dataset_dir)
+    raw_dsp_cache = build_tv3_raw_dsp_feature_cache(
+        preflight,
+        template_mode="train_baseline_median",
+        template_max_frames=32,
+        workers=1,
+    )
+    config = d0_raw_dsp_feature_config()
+
+    cache = build_tv3_physics_feature_cache(dataset_dir, config=config)
+    manifest = json.loads((cache.cache_dir / "feature_manifest.json").read_text(encoding="utf-8"))
+    val = load_cached_split_feature_matrix(dataset_dir, cache.cache_dir, split="val")
+
+    assert raw_dsp_cache.cache_dir == dataset_dir / "features" / "raw_dsp" / "raw_dsp_frame_v1"
+    assert manifest["feature_builder"] == "d0_raw_dsp_physics_stats_v1"
+    assert Path(manifest["source_array_root"]) == Path("features") / "raw_dsp" / "raw_dsp_frame_v1"
+    assert manifest["slow_channels"] == list(config.slow_channels)
+    assert set(manifest["source_arrays"]).isdisjoint(RAW_DSP_FORBIDDEN_SIMULATOR_ARRAYS)
+    assert any(
+        name.startswith("ph_steady|physics:ultrasonic_sound_speed_raw_dsp_m_per_s:")
+        for name in val.feature_names
+    )
+    assert np.isfinite(val.x).all()
+
+
+def test_d0_raw_dsp_feature_contract_rejects_simulator_observed_array():
+    config = d0_raw_dsp_feature_config()
+    invalid = RocketFeatureConfig(
+        feature_builder=config.feature_builder,
+        include_slow=config.include_slow,
+        slow_channels=config.slow_channels,
+        physics_arrays=config.physics_arrays + ("ultrasonic_tof_observed_s",),
+        sequence_statistics=config.sequence_statistics,
+        phase_windows=config.phase_windows,
+        early_fractions=config.early_fractions,
+    )
+
+    with pytest.raises(ValueError, match="frozen D0-RawDSP feature contract"):
+        validate_d0_raw_dsp_feature_config(invalid)
+
+
+def test_d2b_ridge_config_matches_frozen_raw_dsp_contract():
+    project_root = Path(__file__).resolve().parents[1]
+    payload = json.loads(
+        (project_root / "configs" / "tv3_d2b_raw_dsp_ridge.json").read_text(encoding="utf-8")
+    )
+    config = d0_raw_dsp_feature_config()
+
+    assert payload["feature_builder"] == config.feature_builder
+    assert payload["slow_channels"] == list(config.slow_channels)
+    assert payload["physics_arrays"] == list(config.physics_arrays)
+    assert payload["sequence_statistics"] == list(config.sequence_statistics)
+    assert payload["phase_windows"] == list(config.phase_windows)
+    assert payload["early_fractions"] == list(config.early_fractions)

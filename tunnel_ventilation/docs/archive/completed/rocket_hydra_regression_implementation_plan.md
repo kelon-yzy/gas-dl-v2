@@ -2,7 +2,9 @@
 
 > 目标：针对 tv3 掘进通风数据集，在当前端到端 DL 训练失效的前提下，优先实现固定卷积核时序特征 + Ridge / ElasticNet / 小 MLP 的稳健回归链路，用于判断超声波形是否真实携带 O2 / N2 可辨识信号。
 > 
-> **2026-07-08 定位修正**：R0 实测 val O₂ R²=0.603 已越过本规划原设的 R1 判断点（R0 O₂ R²>0.30 即物理特征路线成立）。R1 的科学问题从"raw 波形有无 O₂ 信号"变更为"raw 波形卷积特征能否在 R0 已用满物理标量序列的基础上再贡献至 0.70 验收线"。本规划已据 [dl_training_plan.md §11.4](dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880)（v3_l2 DL fusion 实测 R²=+0.019）与 [波形特征提取算法评估.md](波形特征提取算法评估.md)（10 算法排序）重写 §2/§3/§4.2/§8/§9.2/§10。
+> **2026-07-08 定位修正**：R0 实测 val O₂ R²=0.603 已越过本规划原设的 R1 判断点（R0 O₂ R²>0.30 即物理特征路线成立）。R1 的科学问题从"raw 波形有无 O₂ 信号"变更为"raw 波形卷积特征能否在 R0 已用满物理标量序列的基础上再贡献至 0.70 验收线"。本规划已据 [dl_training_plan.md §11.4](../legacy/dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880)（v3_l2 DL fusion 实测 R²=+0.019）与 [波形特征提取算法评估.md](../../methods/波形特征提取算法评估.md)（10 算法排序）重写 §2/§3/§4.2/§8/§9.2/§10。
+>
+> **2026-07-09 后续回填**：R5 已按 [r5_mlp_implementation_plan.md](../../active/r5_mlp_implementation_plan.md) 在 **D0-observed 864**（非本文件旧写的 R0 1080）上完成正式 6000，**判据未通过**（val O₂ −0.183）。可部署上限维持 D0-observed Ridge；当前 P0 转为 O₂ 光学通道。详见记忆库 §6.9。
 
 ## 0. 实施进度（截至 2026-07-07，状态更新 2026-07-08）
 
@@ -14,10 +16,10 @@ R0 之后的关键变化已由同日完成的两项工作验证，本规划据�
 
 | 变化                                                                   | 来源                                                         | 对本规划的影响                                                                    |
 | -------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
-| DL fusion 三层归一化后仍失效（v3_l2 val R²=+0.019，远逊于 R0 的 0.918）              | [dl_training_plan.md §11.4.1](dl_training_plan.md#1141-总览) | §2.2 的"固定特征路线"预判从推论升级为已验证结论；R1 不再是"规避 DL 崩溃的保险"，而是主推方向                     |
-| P-9c 触发（fusion O₂ R²=-0.061 < 0.50）                                  | [dl_training_plan.md §10](dl_training_plan.md#10-推荐执行顺序)   | 端到端 DL raw 波形路线当前架构上限低于物理特征基线，本规划成为 O₂ 推至 0.70 的主路线                        |
-| 10 算法排序：Top1 TOF 工程(9.5) / Top2 MultiRocket(9.0) / Top5 wav2vec(8.0) | [波形特征提取算法评估.md](波形特征提取算法评估.md)                             | R0 实质已是 Top1 的离线实现（用满 `ultrasonic_tof_s` 等标量序列）；R1 raw 波形卷积特征需对照 R0 而非从零起步 |
-| fiber_mic 定位                                                         | [experiment_roadmap.md 方向 D](experiment_roadmap.md)        | fiber_mic 是已跳过的现有模态而非新传感器，§3 边界已对齐                                         |
+| DL fusion 三层归一化后仍失效（v3_l2 val R²=+0.019，远逊于 R0 的 0.918）              | [dl_training_plan.md §11.4.1](../legacy/dl_training_plan.md#1141-总览) | §2.2 的"固定特征路线"预判从推论升级为已验证结论；R1 不再是"规避 DL 崩溃的保险"，而是主推方向                     |
+| P-9c 触发（fusion O₂ R²=-0.061 < 0.50）                                  | [dl_training_plan.md §10](../legacy/dl_training_plan.md#10-推荐执行顺序)   | 端到端 DL raw 波形路线当前架构上限低于物理特征基线，本规划成为 O₂ 推至 0.70 的主路线                        |
+| 10 算法排序：Top1 TOF 工程(9.5) / Top2 MultiRocket(9.0) / Top5 wav2vec(8.0) | [波形特征提取算法评估.md](../../methods/波形特征提取算法评估.md)                             | R0 实质已是 Top1 的离线实现（用满 `ultrasonic_tof_s` 等标量序列）；R1 raw 波形卷积特征需对照 R0 而非从零起步 |
+| fiber_mic 定位                                                         | [experiment_roadmap.md 方向 D](../legacy/experiment_roadmap.md)        | fiber_mic 是已跳过的现有模态而非新传感器，§3 边界已对齐                                         |
 
 R0 落在原 §9.2 决策阈值的"边际可用"区间（0.50–0.70），距 0.70 验收线剩 0.097 缺口。R1 必须回答的新问题：**raw 波形卷积特征能否填补这 0.097，而不是"raw 波形有无信号"**。
 
@@ -155,7 +157,7 @@ tv3-formal-6000
 2. 不使用 `compositional_mse`、`ilr_mse`、`free_component_mse` 或 target transform。
 3. 不把 `mixture_id` 回退或重写为 `sequence_id`。
 4. 不用训练失败时的静默 fallback；任何 NaN、维度不匹配、缓存缺失都应直接失败。
-5. 本方案只验证现有四模态（slow / ultrasonic / fiber_mic / NDIR）的信号极限，不引入新传感器。**fiber_mic 是已跳过的现有模态而非新传感器**：当前 `--skip-fiber-mic` 是存储优化，代码保留可恢复。R1 在 slow+ultrasonic 下若不达 0.70，恢复 fiber_mic（重新生成数据集去掉 `--skip-fiber-mic`）作 R3 增量备选，与 [experiment_roadmap.md 方向 D](experiment_roadmap.md) 一致。
+5. 本方案只验证现有四模态（slow / ultrasonic / fiber_mic / NDIR）的信号极限，不引入新传感器。**fiber_mic 是已跳过的现有模态而非新传感器**：当前 `--skip-fiber-mic` 是存储优化，代码保留可恢复。R1 在 slow+ultrasonic 下若不达 0.70，恢复 fiber_mic（重新生成数据集去掉 `--skip-fiber-mic`）作 R3 增量备选，与 [experiment_roadmap.md 方向 D](../legacy/experiment_roadmap.md) 一致。
 6. 不一次性加载完整 6000 x 512 x 5000 波形到内存；必须 chunk 流式生成特征缓存。
 7. 先实现可复现、可审计、可缓存的特征管线，再接回归头。
 8. **R1 必须对照 R0 而非从零起步**：R0 已用满 `ultrasonic_tof_s`/`sound_speed`/`alpha_true` 等物理标量序列，R1 的 raw 波形卷积特征需证明在这些标量之外的增量（至少 O₂ R² 提升 > 0.05 才算有效），否则不应继续堆 R3/Hydra。
@@ -187,7 +189,7 @@ tv3-formal-6000
 
 **已验证结论（R0 实测）**：无需 raw waveform，TOF / sound_speed / alpha 序列统计已使 val O₂ R²=0.603，物理特征路线成立。原"如果 P0-A 的 O2 R2 仍约 0，raw waveform 路线才有必要"的判断点已被跳过——R0 远超该判断线。
 
-**P0-A 在新定位下的角色**：作为 R1 的对照基线（R1 必须在 R0 之上证明增量），不再是"判断 raw 波形是否必要"的前置门。R0 实质上是 [波形特征提取算法评估.md](波形特征提取算法评估.md) Top1（TOF 物理特征工程 + Ridge，得分 9.5）的离线实现——它消费的是仿真侧已计算好的 `ultrasonic_*` 标量序列，不是从 raw 5000 点波形端到端提取。
+**P0-A 在新定位下的角色**：作为 R1 的对照基线（R1 必须在 R0 之上证明增量），不再是"判断 raw 波形是否必要"的前置门。R0 实质上是 [波形特征提取算法评估.md](../../methods/波形特征提取算法评估.md) Top1（TOF 物理特征工程 + Ridge，得分 9.5）的离线实现——它消费的是仿真侧已计算好的 `ultrasonic_*` 标量序列，不是从 raw 5000 点波形端到端提取。
 
 ### 4.2 P0-B：MiniRocket-style 超声帧特征（R1 定位重写）
 
@@ -225,7 +227,7 @@ one sequence ultrasonic: (T=512, L=5000)
 - 避免把 6000 序列全部波形一次性展开。
 - 直接针对超声 TOF 微小位移与衰减形态。
 
-**与 R0 的关键差异**：R0 的 `ultrasonic_tof_s` 等是仿真生成时用 Lagrange 分数延迟 FIR 计算的显式 TOF（亚样本精度 <0.002μs），MiniRocket 从 raw 波形隐式学到的卷积模式若与这些显式 TOF 信息冗余，则 R1 增量有限。R1a 对照正是为确认这一点。实现代码骨架见 [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md) 示例 2。
+**与 R0 的关键差异**：R0 的 `ultrasonic_tof_s` 等是仿真生成时用 Lagrange 分数延迟 FIR 计算的显式 TOF（亚样本精度 <0.002μs），MiniRocket 从 raw 波形隐式学到的卷积模式若与这些显式 TOF 信息冗余，则 R1 增量有限。R1a 对照正是为确认这一点。实现代码骨架见 [波形特征提取算法代码示例.md](../../methods/波形特征提取算法代码示例.md) 示例 2。
 
 ### 4.3 P1：MultiRocket-style 多池化增强
 
@@ -407,7 +409,7 @@ data/<dataset>/features/rocket/
 | R1b   | MiniRocket(raw 5000 点) + slow stats       | RidgeCV      | 增量验证：raw 波形卷积对 R0 的增量                                                 | ✅ val O₂ R²=-0.195，−R1a=−0.71 < 0.05        |
 | R2    | MiniRocket ultrasonic + slow stats        | ElasticNetCV | 稀疏性诊断                                                                 | ⏳ R1b 证伪后优先级降                               |
 | R3    | MultiRocket ultrasonic + slow + TOF stats | RidgeCV      | 多池化增强                                                                 | ❌ R1b 无增量，不推进                               |
-| R3f   | R3 + fiber_mic（需重新生成数据集）                  | RidgeCV      | fiber_mic 增量备选，对齐 [experiment_roadmap.md 方向 D](experiment_roadmap.md) | ⏳ 待评估（fiber_mic 也是 raw 波形，需先确认是否与 R1b 同样失效） |
+| R3f   | R3 + fiber_mic（需重新生成数据集）                  | RidgeCV      | fiber_mic 增量备选，对齐 [experiment_roadmap.md 方向 D](../legacy/experiment_roadmap.md) | ⏳ 待评估（fiber_mic 也是 raw 波形，需先确认是否与 R1b 同样失效） |
 | R4    | MultiRocket ultrasonic + slow + TOF stats | ElasticNetCV | 高维特征选择                                                                | ❌ R1b 无增量，不推进                               |
 | R5    | MultiRocket ultrasonic + slow + TOF stats | small MLP    | 轻量非线性增益                                                               | ⏳ 改为 R0 特征 + MLP，验证 R0 是否已到线性极限（优先）         |
 | R6    | Hydra-style ultrasonic + slow + TOF stats | RidgeCV      | 第二轮候选                                                                 | ❌ R1b 无增量，不推进                               |
@@ -493,14 +495,11 @@ R0 val O₂ R²=0.603 已落在"边际可用"区间，下表标注已达成与�
 
 R1b 证明 raw 波形卷积无增量，R3/R4（MultiRocket raw 波形多池化）不再实施。若后续 R3f（fiber_mic）需要，再单独评估 fiber_mic 的 MultiRocket 特征。
 
-### 阶段 D：小 MLP（R5，优先推进）
+### 阶段 D：小 MLP（R5，❌ 正式 6000 判据未通过）
 
-R1b 证伪后，R5 调整为 **R0 特征 + 小 MLP**（原方案是 MultiRocket 特征 + MLP），验证 R0 是否已到线性极限：
+R1b 证伪后，R5 最终按 [r5_mlp_implementation_plan.md](../../active/r5_mlp_implementation_plan.md) 落地为 **D0-observed 864 + raw3 MLP**（本文件旧草案「R0 1080 + lr 1e-4」已过时，以该专项计划为准）。
 
-1. 复用或新增 tabular MLP。
-2. 输入使用 R0 已缓存的 scaled feature matrix（physics_stats_v1，1080 维）。
-3. 固定低学习率 `1e-4`。
-4. 跑 R5，若 O₂ R² > R0 + 0.05 说明非线性有增益；若持平，R0 已是线性极限。
+**实测（2026-07-09）**：val O₂ R²=−0.183，四 split 全负；相对 D0-observed −0.606，未过 +0.05 判据。浅 MLP 未复现 R5' TabPFN 非线性。可部署上限维持 D0-observed Ridge；详见记忆库 §6.9。
 
 ### 阶段 E：Hydra-style 第二轮（❌ 不推进，R1b 证伪）
 
@@ -572,7 +571,7 @@ python -m tv3.pipeline.run_tv3_rocket_baseline \
 | MultiRocket   | Tan et al. 2022, Data Mining and Knowledge Discovery, DOI: `10.1007/s10618-022-00844-1`      | 多池化算子(PPV/mean/std/slope)，201 引                                      |
 | Hydra         | Dempster et al. 2023, Data Mining and Knowledge Discovery, DOI: `10.1007/s10618-023-00939-3` | competing kernels，作为第二轮增强                                            |
 | InceptionTime | Fawaz et al. 2020, Data Mining and Knowledge Discovery, DOI: `10.1007/s10618-020-00710-y`    | 多尺度卷积时序建模参考                                                          |
-| 算法排序与代码示例     | [波形特征提取算法评估.md](波形特征提取算法评估.md) / [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md)                          | 10 算法排序：Top1 TOF 工程(9.5) / Top2 MultiRocket(9.0) / Top5 wav2vec(8.0) |
+| 算法排序与代码示例     | [波形特征提取算法评估.md](../../methods/波形特征提取算法评估.md) / [波形特征提取算法代码示例.md](../../methods/波形特征提取算法代码示例.md)                          | 10 算法排序：Top1 TOF 工程(9.5) / Top2 MultiRocket(9.0) / Top5 wav2vec(8.0) |
 
 ## 14. 完成定义（2026-07-08 据 R1a/R1b 实测更新）
 
@@ -582,5 +581,5 @@ python -m tv3.pipeline.run_tv3_rocket_baseline \
 2. ✅ R0、R1a、R1b 三个实验完成，且 R1b 相对 R1a 的增量已明确判定（−0.71，无增量）。
 3. RidgeCV / small MLP 两类 head：RidgeCV 已跑通（R0/R1a/R1b），small MLP（R5）待跑。
 4. ✅ 明确回答：raw 5000 点波形的卷积特征相对 R0 超声标量序列**无增量**（R1b − R1a = −0.71 < 0.05）。
-5. ✅ 明确回答：端到端 DL 失效与数据物理不可辨识无关（[dl_training_plan.md §11.4](dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880) DL 失效在 encoder 架构；R0 Ridge 0.603 证明物理可辨识）。
+5. ✅ 明确回答：端到端 DL 失效与数据物理不可辨识无关（[dl_training_plan.md §11.4](../legacy/dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880) DL 失效在 encoder 架构；R0 Ridge 0.603 证明物理可辨识）。
 6. ✅ 下一步分叉已定：R1b 无增量 -> raw 波形卷积路线证伪，转 R5（R0 特征 + 小 MLP）验证线性极限；R3f（fiber_mic）待评估；若 R5 无增益且 R3f 失效，接受 R0(0.603)作为现有通道极限。

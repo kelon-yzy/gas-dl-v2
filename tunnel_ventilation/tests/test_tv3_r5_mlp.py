@@ -107,6 +107,65 @@ def test_scaled_mlp_regressor_early_stop_rolls_back_best_checkpoint():
     assert np.isfinite(predictions).all()
 
 
+def test_scaled_mlp_regressor_target_standardization_preserves_raw3_predictions():
+    rng = np.random.default_rng(7)
+    x_train = rng.normal(size=(64, 12))
+    y_train = np.column_stack(
+        (
+            rng.uniform(0.0, 5.0, size=64),
+            rng.uniform(18.0, 21.0, size=64),
+            rng.uniform(74.0, 82.0, size=64),
+        )
+    )
+    x_val = rng.normal(size=(24, 12))
+    y_val = np.column_stack(
+        (
+            rng.uniform(0.0, 5.0, size=24),
+            rng.uniform(18.0, 21.0, size=24),
+            rng.uniform(74.0, 82.0, size=24),
+        )
+    )
+    model = _ScaledMLPRegressor(
+        config=MlpHeadConfig(
+            hidden_dims=(16,),
+            batch_size=16,
+            max_epochs=3,
+            patience=2,
+            standardize_targets=True,
+            device="cpu",
+            seed=7,
+        )
+    )
+
+    model.fit(
+        x_train,
+        y_train,
+        x_val=x_val,
+        y_val=y_val,
+        label_names=("x_CO2", "x_O2", "x_N2"),
+    )
+    predictions = model.predict(x_val)
+
+    assert model.target_scaler is not None
+    assert predictions.shape == y_val.shape
+    assert np.isfinite(predictions).all()
+    assert predictions[:, 2].mean() > 20.0
+
+
+def test_r5_target_scaled_formal_config_is_single_variable_ablation():
+    project_root = Path(__file__).resolve().parents[1]
+    baseline = json.loads((project_root / "configs" / "tv3_r5_mlp.json").read_text(encoding="utf-8"))
+    target_scaled = json.loads(
+        (project_root / "configs" / "tv3_r5_mlp_target_scaled.json").read_text(encoding="utf-8")
+    )
+    expected = dict(baseline)
+    expected["output_dir"] = "outputs/tv3_r5/mlp_observed_target_scaled"
+    expected["mlp_standardize_targets"] = True
+
+    assert target_scaled == expected
+    assert target_scaled["device"] == "cuda"
+
+
 def test_build_head_mlp_is_available():
     model = _build_head(
         "mlp",
@@ -137,6 +196,7 @@ def test_run_tv3_rocket_baseline_mlp_head_writes_metrics_json(tmp_path: Path, ca
                 "mlp_batch_size": 8,
                 "mlp_max_epochs": 3,
                 "mlp_patience": 2,
+                "mlp_standardize_targets": True,
                 "device": "cpu",
                 "seed": 42,
             }
@@ -150,7 +210,10 @@ def test_run_tv3_rocket_baseline_mlp_head_writes_metrics_json(tmp_path: Path, ca
     assert exit_code == 0
     assert payload["head"] == "mlp"
     assert payload["feature_builder"] == "d0_observed_physics_stats_v1"
+    assert payload["feature_config"]["physics_arrays"] == list(_d0_observed_feature_config().physics_arrays)
     assert payload["diagnostics"]["parameter_count"] > 0
+    assert payload["diagnostics"]["model_config"]["standardize_targets"] is True
+    assert payload["diagnostics"]["model_config"]["seed"] == 42
     assert set(payload["evaluations"]) == {"train", "val", "test", "extrapolation"}
 
 

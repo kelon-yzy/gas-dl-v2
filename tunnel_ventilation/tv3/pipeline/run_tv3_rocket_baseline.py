@@ -61,6 +61,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "mlp_max_epochs": 200,
     "mlp_patience": 20,
     "mlp_loss_weights": "1.0,2.0,1.0",
+    "mlp_standardize_targets": False,
     "seed": 20260704,
 }
 
@@ -104,6 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mlp-max-epochs", type=int, default=None, help="MLP maximum training epochs.")
     parser.add_argument("--mlp-patience", type=int, default=None, help="MLP early-stop patience on val O2 R2.")
     parser.add_argument("--mlp-loss-weights", type=str, default=None, help="Comma-separated per-target MLP loss weights.")
+    parser.add_argument("--mlp-standardize-targets", type=str, default=None, help="true/false; standardize each raw target only during MLP optimization.")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for MLP training.")
     return parser
 
@@ -157,6 +159,7 @@ def _build_mlp_config(args: argparse.Namespace) -> MlpHeadConfig:
         max_epochs=int(args.mlp_max_epochs),
         patience=int(args.mlp_patience),
         loss_weights=_parse_float_csv(args.mlp_loss_weights),
+        standardize_targets=_parse_bool(args.mlp_standardize_targets),
         device=str(args.device),
         seed=int(args.seed),
     )
@@ -202,6 +205,7 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
     config["cache_dir"] = Path(config["cache_dir"]) if config.get("cache_dir") is not None else None
     config["include_slow"] = _parse_bool(config["include_slow"])
     config["raw_zscore"] = _parse_bool(config["raw_zscore"])
+    config["mlp_standardize_targets"] = _parse_bool(config["mlp_standardize_targets"])
     return argparse.Namespace(**config)
 
 

@@ -1,6 +1,6 @@
 """MiniRocket 固定核特征提取(R1a 标量序列 / R1b raw 波形)。
 
-落地 [rocket_hydra_regression_implementation_plan.md §4.2](../../docs/rocket_hydra_regression_implementation_plan.md)
+落地 [rocket_hydra_regression_implementation_plan.md §4.2](../../docs/archive/completed/rocket_hydra_regression_implementation_plan.md)
 的 R1 定位:R1a 在 R0 已用满的超声标量序列上跑固定核卷积定上限,
 R1b 在 raw 5000 点波形上跑帧内卷积 + 跨 timestep 池化验证增量。
 

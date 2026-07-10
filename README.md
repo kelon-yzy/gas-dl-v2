@@ -6,13 +6,13 @@
 
 四个气体检测场景各自独立为自包含子工程，另有共享数据目录：
 
-| 目录 | 场景 | 包名 | 说明 |
-|---|---|---|---|
-| `hydrogen_ng/` | 掺氢天然气（H₂/CH₄/CO₂/N₂） | `hg` | 闭包 sum=100% |
-| `syngas/` | 合成气 / 煤气化制气（H₂/CH₄/CO₂/CO） | `sg` | N₂ 背景，sum<100% |
-| `tunnel_ventilation/` | 掘进通风（CO₂/O₂/N₂） | `tv3` | 闭包 sum=100% |
-| `rcdw_mgda/` | 学长 RCDW 算法 | `rcdw` | 独立复现 |
-| `shared/` | — | — | 共享光谱缓存（hitran_cache）+ 归档 |
+| 目录                    | 场景                         | 包名     | 说明                       |
+| --------------------- | -------------------------- | ------ | ------------------------ |
+| `hydrogen_ng/`        | 掺氢天然气（H₂/CH₄/CO₂/N₂）       | `hg`   | 闭包 sum=100%              |
+| `syngas/`             | 合成气 / 煤气化制气（H₂/CH₄/CO₂/CO） | `sg`   | N₂ 背景，sum<100%           |
+| `tunnel_ventilation/` | 掘进通风（CO₂/O₂/N₂）            | `tv3`  | 闭包 sum=100%              |
+| `rcdw_mgda/`          | 学长 RCDW 算法                 | `rcdw` | 独立复现                     |
+| `shared/`             | —                          | —      | 共享光谱缓存（hitran_cache）+ 归档 |
 
 每个子工程有独立 `pyproject.toml`、独立 CLI、独立 `tests/`，可独立 `pip install -e .[dev]` 并运行。原单仓库结构（`src/`/`docs/`/`configs/`/`scripts/`/`tests/`）已废弃删除。
 

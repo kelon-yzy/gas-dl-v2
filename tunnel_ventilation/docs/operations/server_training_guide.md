@@ -1,7 +1,7 @@
 # 掘进通风服务器训练操作手册
 
 > 本文档给出在 Linux + RTX 5880 48GB 服务器上执行 tv3 正式训练的完整步骤。
-> 场景背景见 [README.md](README.md)，训练方案见 [dl_training_plan.md](dl_training_plan.md)，实验路线见 [experiment_roadmap.md](experiment_roadmap.md)。
+> 场景背景见 [README.md](../README.md)，训练方案见 [dl_training_plan.md](../archive/legacy/dl_training_plan.md)，实验路线见 [experiment_roadmap.md](../archive/legacy/experiment_roadmap.md)。
 
 ## 1. 训练内容
 
@@ -16,7 +16,7 @@
 
 > **跳过 fiber_mic 说明**：fiber_mic 波形占数据集 66%（600 序列下 11.4 GB），当前阶段先只跑超声链路。光纤麦克风代码全部保留（`FiberMicSpec` / `simulate_fiber_mic_measurement` / `waveforms.py` 未改），后续去掉 `--skip-fiber-mic` 即可恢复完整三模态生成。DL 端需同步去掉 `fiber_mic` 模态（`--modalities slow,ultrasonic`），否则会因找不到 `fiber_mic_int32.npy` 报错。
 
-> **数据量限制说明**：600 序列 ≈ 400 训练样本，首轮 TCN 50 epochs 全组分 R²≈0（见 [experiment_roadmap.md](experiment_roadmap.md) 基线结果分析）。服务器训练能加速 epoch，但无法解决数据量不足的根本问题。如需更好效果，后续应扩大数据集规模（见 §6）。
+> **数据量限制说明**：600 序列 ≈ 400 训练样本，首轮 TCN 50 epochs 全组分 R²≈0（见 [experiment_roadmap.md](../archive/legacy/experiment_roadmap.md) 基线结果分析）。服务器训练能加速 epoch，但无法解决数据量不足的根本问题。如需更好效果，后续应扩大数据集规模（见 §6）。
 
 ## 2. 环境准备
 
@@ -239,7 +239,7 @@ python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
 
 ### 6.2 阶段 Ⅱ ablation
 
-见 [experiment_roadmap.md](experiment_roadmap.md) 阶段 Ⅱ：
+见 [experiment_roadmap.md](../archive/legacy/experiment_roadmap.md) 阶段 Ⅱ：
 
 - 通道消融（`--slow-channels` 参数移除指定通道）
 - O₂ 可辨识性消融（`--modalities` 参数切换模态组合）

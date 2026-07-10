@@ -1,0 +1,68 @@
+{
+  "dataset_dir": "data/tv3-formal-6000",
+  "output_dir": "outputs/tv3_d2b/raw_dsp_ridge",
+  "feature_set": "physics_stats",
+  "head": "ridgecv",
+  "feature_builder": "d0_raw_dsp_physics_stats_v1",
+  "include_slow": true,
+  "slow_channels": [
+    "V_NDIR_CO2",
+    "V_TCS",
+    "T_C",
+    "P_MPa",
+    "H_RH",
+    "L_m",
+    "piston_position_m"
+  ],
+  "physics_arrays": [
+    "ultrasonic_tof_observed_raw_dsp_s",
+    "ultrasonic_peak_index_raw_dsp",
+    "ultrasonic_sound_speed_raw_dsp_m_per_s",
+    "ultrasonic_corr_peak",
+    "ultrasonic_snr_db",
+    "ultrasonic_raw_dsp_quality",
+    "ultrasonic_raw_dsp_accepted"
+  ],
+  "sequence_statistics": [
+    "mean",
+    "std",
+    "min",
+    "max",
+    "range",
+    "first",
+    "last",
+    "delta",
+    "slope"
+  ],
+  "phase_windows": [
+    "baseline",
+    "exposure",
+    "steady",
+    "recovery"
+  ],
+  "early_fractions": [
+    0.25,
+    0.5,
+    0.75
+  ],
+  "eval_splits": [
+    "val",
+    "test",
+    "extrapolation"
+  ],
+  "ridge_alphas": [
+    0.0001,
+    0.0003,
+    0.001,
+    0.003,
+    0.01,
+    0.03,
+    0.1,
+    0.3,
+    1.0,
+    3.0,
+    10.0,
+    30.0,
+    100.0
+  ]
+}

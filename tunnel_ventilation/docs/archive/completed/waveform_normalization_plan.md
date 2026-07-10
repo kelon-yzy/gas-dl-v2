@@ -1,6 +1,6 @@
 # tv3 raw 波形归一化实施计划
 
-> 本文档落地 [dl_training_plan.md §3.4](dl_training_plan.md#34-raw-波形尺度问题与归一化方案2026-07-07) 的三层归一化方案,给出每层的精确改动点、代码片段、配置开关、验证标准与风险。2026-07-07 复审后补齐四项工程收口:归一化前幅度统计侧通道、inverse-var 权重 mean-one 归一化、CLI `--no-*` 回退开关、增强通道边界推断。
+> 本文档落地 [dl_training_plan.md §3.4](../legacy/dl_training_plan.md#34-raw-波形尺度问题与归一化方案2026-07-07) 的三层归一化方案,给出每层的精确改动点、代码片段、配置开关、验证标准与风险。2026-07-07 复审后补齐四项工程收口:归一化前幅度统计侧通道、inverse-var 权重 mean-one 归一化、CLI `--no-*` 回退开关、增强通道边界推断。
 > 
 > 前置:v2(`tv3_tcn_multimodal_v2`,cnn1d_tcn_fusion @ 6000 序列,slow+ultrasonic)实测 val R² 全负,已确认 raw 波形与 slow 标量尺度失衡是主因。本文档不重复物理判断,只解决工程落地。
 

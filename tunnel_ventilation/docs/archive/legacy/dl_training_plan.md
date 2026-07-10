@@ -3,7 +3,7 @@
 > 本文档定义掘进通风场景（CO₂/O₂/N₂）的深度学习训练策略，涵盖通道可辨识性分析、模型选型、Loss 选择、配置模板、实验矩阵与验收标准。
 > 
 > 前置依赖：仿真链路（阶段 1–3）完成，`tv3-formal` 数据集可用。
-> 仿真适配方案见 [adaptation_plan.md](adaptation_plan.md)，实验编排见 [experiment_roadmap.md](experiment_roadmap.md)。
+> 仿真适配方案见 [adaptation_plan.md](../../foundation/adaptation_plan.md)，实验编排见 [experiment_roadmap.md](experiment_roadmap.md)。
 
 ## 1. 结论先行
 
@@ -130,7 +130,7 @@ N₂ 在空气中占比 73.8–82%，绝对值大但动态范围仅约 8 个百�
 
 v2（cnn1d_tcn_fusion，slow+ultrasonic，6000 序列）val R²全负、N2 R²=-43。模态层面根因：fusion 把 5000 维 raw 波形 + 7 维 slow 直接拼接进 CNN，波形单帧原始电压幅度与 slow 标量尺度差几个数量级，虽 `waveform_adc_scale=5.0` 做了缩放，但第一层卷积同时处理两种尺度梯度，lr=1e-4 仍压不住。**DL fusion 想用 raw 波形，但 raw 波形进网络的尺度问题未解决**——这正是 R1 MiniRocket 的切入点：固定核提取波形特征再池化成标量给 Ridge，绕开 raw 波形进网络的尺度问题。
 
-> **2026-07-07 实施修正**：三层归一化方案（见 §3.4 / [waveform_normalization_plan.md](waveform_normalization_plan.md)）已落地并经复审收口。当前 v3 系列不仅做 per-timestep z-score,还用 `waveform_stats_features="log_std,log_max_abs"` 保留归一化前幅度统计,用 `raw3` train-label 均值初始化输出头,并把 `inverse_train_var` 显式 mean-one 归一化。
+> **2026-07-07 实施修正**：三层归一化方案（见 §3.4 / [waveform_normalization_plan.md](../completed/waveform_normalization_plan.md)）已落地并经复审收口。当前 v3 系列不仅做 per-timestep z-score,还用 `waveform_stats_features="log_std,log_max_abs"` 保留归一化前幅度统计,用 `raw3` train-label 均值初始化输出头,并把 `inverse_train_var` 显式 mean-one 归一化。
 > 
 > **2026-07-07 formal-6000 验证结论**：三层归一化方案把 v2 从 R²=-295 提升到 v3_l2 R²=+0.019，但仍远逊于 R0 Ridge（R²=0.918）。v2 失效的根因不仅是"raw 波形输入尺度"（层 1 z-score 解决了不崩溃但 R² 仍全负），更关键的是"encoder 输出 embedding 尺度不对齐"（层 2 LayerNorm 贡献了 val_loss 从 6.5 降到 1.5 的全部改善）。CNN1D encoder 从 5000 点 raw waveform 中提取的 64 维 embedding 缺乏组分区分性——可能只捕获了粗糙统计量而非物理关键的亚样本 TOF 差异。这进一步支持 R1 MiniRocket 路线：固定核提取特征 + Ridge 回归。
 
@@ -182,7 +182,7 @@ tv3 的 `cnn1d_tcn_fusion` 多模态配置必须使用 `output_mode="raw3"`、`o
 
 ### 3.4 raw 波形尺度问题与归一化方案（2026-07-07）
 
-v2 实测暴露的核心问题：fusion 模型把 5000 维 raw 超声波形与 7 维 slow 标量拼接进 TCN，两者尺度差几个数量级。数据层 [dataset.py:242](../../tv3/dl/data/dataset.py) 只对 slow 做 z-score（可选），波形 dequantize 后只除 `waveform_adc_scale=5.0`，无归一化。模型层 [cnn1d_tcn_fusion.py:325-330](../../tv3/dl/models/cnn1d_tcn_fusion.py) 拼接 embedding 前也无归一化。降 lr + slow scaler 只压慢了发散，没解决根因（train_loss 仍 6517 起步）。
+v2 实测暴露的核心问题：fusion 模型把 5000 维 raw 超声波形与 7 维 slow 标量拼接进 TCN，两者尺度差几个数量级。数据层 [dataset.py:242](../../../tv3/dl/data/dataset.py) 只对 slow 做 z-score（可选），波形 dequantize 后只除 `waveform_adc_scale=5.0`，无归一化。模型层 [cnn1d_tcn_fusion.py:325-330](../../../tv3/dl/models/cnn1d_tcn_fusion.py) 拼接 embedding 前也无归一化。降 lr + slow scaler 只压慢了发散，没解决根因（train_loss 仍 6517 起步）。
 
 #### 文献标杆做法
 
@@ -227,7 +227,7 @@ if self._normalize_waveforms:
 
 每帧 5000 点独立 zero-mean unit-var，raw 波形与 slow scaler 后的标量在同一量级。`waveform_adc_scale` 归一化后可去掉。预期直接解决 train_loss 6517 起步问题。
 
-> **2026-07-07 实施修正**：层 1 已落地（[waveform_normalization_plan.md](waveform_normalization_plan.md) §11）。smoke 验证未证实"直接解决起步 loss"的预期——起步 train_loss 在 z-score on/off 下接近（encoder 内 BatchNorm 已抹平输入尺度），但 val_loss 改善 3 倍且持续下降。复审后新增 `waveform_stats_features` 保留幅度/能量线索,`waveform_adc_scale=1.0` 与 `dequantize_waveforms=true` 由 CLI 强校验。
+> **2026-07-07 实施修正**：层 1 已落地（[waveform_normalization_plan.md](../completed/waveform_normalization_plan.md) §11）。smoke 验证未证实"直接解决起步 loss"的预期——起步 train_loss 在 z-score on/off 下接近（encoder 内 BatchNorm 已抹平输入尺度），但 val_loss 改善 3 倍且持续下降。复审后新增 `waveform_stats_features` 保留幅度/能量线索,`waveform_adc_scale=1.0` 与 `dequantize_waveforms=true` 由 CLI 强校验。
 > 
 > **2026-07-07 formal-6000 验证结论**：三层方案全部未达目标。v3_l2（z-score + LayerNorm）为最优，val R²=+0.019 / MAE=1.13%，但距 R0 Ridge 基线 R²=0.918 差距巨大。fusion LayerNorm（层 2）贡献了绝大部分改善（val_loss 6.5→1.5），FiLM/gate（层 3）无额外收益。v2 失效的关键不仅是输入尺度问题，更在于 encoder 输出 embedding 的尺度不对齐。fixed [1,2,1] 优于 inverse_train_var。详见 waveform_normalization_plan.md §11.4。
 
@@ -287,7 +287,7 @@ parts.append(self.slow_norm(self.slow_encoder(slow)))
 - LayerNorm: Ba et al. 2016, arXiv:1607.06450
 - Weight Normalization: Salimans & Kingma 2016, arXiv:1602.07868
 
-> **2026-07-08 补充**：针对三层方案未达标的根因(encoder 架构而非融合层),已对 10 类高维波形特征提取算法做系统评估与排序。结论:首推 **显式 TOF 物理特征工程**(得分 9.5)、次推 **MultiRocket 固定核卷积**(9.0)、再补 **wav2vec 式 raw 编码器**(8.0);现有 `DeepAcousticEncoder1D` 的 `avg+max` 池化对平移不敏感,而 TOF 差异恰是位置偏移,这是池化掉的关键信号。详见 [波形特征提取算法评估.md](波形特征提取算法评估.md) 与 [波形特征提取算法代码示例.md](波形特征提取算法代码示例.md)。
+> **2026-07-08 补充**：针对三层方案未达标的根因(encoder 架构而非融合层),已对 10 类高维波形特征提取算法做系统评估与排序。结论:首推 **显式 TOF 物理特征工程**(得分 9.5)、次推 **MultiRocket 固定核卷积**(9.0)、再补 **wav2vec 式 raw 编码器**(8.0);现有 `DeepAcousticEncoder1D` 的 `avg+max` 池化对平移不敏感,而 TOF 差异恰是位置偏移,这是池化掉的关键信号。详见 [波形特征提取算法评估.md](../../methods/波形特征提取算法评估.md) 与 [波形特征提取算法代码示例.md](../../methods/波形特征提取算法代码示例.md)。
 
 ## 4. Loss 选择
 
@@ -469,7 +469,7 @@ O₂ 的验收标准有意低于 CO₂，反映物理可观测性的差异。如
 
 ### 7.3 分层验收
 
-按通风状态分层评估（状态定义见 [sampling_design.md](sampling_design.md)）：
+按通风状态分层评估（状态定义见 [sampling_design.md](../../foundation/sampling_design.md)）：
 
 | 状态                | 关注组分    | 额外关注        |
 | ----------------- | ------- | ----------- |
@@ -495,7 +495,7 @@ oxygen_depletion 状态下 O₂ 的精度尤其重要——这是实际场景中
 
 ## 9. 从 hg 相位统计方案迁移的技术路线
 
-> 参考 [../DL相位统计稳定提取与保留方案.md](../DL相位统计稳定提取与保留方案.md)。
+> 参考 [../DL相位统计稳定提取与保留方案.md](../../../../hydrogen_ng/docs/DL相位统计稳定提取与保留方案.md)。
 > hg 场景中 N₂（IR 惰性、弱可观测）的困境与本场景 O₂（同核双原子、无 NDIR、仅声学+TCS 间接推断）高度同构。以下技术按优先级筛选迁移。
 
 ### 9.1 问题同构性分析
@@ -645,7 +645,7 @@ P-9  汇总分析 + probe 结果，决定是否进入阶段 Ⅲ                 
 | 编号   | 主题                          | 来源                                                                                                                                                                                                                                    |
 | ----:| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [1]  | 多模态气体传感融合方法                 | Huang & Leung 2007, "Simultaneous Classification and Concentration Estimation for Electronic Nose", IEEE Sensors Journal, DOI:10.1109/jsen.2007.894906                                                                                |
-| [2]  | 超声气体组分分析（O₂/N₂ 声速差异）        | Bates et al. 2012, "A combined ultrasonic flow meter and binary vapour mixture analyzer for the ATLAS silicon tracker", arXiv:1210.4835（超声 TOF 气体混合物分析方法学）；O₂/N₂ 声速差异数据见 [physics_references.md](physics_references.md) §2.1（NIST 物性） |
+| [2]  | 超声气体组分分析（O₂/N₂ 声速差异）        | Bates et al. 2012, "A combined ultrasonic flow meter and binary vapour mixture analyzer for the ATLAS silicon tracker", arXiv:1210.4835（超声 TOF 气体混合物分析方法学）；O₂/N₂ 声速差异数据见 [physics_references.md](../../foundation/physics_references.md) §2.1（NIST 物性） |
 | [3]  | 热导检测器在气体分析中的应用              | Mukhopadhyay, Das Gupta, Barua 1967, "Thermal conductivity of hydrogen-nitrogen and hydrogen-carbon-dioxide gas mixtures", British Journal of Applied Physics, DOI:10.1088/0508-3443/18/9/312                                         |
 | [4]  | 加权损失函数在多任务回归中的应用            | Kendall, Gal, Cipolla 2017, "Multi-Task Learning Using Uncertainty to Weigh Losses for Scene Geometry and Semantics", arXiv:1705.07115                                                                                                |
 | [5]  | TCN 在时间序列回归中的表现             | Bai, Kolter, Koltun 2018, "An Empirical Evaluation of Generic Convolutional and Recurrent Networks for Sequence Modeling", arXiv:1803.01271                                                                                           |

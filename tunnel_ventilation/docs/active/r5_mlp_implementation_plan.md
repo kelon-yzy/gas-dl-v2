@@ -1,8 +1,8 @@
 # R5 小 MLP 观测特征回归 实施计划
 
-> 状态：R5-1 / R5-2 已实施（代码 + 配置 + 测试）；R5-3 正式训练待跑  
+> 状态：**默认 R5 正式 6000 已完成 → 判据未通过（2026-07-09）；R5-T 目标标准化救援待服务器（2026-07-10）**
 > 日期：2026-07-09  
-> 依据：[掘进通风项目记忆库.md](掘进通风项目记忆库.md) §5.4 / §6.8 / §8.4；[r5_tabpfn_implementation_plan.md](r5_tabpfn_implementation_plan.md)（R5' 已完成）；[rocket_hydra_regression_implementation_plan.md](rocket_hydra_regression_implementation_plan.md) 阶段 D；[small_sample_dl_strategies.md](small_sample_dl_strategies.md) S2/S3；下列表格 MLP 文献。
+> 依据：[掘进通风项目记忆库.md](../掘进通风项目记忆库.md) §5.4 / §6.8 / §6.9 / §8.4；[r5_tabpfn_implementation_plan.md](../archive/completed/r5_tabpfn_implementation_plan.md)（R5' 已完成）；[rocket_hydra_regression_implementation_plan.md](../archive/completed/rocket_hydra_regression_implementation_plan.md) 阶段 D；[small_sample_dl_strategies.md](../methods/small_sample_dl_strategies.md) S2/S3；下列表格 MLP 文献。
 
 ## 结论
 
@@ -12,9 +12,12 @@ R5 在 **D0-observed 864 维** 特征上，把回归头从 RidgeCV / TabPFN 换�
 |------|:---------:|------|
 | D0-observed Ridge | 0.4226 | 可部署线性基线；R5 必须超过它 |
 | R5' TabPFN | 0.6673 | 非线性上限探针（不可部署）；R5 报告相对差距 |
-| R5 小 MLP（本计划） | 待测 | 可部署非线性候选 |
+| R5 小 MLP（本计划） | **−0.1834** | ❌ 判据未通过；不作部署头 |
+| R5-T 逐目标标准化 MLP | 待服务器 | 🔶 仅改变训练损失尺度；不改变 raw3、特征或 R5 失败结论 |
 
 **判据（沿用 §6.4 / R5'）**：val O₂ 相对 D0-observed 提升是否 ≥ **+0.05**（即 ≥0.4726），且 test/extrap 同步提升。  
+**实测**：四 split O₂ 全负；触发停止条件「全 split < D0+0.05」。浅 MLP 未复现 TabPFN 非线性；可部署上限维持 D0 Ridge；D1 降级。详见 §「实施记录」与记忆库 §6.9。
+
 **非目标**：冲破 o2_bins 物理墙；单独达到验收线 0.70；复现 TabPFN 的全部 +0.245。
 
 ---
@@ -40,7 +43,7 @@ R5 在 **D0-observed 864 维** 特征上，把回归头从 RidgeCV / TabPFN 换�
 | Gorishniy, Rubachev, Babenko. **On Embeddings for Numerical Features**, arXiv:2203.05556 | 数值特征 embedding（PLR 等）可显著抬升 MLP | **第二版可选消融**；第一版先 StandardScaler + 裸 MLP，控制变量 |
 | Grinsztajn, Oyallon, Varoquaux. **Why do tree-based models still outperform DL on tabular data?**, arXiv:2207.08815 | ~10K 样本上树模型仍常胜 NN；NN 需抗无关特征、保方向、学不规则函数 | 预期 R5 可能达不到 TabPFN；成功标准是相对 **Ridge**，不是相对 TabPFN |
 | Gorishniy et al. **Benchmarking Optimizers for MLPs in Tabular DL**, arXiv:2604.15297 | AdamW 仍是常用默认；Muon 更强但有开销；EMA 可改善 AdamW | 第一版 **AdamW**；不引入 Muon |
-| 项目 [small_sample_dl_strategies.md](small_sample_dl_strategies.md) S2/S3 | 小样本下轻量 + dropout/weight decay/early stop | hidden 不宜过大；dropout 0.1–0.25；early stop 必开 |
+| 项目 [small_sample_dl_strategies.md](../methods/small_sample_dl_strategies.md) S2/S3 | 小样本下轻量 + dropout/weight decay/early stop | hidden 不宜过大；dropout 0.1–0.25；early stop 必开 |
 | Hollmann et al. *Nature* 2025; Chen et al. *JCIM* 2026 | TabPFN 为上限参考 | 只作对照，不参与 R5 训练 |
 
 **设计翻译（第一版默认）**：
@@ -132,9 +135,9 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_r5_mlp.json
 
 ### R5-0：对照表冻结（0.5 h）
 
-- [ ] 确认本地/服务器存在 D0-observed 与 R5' 的 `metrics.json`
-- [ ] 确认 `data/tv3-formal-6000/features/rocket/d0_observed_physics_stats_v1` 缓存可用
-- [ ] 写清对照数字：D0 O₂ val=0.4226；R5' =0.6673
+- [x] 确认本地/服务器存在 D0-observed 与 R5' 的 `metrics.json`
+- [x] 确认 `data/tv3-formal-6000/features/rocket/d0_observed_physics_stats_v1` 缓存可用
+- [x] 写清对照数字：D0 O₂ val=0.4226；R5' =0.6673
 
 ### R5-1：MLP head 代码（0.5–1 天）
 
@@ -147,24 +150,32 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_r5_mlp.json
 
 - [x] `configs/tv3_r5_mlp.json`（6000）
 - [x] `configs/tv3_r5_mlp_smoke.json`（`data/tv3-smoke`，5 epoch 本地冒烟）
-- [ ] 本地 CPU/GPU smoke 跑通并写出 `metrics.json`（需先生成 `data/tv3-smoke`）
+- [x] 单元测试覆盖 mlp head（`tests/test_tv3_r5_mlp.py`）；正式 6000 已直接跑通（smoke 可选）
 
 ### R5-3：正式 6000 单 seed（0.5–1 天）
 
-- [ ] 服务器跑默认 `(256,128)`
-- [ ] 若 val O₂ 相对 D0 <+0.02 且 train 远高于 val：改 `(128,64)` 或加大 dropout 到 0.2 再跑一版
-- [ ] 若仍不稳：lr→`1e-4`（对齐旧 rocket 草案）
+- [x] 服务器跑默认 `(256,128)` → 产物 `outputs/tv3_r5/mlp_observed/`
+- [ ] ~~若 val O₂ 相对 D0 <+0.02 且 train 远高于 val：改 `(128,64)` 或加大 dropout 到 0.2 再跑一版~~（未触发：train 已负，属欠拟合而非过拟合；可选低优先级救援，不阻塞光学通道）
+- [ ] ~~若仍不稳：lr→`1e-4`~~（同上，可选）
 
 ### R5-4：判读与回填（0.5 天）
 
-- [ ] 填 §「预期结果」实测表
-- [ ] 更新记忆库 §5.4 / §6 / §8.4
-- [ ] 按停止条件决定 D1 / 接受 D0 / 加深 MLP
+- [x] 填 §「预期结果」实测表
+- [x] 更新记忆库 §5.4 / §6.9 / §8.4
+- [x] 按停止条件决定：接受 D0 Ridge 为可部署上限；D1 降级；初始 P0 为 O₂ 光学通道。2026-07-10 起 TDLAS 硬件暂缓，R5-T 与 R7 作为服务器算法对照。
 
 ### R5-5（可选）：稳定性
 
-- [ ] seeds `42,123,456` 仅在单 seed **通过 +0.05** 后执行
-- [ ] 报告 mean±std O₂ R²
+- [ ] seeds `42,123,456` — **跳过**（单 seed 未过 +0.05）
+
+### R5-T：逐目标标准化救援对照（TDLAS 暂缓期）
+
+- [x] 新增 `mlp_standardize_targets`：仅在训练损失空间按组分标准化，预测反变换为原始 `raw3` 百分比。
+- [x] 新增 `configs/tv3_r5_mlp_target_scaled.json`；特征与 `tv3_r5_mlp.json` 逐位一致。
+- [x] 单元测试验证输出仍为 raw3；本地 R5/R7 联合测试 13 项通过。
+- [ ] 服务器执行正式 `tv3-formal-6000`；本地没有该数据集，禁止用 600 序列或 smoke 指标替代。
+
+R5-T 是独立救援对照，不撤销默认 R5 的失败结论。若三 eval split 未同步达到 D0+0.05，即停止 MLP 继续调参并保留 D0 Ridge 为可部署基线。
 
 ---
 
@@ -176,6 +187,7 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_r5_mlp.json
 | `tv3/pipeline/run_tv3_rocket_baseline.py` | `--head mlp`；`mlp_*` CLI/config |
 | `configs/tv3_r5_mlp.json` | 正式配置 |
 | `configs/tv3_r5_mlp_smoke.json` | smoke 配置 |
+| `configs/tv3_r5_mlp_target_scaled.json` | R5-T 服务器正式配置（待执行） |
 | `tests/test_tv3_rocket_pipeline.py` 或新建 `tests/test_tv3_r5_mlp.py` | mlp head smoke |
 | `outputs/tv3_r5/mlp_observed/` | 训练产物 |
 | `docs/掘进通风项目记忆库.md` | 结果回填 |
@@ -219,15 +231,16 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_r5_mlp.json
 
 ---
 
-## 预期结果（实施前推断）
+## 预期结果（实施前推断）与实测
 
-| 指标 | 推断 | 依据 |
-|------|------|------|
-| val O₂ | 0.48–0.60 | 介于 Ridge 0.42 与 TabPFN 0.67；浅 MLP 通常吃不下全部 foundation 增益（Grinsztajn 2022） |
-| vs D0 +0.05 | 有机会通过 | R5' 已证明非线性存在 |
-| vs R5' | 大概率低 0.05–0.20 | RealMLP 也需强默认与调参才近 GBDT；本计划刻意轻量 |
-| o2_bins | 仍全负 | 物理墙 |
-| `sum_abs_error` | 高于 Ridge、低于 TabPFN | 共享 trunk 会学到组分相关，但不保证闭包 |
+| 指标 | 推断 | 实测（2026-07-09） | 判读 |
+|------|------|-------------------|------|
+| val O₂ | 0.48–0.60 | **−0.1834** | 远低于推断；低于均值预测 |
+| vs D0 +0.05 | 有机会通过 | **未通过**（Δ≈−0.606） | 触发「全 split < D0+0.05」 |
+| vs R5' | 大概率低 0.05–0.20 | 低约 **0.85** | 浅 MLP 未承接 foundation 增益 |
+| o2_bins | 仍全负 | 全负且比 D0 更差 | 预期内；无额外信息 |
+| `sum_abs_error` | 高于 Ridge、低于 TabPFN | val≈**1.65**（> TabPFN 0.16） | 闭包也差于线性基线 |
+| train O₂ | — | **−0.1118** | 欠拟合 / 弱信号优化失败，非过拟合 |
 
 ---
 
@@ -243,9 +256,10 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_r5_mlp.json
 
 项目内：
 
-- [r5_tabpfn_implementation_plan.md](r5_tabpfn_implementation_plan.md) — 上限探针与判据  
-- [rocket_hydra_regression_implementation_plan.md](rocket_hydra_regression_implementation_plan.md) — 阶段 D（本计划已修正特征口径）  
-- [small_sample_dl_strategies.md](small_sample_dl_strategies.md) — S2/S3  
+- [r5_tabpfn_implementation_plan.md](../archive/completed/r5_tabpfn_implementation_plan.md) — 上限探针与判据  
+- [rocket_hydra_regression_implementation_plan.md](../archive/completed/rocket_hydra_regression_implementation_plan.md) — 阶段 D（本计划已修正特征口径）  
+- [small_sample_dl_strategies.md](../methods/small_sample_dl_strategies.md) — S2/S3  
+- [references/observed_o2_algorithm_review.md](../references/observed_o2_algorithm_review.md) — TDLAS 暂缓期的 TOF 环境补偿与表格回归文献依据
 
 ---
 
@@ -255,3 +269,6 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_r5_mlp.json
 |------|------|
 | 2026-07-09 | 文献检索完成；本实施计划落盘。代码未开工。 |
 | 2026-07-09 | R5-1/R5-2 落地：`tv3/ml/mlp_head.py`、`_build_head("mlp")`、CLI/config、`tv3_r5_mlp*.json`、`tests/test_tv3_r5_mlp.py`（7 项 rocket+mlp 测试通过）。 |
+| 2026-07-09 | R5-3 正式 6000：`outputs/tv3_r5/mlp_observed/metrics.json`。best_epoch=175，params=254723。val O₂=−0.183；train/test/extrap O₂ 全负。 |
+| 2026-07-09 | R5-4 判读：**判据未通过**。停止条件「全 split < D0+0.05」触发 → 可部署上限维持 D0-observed Ridge；D1 降级；下一步 P0 = O₂ 光学通道（TDLAS）。已回填记忆库 §5.4 / §6.9 / §8.4。 |
+| 2026-07-10 | TDLAS 硬件暂缓；新增 R5-T 逐目标标准化 MLP。代码与本地测试完成，正式 tv3-formal-6000 仅在服务器，结果待回填。 |

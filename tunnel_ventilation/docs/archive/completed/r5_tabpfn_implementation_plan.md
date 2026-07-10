@@ -1,15 +1,15 @@
 # R5' TabPFN 观测特征回归 实施计划
 
-> 状态：代码已落地（2026-07-09），本地 smoke test 通过，待服务器 tv3-formal-6000 正式运行
+> 状态：正式 6000 完成（2026-07-09），判据通过。产物 `outputs/tv3_r5/tabpfn_observed/metrics.json`
 > 日期：2026-07-09
-> 依据：[掘进通风项目记忆库.md](掘进通风项目记忆库.md) §6.4 D0 结论、§5.4 Rocket 分支、§8.4 路线图；D2 证伪结论（raw waveform 端到端封闭）；TabPFN 官方文档（context7 `/priorlabs/tabpfn`）与 Hollmann et al. 2025 *Nature* 638:319。
+> 依据：[掘进通风项目记忆库.md](../../掘进通风项目记忆库.md) §6.4 D0 结论、§5.4 Rocket 分支、§8.4 路线图；D2 证伪结论（raw waveform 端到端封闭）；TabPFN 官方文档（context7 `/priorlabs/tabpfn`）与 Hollmann et al. 2025 *Nature* 638:319。
 
 ## 结论
 
 R5' 把 D0 已验证的 **D0-observed** 观测特征（排除 oracle 特征的 864 维 physics_stats）从线性 **RidgeCV** 回归头换成 **TabPFN**（Tabular Prior-data Fitted Network），作为"observed 标量空间非线性上限"的低成本预检。定位是**决定 D1 生死的判据实验，不是终极部署方案**：
 
 - 若 TabPFN 相对 D0-observed（val O₂ R²=0.4226）无明显增益 → 坐实 observed 已到极限，D1（PatchTST/iTransformer 序列模型）正式关闭。
-- 若有明显增益 → observed 空间存在非线性空间，D1/物理约束路线才有依据。
+- 若有明显增益 → observed 空间存在非线性空间，D1/物理约束路线才有依据。**正式 6000 结果：判据通过（val O₂ +0.245）**。
 
 真正把 O₂ 推向商用 0.2% 精度要靠新增 O₂ 光学通道（760nm A-band，仿真层改动），不是换回归头。R5' 的产物是判据，不是达标手段。
 
@@ -51,8 +51,10 @@ R5' 把 D0 已验证的 **D0-observed** 观测特征（排除 oracle 特征的 8
 
 ### R5'-0：环境与版本核查（前置）
 
+TabPFN 不是基础运行依赖。运行 `head="tabpfn"` 前必须安装项目的 `tabpfn` extra；Ridge 与 MLP head 不需要该依赖。
+
 ```bash
-pip install tabpfn
+pip install -e ".[tabpfn]"
 pip show tabpfn          # 确认版本:TabPFN-3(100k×2000)还是旧 v2(约 500 特征/10000 样本上限)
 python -c "import torch; print(torch.cuda.is_available())"
 ```
@@ -154,9 +156,17 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_r5_tabpfn.js
 - 不把 R5' 当部署模型；O₂ 达标靠新增光学氧通道，另行规划。
 - 不动 D2/D1 端到端代码（已封闭/暂缓）。
 
-## 预期结果（推断，未验证）
+## 预期结果（推断 vs 实测）
 
-CO₂ 已 0.988 无提升空间；N₂ 0.88 或有小幅改善；O₂ 是唯一看点。**推断** TabPFN 把 O₂ val R² 抬到 0.43–0.50 属合理预期，但难破 0.70 验收线。R5' 输出的是"observed 空间上限判据"，不是达标模型。
+CO₂ 已 0.988 无大幅提升空间；N₂ 0.88 有小幅改善；O₂ 是唯一看点。
+
+| 指标 | 推断（实施前） | 实测（正式 6000） |
+| --- | --- | --- |
+| val O₂ R² | 0.43–0.50 | **0.6673**（超预期） |
+| vs D0 +0.05 判据 | 难破 0.70 验收线 | **+0.245，判据通过**；仍差验收线 0.033 |
+| o2_bins | 仍全负 | 仍全负，但负值得分优于 D0 Ridge |
+
+R5' 输出的是"observed 空间上限判据"，不是达标模型。
 
 ## 关键文献
 
@@ -205,9 +215,9 @@ CO₂ 已 0.988 无提升空间；N₂ 0.88 或有小幅改善；O₂ 是唯一�
 1. 严重过拟合：train O₂ R²=0.9986 → val 0.4544，gap 0.54。600 序列对 TabPFN 太少（TabPFN 论文甜区 ≤10000，600 在甜区下沿以下）。
 2. o2_bins 全部为负（val −18.96 ~ −1.13），与 D0 物理墙一致——TabPFN 也只捕获粗粒度 O₂ 区间差异。
 3. CO₂ val 0.9988 > D0-observed 0.9878（6000 seq），N₂ 0.9208 > 0.8799，但小样本过拟合使 test 端不可靠。
-4. **本地 600 序列结果不可直接对比 D0-observed（6000 序列）**。6000 序列上过拟合应显著缓解，O₂ 真实水平待服务器验证。
+4. **本地 600 序列结果不可直接对比 D0-observed（6000 序列）**。正式 6000 已验证：val O₂ 0.6673，过拟合 gap 0.314 但仍大幅领先 D0。
 
-### 服务器待执行
+### R5'-4 正式 6000 运行（2026-07-09，tv3-formal-6000）
 
 ```bash
 export TABPFN_TOKEN="<api-key>"
@@ -215,4 +225,27 @@ cd tunnel_ventilation && source .venv/bin/activate
 python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_r5_tabpfn.json
 ```
 
-预期输出：`outputs/tv3_r5/tabpfn_observed/metrics.json`。与 `outputs/tv3_d0/observed_ridge/metrics.json` 逐格对比出判据。
+产物：`outputs/tv3_r5/tabpfn_observed/metrics.json`。
+
+**三组分 R²（vs D0-observed Ridge）**：
+
+| Split | CO₂ | O₂ | N₂ |
+|-------|:---:|:--:|:--:|
+| val | 0.9995 (+0.012) | **0.6673 (+0.245)** | 0.9242 (+0.044) |
+| test | 0.9994 (+0.010) | **0.6594 (+0.202)** | 0.9228 (+0.034) |
+| extrap | 0.9993 (+0.011) | **0.6279 (+0.257)** | 0.9194 (+0.040) |
+
+**过拟合**：train O₂ 0.981 → val 0.667（gap 0.314），高于 Ridge gap 0.078，但三 eval split 均大幅领先。
+
+**o2_bins（val）**：四 bin 仍全负（−6.19 ~ −2.42），物理墙未破；各 bin 优于 D0 Ridge（−14.00 ~ −3.71）。
+
+**闭包**：val `sum_abs_error`≈0.157（TabPFN）vs ≈3.4×10⁻⁸（Ridge）。不可部署。
+
+**判据结论**：
+
+1. O₂ val 提升 +0.245 >> +0.05 → **判据通过**，observed 非线性有空间。
+2. test/extrap 同步提升 → 非仅 val 过拟合。
+3. TabPFN 是上限探针，非部署模型；可部署 baseline 仍为 D0-observed Ridge。
+4. 下一步曾为 R5（小 MLP）；R5 正式 6000 已跑完且判据未通过（见 `r5_mlp_implementation_plan.md` / 记忆库 §6.9）。当前 P0 转为 O₂ 光学通道评估。
+
+已回填记忆库 §5.4 / §6.8 / §8.4。

@@ -1,0 +1,33 @@
+{
+  "dataset_dir": "data/tv3-formal-6000",
+  "output_dir": "outputs/tv3_r7/extratrees_observed",
+  "feature_builder": "d0_observed_physics_stats_v1",
+  "include_slow": true,
+  "physics_arrays": [
+    "ultrasonic_tof_observed_s",
+    "ultrasonic_peak_index",
+    "ultrasonic_sound_speed_estimated_m_per_s",
+    "ultrasonic_tof_quality",
+    "ultrasonic_tof_accepted"
+  ],
+  "sequence_statistics": [
+    "mean",
+    "std",
+    "min",
+    "max",
+    "range",
+    "first",
+    "last",
+    "delta",
+    "slope"
+  ],
+  "phase_windows": ["baseline", "exposure", "steady", "recovery"],
+  "early_fractions": [0.25, 0.5, 0.75],
+  "eval_splits": ["val", "test", "extrapolation"],
+  "extratrees_n_estimators": 600,
+  "extratrees_max_features": 0.7,
+  "extratrees_min_samples_leaf": 2,
+  "extratrees_max_depth": null,
+  "extratrees_n_jobs": -1,
+  "seed": 20260704
+}

@@ -189,6 +189,7 @@ def rocket_training_payload(result: RocketTrainingResult) -> dict[str, Any]:
         "head": result.head,
         "train_split": result.train_split,
         "feature_builder": result.feature_cache.feature_config.feature_builder,
+        "feature_config": asdict(result.feature_cache.feature_config),
         "feature_count": len(result.feature_names),
         "label_names": list(result.label_names),
         "diagnostics": result.diagnostics,
@@ -257,10 +258,12 @@ def _model_diagnostics(
         return {"note": "TabPFN has no linear coefficients; diagnostics unavailable"}
     elif head == "mlp":
         return {
+            "model_config": asdict(model.config),
             "hidden_dims": list(model.hidden_dims),
             "parameter_count": model.parameter_count,
             "best_epoch": model.best_epoch,
             "best_val_o2_r2": model.best_val_o2_r2,
+            "standardize_targets": model.config.standardize_targets,
         }
     else:
         raise ValueError(f"unsupported diagnostics head {head!r}")
@@ -296,4 +299,3 @@ def _feature_group_name(feature_name: str) -> str:
     if len(parts) <= 2:
         return remainder
     return ":".join(parts[:-1])
-

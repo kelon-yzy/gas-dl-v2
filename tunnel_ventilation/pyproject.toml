@@ -18,6 +18,9 @@ dependencies = [
 dev = [
     "pytest",
 ]
+tabpfn = [
+    "tabpfn",
+]
 
 [tool.setuptools.packages.find]
 include = ["tv3*"]

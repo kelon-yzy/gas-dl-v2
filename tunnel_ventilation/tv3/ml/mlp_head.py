@@ -20,6 +20,7 @@ class MlpHeadConfig:
     max_epochs: int = 200
     patience: int = 20
     loss_weights: tuple[float, ...] = (1.0, 2.0, 1.0)
+    standardize_targets: bool = False
     device: str = "auto"
     seed: int = 20260704
     out_dim: int = 3
@@ -31,6 +32,7 @@ class _ScaledMLPRegressor:
     def __init__(self, *, config: MlpHeadConfig | None = None):
         self.config = config or MlpHeadConfig()
         self.scaler = StandardScaler()
+        self.target_scaler: StandardScaler | None = None
         self._module: Any = None
         self._device: Any = None
         self.best_epoch: int = 0
@@ -76,6 +78,12 @@ class _ScaledMLPRegressor:
 
         x_scaled = self.scaler.fit_transform(x_arr)
         x_val_scaled = self.scaler.transform(x_val_arr)
+        if self.config.standardize_targets:
+            self.target_scaler = StandardScaler().fit(y_arr)
+            y_train_for_loss = self.target_scaler.transform(y_arr)
+        else:
+            self.target_scaler = None
+            y_train_for_loss = y_arr
 
         module = _build_raw3_mlp(
             in_dim=x_scaled.shape[1],
@@ -98,7 +106,7 @@ class _ScaledMLPRegressor:
         )
 
         x_tensor = torch.tensor(x_scaled, dtype=torch.float32)
-        y_tensor = torch.tensor(y_arr, dtype=torch.float32)
+        y_tensor = torch.tensor(y_train_for_loss, dtype=torch.float32)
         batch_size = min(self.config.batch_size, max(1, x_tensor.shape[0]))
         generator = torch.Generator()
         generator.manual_seed(self.config.seed)
@@ -130,7 +138,7 @@ class _ScaledMLPRegressor:
 
             module.eval()
             with torch.no_grad():
-                val_predictions = module(x_val_tensor).cpu().numpy()
+                val_predictions = self._decode_predictions(module(x_val_tensor).cpu().numpy())
             val_o2_r2 = _o2_r2(val_predictions, y_val_arr, label_names)
             if val_o2_r2 > best_val_o2_r2:
                 best_val_o2_r2 = val_o2_r2
@@ -162,9 +170,16 @@ class _ScaledMLPRegressor:
         self._module.eval()
         with torch.no_grad():
             predictions = self._module(x_tensor).cpu().numpy()
+        predictions = self._decode_predictions(predictions)
         if not np.isfinite(predictions).all():
             raise ValueError("mlp predictions contain non-finite values")
         return predictions.astype(np.float32, copy=False)
+
+    def _decode_predictions(self, predictions: np.ndarray) -> np.ndarray:
+        if self.target_scaler is None:
+            return predictions
+        # This conditions optimization only; public predictions remain raw3 percentages.
+        return self.target_scaler.inverse_transform(predictions)
 
 
 def _build_raw3_mlp(

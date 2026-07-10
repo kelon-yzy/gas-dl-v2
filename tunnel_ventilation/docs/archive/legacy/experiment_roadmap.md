@@ -2,7 +2,7 @@
 
 > 本文档规划掘进通风场景（CO₂/O₂/N₂）的正式实验路线，从 benchmark 生成到 DL 基线训练到 ablation 消融实验。
 > 仿真链路基于 v6-phys-strict（200 kHz 超声、1 MS/s 采样、20-bit ADC、L_m 0.2–0.3 m）。
-> 仿真链路适配方案见 [adaptation_plan.md](adaptation_plan.md)。
+> 仿真链路适配方案见 [adaptation_plan.md](../../foundation/adaptation_plan.md)。
 
 ## 当前状态
 
@@ -23,7 +23,7 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 | TCN 50 epochs（seed=42）                      | val R²≈0（CO₂=-0.05, O₂=-0.14, N₂=-0.53），600 序列对 DL 不够                            |
 | Ridge 基线                                    | val: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌（见下方分析）                           |
 | Rocket 阶段 A（2026-07-06 落地，2026-07-07 R0 回填） | `physics_stats + RidgeCV` 链路落地；R0 正式集（6000 序列）val O₂ R²=0.603、CO₂=0.993、N₂=0.925 |
-| D0 oracle/observed 特征拆分（2026-07-08 clean 6000 完成） | 6 组 Ridge 配置（oracle/observed/tof_only/slow_only/no_tof/no_tcs）已在服务器 tv3-formal-6000（CLEAN）上完成；oracle 膨胀 0.18，o2_bins 物理极限确认；`scripts/check_slow_channels.py` 核查数据集无 V_NDIR_CH4；结论 D2 优先、D1 暂缓，详见 [记忆库 §6.4](掘进通风项目记忆库.md) |
+| D0 oracle/observed 特征拆分（2026-07-08 clean 6000 完成） | 6 组 Ridge 配置（oracle/observed/tof_only/slow_only/no_tof/no_tcs）已在服务器 tv3-formal-6000（CLEAN）上完成；oracle 膨胀 0.18，o2_bins 物理极限确认；`scripts/check_slow_channels.py` 核查数据集无 V_NDIR_CH4；结论 D2 优先、D1 暂缓，详见 [记忆库 §6.4](../../掘进通风项目记忆库.md) |
 
 ### 初步基线结果分析（2026-07-04）
 
@@ -85,7 +85,7 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ~~v2 配置服务器单 seed 验证~~    | **已由 v3_l2 证伪**（见 [dl_training_plan.md §11.4](dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880)）：三层归一化后 best epoch 不再是 1，但 val R²=+0.019 仍远逊 R0 的 0.918，P-9c 触发 |
 | 完整基线训练（15 runs）          | 阻塞 Ⅱ，DL 端到端 raw 波形路线当前架构上限低于 R0，优先推进 R1 固定特征                                                                                                                                           |
-| ~~Rocket R1 MiniRocket~~ | **R1a/R1b 已完成（2026-07-08）**：R1b−R1a=−0.71 < 0.05，raw 波形卷积路线证伪。下一步 R5（R0 特征 + 小 MLP）验证线性极限，R3f（fiber_mic）待评估，见 [rocket_hydra §0/§8](rocket_hydra_regression_implementation_plan.md)     |
+| ~~Rocket R1 MiniRocket~~ | **R1a/R1b 已完成（2026-07-08）**：R1b−R1a=−0.71 < 0.05，raw 波形卷积路线证伪。下一步 R5（R0 特征 + 小 MLP）验证线性极限，R3f（fiber_mic）待评估，见 [rocket_hydra §0/§8](../completed/rocket_hydra_regression_implementation_plan.md)     |
 
 ### 方向 C：固定特征 Rocket 基线（2026-07-06 已启动）
 
@@ -117,7 +117,7 @@ R0(✅ 0.603) -> R1a(✅ 0.515) -> R1b(✅ -0.195)
   -> 若 R5 无增益且 R3f 失效: 接受 R0(0.603)作为现有通道极限
 ```
 
-详见 [rocket_hydra_regression_implementation_plan.md §0/§8/§9.2](rocket_hydra_regression_implementation_plan.md)。
+详见 [rocket_hydra_regression_implementation_plan.md §0/§8/§9.2](../completed/rocket_hydra_regression_implementation_plan.md)。
 
 ### 方向 D：模态链路完整度评估（2026-07-07）
 
@@ -194,7 +194,7 @@ python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
 
 预计耗时：1–2 分钟（600 序列 int16 + skip-fiber-mic，workers=4）。
 
-> DL 端通过 `metadata/waveform_spec.json` 自动识别 `waveform_dtype=int16`，加载 `ultrasonic_int16.npy`，dequantize 用 per-timestep `ultrasonic_scale.npy` 还原电压。多模态训练需 `--modalities slow,ultrasonic`（去掉 fiber_mic）。详见 [server_training_guide.md](server_training_guide.md)。
+> DL 端通过 `metadata/waveform_spec.json` 自动识别 `waveform_dtype=int16`，加载 `ultrasonic_int16.npy`，dequantize 用 per-timestep `ultrasonic_scale.npy` 还原电压。多模态训练需 `--modalities slow,ultrasonic`（去掉 fiber_mic）。详见 [server_training_guide.md](../../operations/server_training_guide.md)。
 
 ### Ⅰ-3 配置矩阵 ✅ 已完成
 
@@ -245,7 +245,7 @@ python scripts/run_tv3_baseline.py
 
 ### Ⅱ-0 TCN Hidden Probe（低成本前置诊断）
 
-> 迁移自 [../DL相位统计稳定提取与保留方案.md](../DL相位统计稳定提取与保留方案.md) 方案 I。在通道消融之前执行，成本 < 0.5 天。
+> 迁移自 [../DL相位统计稳定提取与保留方案.md](../../../../hydrogen_ng/docs/DL相位统计稳定提取与保留方案.md) 方案 I。在通道消融之前执行，成本 < 0.5 天。
 
 冻结基线最优模型 → 导出 TCN hidden/pooled features → 线性 probe：
 
@@ -339,7 +339,7 @@ python scripts/run_tv3_baseline.py
 
 ### Ⅲ-4 状态分层评估
 
-按四种通风状态（[sampling_design.md](sampling_design.md) 定义）分层评估：
+按四种通风状态（[sampling_design.md](../../foundation/sampling_design.md) 定义）分层评估：
 
 | 状态                | 关注指标            |
 | ----------------- | --------------- |
@@ -350,7 +350,7 @@ python scripts/run_tv3_baseline.py
 
 ### Ⅲ-5 模态辅助头 + 平衡融合（Ⅱ-0 probe 触发）
 
-> 迁移自 [../DL相位统计稳定提取与保留方案.md](../DL相位统计稳定提取与保留方案.md) 方案 D/E。
+> 迁移自 [../DL相位统计稳定提取与保留方案.md](../../../../hydrogen_ng/docs/DL相位统计稳定提取与保留方案.md) 方案 D/E。
 > 触发条件：Ⅱ-0 probe 显示 O₂ 信息在融合阶段丢失。
 
 - 模态级辅助头：slow / ultrasonic / fiber_mic 各设独立预测头
@@ -360,7 +360,7 @@ python scripts/run_tv3_baseline.py
 
 ### Ⅲ-6 ROCKET 统计池化分支（Ⅱ-0 probe 触发；阶段 A 已先实现 physics_stats）
 
-> 迁移自 [../DL相位统计稳定提取与保留方案.md](../DL相位统计稳定提取与保留方案.md) 方案 F/J1。
+> 迁移自 [../DL相位统计稳定提取与保留方案.md](../../../../hydrogen_ng/docs/DL相位统计稳定提取与保留方案.md) 方案 F/J1。
 > 触发条件：Ⅱ-0 probe 显示 TCN 前端未提取 O₂ 信号。
 
 - 固定/随机 1D 卷积核 + 多种池化（max/mean/std/PPV/slope）
