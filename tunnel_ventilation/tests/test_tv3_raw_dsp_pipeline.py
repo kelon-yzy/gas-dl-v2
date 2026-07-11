@@ -14,6 +14,7 @@ from tv3.pipeline.build_tv3_raw_dsp_features import (
     preflight_tv3_raw_dsp_dataset,
 )
 from tv3.pipeline.run_tv3_rocket_baseline import main as run_rocket_main
+from tv3.ml.rocket_training import RAW_DSP_FIDELITY_SCHEMA_VERSION, load_raw_dsp_fidelity
 
 
 def _make_tv3_dataset(tmp_path: Path, slug: str = "tv3-raw-dsp-smoke", sequences: int = 16) -> Path:
@@ -35,6 +36,27 @@ def _make_tv3_dataset(tmp_path: Path, slug: str = "tv3-raw-dsp-smoke", sequences
         ),
     )
     return tmp_path / slug
+
+
+def _write_passed_fidelity_metrics(dataset_dir: Path, cache_dir: Path, output_dir: Path) -> Path:
+    manifest = json.loads((cache_dir / "manifest.json").read_text(encoding="utf-8"))
+    output_dir.mkdir(parents=True)
+    metrics_path = output_dir / "metrics.json"
+    metrics_path.write_text(
+        json.dumps(
+            {
+                "schema_version": RAW_DSP_FIDELITY_SCHEMA_VERSION,
+                "status": "passed",
+                "source": {
+                    "dataset_dir": str(dataset_dir),
+                    "cache_build_signature": manifest["build_signature"],
+                    "template_digest": manifest["template_digest"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return metrics_path
 
 
 @pytest.fixture(scope="module")
@@ -282,8 +304,7 @@ def test_raw_dsp_ridge_smoke_runs_from_derived_cache(raw_dsp_dataset: Path, tmp_
     assert provenance["template_mode"] == "train_baseline_median"
     assert provenance["template_source_split"] == "train"
     assert provenance["diagnostic_only"] is False
-    assert "train_val_o2_r2_gap" in payload["o2_audit"]
-    assert set(payload["o2_audit"]["delta_vs_b1_o2_r2"]) == {"val", "test", "extrapolation"}
+    assert "o2_audit" not in payload
 
 
 def test_raw_dsp_mlp_smoke_writes_provenance_and_target_scaled_diagnostics(
@@ -299,6 +320,17 @@ def test_raw_dsp_mlp_smoke_writes_provenance_and_target_scaled_diagnostics(
         workers=1,
     )
     project_root = Path(__file__).resolve().parents[1]
+    b1_config = json.loads(
+        (project_root / "configs" / "tv3_d2b_raw_dsp_ridge.json").read_text(encoding="utf-8")
+    )
+    b1_output_dir = tmp_path / "b1_output"
+    b1_config["dataset_dir"] = str(raw_dsp_dataset)
+    b1_config["output_dir"] = str(b1_output_dir)
+    b1_config_path = tmp_path / "b1_config.json"
+    b1_config_path.write_text(json.dumps(b1_config), encoding="utf-8")
+    assert run_rocket_main(["--config", str(b1_config_path)]) == 0
+    capsys.readouterr()
+
     config = json.loads(
         (project_root / "configs" / "tv3_d2b_raw_dsp_mlp_target_scaled.json").read_text(encoding="utf-8")
     )
@@ -310,6 +342,14 @@ def test_raw_dsp_mlp_smoke_writes_provenance_and_target_scaled_diagnostics(
     config["mlp_batch_size"] = 8
     config["mlp_max_epochs"] = 3
     config["mlp_patience"] = 2
+    config["raw_dsp_fidelity_metrics_path"] = str(
+        _write_passed_fidelity_metrics(
+            raw_dsp_dataset,
+            raw_dsp_dataset / "features" / "raw_dsp" / "raw_dsp_frame_v1",
+            tmp_path / "fidelity",
+        )
+    )
+    config["raw_dsp_reference_metrics_path"] = str(b1_output_dir / "metrics.json")
     config_path = tmp_path / "mlp_config.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
@@ -323,6 +363,7 @@ def test_raw_dsp_mlp_smoke_writes_provenance_and_target_scaled_diagnostics(
     assert payload["diagnostics"]["parameter_count"] > 0
     assert payload["raw_dsp_provenance"]["template_mode"] == "train_baseline_median"
     assert payload["raw_dsp_provenance"]["diagnostic_only"] is False
+    assert payload["raw_dsp_fidelity"]["status"] == "passed"
     assert "delta_vs_b1_o2_r2" in payload["o2_audit"]
     assert (output_dir / "metrics.json").is_file()
 
@@ -350,3 +391,47 @@ def test_raw_dsp_provenance_rejects_diagnostic_exact_template(tmp_path: Path):
 
     with pytest.raises(ValueError, match="diagnostic_only"):
         load_raw_dsp_provenance(dataset_dir)
+
+
+def test_raw_dsp_fidelity_rejects_mismatched_cache_signature(tmp_path: Path):
+    metrics_path = tmp_path / "fidelity.json"
+    metrics_path.write_text(
+        json.dumps(
+            {
+                "schema_version": RAW_DSP_FIDELITY_SCHEMA_VERSION,
+                "status": "passed",
+                "source": {
+                    "dataset_dir": str(tmp_path),
+                    "cache_build_signature": "wrong",
+                    "template_digest": "wrong",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="cache_build_signature"):
+        load_raw_dsp_fidelity(
+            metrics_path,
+            dataset_dir=tmp_path,
+            provenance={"build_signature": "expected", "template_digest": "expected"},
+        )
+
+
+def test_runner_refuses_to_overwrite_existing_metrics(tmp_path: Path):
+    config_path = tmp_path / "config.json"
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    (output_dir / "metrics.json").write_text("{}", encoding="utf-8")
+    config_path.write_text(
+        json.dumps(
+            {
+                "dataset_dir": str(tmp_path / "unused_dataset"),
+                "output_dir": str(output_dir),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
+        run_rocket_main(["--config", str(config_path)])

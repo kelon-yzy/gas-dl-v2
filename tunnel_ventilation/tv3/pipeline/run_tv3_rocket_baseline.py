@@ -63,6 +63,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "mlp_loss_weights": "1.0,2.0,1.0",
     "mlp_standardize_targets": False,
     "seed": 20260704,
+    "raw_dsp_fidelity_metrics_path": None,
+    "raw_dsp_reference_metrics_path": None,
+    "overwrite": False,
 }
 
 FEATURE_SET_TO_BUILDER = {
@@ -107,6 +110,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mlp-loss-weights", type=str, default=None, help="Comma-separated per-target MLP loss weights.")
     parser.add_argument("--mlp-standardize-targets", type=str, default=None, help="true/false; standardize each raw target only during MLP optimization.")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for MLP training.")
+    parser.add_argument("--raw-dsp-fidelity-metrics-path", type=Path, default=None, help="Passed frame-fidelity metrics.json required for compared RawDSP runs.")
+    parser.add_argument("--raw-dsp-reference-metrics-path", type=Path, default=None, help="Verified B1 metrics.json for compared RawDSP runs.")
+    parser.add_argument("--overwrite", action="store_true", default=None, help="Explicitly allow overwriting an existing metrics.json.")
     return parser
 
 
@@ -130,6 +136,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         feature_config = _build_physics_config(args, feature_builder)
 
+    output_dir = Path(args.output_dir)
+    output_path = output_dir / "metrics.json"
+    if output_path.exists() and not args.overwrite:
+        raise FileExistsError(f"refusing to overwrite existing formal metrics: {output_path}")
+
     result = train_tv3_rocket_regressor(
         args.dataset_dir,
         feature_config=feature_config,
@@ -141,8 +152,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         closed_form_alpha=args.closed_form_alpha,
         device=args.device,
         mlp_config=_build_mlp_config(args) if args.head == "mlp" else None,
+        raw_dsp_fidelity_metrics_path=args.raw_dsp_fidelity_metrics_path,
+        raw_dsp_reference_metrics_path=args.raw_dsp_reference_metrics_path,
     )
-    output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = write_rocket_training_payload(result, output_dir / "metrics.json")
     print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -203,9 +215,20 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
     config["dataset_dir"] = Path(config["dataset_dir"]) if config.get("dataset_dir") is not None else None
     config["output_dir"] = Path(config["output_dir"]) if config.get("output_dir") is not None else None
     config["cache_dir"] = Path(config["cache_dir"]) if config.get("cache_dir") is not None else None
+    config["raw_dsp_fidelity_metrics_path"] = (
+        Path(config["raw_dsp_fidelity_metrics_path"])
+        if config.get("raw_dsp_fidelity_metrics_path") is not None
+        else None
+    )
+    config["raw_dsp_reference_metrics_path"] = (
+        Path(config["raw_dsp_reference_metrics_path"])
+        if config.get("raw_dsp_reference_metrics_path") is not None
+        else None
+    )
     config["include_slow"] = _parse_bool(config["include_slow"])
     config["raw_zscore"] = _parse_bool(config["raw_zscore"])
     config["mlp_standardize_targets"] = _parse_bool(config["mlp_standardize_targets"])
+    config["overwrite"] = _parse_bool(config["overwrite"])
     return argparse.Namespace(**config)
 
 

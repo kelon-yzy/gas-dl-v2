@@ -1,6 +1,9 @@
 {
   "dataset_dir": "data/tv3-formal-6000",
   "output_dir": "outputs/tv3_d2b/raw_dsp_mlp_target_scaled",
+  "raw_dsp_fidelity_metrics_path": "outputs/tv3_d2b/raw_dsp_frame_fidelity/metrics.json",
+  "raw_dsp_reference_metrics_path": "outputs/tv3_d2b/raw_dsp_ridge_provenance/metrics.json",
+  "overwrite": false,
   "feature_set": "physics_stats",
   "head": "mlp",
   "feature_builder": "d0_raw_dsp_physics_stats_v1",

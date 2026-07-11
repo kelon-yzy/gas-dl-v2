@@ -125,12 +125,17 @@ early fractions = 0.25, 0.5, 0.75
 # 1. 确认 fidelity 证据存在且通过
 python -c "import json; p=json.load(open('outputs/tv3_d2b/raw_dsp_frame_fidelity/metrics.json', encoding='utf-8')); assert p['status'] == 'passed'; print(p['source']['cache_build_signature'])"
 
-# 2. 运行 B6
+# 2. 重跑 B1，生成带 RawDSP provenance 的锁定参考基线
+python -m tv3.pipeline.run_tv3_rocket_baseline \
+  --config configs/tv3_d2b_raw_dsp_ridge.json \
+  --output-dir outputs/tv3_d2b/raw_dsp_ridge_provenance
+
+# 3. 运行 B6
 python -m tv3.pipeline.run_tv3_rocket_baseline \
   --config configs/tv3_d2b_raw_dsp_mlp_target_scaled.json
 ```
 
-若 `outputs/tv3_d2b/raw_dsp_mlp_target_scaled/` 已存在，先检查其 `metrics.json` 的 config 与 cache tracing；不能覆盖或混合不同 seed 的产物。
+旧 `outputs/tv3_d2b/raw_dsp_ridge/metrics.json` 不含 provenance，不能作为 B6 reference。若 `outputs/tv3_d2b/raw_dsp_mlp_target_scaled/` 已存在，训练入口会拒绝覆盖；必须新建结果目录或显式 `--overwrite` 并记录原因。
 
 ## 5. 结果审计与验收
 

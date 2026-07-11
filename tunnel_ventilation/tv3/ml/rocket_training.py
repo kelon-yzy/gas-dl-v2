@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -31,11 +32,7 @@ from tv3.ml.training import SplitEvaluation, evaluate_regressor
 
 
 DEFAULT_RIDGE_ALPHAS = (1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1.0, 3.0, 10.0, 30.0, 100.0)
-B1_RAW_DSP_RIDGE_O2_R2 = {
-    "val": 0.4280,
-    "test": 0.4786,
-    "extrapolation": 0.3695,
-}
+RAW_DSP_FIDELITY_SCHEMA_VERSION = "tv3-d2b-frame-fidelity-1"
 FORMAL_RAW_DSP_MANIFEST_CONTRACT = {
     "schema_version": RAW_DSP_FRAME_SCHEMA_VERSION,
     "complete_dataset": True,
@@ -56,6 +53,9 @@ class RocketTrainingResult:
     train_split: str
     evaluations: dict[str, SplitEvaluation]
     diagnostics: dict[str, Any]
+    raw_dsp_provenance: dict[str, Any] | None = None
+    raw_dsp_fidelity: dict[str, Any] | None = None
+    raw_dsp_reference: dict[str, Any] | None = None
 
 
 class _ScaledRidgeCVRegressor:
@@ -134,10 +134,37 @@ def train_tv3_rocket_regressor(
     closed_form_alpha: float = 1.0,
     device: str = "auto",
     mlp_config: MlpHeadConfig | None = None,
+    raw_dsp_fidelity_metrics_path: Path | str | None = None,
+    raw_dsp_reference_metrics_path: Path | str | None = None,
 ) -> RocketTrainingResult:
     dataset_dir = Path(dataset_dir)
     if feature_config is None:
         feature_config = RocketFeatureConfig()
+    raw_dsp_provenance: dict[str, Any] | None = None
+    raw_dsp_fidelity: dict[str, Any] | None = None
+    raw_dsp_reference: dict[str, Any] | None = None
+    if feature_config.feature_builder != RAW_DSP_FEATURE_BUILDER and (
+        raw_dsp_fidelity_metrics_path is not None or raw_dsp_reference_metrics_path is not None
+    ):
+        raise ValueError("RawDSP evidence paths require the RawDSP feature builder")
+    if feature_config.feature_builder == RAW_DSP_FEATURE_BUILDER:
+        if (raw_dsp_fidelity_metrics_path is None) != (raw_dsp_reference_metrics_path is None):
+            raise ValueError(
+                "RawDSP fidelity and reference metrics paths must be provided together for a compared run"
+            )
+        raw_dsp_provenance = load_raw_dsp_provenance(dataset_dir)
+        if raw_dsp_fidelity_metrics_path is not None:
+            raw_dsp_fidelity = load_raw_dsp_fidelity(
+                raw_dsp_fidelity_metrics_path,
+                dataset_dir=dataset_dir,
+                provenance=raw_dsp_provenance,
+            )
+            raw_dsp_reference = load_raw_dsp_reference_metrics(
+                raw_dsp_reference_metrics_path,
+                dataset_dir=dataset_dir,
+                feature_config=feature_config,
+                provenance=raw_dsp_provenance,
+            )
     feature_builder = feature_config.feature_builder
     cache_path = Path(cache_dir) if cache_dir is not None else default_cache_dir(dataset_dir, feature_builder)
     if isinstance(feature_config, MiniRocketFeatureConfig):
@@ -194,6 +221,9 @@ def train_tv3_rocket_regressor(
         train_split=train_split,
         evaluations=evaluations,
         diagnostics=diagnostics,
+        raw_dsp_provenance=raw_dsp_provenance,
+        raw_dsp_fidelity=raw_dsp_fidelity,
+        raw_dsp_reference=raw_dsp_reference,
     )
 
 
@@ -221,8 +251,12 @@ def rocket_training_payload(result: RocketTrainingResult) -> dict[str, Any]:
             "sequence_count": len(split_eval.sequence_ids),
         }
     if feature_builder == RAW_DSP_FEATURE_BUILDER:
-        payload["raw_dsp_provenance"] = load_raw_dsp_provenance(result.dataset_dir)
-        payload["o2_audit"] = _build_o2_audit(result.evaluations)
+        assert result.raw_dsp_provenance is not None
+        payload["raw_dsp_provenance"] = result.raw_dsp_provenance
+        if result.raw_dsp_fidelity is not None:
+            payload["raw_dsp_fidelity"] = result.raw_dsp_fidelity
+        if result.raw_dsp_reference is not None:
+            payload["o2_audit"] = _build_o2_audit(result.evaluations, result.raw_dsp_reference)
     return payload
 
 
@@ -260,26 +294,141 @@ def load_raw_dsp_provenance(dataset_dir: Path | str) -> dict[str, Any]:
     }
 
 
+def load_raw_dsp_fidelity(
+    metrics_path: Path | str,
+    *,
+    dataset_dir: Path,
+    provenance: dict[str, Any],
+) -> dict[str, Any]:
+    metrics_path = Path(metrics_path)
+    payload = _read_json_object(metrics_path, description="RawDSP fidelity metrics")
+    if payload.get("schema_version") != RAW_DSP_FIDELITY_SCHEMA_VERSION:
+        raise ValueError("RawDSP fidelity metrics schema_version is not supported")
+    if payload.get("status") != "passed":
+        raise ValueError("RawDSP fidelity metrics status must be 'passed' before B6 training")
+    source = payload.get("source")
+    if not isinstance(source, dict):
+        raise ValueError("RawDSP fidelity metrics are missing source tracing")
+    _validate_dataset_path(source.get("dataset_dir"), dataset_dir, description="RawDSP fidelity metrics")
+    _validate_provenance_match(source, provenance, description="RawDSP fidelity metrics")
+    return {
+        "metrics_path": str(metrics_path),
+        "metrics_sha256": _file_sha256(metrics_path),
+        "status": payload["status"],
+        "schema_version": payload["schema_version"],
+        "cache_build_signature": source["cache_build_signature"],
+        "template_digest": source["template_digest"],
+    }
+
+
+def load_raw_dsp_reference_metrics(
+    metrics_path: Path | str,
+    *,
+    dataset_dir: Path,
+    feature_config: RocketFeatureConfig,
+    provenance: dict[str, Any],
+) -> dict[str, Any]:
+    metrics_path = Path(metrics_path)
+    payload = _read_json_object(metrics_path, description="RawDSP reference metrics")
+    if payload.get("feature_builder") != RAW_DSP_FEATURE_BUILDER:
+        raise ValueError("RawDSP reference metrics use a different feature builder")
+    _validate_dataset_path(payload.get("dataset_dir"), dataset_dir, description="RawDSP reference metrics")
+    if _normalize_json(payload.get("feature_config")) != _normalize_json(asdict(feature_config)):
+        raise ValueError("RawDSP reference metrics feature_config does not match the current run")
+    reference_provenance = payload.get("raw_dsp_provenance")
+    if not isinstance(reference_provenance, dict):
+        raise ValueError("RawDSP reference metrics are missing raw_dsp_provenance")
+    _validate_provenance_match(reference_provenance, provenance, description="RawDSP reference metrics")
+    evaluations = payload.get("evaluations")
+    if not isinstance(evaluations, dict):
+        raise ValueError("RawDSP reference metrics are missing evaluations")
+    o2_r2 = {
+        split_name: _metrics_component_r2(evaluations, split_name, "x_O2")
+        for split_name in ("val", "test", "extrapolation")
+    }
+    return {
+        "metrics_path": str(metrics_path),
+        "metrics_sha256": _file_sha256(metrics_path),
+        "o2_r2": o2_r2,
+        "cache_build_signature": reference_provenance["build_signature"],
+        "template_digest": reference_provenance["template_digest"],
+    }
+
+
 def _component_r2(evaluations: dict[str, SplitEvaluation], split_name: str, component: str) -> float:
     split_eval = evaluations[split_name]
     return float(split_eval.component_metrics[component].r2)
 
 
-def _build_o2_audit(evaluations: dict[str, SplitEvaluation]) -> dict[str, Any]:
+def _build_o2_audit(
+    evaluations: dict[str, SplitEvaluation],
+    reference_metrics: dict[str, Any],
+) -> dict[str, Any]:
     if "train" not in evaluations or "val" not in evaluations:
         raise ValueError("RawDSP O2 audit requires train and val evaluations")
     train_o2 = _component_r2(evaluations, "train", "x_O2")
     val_o2 = _component_r2(evaluations, "val", "x_O2")
     deltas_vs_b1: dict[str, float] = {}
-    for split_name, baseline in B1_RAW_DSP_RIDGE_O2_R2.items():
+    for split_name, baseline in reference_metrics["o2_r2"].items():
         if split_name not in evaluations:
             continue
         deltas_vs_b1[split_name] = _component_r2(evaluations, split_name, "x_O2") - baseline
     return {
         "train_val_o2_r2_gap": train_o2 - val_o2,
-        "b1_raw_dsp_ridge_o2_r2": dict(B1_RAW_DSP_RIDGE_O2_R2),
+        "reference_o2_r2": dict(reference_metrics["o2_r2"]),
+        "reference_metrics_path": reference_metrics["metrics_path"],
+        "reference_metrics_sha256": reference_metrics["metrics_sha256"],
         "delta_vs_b1_o2_r2": deltas_vs_b1,
     }
+
+
+def _read_json_object(path: Path, *, description: str) -> dict[str, Any]:
+    if not path.is_file():
+        raise FileNotFoundError(f"missing {description}: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"{description} must contain a JSON object: {path}")
+    return payload
+
+
+def _validate_dataset_path(value: Any, dataset_dir: Path, *, description: str) -> None:
+    if not isinstance(value, str) or Path(value).resolve() != dataset_dir.resolve():
+        raise ValueError(f"{description} dataset_dir does not match the current run")
+
+
+def _validate_provenance_match(
+    source: dict[str, Any],
+    provenance: dict[str, Any],
+    *,
+    description: str,
+) -> None:
+    expected = {
+        "cache_build_signature": provenance["build_signature"],
+        "template_digest": provenance["template_digest"],
+    }
+    aliases = {"cache_build_signature": "build_signature", "template_digest": "template_digest"}
+    for key, expected_value in expected.items():
+        source_key = key if key in source else aliases[key]
+        if source.get(source_key) != expected_value:
+            raise ValueError(f"{description} {key} does not match the current RawDSP cache")
+
+
+def _metrics_component_r2(evaluations: dict[str, Any], split_name: str, component: str) -> float:
+    try:
+        value = evaluations[split_name]["component_metrics"][component]["r2"]
+    except (KeyError, TypeError) as exc:
+        raise ValueError(
+            f"RawDSP reference metrics are missing {split_name}.{component}.r2"
+        ) from exc
+    return float(value)
+
+
+def _normalize_json(value: Any) -> Any:
+    return json.loads(json.dumps(value, sort_keys=True))
+
+
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def write_rocket_training_payload(result: RocketTrainingResult, output_path: Path | str) -> dict[str, Any]:
