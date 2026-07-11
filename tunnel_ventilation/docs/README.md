@@ -5,10 +5,11 @@
 ## 推荐阅读顺序
 
 1. [掘进通风项目记忆库.md](掘进通风项目记忆库.md)：当前有效事实、正式结果、硬不变量和执行门。
-2. [active/README.md](active/README.md)：D2b、R5-T、R7、SPXY 等当前工作。
-3. [foundation/README.md](foundation/README.md)：场景、适配、采样和物理基础。
-4. [operations/README.md](operations/README.md)：服务器训练与运行操作。
-5. [references/README.md](references/README.md)：物性、传感器和算法文献。
+2. [active/b7_repeated_split_ood_protocol_implementation_plan.md](active/b7_repeated_split_ood_protocol_implementation_plan.md)：B7 冻结后的重复 split、独立 OOD、审计和通过门。
+3. [active/README.md](active/README.md)：D2b、B6、B7、R5-T、R7、SPXY 等当前工作。
+4. [foundation/README.md](foundation/README.md)：场景、适配、采样和物理基础。
+5. [operations/README.md](operations/README.md)：服务器训练与运行操作。
+6. [references/README.md](references/README.md)：物性、传感器和算法文献。
 
 ## 目录结构
 

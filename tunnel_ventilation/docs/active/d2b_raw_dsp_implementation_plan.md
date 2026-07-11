@@ -1,6 +1,6 @@
 # D2b / RawDSP 物理波形特征提取实施计划
 
-> 状态：**clean 6000 RawDSP cache、B1 Ridge parity、帧级 fidelity 与 B6 单 seed target-scaled MLP 均已通过；待多 seed 复核后再决定 B7**
+> 状态：**clean 6000 RawDSP cache、B1 Ridge parity、帧级 fidelity、B6 stable_pass 与 B7 residual_pass 均已通过**
 > 日期：2026-07-11  
 > 依据：[掘进通风项目记忆库.md](../掘进通风项目记忆库.md)、[d2_tof_phasenet_implementation_plan.md](../archive/completed/d2_tof_phasenet_implementation_plan.md)、`tv3-formal-6000` 的 D0、D2、R5' 与 R5 结果，以及本地 raw waveform 只读诊断。
 
@@ -36,7 +36,7 @@ D2b 的首要验收不是直接把 O₂ R² 推到 0.70，而是证明 raw wavef
 
 本地旧 600 的只读波形验证中，exact-template 与 train-calibrated template 均通过各自 512-frame peak gate。该数据仍含额外 `V_NDIR_CH4`，因此只作为 waveform fidelity 证据，不作为模型性能结论。
 
-已在 clean `tv3-formal-6000` 上完成 train-only baseline template cache、B1 Ridge、帧级 fidelity 与 B6 单 seed target-scaled MLP。manifest 覆盖 6000 条序列、`template_mode=train_baseline_median`、`template_source_split=train`、`diagnostic_only=false`，并记录 input/code/template digest；B5 / B7 尚未执行。
+已在 clean `tv3-formal-6000` 上完成 train-only baseline template cache、B1 Ridge、帧级 fidelity、B6 target-scaled MLP（含三新增 seed）与 B7 OOF Ridge residual MLP。manifest 覆盖 6000 条序列、`template_mode=train_baseline_median`、`template_source_split=train`、`diagnostic_only=false`，并记录 input/code/template digest；B5 尚未执行。
 
 ### 1.2 2026-07-10 正式 B1 结果
 
@@ -58,7 +58,17 @@ D2b 的首要验收不是直接把 O₂ R² 推到 0.70，而是证明 raw wavef
 | test | 0.4786 | 0.5244 | +0.0458 |
 | extrapolation | 0.3695 | 0.4957 | +0.1262 |
 
-三 eval split 同步超过 B1 通过线；train−val gap `0.274`。正式产物为 `outputs/tv3_d2b/raw_dsp_mlp_target_scaled_v2/metrics.json`，已绑定 fidelity 与 `raw_dsp_ridge_provenance`。单 seed 正式验收通过，但仍低于 R5-T observed（0.6642 / 0.6462 / 0.5815）。下一步是多 seed 稳定性复核，再决定 B7。细节见 [d2b_raw_dsp_mlp_implementation_plan.md](d2b_raw_dsp_mlp_implementation_plan.md)。
+三 eval split 同步超过 B1 通过线；train−val gap `0.274`。正式产物为 `outputs/tv3_d2b/raw_dsp_mlp_target_scaled_v2/metrics.json`，已绑定 fidelity 与 `raw_dsp_ridge_provenance`。单 seed 正式验收通过；三新增 seed 均值 `0.5581 / 0.5356 / 0.4835`。细节见 [d2b_raw_dsp_mlp_implementation_plan.md](d2b_raw_dsp_mlp_implementation_plan.md)。
+
+### 1.4 2026-07-11 正式 B7 结果
+
+| split | B6 三 seed 均值 | B7 三 seed 均值 | 差值 |
+|---|---:|---:|---:|
+| val | 0.5581 | 0.6964 | +0.1383 |
+| test | 0.5356 | 0.7001 | +0.1645 |
+| extrapolation | 0.4835 | 0.6157 | +0.1322 |
+
+三新增 seed 均过 B1 门槛，判定 **`residual_pass`**。正式产物 `outputs/tv3_d2b/b7_oof_ridge_residual_mlp/`；参数量 68931，val `sum_abs_error≈0.0004`，train−val gap≈0.16。B7 成为当前默认 raw-DSP 头候选；不扩大 residual 结构。细节见 [b7_oof_ridge_residual_mlp_implementation_plan.md](b7_oof_ridge_residual_mlp_implementation_plan.md)。
 
 ## 2. 背景与已验证事实
 
@@ -512,6 +522,7 @@ python -m pytest -q
 - [x] RawDSP cache 不写入 `sequences/`。
 - [x] B1 Ridge parity 在 clean 6000 完成并通过。
 - [x] 按 `d2b_raw_dsp_mlp_implementation_plan.md` 完成 B6 单 seed 正式训练与证据链验收；多 seed 复核后再决定 B7。
+- [x] 按 `b7_oof_ridge_residual_mlp_implementation_plan.md` 完成 B7 三 seed 正式复核：`residual_pass`。
 - [x] val/test/extrap、O₂ bins 与 `sum_abs_error` 已在 B1 metrics 中生成。
 - [x] 使用 `scripts/audit_d2b_frame_fidelity.py` 生成并回填 clean 6000 train-calibrated frame fidelity 数值。
 - [x] 将正式结果同步回记忆库与本文档顶部状态。

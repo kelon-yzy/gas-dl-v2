@@ -1,6 +1,8 @@
 """SPXY + OOD 数据集划分（tv3 场景）。
 
 实施依据：tunnel_ventilation/docs/active/spxy_split_implementation_plan.md。
+B7 正式 OOD 协议的 observed-only X profile 依据：
+tunnel_ventilation/docs/active/b7_repeated_split_ood_protocol_implementation_plan.md。
 
 不变量（文档 §2.4）：
 1. SPXY 只在 ID pool 内选择 train，不参与 extrapolation 选择。
@@ -13,6 +15,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Mapping, Sequence
 
 import numpy as np
@@ -37,12 +40,92 @@ class SpxySplitError(RuntimeError):
 # 特征构建与标准化
 # ---------------------------------------------------------------------------
 
-# 超声统计特征配置：(arrays key, 是否计算 trend)
-_ULTRASONIC_FEATURE_KEYS: tuple[tuple[str, bool], ...] = (
+# CLI / API profile 名 → summary 中的正式 x_feature_profile 名
+SPXY_X_PROFILE_ORACLE_V1 = "oracle_v1"
+SPXY_X_PROFILE_OBSERVED_V1 = "observed_v1"
+VALID_SPXY_X_PROFILES = (SPXY_X_PROFILE_OBSERVED_V1, SPXY_X_PROFILE_ORACLE_V1)
+
+# 旧含 oracle 物理量的 profile：仅登记为 oracle_split_sensitivity，不得作 B7 正式 OOD 依据
+_ORACLE_ULTRASONIC_FEATURE_KEYS: tuple[tuple[str, bool], ...] = (
     ("ultrasonic_tof_s", True),
     ("ultrasonic_sound_speed_m_per_s", False),
     ("ultrasonic_alpha_true_npm", False),
 )
+
+# B7 协议正式 profile：仅 RawDSP observed 输出 + slow；显式排除 true/oracle 物理量
+_OBSERVED_ULTRASONIC_FEATURE_KEYS: tuple[tuple[str, bool], ...] = (
+    ("ultrasonic_tof_observed_raw_dsp_s", True),
+    ("ultrasonic_peak_index_raw_dsp", False),
+    ("ultrasonic_sound_speed_raw_dsp_m_per_s", False),
+    ("ultrasonic_corr_peak", False),
+    ("ultrasonic_snr_db", False),
+    ("ultrasonic_raw_dsp_quality", False),
+    ("ultrasonic_raw_dsp_accepted", False),
+)
+
+_ORACLE_EXCLUDED_FROM_OBSERVED = frozenset(
+    {
+        "ultrasonic_tof_s",
+        "ultrasonic_tof_observed_s",
+        "ultrasonic_peak_index",
+        "ultrasonic_sound_speed_m_per_s",
+        "ultrasonic_sound_speed_estimated_m_per_s",
+        "ultrasonic_alpha_true_npm",
+    }
+)
+
+_SLOW_STAT_NAMES = ("mean", "std", "min", "max", "trend")
+_SERIES_STAT_NAMES_WITH_TREND = ("mean", "std", "trend")
+_SERIES_STAT_NAMES = ("mean", "std")
+
+_SPXY_X_PROFILE_META: dict[str, dict[str, object]] = {
+    SPXY_X_PROFILE_ORACLE_V1: {
+        "x_feature_profile": "oracle_split_sensitivity",
+        "role": "oracle_split_sensitivity",
+        "ultrasonic_keys": _ORACLE_ULTRASONIC_FEATURE_KEYS,
+    },
+    SPXY_X_PROFILE_OBSERVED_V1: {
+        "x_feature_profile": "spxy_observed_stats_v1",
+        "role": "protocol_default",
+        "ultrasonic_keys": _OBSERVED_ULTRASONIC_FEATURE_KEYS,
+    },
+}
+
+
+def resolve_spxy_x_profile(profile: str) -> dict[str, object]:
+    """解析 CLI profile 名；未知值显式失败，不静默回退。"""
+    if profile not in _SPXY_X_PROFILE_META:
+        raise ValueError(
+            f"未知 spxy_x_profile={profile!r}；允许值: {list(VALID_SPXY_X_PROFILES)}"
+        )
+    return dict(_SPXY_X_PROFILE_META[profile])
+
+
+def spxy_x_feature_names(profile: str, *, slow_channels: int = 7) -> list[str]:
+    """返回未标准化 X 特征列名，顺序与 `_build_spxy_features` 一致。"""
+    meta = resolve_spxy_x_profile(profile)
+    names: list[str] = []
+    for stat in _SLOW_STAT_NAMES:
+        for channel_idx in range(slow_channels):
+            names.append(f"slow_{stat}_c{channel_idx}")
+    ultrasonic_keys = meta["ultrasonic_keys"]
+    assert isinstance(ultrasonic_keys, tuple)
+    for key, with_trend in ultrasonic_keys:
+        stats = _SERIES_STAT_NAMES_WITH_TREND if with_trend else _SERIES_STAT_NAMES
+        for stat in stats:
+            names.append(f"{key}_{stat}")
+    return names
+
+
+def _hash_float_matrix(matrix: np.ndarray) -> str:
+    arr = np.ascontiguousarray(np.asarray(matrix, dtype=np.float64))
+    return hashlib.sha256(arr.tobytes()).hexdigest()
+
+
+def hash_sequence_id_set(sequence_ids: Sequence[str]) -> str:
+    """对 sequence_id 集合做稳定 hash（排序后拼接）。"""
+    payload = "\n".join(sorted(str(item) for item in sequence_ids)).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _slow_trend(slow: np.ndarray) -> np.ndarray:
@@ -73,13 +156,27 @@ def _series_trend(arr: np.ndarray) -> np.ndarray:
     return (ts_c[None, :] * arr_c).sum(axis=1) / denom
 
 
-def _build_spxy_features(conditions: Sequence[Mapping[str, object]], arrays: Mapping[str, np.ndarray]) -> np.ndarray:
-    """方案 A：慢通道时序统计 + 超声波形统计。输出 (N, F) 未标准化。
+def _build_spxy_features(
+    conditions: Sequence[Mapping[str, object]],
+    arrays: Mapping[str, np.ndarray],
+    *,
+    x_profile: str = SPXY_X_PROFILE_ORACLE_V1,
+) -> tuple[np.ndarray, list[str]]:
+    """慢通道时序统计 + 超声/RawDSP 序列统计。输出 (N, F) 未标准化与列名。
 
-    慢通道：7 通道 × (mean/std/min/max/trend) = 35 维。
-    超声：tof_s(mean/std/trend) + sound_speed(mean/std) + alpha(mean/std) = 7 维。
-    合计 42 维。聚合特征量级跨数个数量级，必须经 StandardScaler。
+    oracle_v1：慢通道 35 维 + true tof/speed/alpha 统计 = 42 维（旧行为）。
+    observed_v1：慢通道 35 维 + 7 个 RawDSP observed 序列统计 = 50 维。
+    聚合特征量级跨数量级，必须经 StandardScaler。
     """
+    del conditions  # 保留签名兼容；X 仅来自 arrays
+    meta = resolve_spxy_x_profile(x_profile)
+    ultrasonic_keys = meta["ultrasonic_keys"]
+    assert isinstance(ultrasonic_keys, tuple)
+    if x_profile == SPXY_X_PROFILE_OBSERVED_V1:
+        leaked = sorted(key for key, _ in ultrasonic_keys if key in _ORACLE_EXCLUDED_FROM_OBSERVED)
+        if leaked:
+            raise ValueError(f"observed_v1 不得包含 oracle 物理量: {leaked}")
+
     slow = np.asarray(arrays["slow"], dtype=np.float64)  # (N, T, C)
     n = slow.shape[0]
     feats: list[np.ndarray] = [
@@ -89,32 +186,47 @@ def _build_spxy_features(conditions: Sequence[Mapping[str, object]], arrays: Map
         slow.max(axis=1),
         _slow_trend(slow),
     ]
-    for key, with_trend in _ULTRASONIC_FEATURE_KEYS:
-        arr = np.asarray(arrays[key], dtype=np.float64)  # (N, T)
+    for key, with_trend in ultrasonic_keys:
+        if key not in arrays:
+            raise KeyError(
+                f"spxy_x_profile={x_profile!r} 需要 arrays[{key!r}]；"
+                "observed_v1 必须提供 train-calibrated 或显式 bootstrap 的 RawDSP 输出"
+            )
+        arr = np.asarray(arrays[key], dtype=np.float64)  # (N, T) 或 (N,)
         if arr.ndim == 1:
             arr = arr.reshape(n, -1)
+        if arr.shape[0] != n:
+            raise ValueError(f"arrays[{key!r}] 首维 {arr.shape[0]} 与 slow 的 N={n} 不一致")
         feats.append(arr.mean(axis=1, keepdims=True))
         feats.append(arr.std(axis=1, keepdims=True))
         if with_trend:
             feats.append(_series_trend(arr).reshape(n, 1))
-    return np.concatenate(feats, axis=1)
+    X_raw = np.concatenate(feats, axis=1)
+    names = spxy_x_feature_names(x_profile, slow_channels=int(slow.shape[2]))
+    if X_raw.shape[1] != len(names):
+        raise RuntimeError(
+            f"X 特征维数与列名不一致: shape={X_raw.shape[1]} names={len(names)} profile={x_profile}"
+        )
+    return X_raw, names
 
 
 def _build_scaled_split_features(
     conditions: Sequence[Mapping[str, object]],
     arrays: Mapping[str, np.ndarray],
     labels: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    *,
+    x_profile: str = SPXY_X_PROFILE_ORACLE_V1,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
     """构建标准化 X / Y 与 Y 自由度基。
 
     tv3 的 CO2+O2+N2=100%，第一版用 CO2/O2 两个自由度计算 Y 距离（文档 §4.2）。
-    返回 (X_scaled, y_scaled, y_basis)；y_basis 为 (N, 2) 未标准化的 CO2/O2。
+    返回 (X_scaled, y_scaled, y_basis, X_raw, feature_names)。
     """
-    X_raw = _build_spxy_features(conditions, arrays)
+    X_raw, feature_names = _build_spxy_features(conditions, arrays, x_profile=x_profile)
     X_scaled = StandardScaler().fit_transform(X_raw)
     y_basis = np.asarray(labels, dtype=np.float64)[:, :2]  # CO2, O2
     y_scaled = StandardScaler().fit_transform(y_basis)
-    return X_scaled, y_scaled, y_basis
+    return X_scaled, y_scaled, y_basis, X_raw, feature_names
 
 
 # ---------------------------------------------------------------------------
@@ -493,9 +605,13 @@ def _build_spxy_split(
     interior_quantiles: tuple[float, float] = (0.10, 0.90),
     n_bins: int = 4,
     n_clusters: int = 8,
+    x_profile: str = SPXY_X_PROFILE_ORACLE_V1,
 ) -> tuple[dict[str, list[dict[str, str]]], dict[str, object], tuple[np.ndarray, np.ndarray]]:
     """SPXY+OOD 四分类核心。返回 (rows, summary_extra, (X_scaled, y_basis))。"""
-    X_scaled, y_scaled, y_basis = _build_scaled_split_features(conditions, arrays, labels)
+    profile_meta = resolve_spxy_x_profile(x_profile)
+    X_scaled, y_scaled, y_basis, X_raw, feature_names = _build_scaled_split_features(
+        conditions, arrays, labels, x_profile=x_profile
+    )
     n = len(conditions)
     n_ext = int(round(n * extrapolation_ratio))
     ext_idx = _select_extrapolation_indices(
@@ -524,11 +640,20 @@ def _build_spxy_split(
         conditions, train_idx=train_idx, val_idx=val_idx, test_idx=test_idx, ext_idx=ext_idx
     )
     policy = f"spxy_v1:{extrapolation_strategy}" if extrapolation_strategy != "none" else "spxy_v1"
+    ood_ids = [row["sequence_id"] for row in rows["extrapolation"]]
     summary = {
         "split_policy": policy,
         "spxy_alpha": float(alpha),
         "extrapolation_strategy": extrapolation_strategy,
         "group_field": "mixture_id",
+        "split_seed": int(seed),
+        "spxy_x_profile_cli": x_profile,
+        "x_feature_profile": str(profile_meta["x_feature_profile"]),
+        "x_feature_profile_role": str(profile_meta["role"]),
+        "x_feature_names": feature_names,
+        "x_feature_count": int(len(feature_names)),
+        "x_feature_matrix_hash": _hash_float_matrix(X_raw),
+        "ood_set_hash": hash_sequence_id_set(ood_ids),
     }
     return rows, summary, (X_scaled, y_basis)
 
@@ -545,6 +670,7 @@ def build_spxy_split_rows(
     extrapolation_ratio: float = 0.05,
     alpha: float = 0.5,
     extrapolation_strategy: str = "y_margin_ood",
+    x_profile: str = SPXY_X_PROFILE_ORACLE_V1,
 ) -> dict[str, list[dict[str, str]]]:
     """构建 tv3 的 SPXY+OOD 四分类 split rows（文档 §4.4 接口）。"""
     rows, _, _ = _build_spxy_split(
@@ -558,6 +684,7 @@ def build_spxy_split_rows(
         extrapolation_ratio=extrapolation_ratio,
         alpha=alpha,
         extrapolation_strategy=extrapolation_strategy,
+        x_profile=x_profile,
     )
     return {name: rows.get(name, []) for name in SPLIT_NAMES}
 
@@ -577,6 +704,7 @@ def build_spxy_split_with_summary(
     interior_quantiles: tuple[float, float] = (0.10, 0.90),
     n_bins: int = 4,
     n_clusters: int = 8,
+    x_profile: str = SPXY_X_PROFILE_ORACLE_V1,
 ) -> tuple[dict[str, list[dict[str, str]]], dict[str, object]]:
     """SPXY+OOD 划分，附带 split_policy / alpha / strategy / diagnostics 的 summary。"""
     from tv3.sim.packaging.spxy_diagnostics import compute_split_diagnostics
@@ -595,6 +723,7 @@ def build_spxy_split_with_summary(
         interior_quantiles=interior_quantiles,
         n_bins=n_bins,
         n_clusters=n_clusters,
+        x_profile=x_profile,
     )
     summary["diagnostics"] = compute_split_diagnostics(conditions, labels, rows, X_scaled, y_basis)
     return {name: rows.get(name, []) for name in SPLIT_NAMES}, summary
@@ -660,6 +789,7 @@ def _build_lhs_stratified_split(
         "split_policy": "lhs_stratified_split_v1",
         "group_field": "mixture_id",
         "n_bins": int(n_bins),
+        "split_seed": int(seed),
     }
     return rows, summary
 

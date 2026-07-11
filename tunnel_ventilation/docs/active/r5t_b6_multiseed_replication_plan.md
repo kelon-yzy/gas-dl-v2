@@ -139,4 +139,4 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_d2b_raw_dsp_
 | R5-T observed MLP | `0.6631 ± 0.0082` | `0.6438 ± 0.0055` | `0.5890 ± 0.0197` | 3 / 3 通过，stable_pass |
 | B6 RawDSP MLP | `0.5581 ± 0.0096` | `0.5356 ± 0.0170` | `0.4835 ± 0.0036` | 3 / 3 通过，stable_pass |
 
-下一步不再重复当前 flat MLP 的 seed 搜索：B6 可以进入 OOF Ridge residual MLP 对照；同时另行建立重复 split 与独立 OOD 协议。当前 extrapolation 仍不代表物理 OOD。
+下一步不再重复当前 flat MLP 的 seed 搜索。B7 OOF Ridge residual MLP 已完成并判定 **`residual_pass`**（均值 `0.6964 / 0.7001 / 0.6157`，见 `outputs/tv3_d2b/b7_oof_ridge_residual_mlp/`）；本轮 R5-T / B6 结果保留为 absolute 对照。同时另行建立重复 split 与独立 OOD 协议。当前 extrapolation 仍不代表物理 OOD。

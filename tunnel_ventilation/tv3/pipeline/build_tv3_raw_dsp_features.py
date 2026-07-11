@@ -345,6 +345,10 @@ def build_tv3_raw_dsp_feature_cache(
     selected_ids = tuple(preflight.sequence_ids[index] for index in selected_indices)
     cache_dir = Path(cache_dir) if cache_dir is not None else preflight.dataset_dir / DEFAULT_CACHE_ROOT
     input_summaries = _input_file_summaries(preflight)
+    split_binding = _split_binding_payload(preflight)
+    train_source_ids = tuple(
+        preflight.sequence_ids[index] for index in preflight.split_indices.get(template_source_split, [])
+    )
     build_contract = {
         "schema_version": RAW_DSP_FRAME_SCHEMA_VERSION,
         "dataset_slug": preflight.dataset_slug,
@@ -353,11 +357,15 @@ def build_tv3_raw_dsp_feature_cache(
         "complete_dataset": selected_count == preflight.sequence_count,
         "template_mode": template_mode,
         "template_source_split": template_source_split,
+        "template_source_sequence_ids_digest": _string_digest(train_source_ids),
         "template_max_frames": template_max_frames,
         "template_pre_samples": template_pre_samples,
         "template_post_samples": template_post_samples,
         "template_min_snr_db": template_min_snr_db,
         "template_reference_peak_polarity": template_reference_peak_polarity,
+        "split_hash": split_binding.get("split_hash"),
+        "split_policy": split_binding.get("split_policy"),
+        "split_seed": split_binding.get("split_seed"),
         "raw_dsp": asdict(config),
         "input_files": input_summaries,
         "code_files": _code_file_summaries(),
@@ -700,17 +708,35 @@ def _load_phase_lookup(path: Path) -> dict[str, tuple[str, ...]]:
     }
 
 
+def _split_binding_payload(preflight: RawDSPPreflight) -> dict[str, Any]:
+    """从派生数据集的 split_summary.json 读取 hash / policy，写入 RawDSP manifest。"""
+    summary_path = preflight.dataset_dir / "splits" / "split_summary.json"
+    if not summary_path.is_file():
+        return {}
+    payload = _read_json_object(summary_path)
+    return {
+        "split_hash": payload.get("split_hash"),
+        "split_policy": payload.get("split_policy"),
+        "split_seed": payload.get("split_seed"),
+        "x_feature_profile": payload.get("x_feature_profile"),
+        "ood_set_hash": payload.get("ood_set_hash"),
+    }
+
+
 def _input_file_summaries(preflight: RawDSPPreflight) -> dict[str, dict[str, Any]]:
     paths = {
         "manifest": preflight.dataset_dir / "manifest.json",
         "waveform_spec": preflight.dataset_dir / "metadata" / "waveform_spec.json",
         "sequence_ids": preflight.dataset_dir / "metadata" / "sequence_ids.npy",
         "slow_channel_names": preflight.dataset_dir / "metadata" / "slow_channel_names.npy",
+        "slow": preflight.slow_path,
         "waveform": preflight.waveform_path,
         "waveform_scale": preflight.waveform_scale_path,
-        "slow": preflight.slow_path,
         "phase_csv": preflight.phase_csv_path,
     }
+    summary_path = preflight.dataset_dir / "splits" / "split_summary.json"
+    if summary_path.is_file():
+        paths["split_summary"] = summary_path
     for split_name in preflight.split_indices:
         paths[f"split_{split_name}"] = preflight.dataset_dir / "splits" / f"{split_name}.csv"
     return {name: _file_summary(path) for name, path in paths.items()}

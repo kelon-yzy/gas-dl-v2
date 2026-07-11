@@ -1,8 +1,9 @@
 # B7：OOF Ridge Residual MLP 实施计划
 
-> 状态：代码与 smoke 已通过；待服务器 seed42 预检与三 seed 正式复核
+> 状态：**residual_pass**（三新增 seed 正式复核通过）
 > 日期：2026-07-11
 > 上游证据：B1 RawDSP Ridge、RawDSP frame fidelity、B6 三新增 seed stable_pass。
+> 正式产物：`outputs/tv3_d2b/b7_oof_ridge_residual_mlp/`（`s42/s123/s456/metrics.json`、`summary.json`、`replication_report.json`）。
 
 ## Context
 
@@ -167,3 +168,24 @@ python scripts/run_b7_oof_residual_multiseed.py
 ```
 
 注意：若 `s42` 已由预检写入，正式三 seed 编排会拒绝覆盖；预检通过后可直接跑 `123/456`，或换新 output-root 后重跑全套。
+
+### 2026-07-11 三 seed 正式复核
+
+正式产物：`outputs/tv3_d2b/b7_oof_ridge_residual_mlp/`。`summary.json` 三 run 均为 `status=ok`、`audit_errors=[]`；`replication_report.json` 判定 **`residual_pass`**（`pass_count=3`）。
+
+| seed | val O₂ R² | test O₂ R² | extrapolation O₂ R² | B1 门槛 | best_epoch |
+| ---: | ---: | ---: | ---: | --- | ---: |
+| 42 | 0.6957 | 0.7053 | 0.6107 | 过 | 33 |
+| 123 | 0.6920 | 0.6897 | 0.6050 | 过 | 29 |
+| 456 | 0.7014 | 0.7053 | 0.6315 | 过 | 32 |
+| mean±std | 0.6964±0.0039 | 0.7001±0.0073 | 0.6157±0.0114 | 3/3 | — |
+
+相对冻结 B6 均值（test `0.5356`、extrap `0.4835`）：test **+0.1645**，extrap **+0.1322**。test std（0.0073）低于 B6（0.0170）；extrap std（0.0114）高于 B6（0.0036），但未同时双高。参数量 68931；full Ridge α=`0.03`；OOF fold α 三 seed 一致为 `[0.03,0.03,0.1,0.1,0.1]`；val `sum_abs_error≈0.0004`；train−val O₂ gap≈0.16。
+
+判读：OOF Ridge + 低容量残差 MLP 在 frozen RawDSP 上成立，且明显优于 B6 flat MLP；当前 random split 下也高于 R5-T observed 均值（0.6631 / 0.6438 / 0.5890）。按停止条件，**不扩大 B7 结构、不继续搜 hidden dims**。B7 可作为当前默认 raw-DSP 头候选；泛化结论仍须独立 split / OOD 复核。O₂ 0.8% bins 内 R² 仍为负，物理上限审计不变。
+
+后续只做：
+
+1. 将 B7 记为默认 raw-DSP 回归头候选（相对 B6）；
+2. 按 [B7 冻结、重复 Split 与独立 OOD 协议实施计划](b7_repeated_split_ood_protocol_implementation_plan.md) 完成 observed-only split、重复 split 与双 selector OOD 复核后，再写泛化；
+3. 只有该协议判定 `protocol_pass` 后，模块 C 才进入分组 bottleneck / residual TabM；不加宽本 residual MLP。

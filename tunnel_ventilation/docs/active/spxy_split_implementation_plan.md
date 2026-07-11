@@ -1,6 +1,8 @@
 # SPXY 与 OOD 数据集划分实施规划
 
 > 正文已按附录 A/B 的调研与审查结论修订：SPXY 保留为训练覆盖候选方法，但不再单独承担 extrapolation 构造或最终性能估计；extrapolation 必须由独立的 OOD 规则产生；X/Y 特征必须先标准化；所有 SPXY 实现必须向量化并通过划分诊断验证。
+>
+> 与 B7 的关系：本文定义通用 split 算法与诊断边界；B7 的冻结运行矩阵、observed-only X profile、双 OOD selector 与通过门以 [b7_repeated_split_ood_protocol_implementation_plan.md](b7_repeated_split_ood_protocol_implementation_plan.md) 为唯一执行入口。含 `ultrasonic_tof_s`、`ultrasonic_sound_speed_m_per_s`、`ultrasonic_alpha_true_npm` 等 simulator / oracle 统计的旧 X profile 只能作为 oracle sensitivity，不得成为该协议的正式 profile；B7 的每个派生 split 还必须重建自己的 train-calibrated RawDSP cache。
 
 ## 1. 背景与动机
 

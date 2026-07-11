@@ -196,7 +196,9 @@ R5-T observed 的 `0.6642 / 0.6462 / 0.5815` 只用于解释可学习非线性�
 
 判读：三 eval split 同步超过 B1，单 seed 正式验收通过。相对 R5-T observed（0.6642 / 0.6462 / 0.5815）仍低，符合“可部署 RawDSP 上限低于 simulator-derived observed 上限”的预期。旧目录 `raw_dsp_mlp_target_scaled/` 为证据链加固前产物，数值相同但缺少 fidelity / reference sha，不以它作为正式验收锚点。
 
-2026-07-11 多 seed 复核已完成：新增 seeds `42/123/456` 全部通过 B6 三 split 门槛，val/test/extrap O₂ R²均值±标准差为 `0.5581±0.0096 / 0.5356±0.0170 / 0.4835±0.0036`。正式汇总见 `outputs/tv3_r5t_b6_multiseed/replication_report.json`；B6 在当前 random split 下 stable_pass，可进入 B7 OOF Ridge residual 对照。当前 extrapolation 仍非物理 OOD。
+2026-07-11 多 seed 复核已完成：新增 seeds `42/123/456` 全部通过 B6 三 split 门槛，val/test/extrap O₂ R²均值±标准差为 `0.5581±0.0096 / 0.5356±0.0170 / 0.4835±0.0036`。正式汇总见 `outputs/tv3_r5t_b6_multiseed/replication_report.json`；B6 在当前 random split 下 stable_pass。
+
+2026-07-11 B7 对照已完成：OOF Ridge residual MLP 判定 **`residual_pass`**，三新增 seed 均值 `0.6964 / 0.7001 / 0.6157`，相对本 B6 均值 test `+0.1645`、extrap `+0.1322`。正式产物见 `outputs/tv3_d2b/b7_oof_ridge_residual_mlp/` 与 [b7_oof_ridge_residual_mlp_implementation_plan.md](b7_oof_ridge_residual_mlp_implementation_plan.md)。B6 保留为 absolute flat-MLP 对照锚点；默认 raw-DSP 头候选改为 B7。当前 extrapolation 仍非物理 OOD。
 
 ## 6. 代码、测试与文档更新
 
@@ -221,7 +223,7 @@ python -m tv3.pipeline.run_tv3_rocket_baseline \
 - [x] 为 RawDSP feature builder 写入并测试 `raw_dsp_provenance`。
 - [x] 运行 B6 单 seed 正式训练（正式产物为 `raw_dsp_mlp_target_scaled_v2`）。
 - [x] 审计三 eval split、bins、closure、feature tracing 与 train-val gap。
-- [ ] 多 seed 稳定性复核后，再决定是否进入 B7。
+- [x] 多 seed 稳定性复核后进入 B7；B7 已 residual_pass，B6 保留为 absolute 对照。
 
 ### 7.1 2026-07-11 实施记录
 
