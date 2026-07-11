@@ -1,6 +1,6 @@
 # D2b / RawDSP 物理波形特征提取实施计划
 
-> 状态：**D2b-0～D2b-2 与 D2b-3 B1 基础设施及本地验证已完成，clean 6000 cache、fidelity 与 Ridge parity 待服务器执行**  
+> 状态：**clean 6000 RawDSP cache 与 B1 Ridge parity 已完成并通过；manifest 审计完整，帧级 fidelity 数值尚待补齐**
 > 日期：2026-07-10  
 > 依据：[掘进通风项目记忆库.md](../掘进通风项目记忆库.md)、[d2_tof_phasenet_implementation_plan.md](../archive/completed/d2_tof_phasenet_implementation_plan.md)、`tv3-formal-6000` 的 D0、D2、R5' 与 R5 结果，以及本地 raw waveform 只读诊断。
 
@@ -36,7 +36,19 @@ D2b 的首要验收不是直接把 O₂ R² 推到 0.70，而是证明 raw wavef
 
 本地旧 600 的只读波形验证中，exact-template 与 train-calibrated template 均通过各自 512-frame peak gate。该数据仍含额外 `V_NDIR_CH4`，因此只作为 waveform fidelity 证据，不作为模型性能结论。
 
-尚未执行：clean `tv3-formal-6000` 正式 cache、val/test/extrap fidelity、B1 Ridge parity，以及 parity 通过后的 B5–B7。
+已在 clean `tv3-formal-6000` 上完成 train-only baseline template cache 和 B1 Ridge。manifest 覆盖 6000 条序列、`template_mode=train_baseline_median`、`template_source_split=train`、`diagnostic_only=false`，并记录 input/code/template digest；B5–B7 尚未执行。
+
+### 1.2 2026-07-10 正式 B1 结果
+
+| split | D0-observed O₂ R² | D2b RawDSP Ridge O₂ R² | 差值 |
+|---|---:|---:|---:|
+| val | 0.4226 | 0.4280 | +0.0054 |
+| test | 0.4571 | 0.4786 | +0.0215 |
+| extrapolation | 0.3708 | 0.3695 | -0.0013 |
+
+三个 O₂ split 的差距均在 `0.05` parity 门内；CO₂/N₂ 的最大 R² 退化为 `0.0033`，小于 `0.03` 上限，且 `sum_abs_error` 近零。因此 B1 模型 parity 通过：RawDSP 特征可以替代 simulator-derived observed 特征作为可复现的线性 baseline 输入。
+
+当前同步的正式缓存仅含 manifest，未包含 peak MAE、P95、bias 与 sound-speed MAE 的汇总数值。故 train-calibrated 帧级 fidelity 仍标记为待补齐，不能将 manifest 记录或 B1 parity 替代该项证据。
 
 ## 2. 背景与已验证事实
 
@@ -310,7 +322,7 @@ quality 规则必须显式、可审计，并在 manifest 中记录阈值。
 
 - `tv3/ml/rocket_features.py`
 - `configs/tv3_d2b_raw_dsp_ridge.json`
-- `scripts/analyze_d2b_results.py`
+- `scripts/audit_d2b_frame_fidelity.py`
 
 实验：
 
@@ -487,7 +499,8 @@ python -m pytest -q
 - [x] per-sequence baseline delay calibration 完成。
 - [x] timing/amplitude 双路语义测试完成。
 - [x] RawDSP cache 不写入 `sequences/`。
-- [ ] B1 Ridge parity 在 clean 6000 完成。
+- [x] B1 Ridge parity 在 clean 6000 完成并通过。
 - [ ] parity 通过后再运行 B5–B7。
-- [ ] val/test/extrap、O₂ bins、sum_abs_error 与 fidelity 指标完整回填。
-- [ ] 将正式结果同步回记忆库与本文档顶部状态。
+- [x] val/test/extrap、O₂ bins 与 `sum_abs_error` 已在 B1 metrics 中生成。
+- [ ] 使用 `scripts/audit_d2b_frame_fidelity.py` 生成 clean 6000 train-calibrated frame fidelity 数值并回填。
+- [x] 将正式结果同步回记忆库与本文档顶部状态。

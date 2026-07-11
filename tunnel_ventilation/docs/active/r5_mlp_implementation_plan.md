@@ -1,6 +1,6 @@
 # R5 小 MLP 观测特征回归 实施计划
 
-> 状态：**默认 R5 正式 6000 已完成 → 判据未通过（2026-07-09）；R5-T 目标标准化救援待服务器（2026-07-10）**
+> 状态：**默认 R5 正式 6000 未通过（2026-07-09）；R5-T 目标标准化正式 6000 通过（2026-07-10）**
 > 日期：2026-07-09  
 > 依据：[掘进通风项目记忆库.md](../掘进通风项目记忆库.md) §5.4 / §6.8 / §6.9 / §8.4；[r5_tabpfn_implementation_plan.md](../archive/completed/r5_tabpfn_implementation_plan.md)（R5' 已完成）；[rocket_hydra_regression_implementation_plan.md](../archive/completed/rocket_hydra_regression_implementation_plan.md) 阶段 D；[small_sample_dl_strategies.md](../methods/small_sample_dl_strategies.md) S2/S3；下列表格 MLP 文献。
 
@@ -13,10 +13,11 @@ R5 在 **D0-observed 864 维** 特征上，把回归头从 RidgeCV / TabPFN 换�
 | D0-observed Ridge | 0.4226 | 可部署线性基线；R5 必须超过它 |
 | R5' TabPFN | 0.6673 | 非线性上限探针（不可部署）；R5 报告相对差距 |
 | R5 小 MLP（本计划） | **−0.1834** | ❌ 判据未通过；不作部署头 |
-| R5-T 逐目标标准化 MLP | 待服务器 | 🔶 仅改变训练损失尺度；不改变 raw3、特征或 R5 失败结论 |
+| R5-T 逐目标标准化 MLP | **0.6642** | ✅ 三个 eval split 均超过 D0 + 0.05；仅改变训练损失尺度 |
 
 **判据（沿用 §6.4 / R5'）**：val O₂ 相对 D0-observed 提升是否 ≥ **+0.05**（即 ≥0.4726），且 test/extrap 同步提升。  
-**实测**：四 split O₂ 全负；触发停止条件「全 split < D0+0.05」。浅 MLP 未复现 TabPFN 非线性；可部署上限维持 D0 Ridge；D1 降级。详见 §「实施记录」与记忆库 §6.9。
+**默认 R5 实测**：四 split O₂ 全负；触发停止条件「全 split < D0+0.05」。
+**R5-T 实测**：train/val/test/extrap O₂ R² 为 `0.8792 / 0.6642 / 0.6462 / 0.5815`；三个 eval split 均超过 D0 + 0.05，验证目标标准化是默认 R5 优化失败的主要原因。R5-T 不撤销默认 R5 的失败记录，而是作为独立、已通过的可部署 MLP 对照。
 
 **非目标**：冲破 o2_bins 物理墙；单独达到验收线 0.70；复现 TabPFN 的全部 +0.245。
 
@@ -173,9 +174,9 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_r5_mlp.json
 - [x] 新增 `mlp_standardize_targets`：仅在训练损失空间按组分标准化，预测反变换为原始 `raw3` 百分比。
 - [x] 新增 `configs/tv3_r5_mlp_target_scaled.json`；特征与 `tv3_r5_mlp.json` 逐位一致。
 - [x] 单元测试验证输出仍为 raw3；本地 R5/R7 联合测试 13 项通过。
-- [ ] 服务器执行正式 `tv3-formal-6000`；本地没有该数据集，禁止用 600 序列或 smoke 指标替代。
+- [x] 服务器执行正式 `tv3-formal-6000`：`outputs/tv3_r5/mlp_observed_target_scaled/metrics.json`，best epoch=35。
 
-R5-T 是独立救援对照，不撤销默认 R5 的失败结论。若三 eval split 未同步达到 D0+0.05，即停止 MLP 继续调参并保留 D0 Ridge 为可部署基线。
+R5-T 是独立救援对照，不撤销默认 R5 的失败结论。本次三个 eval split 均达到 D0+0.05；下一步是用独立 split 或多 seed 检查稳定性，而不是继续在当前单 seed 上搜索超参数。
 
 ---
 
@@ -187,7 +188,7 @@ R5-T 是独立救援对照，不撤销默认 R5 的失败结论。若三 eval sp
 | `tv3/pipeline/run_tv3_rocket_baseline.py` | `--head mlp`；`mlp_*` CLI/config |
 | `configs/tv3_r5_mlp.json` | 正式配置 |
 | `configs/tv3_r5_mlp_smoke.json` | smoke 配置 |
-| `configs/tv3_r5_mlp_target_scaled.json` | R5-T 服务器正式配置（待执行） |
+| `configs/tv3_r5_mlp_target_scaled.json` | R5-T 正式配置（已执行） |
 | `tests/test_tv3_rocket_pipeline.py` 或新建 `tests/test_tv3_r5_mlp.py` | mlp head smoke |
 | `outputs/tv3_r5/mlp_observed/` | 训练产物 |
 | `docs/掘进通风项目记忆库.md` | 结果回填 |
@@ -242,6 +243,8 @@ R5-T 是独立救援对照，不撤销默认 R5 的失败结论。若三 eval sp
 | `sum_abs_error` | 高于 Ridge、低于 TabPFN | val≈**1.65**（> TabPFN 0.16） | 闭包也差于线性基线 |
 | train O₂ | — | **−0.1118** | 欠拟合 / 弱信号优化失败，非过拟合 |
 
+R5-T 正式结果：val/test/extrap O₂ R² 为 `0.6642 / 0.6462 / 0.5815`，相对 D0 分别提升 `+0.2416 / +0.1891 / +0.2107`。其 val O₂ R² 距 R5' TabPFN 仅 `0.0031`，说明当前 observed 特征中的非线性可由小型 MLP 承接。R5-T val `sum_abs_error=0.0307`，高于 Ridge 的近零水平，作为 raw3 直接输出的闭包监控项保留，但不构成当前验收否决条件。
+
 ---
 
 ## 关键文献
@@ -272,3 +275,4 @@ R5-T 是独立救援对照，不撤销默认 R5 的失败结论。若三 eval sp
 | 2026-07-09 | R5-3 正式 6000：`outputs/tv3_r5/mlp_observed/metrics.json`。best_epoch=175，params=254723。val O₂=−0.183；train/test/extrap O₂ 全负。 |
 | 2026-07-09 | R5-4 判读：**判据未通过**。停止条件「全 split < D0+0.05」触发 → 可部署上限维持 D0-observed Ridge；D1 降级；下一步 P0 = O₂ 光学通道（TDLAS）。已回填记忆库 §5.4 / §6.9 / §8.4。 |
 | 2026-07-10 | TDLAS 硬件暂缓；新增 R5-T 逐目标标准化 MLP。代码与本地测试完成，正式 tv3-formal-6000 仅在服务器，结果待回填。 |
+| 2026-07-10 | R5-T 正式 6000：`outputs/tv3_r5/mlp_observed_target_scaled/metrics.json`。best epoch=35，val/test/extrap O₂ R²=`0.6642/0.6462/0.5815`，三个 eval split 均通过 D0+0.05 判据。 |

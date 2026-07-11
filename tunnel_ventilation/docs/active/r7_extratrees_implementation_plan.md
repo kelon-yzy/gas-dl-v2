@@ -1,6 +1,6 @@
 # R7 ExtraTrees 观测特征回归实施计划
 
-> 状态：本地 smoke 已通过（2026-07-10）；正式 tv3-formal-6000 仅在服务器，待执行。
+> 状态：正式 tv3-formal-6000 已完成（2026-07-10），未通过部署候选判据。
 > 文献依据：[observed_o2_algorithm_review.md](../references/observed_o2_algorithm_review.md)；[掘进通风项目记忆库.md](../掘进通风项目记忆库.md) §5.4、§6.4、§6.8、§6.9、§7.1。
 > 定位：TDLAS O₂ 硬件暂缓期间的可部署非线性回归探针，不宣称突破窄 O₂ 分箱物理极限。
 
@@ -25,13 +25,13 @@
 
 默认超参为 600 棵树、`max_features=0.7`、`min_samples_leaf=2`、无深度上限、全核并行。`min_samples_leaf=2` 用于降低单样本叶子对 OOD split 的脆弱性；正式结果必须验证，而不是把该选择当成性能保证。
 
-## 服务器执行
+## 正式执行
 
 ```bash
 python -s -m tv3.pipeline.run_tv3_extratrees_baseline --config configs/tv3_r7_extratrees_observed.json
 ```
 
-预期产物：`outputs/tv3_r7/extratrees_observed/metrics.json`。产物记录完整 `feature_config` 与 `model_config`（含 seed），可审计正式运行是否保持 frozen D0-observed 契约。
+产物：`outputs/tv3_r7/extratrees_observed/metrics.json`。它保持 frozen D0-observed 864 维契约，使用 600 棵树、`max_features=0.7`、`min_samples_leaf=2` 与 seed `20260704`。
 
 ## 验收与分支
 
@@ -43,3 +43,14 @@ python -s -m tv3.pipeline.run_tv3_extratrees_baseline --config configs/tv3_r7_ex
 | O₂ 提升但 `sum_abs_error` 明显恶化 | 需单列风险 | 保留 raw3 结果，不做闭包回填，评估部署校准方案 |
 
 R7 无论结果如何，都不改变“窄 O₂ 分箱在 oracle 下仍不可精细辨识”的项目结论。
+
+## 正式结果
+
+| split | train | val | test | extrapolation |
+|---|---:|---:|---:|---:|
+| O₂ R² | 0.9969 | 0.4516 | 0.4473 | 0.4211 |
+| O₂ MAE | 0.0354 | 0.5699 | 0.5814 | 0.5580 |
+
+相对 D0-observed Ridge，R7 的 O₂ R² 在 val 为 `+0.0290`、test 为 `-0.0097`、extrapolation 为 `+0.0503`。val 未达到 `0.4726`，且 test 低于 D0；train-val gap 为 `0.5453`，表明当前无深度上限的树配置主要记忆训练集局部组合。`sum_abs_error` 在三个评估 split 均近零，因此失败原因是 O₂ 泛化不足而非闭包退化。
+
+结论：R7 未通过，不做部署候选，也不在该配置上追加种子稳定性或调参补丁。后续若重启 observed-space 树模型，应作为显式环境条件化或特征消融实验，且与当前结果分开登记。
