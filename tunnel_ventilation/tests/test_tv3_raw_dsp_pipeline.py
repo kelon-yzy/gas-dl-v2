@@ -209,6 +209,42 @@ def test_preflight_rejects_missing_waveform_scale(tmp_path: Path):
         preflight_tv3_raw_dsp_dataset(dataset_dir)
 
 
+def test_b6_mlp_config_matches_b1_feature_contract_plus_r5t_mlp_fields():
+    project_root = Path(__file__).resolve().parents[1]
+    ridge = json.loads((project_root / "configs" / "tv3_d2b_raw_dsp_ridge.json").read_text(encoding="utf-8"))
+    mlp = json.loads(
+        (project_root / "configs" / "tv3_d2b_raw_dsp_mlp_target_scaled.json").read_text(encoding="utf-8")
+    )
+    feature_keys = (
+        "feature_set",
+        "feature_builder",
+        "include_slow",
+        "slow_channels",
+        "physics_arrays",
+        "sequence_statistics",
+        "phase_windows",
+        "early_fractions",
+        "eval_splits",
+    )
+    for key in feature_keys:
+        assert mlp[key] == ridge[key], key
+    assert mlp["dataset_dir"] == ridge["dataset_dir"]
+    assert mlp["head"] == "mlp"
+    assert mlp["output_dir"] == "outputs/tv3_d2b/raw_dsp_mlp_target_scaled"
+    assert mlp["mlp_hidden_dims"] == [256, 128]
+    assert mlp["mlp_dropout"] == 0.1
+    assert mlp["mlp_weight_decay"] == 0.0001
+    assert mlp["mlp_lr"] == 0.001
+    assert mlp["mlp_batch_size"] == 256
+    assert mlp["mlp_max_epochs"] == 200
+    assert mlp["mlp_patience"] == 20
+    assert mlp["mlp_loss_weights"] == [1.0, 2.0, 1.0]
+    assert mlp["mlp_standardize_targets"] is True
+    assert mlp["seed"] == 20260704
+    assert mlp["device"] == "cuda"
+    assert "ridge_alphas" not in mlp
+
+
 def test_raw_dsp_ridge_smoke_runs_from_derived_cache(raw_dsp_dataset: Path, tmp_path: Path, capsys):
     preflight = preflight_tv3_raw_dsp_dataset(raw_dsp_dataset)
     build_tv3_raw_dsp_feature_cache(
@@ -229,9 +265,88 @@ def test_raw_dsp_ridge_smoke_runs_from_derived_cache(raw_dsp_dataset: Path, tmp_
 
     exit_code = run_rocket_main(["--config", str(config_path)])
     payload = json.loads(capsys.readouterr().out)
+    cache_manifest = json.loads(
+        (raw_dsp_dataset / "features" / "raw_dsp" / "raw_dsp_frame_v1" / "manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
 
     assert exit_code == 0
     assert payload["feature_builder"] == "d0_raw_dsp_physics_stats_v1"
     assert payload["head"] == "ridgecv"
     assert set(payload["evaluations"]) == {"train", "val", "test", "extrapolation"}
     assert (output_dir / "metrics.json").is_file()
+    provenance = payload["raw_dsp_provenance"]
+    assert provenance["build_signature"] == cache_manifest["build_signature"]
+    assert provenance["template_digest"] == cache_manifest["template_digest"]
+    assert provenance["template_mode"] == "train_baseline_median"
+    assert provenance["template_source_split"] == "train"
+    assert provenance["diagnostic_only"] is False
+    assert "train_val_o2_r2_gap" in payload["o2_audit"]
+    assert set(payload["o2_audit"]["delta_vs_b1_o2_r2"]) == {"val", "test", "extrapolation"}
+
+
+def test_raw_dsp_mlp_smoke_writes_provenance_and_target_scaled_diagnostics(
+    raw_dsp_dataset: Path,
+    tmp_path: Path,
+    capsys,
+):
+    preflight = preflight_tv3_raw_dsp_dataset(raw_dsp_dataset)
+    build_tv3_raw_dsp_feature_cache(
+        preflight,
+        template_mode="train_baseline_median",
+        template_max_frames=32,
+        workers=1,
+    )
+    project_root = Path(__file__).resolve().parents[1]
+    config = json.loads(
+        (project_root / "configs" / "tv3_d2b_raw_dsp_mlp_target_scaled.json").read_text(encoding="utf-8")
+    )
+    output_dir = tmp_path / "mlp_output"
+    config["dataset_dir"] = str(raw_dsp_dataset)
+    config["output_dir"] = str(output_dir)
+    config["device"] = "cpu"
+    config["mlp_hidden_dims"] = [32, 16]
+    config["mlp_batch_size"] = 8
+    config["mlp_max_epochs"] = 3
+    config["mlp_patience"] = 2
+    config_path = tmp_path / "mlp_config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    exit_code = run_rocket_main(["--config", str(config_path)])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["head"] == "mlp"
+    assert payload["feature_builder"] == "d0_raw_dsp_physics_stats_v1"
+    assert payload["diagnostics"]["model_config"]["standardize_targets"] is True
+    assert payload["diagnostics"]["parameter_count"] > 0
+    assert payload["raw_dsp_provenance"]["template_mode"] == "train_baseline_median"
+    assert payload["raw_dsp_provenance"]["diagnostic_only"] is False
+    assert "delta_vs_b1_o2_r2" in payload["o2_audit"]
+    assert (output_dir / "metrics.json").is_file()
+
+
+def test_raw_dsp_provenance_rejects_diagnostic_exact_template(tmp_path: Path):
+    from tv3.ml.rocket_training import load_raw_dsp_provenance
+
+    dataset_dir = tmp_path / "fake_dataset"
+    cache_dir = dataset_dir / "features" / "raw_dsp" / "raw_dsp_frame_v1"
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "tv3-raw-dsp-frame-1",
+                "complete_dataset": True,
+                "template_mode": "train_baseline_median",
+                "template_source_split": "train",
+                "diagnostic_only": True,
+                "build_signature": "a" * 64,
+                "template_digest": "b" * 64,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="diagnostic_only"):
+        load_raw_dsp_provenance(dataset_dir)

@@ -1,6 +1,6 @@
 # D2b / RawDSP 物理波形特征提取实施计划
 
-> 状态：**clean 6000 RawDSP cache 与 B1 Ridge parity 已完成并通过；manifest 审计完整，帧级 fidelity 数值尚待补齐**
+> 状态：**clean 6000 RawDSP cache、B1 Ridge parity 与 train-calibrated 帧级 fidelity 均已完成并通过；B6 配置与 provenance 已就绪，待服务器正式训练**
 > 日期：2026-07-10  
 > 依据：[掘进通风项目记忆库.md](../掘进通风项目记忆库.md)、[d2_tof_phasenet_implementation_plan.md](../archive/completed/d2_tof_phasenet_implementation_plan.md)、`tv3-formal-6000` 的 D0、D2、R5' 与 R5 结果，以及本地 raw waveform 只读诊断。
 
@@ -48,7 +48,7 @@ D2b 的首要验收不是直接把 O₂ R² 推到 0.70，而是证明 raw wavef
 
 三个 O₂ split 的差距均在 `0.05` parity 门内；CO₂/N₂ 的最大 R² 退化为 `0.0033`，小于 `0.03` 上限，且 `sum_abs_error` 近零。因此 B1 模型 parity 通过：RawDSP 特征可以替代 simulator-derived observed 特征作为可复现的线性 baseline 输入。
 
-当前同步的正式缓存仅含 manifest，未包含 peak MAE、P95、bias 与 sound-speed MAE 的汇总数值。故 train-calibrated 帧级 fidelity 仍标记为待补齐，不能将 manifest 记录或 B1 parity 替代该项证据。
+`outputs/tv3_d2b/raw_dsp_frame_fidelity/metrics.json` 已完成全量 3,072,000 帧审计。val/test/extrap 的 peak MAE 均约 `0.02185 sample`、P95 均为 `0.04443 sample`、bias 均约 `0.0147 sample`；最差 sound-speed MAE 为 extrapolation 的 `0.13671 m/s`，四项 gate 全部通过。所有帧 accepted，且没有 boundary hit 或 clipping。B1 parity 与 frame fidelity 现在是独立且均已通过的证据。
 
 ## 2. 背景与已验证事实
 
@@ -323,6 +323,7 @@ quality 规则必须显式、可审计，并在 manifest 中记录阈值。
 - `tv3/ml/rocket_features.py`
 - `configs/tv3_d2b_raw_dsp_ridge.json`
 - `scripts/audit_d2b_frame_fidelity.py`
+- `docs/active/d2b_raw_dsp_mlp_implementation_plan.md`
 
 实验：
 
@@ -500,7 +501,7 @@ python -m pytest -q
 - [x] timing/amplitude 双路语义测试完成。
 - [x] RawDSP cache 不写入 `sequences/`。
 - [x] B1 Ridge parity 在 clean 6000 完成并通过。
-- [ ] parity 通过后再运行 B5–B7。
+- [x] 按 `d2b_raw_dsp_mlp_implementation_plan.md` 完成 B6 配置与 provenance；正式单 seed 训练仍待服务器执行，B7 仅在 B6 完成判读后决定。
 - [x] val/test/extrap、O₂ bins 与 `sum_abs_error` 已在 B1 metrics 中生成。
-- [ ] 使用 `scripts/audit_d2b_frame_fidelity.py` 生成 clean 6000 train-calibrated frame fidelity 数值并回填。
+- [x] 使用 `scripts/audit_d2b_frame_fidelity.py` 生成并回填 clean 6000 train-calibrated frame fidelity 数值。
 - [x] 将正式结果同步回记忆库与本文档顶部状态。

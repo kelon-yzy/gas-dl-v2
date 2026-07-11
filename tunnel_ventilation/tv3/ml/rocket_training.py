@@ -17,17 +17,32 @@ from tv3.ml.minirocket_features import (
 )
 from tv3.ml.models import RidgeRegressor
 from tv3.ml.rocket_features import (
+    RAW_DSP_FEATURE_BUILDER,
+    RAW_DSP_FRAME_CACHE_ROOT,
     RocketFeatureCache,
     RocketFeatureConfig,
     build_tv3_physics_feature_cache,
     default_cache_dir,
     load_cached_split_feature_matrix,
 )
+from tv3.ml.raw_dsp_features import RAW_DSP_FRAME_SCHEMA_VERSION
 from tv3.ml.mlp_head import MlpHeadConfig, _ScaledMLPRegressor
 from tv3.ml.training import SplitEvaluation, evaluate_regressor
 
 
 DEFAULT_RIDGE_ALPHAS = (1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1.0, 3.0, 10.0, 30.0, 100.0)
+B1_RAW_DSP_RIDGE_O2_R2 = {
+    "val": 0.4280,
+    "test": 0.4786,
+    "extrapolation": 0.3695,
+}
+FORMAL_RAW_DSP_MANIFEST_CONTRACT = {
+    "schema_version": RAW_DSP_FRAME_SCHEMA_VERSION,
+    "complete_dataset": True,
+    "template_mode": "train_baseline_median",
+    "template_source_split": "train",
+    "diagnostic_only": False,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,13 +198,15 @@ def train_tv3_rocket_regressor(
 
 
 def rocket_training_payload(result: RocketTrainingResult) -> dict[str, Any]:
+    feature_builder = result.feature_cache.feature_config.feature_builder
     payload: dict[str, Any] = {
         "dataset_dir": str(result.dataset_dir),
         "cache_dir": str(result.cache_dir),
         "head": result.head,
         "train_split": result.train_split,
-        "feature_builder": result.feature_cache.feature_config.feature_builder,
+        "feature_builder": feature_builder,
         "feature_config": asdict(result.feature_cache.feature_config),
+        "feature_names": list(result.feature_names),
         "feature_count": len(result.feature_names),
         "label_names": list(result.label_names),
         "diagnostics": result.diagnostics,
@@ -203,7 +220,66 @@ def rocket_training_payload(result: RocketTrainingResult) -> dict[str, Any]:
             "sum_abs_error": split_eval.sum_abs_error,
             "sequence_count": len(split_eval.sequence_ids),
         }
+    if feature_builder == RAW_DSP_FEATURE_BUILDER:
+        payload["raw_dsp_provenance"] = load_raw_dsp_provenance(result.dataset_dir)
+        payload["o2_audit"] = _build_o2_audit(result.evaluations)
     return payload
+
+
+def load_raw_dsp_provenance(dataset_dir: Path | str) -> dict[str, Any]:
+    """Load and validate formal RawDSP frame-cache tracing fields for metrics.json."""
+    dataset_dir = Path(dataset_dir)
+    cache_dir = dataset_dir / RAW_DSP_FRAME_CACHE_ROOT
+    manifest_path = cache_dir / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"missing RawDSP frame cache manifest: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError(f"RawDSP cache manifest must be a JSON object: {manifest_path}")
+    for key, expected in FORMAL_RAW_DSP_MANIFEST_CONTRACT.items():
+        if manifest.get(key) != expected:
+            raise ValueError(
+                f"RawDSP cache manifest field {key!r} must be {expected!r}, got {manifest.get(key)!r}"
+            )
+    build_signature = manifest.get("build_signature")
+    template_digest = manifest.get("template_digest")
+    if not isinstance(build_signature, str) or not build_signature:
+        raise ValueError("RawDSP cache manifest is missing build_signature")
+    if not isinstance(template_digest, str) or not template_digest:
+        raise ValueError("RawDSP cache manifest is missing template_digest")
+    return {
+        "cache_dir": str(cache_dir),
+        "manifest_path": str(manifest_path),
+        "build_signature": build_signature,
+        "template_digest": template_digest,
+        "template_mode": manifest["template_mode"],
+        "template_source_split": manifest["template_source_split"],
+        "diagnostic_only": manifest["diagnostic_only"],
+        "schema_version": manifest["schema_version"],
+        "complete_dataset": manifest["complete_dataset"],
+    }
+
+
+def _component_r2(evaluations: dict[str, SplitEvaluation], split_name: str, component: str) -> float:
+    split_eval = evaluations[split_name]
+    return float(split_eval.component_metrics[component].r2)
+
+
+def _build_o2_audit(evaluations: dict[str, SplitEvaluation]) -> dict[str, Any]:
+    if "train" not in evaluations or "val" not in evaluations:
+        raise ValueError("RawDSP O2 audit requires train and val evaluations")
+    train_o2 = _component_r2(evaluations, "train", "x_O2")
+    val_o2 = _component_r2(evaluations, "val", "x_O2")
+    deltas_vs_b1: dict[str, float] = {}
+    for split_name, baseline in B1_RAW_DSP_RIDGE_O2_R2.items():
+        if split_name not in evaluations:
+            continue
+        deltas_vs_b1[split_name] = _component_r2(evaluations, split_name, "x_O2") - baseline
+    return {
+        "train_val_o2_r2_gap": train_o2 - val_o2,
+        "b1_raw_dsp_ridge_o2_r2": dict(B1_RAW_DSP_RIDGE_O2_R2),
+        "delta_vs_b1_o2_r2": deltas_vs_b1,
+    }
 
 
 def write_rocket_training_payload(result: RocketTrainingResult, output_path: Path | str) -> dict[str, Any]:
