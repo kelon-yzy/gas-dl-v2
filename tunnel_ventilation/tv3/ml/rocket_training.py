@@ -28,11 +28,22 @@ from tv3.ml.rocket_features import (
 )
 from tv3.ml.raw_dsp_features import RAW_DSP_FRAME_SCHEMA_VERSION
 from tv3.ml.mlp_head import MlpHeadConfig, _ScaledMLPRegressor
+from tv3.ml.ridge_residual_head import (
+    DEFAULT_OOF_FOLDS,
+    DEFAULT_OOF_SEED,
+    OofRidgeResidualMlpRegressor,
+)
 from tv3.ml.training import SplitEvaluation, evaluate_regressor
 
 
 DEFAULT_RIDGE_ALPHAS = (1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1.0, 3.0, 10.0, 30.0, 100.0)
 RAW_DSP_FIDELITY_SCHEMA_VERSION = "tv3-d2b-frame-fidelity-1"
+B7_HEAD = "oof_ridge_residual_mlp"
+B6_MULTISEED_EXPECTED_MEANS = {
+    "test": 0.5356,
+    "extrapolation": 0.4835,
+}
+B6_MULTISEED_EXPECTED_SEEDS = (42, 123, 456)
 FORMAL_RAW_DSP_MANIFEST_CONTRACT = {
     "schema_version": RAW_DSP_FRAME_SCHEMA_VERSION,
     "complete_dataset": True,
@@ -56,6 +67,7 @@ class RocketTrainingResult:
     raw_dsp_provenance: dict[str, Any] | None = None
     raw_dsp_fidelity: dict[str, Any] | None = None
     raw_dsp_reference: dict[str, Any] | None = None
+    b6_reference: dict[str, Any] | None = None
 
 
 class _ScaledRidgeCVRegressor:
@@ -134,8 +146,11 @@ def train_tv3_rocket_regressor(
     closed_form_alpha: float = 1.0,
     device: str = "auto",
     mlp_config: MlpHeadConfig | None = None,
+    oof_folds: int = DEFAULT_OOF_FOLDS,
+    oof_seed: int = DEFAULT_OOF_SEED,
     raw_dsp_fidelity_metrics_path: Path | str | None = None,
     raw_dsp_reference_metrics_path: Path | str | None = None,
+    b6_multiseed_report_path: Path | str | None = None,
 ) -> RocketTrainingResult:
     dataset_dir = Path(dataset_dir)
     if feature_config is None:
@@ -143,14 +158,25 @@ def train_tv3_rocket_regressor(
     raw_dsp_provenance: dict[str, Any] | None = None
     raw_dsp_fidelity: dict[str, Any] | None = None
     raw_dsp_reference: dict[str, Any] | None = None
+    b6_reference: dict[str, Any] | None = None
     if feature_config.feature_builder != RAW_DSP_FEATURE_BUILDER and (
-        raw_dsp_fidelity_metrics_path is not None or raw_dsp_reference_metrics_path is not None
+        raw_dsp_fidelity_metrics_path is not None
+        or raw_dsp_reference_metrics_path is not None
+        or b6_multiseed_report_path is not None
     ):
         raise ValueError("RawDSP evidence paths require the RawDSP feature builder")
     if feature_config.feature_builder == RAW_DSP_FEATURE_BUILDER:
         if (raw_dsp_fidelity_metrics_path is None) != (raw_dsp_reference_metrics_path is None):
             raise ValueError(
                 "RawDSP fidelity and reference metrics paths must be provided together for a compared run"
+            )
+        if head == B7_HEAD and (
+            raw_dsp_fidelity_metrics_path is None
+            or raw_dsp_reference_metrics_path is None
+            or b6_multiseed_report_path is None
+        ):
+            raise ValueError(
+                "B7 requires RawDSP fidelity, B1 reference metrics, and B6 multiseed report paths"
             )
         raw_dsp_provenance = load_raw_dsp_provenance(dataset_dir)
         if raw_dsp_fidelity_metrics_path is not None:
@@ -165,6 +191,12 @@ def train_tv3_rocket_regressor(
                 feature_config=feature_config,
                 provenance=raw_dsp_provenance,
             )
+        if b6_multiseed_report_path is not None:
+            if head != B7_HEAD:
+                raise ValueError("b6_multiseed_report_path is only valid for the B7 residual head")
+            b6_reference = load_b6_multiseed_report(b6_multiseed_report_path)
+    elif head == B7_HEAD:
+        raise ValueError("B7 oof_ridge_residual_mlp requires the RawDSP feature builder")
     feature_builder = feature_config.feature_builder
     cache_path = Path(cache_dir) if cache_dir is not None else default_cache_dir(dataset_dir, feature_builder)
     if isinstance(feature_config, MiniRocketFeatureConfig):
@@ -189,9 +221,11 @@ def train_tv3_rocket_regressor(
         closed_form_alpha=closed_form_alpha,
         device=device,
         mlp_config=resolved_mlp_config,
+        oof_folds=oof_folds,
+        oof_seed=oof_seed,
     )
     fit_kwargs: dict[str, Any] = {"feature_names": train_matrix.feature_names}
-    if head == "mlp":
+    if head in {"mlp", B7_HEAD}:
         val_matrix = load_cached_split_feature_matrix(dataset_dir, cache_path, split="val")
         _validate_feature_contract(val_matrix, train_matrix)
         fit_kwargs["x_val"] = val_matrix.x
@@ -211,6 +245,25 @@ def train_tv3_rocket_regressor(
         )
 
     diagnostics = _model_diagnostics(model, head=head, feature_names=train_matrix.feature_names, label_names=train_matrix.label_names)
+    if head == B7_HEAD:
+        assert b6_reference is not None
+        assert raw_dsp_reference is not None
+        diagnostics = {
+            **diagnostics,
+            "feature_builder": feature_builder,
+            "feature_count": len(train_matrix.feature_names),
+            "b1_reference": {
+                "metrics_path": raw_dsp_reference["metrics_path"],
+                "metrics_sha256": raw_dsp_reference["metrics_sha256"],
+                "o2_r2": dict(raw_dsp_reference["o2_r2"]),
+            },
+            "b6_reference": {
+                "report_path": b6_reference["report_path"],
+                "report_sha256": b6_reference["report_sha256"],
+                "o2_r2_means": dict(b6_reference["o2_r2_means"]),
+                "verdict": b6_reference["verdict"],
+            },
+        }
     return RocketTrainingResult(
         head=head,
         dataset_dir=dataset_dir,
@@ -224,6 +277,7 @@ def train_tv3_rocket_regressor(
         raw_dsp_provenance=raw_dsp_provenance,
         raw_dsp_fidelity=raw_dsp_fidelity,
         raw_dsp_reference=raw_dsp_reference,
+        b6_reference=b6_reference,
     )
 
 
@@ -257,7 +311,61 @@ def rocket_training_payload(result: RocketTrainingResult) -> dict[str, Any]:
             payload["raw_dsp_fidelity"] = result.raw_dsp_fidelity
         if result.raw_dsp_reference is not None:
             payload["o2_audit"] = _build_o2_audit(result.evaluations, result.raw_dsp_reference)
+        if result.b6_reference is not None:
+            payload["b6_reference"] = result.b6_reference
+            payload["o2_audit"] = {
+                **payload.get("o2_audit", {}),
+                "delta_vs_b6_o2_r2_means": {
+                    split_name: _component_r2(result.evaluations, split_name, "x_O2") - mean_value
+                    for split_name, mean_value in result.b6_reference["o2_r2_means"].items()
+                    if split_name in result.evaluations
+                },
+            }
     return payload
+
+
+def load_b6_multiseed_report(report_path: Path | str) -> dict[str, Any]:
+    """Validate the frozen B6 multiseed replication report used as B7 paired baseline."""
+    report_path = Path(report_path)
+    payload = _read_json_object(report_path, description="B6 multiseed report")
+    groups = payload.get("groups")
+    if not isinstance(groups, dict) or "b6" not in groups:
+        raise ValueError("B6 multiseed report is missing groups.b6")
+    b6 = groups["b6"]
+    if not isinstance(b6, dict):
+        raise ValueError("B6 multiseed report groups.b6 must be an object")
+    if b6.get("verdict") != "stable_pass":
+        raise ValueError(f"B6 multiseed report verdict must be 'stable_pass', got {b6.get('verdict')!r}")
+    completed_seeds = tuple(int(seed) for seed in b6.get("completed_seeds", ()))
+    if completed_seeds != B6_MULTISEED_EXPECTED_SEEDS:
+        raise ValueError(
+            f"B6 multiseed report completed_seeds must be {B6_MULTISEED_EXPECTED_SEEDS}, got {completed_seeds}"
+        )
+    stats = b6.get("o2_r2_stats")
+    if not isinstance(stats, dict):
+        raise ValueError("B6 multiseed report is missing o2_r2_stats")
+    o2_r2_means: dict[str, float] = {}
+    for split_name, expected_mean in B6_MULTISEED_EXPECTED_MEANS.items():
+        split_stats = stats.get(split_name)
+        if not isinstance(split_stats, dict) or "mean" not in split_stats:
+            raise ValueError(f"B6 multiseed report is missing o2_r2_stats.{split_name}.mean")
+        mean_value = float(split_stats["mean"])
+        if abs(mean_value - expected_mean) > 1e-4:
+            raise ValueError(
+                f"B6 multiseed report {split_name} mean {mean_value} does not match frozen {expected_mean}"
+            )
+        o2_r2_means[split_name] = mean_value
+    val_stats = stats.get("val")
+    if isinstance(val_stats, dict) and "mean" in val_stats:
+        o2_r2_means["val"] = float(val_stats["mean"])
+    return {
+        "report_path": str(report_path),
+        "report_sha256": _file_sha256(report_path),
+        "verdict": b6["verdict"],
+        "completed_seeds": list(completed_seeds),
+        "o2_r2_means": o2_r2_means,
+        "pass_count": b6.get("pass_count"),
+    }
 
 
 def load_raw_dsp_provenance(dataset_dir: Path | str) -> dict[str, Any]:
@@ -446,6 +554,8 @@ def _build_head(
     closed_form_alpha: float,
     device: str = "auto",
     mlp_config: MlpHeadConfig | None = None,
+    oof_folds: int = DEFAULT_OOF_FOLDS,
+    oof_seed: int = DEFAULT_OOF_SEED,
 ) -> Any:
     if head == "ridgecv":
         return _ScaledRidgeCVRegressor(alphas=ridge_alphas)
@@ -455,7 +565,17 @@ def _build_head(
         return _TabPFNMultiRegressor(device=device)
     if head == "mlp":
         return _ScaledMLPRegressor(config=mlp_config or MlpHeadConfig(device=device))
-    raise ValueError(f"unsupported rocket head {head!r}. available=('ridgecv', 'ridge_closed_form', 'tabpfn', 'mlp')")
+    if head == B7_HEAD:
+        return OofRidgeResidualMlpRegressor(
+            ridge_alphas=ridge_alphas,
+            mlp_config=mlp_config or MlpHeadConfig(device=device),
+            oof_folds=oof_folds,
+            oof_seed=oof_seed,
+        )
+    raise ValueError(
+        f"unsupported rocket head {head!r}. "
+        "available=('ridgecv', 'ridge_closed_form', 'tabpfn', 'mlp', 'oof_ridge_residual_mlp')"
+    )
 
 
 def _validate_feature_contract(matrix: MLFeatureMatrix, reference: MLFeatureMatrix) -> None:
@@ -490,6 +610,8 @@ def _model_diagnostics(
             "best_val_o2_r2": model.best_val_o2_r2,
             "standardize_targets": model.config.standardize_targets,
         }
+    elif head == B7_HEAD:
+        return dict(model.diagnostics)
     else:
         raise ValueError(f"unsupported diagnostics head {head!r}")
     if coef.ndim == 1:

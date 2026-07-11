@@ -1,0 +1,70 @@
+{
+  "dataset_dir": "data/tv3-formal-6000",
+  "output_dir": "outputs/tv3_d2b/b7_oof_ridge_residual_mlp",
+  "raw_dsp_fidelity_metrics_path": "outputs/tv3_d2b/raw_dsp_frame_fidelity/metrics.json",
+  "raw_dsp_reference_metrics_path": "outputs/tv3_d2b/raw_dsp_ridge_provenance/metrics.json",
+  "b6_multiseed_report_path": "outputs/tv3_r5t_b6_multiseed/replication_report.json",
+  "overwrite": false,
+  "feature_set": "physics_stats",
+  "head": "oof_ridge_residual_mlp",
+  "feature_builder": "d0_raw_dsp_physics_stats_v1",
+  "include_slow": true,
+  "slow_channels": [
+    "V_NDIR_CO2",
+    "V_TCS",
+    "T_C",
+    "P_MPa",
+    "H_RH",
+    "L_m",
+    "piston_position_m"
+  ],
+  "physics_arrays": [
+    "ultrasonic_tof_observed_raw_dsp_s",
+    "ultrasonic_peak_index_raw_dsp",
+    "ultrasonic_sound_speed_raw_dsp_m_per_s",
+    "ultrasonic_corr_peak",
+    "ultrasonic_snr_db",
+    "ultrasonic_raw_dsp_quality",
+    "ultrasonic_raw_dsp_accepted"
+  ],
+  "sequence_statistics": [
+    "mean",
+    "std",
+    "min",
+    "max",
+    "range",
+    "first",
+    "last",
+    "delta",
+    "slope"
+  ],
+  "phase_windows": [
+    "baseline",
+    "exposure",
+    "steady",
+    "recovery"
+  ],
+  "early_fractions": [
+    0.25,
+    0.5,
+    0.75
+  ],
+  "eval_splits": [
+    "val",
+    "test",
+    "extrapolation"
+  ],
+  "device": "cuda",
+  "mlp_hidden_dims": [64, 64],
+  "mlp_dropout": 0.1,
+  "mlp_weight_decay": 0.0001,
+  "mlp_lr": 0.001,
+  "mlp_batch_size": 256,
+  "mlp_max_epochs": 200,
+  "mlp_patience": 20,
+  "mlp_loss_weights": [1.0, 2.0, 1.0],
+  "mlp_standardize_targets": true,
+  "oof_folds": 5,
+  "oof_seed": 20260711,
+  "seed": 20260704
+}

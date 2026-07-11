@@ -23,6 +23,7 @@ from tv3.ml.rocket_features import (
     RocketFeatureConfig,
 )
 from tv3.ml.mlp_head import MlpHeadConfig
+from tv3.ml.ridge_residual_head import DEFAULT_OOF_FOLDS, DEFAULT_OOF_SEED
 from tv3.ml.rocket_training import (
     DEFAULT_RIDGE_ALPHAS,
     rocket_training_payload,
@@ -62,9 +63,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "mlp_patience": 20,
     "mlp_loss_weights": "1.0,2.0,1.0",
     "mlp_standardize_targets": False,
+    "oof_folds": DEFAULT_OOF_FOLDS,
+    "oof_seed": DEFAULT_OOF_SEED,
     "seed": 20260704,
     "raw_dsp_fidelity_metrics_path": None,
     "raw_dsp_reference_metrics_path": None,
+    "b6_multiseed_report_path": None,
     "overwrite": False,
 }
 
@@ -83,7 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, default=None, help="Where to write metrics.json.")
     parser.add_argument("--cache-dir", type=Path, default=None, help="Optional feature cache directory.")
     parser.add_argument("--feature-set", choices=("physics_stats", "minirocket_scalar", "minirocket_raw"), default=None, help="Feature family to run.")
-    parser.add_argument("--head", choices=("ridgecv", "ridge_closed_form", "tabpfn", "mlp"), default=None, help="Regression head.")
+    parser.add_argument("--head", choices=("ridgecv", "ridge_closed_form", "tabpfn", "mlp", "oof_ridge_residual_mlp"), default=None, help="Regression head.")
     parser.add_argument("--feature-builder", type=str, default=None, help="Feature builder cache name. Overrides feature_set's default mapping if given.")
     parser.add_argument("--include-slow", type=str, default=None, help="true/false.")
     parser.add_argument("--slow-channels", type=str, default=None, help="Comma-separated slow channel allowlist.")
@@ -109,9 +113,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mlp-patience", type=int, default=None, help="MLP early-stop patience on val O2 R2.")
     parser.add_argument("--mlp-loss-weights", type=str, default=None, help="Comma-separated per-target MLP loss weights.")
     parser.add_argument("--mlp-standardize-targets", type=str, default=None, help="true/false; standardize each raw target only during MLP optimization.")
+    parser.add_argument("--oof-folds", type=int, default=None, help="OOF fold count for oof_ridge_residual_mlp.")
+    parser.add_argument("--oof-seed", type=int, default=None, help="OOF KFold seed for oof_ridge_residual_mlp (independent of MLP seed).")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for MLP training.")
     parser.add_argument("--raw-dsp-fidelity-metrics-path", type=Path, default=None, help="Passed frame-fidelity metrics.json required for compared RawDSP runs.")
     parser.add_argument("--raw-dsp-reference-metrics-path", type=Path, default=None, help="Verified B1 metrics.json for compared RawDSP runs.")
+    parser.add_argument("--b6-multiseed-report-path", type=Path, default=None, help="Frozen B6 multiseed replication_report.json required for B7.")
     parser.add_argument("--overwrite", action="store_true", default=None, help="Explicitly allow overwriting an existing metrics.json.")
     return parser
 
@@ -151,9 +158,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         ridge_alphas=_parse_float_csv(args.ridge_alphas),
         closed_form_alpha=args.closed_form_alpha,
         device=args.device,
-        mlp_config=_build_mlp_config(args) if args.head == "mlp" else None,
+        mlp_config=_build_mlp_config(args) if args.head in {"mlp", "oof_ridge_residual_mlp"} else None,
+        oof_folds=int(args.oof_folds),
+        oof_seed=int(args.oof_seed),
         raw_dsp_fidelity_metrics_path=args.raw_dsp_fidelity_metrics_path,
         raw_dsp_reference_metrics_path=args.raw_dsp_reference_metrics_path,
+        b6_multiseed_report_path=args.b6_multiseed_report_path,
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = write_rocket_training_payload(result, output_dir / "metrics.json")
@@ -223,6 +233,11 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
     config["raw_dsp_reference_metrics_path"] = (
         Path(config["raw_dsp_reference_metrics_path"])
         if config.get("raw_dsp_reference_metrics_path") is not None
+        else None
+    )
+    config["b6_multiseed_report_path"] = (
+        Path(config["b6_multiseed_report_path"])
+        if config.get("b6_multiseed_report_path") is not None
         else None
     )
     config["include_slow"] = _parse_bool(config["include_slow"])

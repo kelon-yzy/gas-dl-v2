@@ -21,6 +21,7 @@ class MlpHeadConfig:
     patience: int = 20
     loss_weights: tuple[float, ...] = (1.0, 2.0, 1.0)
     standardize_targets: bool = False
+    zero_init_output: bool = False
     device: str = "auto"
     seed: int = 20260704
     out_dim: int = 3
@@ -52,6 +53,7 @@ class _ScaledMLPRegressor:
         x_val: np.ndarray | None = None,
         y_val: np.ndarray | None = None,
         label_names: tuple[str, ...] | None = None,
+        early_stop_combine_base: np.ndarray | None = None,
     ) -> _ScaledMLPRegressor:
         import torch
         from torch.utils.data import DataLoader, TensorDataset
@@ -72,6 +74,18 @@ class _ScaledMLPRegressor:
             raise ValueError("x_val feature dimension must match x")
         if label_names is None:
             raise ValueError("mlp head requires label_names to monitor val O2 R2")
+        combine_base: np.ndarray | None = None
+        if early_stop_combine_base is not None:
+            combine_base = _as_finite_2d(
+                early_stop_combine_base,
+                name="early_stop_combine_base",
+                expected_cols=self.config.out_dim,
+            )
+            if combine_base.shape[0] != y_val_arr.shape[0]:
+                raise ValueError(
+                    "early_stop_combine_base row count must match y_val, "
+                    f"got {combine_base.shape[0]} and {y_val_arr.shape[0]}"
+                )
 
         _set_seed(self.config.seed)
         self._device = _resolve_device(self.config.device)
@@ -85,11 +99,12 @@ class _ScaledMLPRegressor:
             self.target_scaler = None
             y_train_for_loss = y_arr
 
-        module = _build_raw3_mlp(
+        module = build_raw3_mlp(
             in_dim=x_scaled.shape[1],
             hidden_dims=self.config.hidden_dims,
             out_dim=self.config.out_dim,
             dropout=self.config.dropout,
+            zero_init_output=self.config.zero_init_output,
         ).to(self._device)
         self.parameter_count = sum(parameter.numel() for parameter in module.parameters())
 
@@ -138,7 +153,11 @@ class _ScaledMLPRegressor:
 
             module.eval()
             with torch.no_grad():
-                val_predictions = self._decode_predictions(module(x_val_tensor).cpu().numpy())
+                residual_predictions = self._decode_predictions(module(x_val_tensor).cpu().numpy())
+            if combine_base is None:
+                val_predictions = residual_predictions
+            else:
+                val_predictions = combine_base + residual_predictions
             val_o2_r2 = _o2_r2(val_predictions, y_val_arr, label_names)
             if val_o2_r2 > best_val_o2_r2:
                 best_val_o2_r2 = val_o2_r2
@@ -182,12 +201,13 @@ class _ScaledMLPRegressor:
         return self.target_scaler.inverse_transform(predictions)
 
 
-def _build_raw3_mlp(
+def build_raw3_mlp(
     *,
     in_dim: int,
     hidden_dims: Sequence[int],
     out_dim: int,
     dropout: float,
+    zero_init_output: bool = False,
 ):
     from torch import nn
 
@@ -211,8 +231,16 @@ def _build_raw3_mlp(
         if dropout > 0.0:
             layers.append(nn.Dropout(dropout))
         current = hidden_int
-    layers.append(nn.Linear(current, out_dim))
+    output_layer = nn.Linear(current, out_dim)
+    if zero_init_output:
+        nn.init.zeros_(output_layer.weight)
+        nn.init.zeros_(output_layer.bias)
+    layers.append(output_layer)
     return nn.Sequential(*layers)
+
+
+# Backward-compatible alias used by older tests/imports.
+_build_raw3_mlp = build_raw3_mlp
 
 
 def _resolve_device(device: str):

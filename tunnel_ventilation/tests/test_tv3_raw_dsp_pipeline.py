@@ -368,6 +368,151 @@ def test_raw_dsp_mlp_smoke_writes_provenance_and_target_scaled_diagnostics(
     assert (output_dir / "metrics.json").is_file()
 
 
+def _write_b6_multiseed_report(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "seeds": [42, 123, 456],
+                "groups": {
+                    "b6": {
+                        "verdict": "stable_pass",
+                        "pass_count": 3,
+                        "completed_seeds": [42, 123, 456],
+                        "o2_r2_stats": {
+                            "val": {"mean": 0.5581, "std": 0.0096},
+                            "test": {"mean": 0.5356, "std": 0.0170},
+                            "extrapolation": {"mean": 0.4835, "std": 0.0036},
+                        },
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_raw_dsp_b7_smoke_writes_oof_diagnostics_and_b6_reference(
+    raw_dsp_dataset: Path,
+    tmp_path: Path,
+    capsys,
+):
+    preflight = preflight_tv3_raw_dsp_dataset(raw_dsp_dataset)
+    build_tv3_raw_dsp_feature_cache(
+        preflight,
+        template_mode="train_baseline_median",
+        template_max_frames=32,
+        workers=1,
+    )
+    project_root = Path(__file__).resolve().parents[1]
+    b1_config = json.loads(
+        (project_root / "configs" / "tv3_d2b_raw_dsp_ridge.json").read_text(encoding="utf-8")
+    )
+    b1_output_dir = tmp_path / "b1_output"
+    b1_config["dataset_dir"] = str(raw_dsp_dataset)
+    b1_config["output_dir"] = str(b1_output_dir)
+    b1_config_path = tmp_path / "b1_config.json"
+    b1_config_path.write_text(json.dumps(b1_config), encoding="utf-8")
+    assert run_rocket_main(["--config", str(b1_config_path)]) == 0
+    capsys.readouterr()
+
+    config = json.loads(
+        (project_root / "configs" / "tv3_d2b_oof_ridge_residual_mlp.json").read_text(encoding="utf-8")
+    )
+    output_dir = tmp_path / "b7_output"
+    config["dataset_dir"] = str(raw_dsp_dataset)
+    config["output_dir"] = str(output_dir)
+    config["device"] = "cpu"
+    config["mlp_hidden_dims"] = [16, 16]
+    config["mlp_batch_size"] = 8
+    config["mlp_max_epochs"] = 3
+    config["mlp_patience"] = 2
+    config["oof_folds"] = 3
+    config["raw_dsp_fidelity_metrics_path"] = str(
+        _write_passed_fidelity_metrics(
+            raw_dsp_dataset,
+            raw_dsp_dataset / "features" / "raw_dsp" / "raw_dsp_frame_v1",
+            tmp_path / "fidelity_b7",
+        )
+    )
+    config["raw_dsp_reference_metrics_path"] = str(b1_output_dir / "metrics.json")
+    config["b6_multiseed_report_path"] = str(
+        _write_b6_multiseed_report(tmp_path / "b6_multiseed" / "replication_report.json")
+    )
+    config_path = tmp_path / "b7_config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    exit_code = run_rocket_main(["--config", str(config_path)])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["head"] == "oof_ridge_residual_mlp"
+    assert payload["feature_builder"] == "d0_raw_dsp_physics_stats_v1"
+    assert payload["diagnostics"]["oof"]["fold_count"] == 3
+    assert payload["diagnostics"]["oof"]["fold_seed"] == 20260711
+    assert payload["diagnostics"]["oof"]["coverage_complete"] is True
+    assert payload["diagnostics"]["ridge"]["full_selected_alpha"] > 0.0
+    assert payload["diagnostics"]["residual_mlp"]["parameter_count"] > 0
+    assert payload["diagnostics"]["residual_mlp"]["zero_init_output"] is True
+    assert payload["diagnostics"]["b1_reference"]["metrics_sha256"]
+    assert payload["diagnostics"]["b6_reference"]["report_sha256"]
+    assert payload["raw_dsp_fidelity"]["status"] == "passed"
+    assert "delta_vs_b1_o2_r2" in payload["o2_audit"]
+    assert "delta_vs_b6_o2_r2_means" in payload["o2_audit"]
+    assert payload["b6_reference"]["verdict"] == "stable_pass"
+    assert (output_dir / "metrics.json").is_file()
+
+
+def test_raw_dsp_b7_rejects_missing_b6_multiseed_report(
+    raw_dsp_dataset: Path,
+    tmp_path: Path,
+):
+    preflight = preflight_tv3_raw_dsp_dataset(raw_dsp_dataset)
+    build_tv3_raw_dsp_feature_cache(
+        preflight,
+        template_mode="train_baseline_median",
+        template_max_frames=32,
+        workers=1,
+    )
+    project_root = Path(__file__).resolve().parents[1]
+    b1_config = json.loads(
+        (project_root / "configs" / "tv3_d2b_raw_dsp_ridge.json").read_text(encoding="utf-8")
+    )
+    b1_output_dir = tmp_path / "b1_output"
+    b1_config["dataset_dir"] = str(raw_dsp_dataset)
+    b1_config["output_dir"] = str(b1_output_dir)
+    b1_config_path = tmp_path / "b1_config.json"
+    b1_config_path.write_text(json.dumps(b1_config), encoding="utf-8")
+    assert run_rocket_main(["--config", str(b1_config_path)]) == 0
+
+    config = json.loads(
+        (project_root / "configs" / "tv3_d2b_oof_ridge_residual_mlp.json").read_text(encoding="utf-8")
+    )
+    config["dataset_dir"] = str(raw_dsp_dataset)
+    config["output_dir"] = str(tmp_path / "b7_missing_b6")
+    config["device"] = "cpu"
+    config["mlp_hidden_dims"] = [8]
+    config["mlp_batch_size"] = 8
+    config["mlp_max_epochs"] = 1
+    config["mlp_patience"] = 1
+    config["oof_folds"] = 2
+    config["raw_dsp_fidelity_metrics_path"] = str(
+        _write_passed_fidelity_metrics(
+            raw_dsp_dataset,
+            raw_dsp_dataset / "features" / "raw_dsp" / "raw_dsp_frame_v1",
+            tmp_path / "fidelity_missing",
+        )
+    )
+    config["raw_dsp_reference_metrics_path"] = str(b1_output_dir / "metrics.json")
+    config.pop("b6_multiseed_report_path", None)
+    config_path = tmp_path / "b7_missing.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="B6 multiseed report"):
+        run_rocket_main(["--config", str(config_path)])
+
+
 def test_raw_dsp_provenance_rejects_diagnostic_exact_template(tmp_path: Path):
     from tv3.ml.rocket_training import load_raw_dsp_provenance
 
