@@ -1,9 +1,10 @@
 # B6：RawDSP Frozen Features + Target-Scaled MLP 实施计划
 
-> 状态：**代码与配置已就绪，待服务器正式训练**  
+> 状态：**单 seed 正式验收通过（证据链完整）；待多 seed 稳定性复核**  
 > 日期：2026-07-11  
 > 前置证据：[D2b RawDSP 计划](d2b_raw_dsp_implementation_plan.md)的 B1 Ridge parity 与 clean 6000 帧级 fidelity 均已通过。  
-> 目标：在不读取 simulator-derived observed 数组的条件下，检验 R5-T 的非线性收益能否由已验证的 RawDSP 特征链路承接。
+> 目标：在不读取 simulator-derived observed 数组的条件下，检验 R5-T 的非线性收益能否由已验证的 RawDSP 特征链路承接。  
+> 正式产物：`outputs/tv3_d2b/raw_dsp_mlp_target_scaled_v2/metrics.json`（绑定 fidelity 与 `raw_dsp_ridge_provenance`）。
 
 ## 1. 当前事实与问题定义
 
@@ -27,7 +28,7 @@
 | --- | ---: | ---: | ---: | --- |
 | B1 RawDSP Ridge | 0.4280 | 0.4786 | 0.3695 | 已通过的可部署线性基线 |
 | R5-T observed MLP | 0.6642 | 0.6462 | 0.5815 | simulator-derived observed 特征上的非线性上限对照 |
-| B6 RawDSP MLP | 待测 | 待测 | 待测 | 本计划目标 |
+| B6 RawDSP MLP | 0.5629 | 0.5244 | 0.4957 | 单 seed 通过；相对 B1 +0.1348 / +0.0458 / +0.1262 |
 
 R5-T 不是 B6 的通过线。B6 的正式比较对象是 B1，因为两者共享可部署的 RawDSP 特征来源。
 
@@ -171,6 +172,32 @@ B6 只有同时满足以下条件才通过：
 
 R5-T observed 的 `0.6642 / 0.6462 / 0.5815` 只用于解释可学习非线性上限；B6 即使低于该结果，只要超过 B1 并满足三 split 同步条件，仍可作为可部署增益成立。
 
+### 5.4 2026-07-11 单 seed 正式结果
+
+正式产物：`outputs/tv3_d2b/raw_dsp_mlp_target_scaled_v2/metrics.json`。
+
+| 项 | 值 |
+| --- | --- |
+| seed | `20260704` |
+| best epoch | `20` |
+| best val O₂ R² | `0.5629` |
+| parameter count | `291587` |
+| train / val / test / extrap O₂ R² | `0.8367 / 0.5629 / 0.5244 / 0.4957` |
+| Δ vs B1（val / test / extrap） | `+0.1348 / +0.0458 / +0.1262` |
+| train−val O₂ gap | `0.274` |
+| val `sum_abs_error` | `0.0541`（raw3 监控；不以闭包替代 O₂ 判据） |
+
+证据链：
+
+- `raw_dsp_fidelity.status=passed`，`metrics_sha256=5ad971e5475da18d7e51841547126f5c2eeae707b5f38f039af4939029379e44`
+- `reference_metrics_path=outputs/tv3_d2b/raw_dsp_ridge_provenance/metrics.json`
+- `reference_metrics_sha256=59adb1ec95fd292ec9c6a42110c049e460210b0dc07e3d393ca379891bcb6bc2`
+- RawDSP `build_signature` / `template_digest` 与 fidelity、B1 provenance 一致
+
+判读：三 eval split 同步超过 B1，单 seed 正式验收通过。相对 R5-T observed（0.6642 / 0.6462 / 0.5815）仍低，符合“可部署 RawDSP 上限低于 simulator-derived observed 上限”的预期。旧目录 `raw_dsp_mlp_target_scaled/` 为证据链加固前产物，数值相同但缺少 fidelity / reference sha，不以它作为正式验收锚点。
+
+2026-07-11 多 seed 复核已完成：新增 seeds `42/123/456` 全部通过 B6 三 split 门槛，val/test/extrap O₂ R²均值±标准差为 `0.5581±0.0096 / 0.5356±0.0170 / 0.4835±0.0036`。正式汇总见 `outputs/tv3_r5t_b6_multiseed/replication_report.json`；B6 在当前 random split 下 stable_pass，可进入 B7 OOF Ridge residual 对照。当前 extrapolation 仍非物理 OOD。
+
 ## 6. 代码、测试与文档更新
 
 `tv3.pipeline.run_tv3_rocket_baseline` 已支持 `head=mlp` 和 `mlp_standardize_targets`，不新增第二个训练实现。实施范围限于 B6 配置、RawDSP provenance payload 和对应测试。
@@ -184,7 +211,7 @@ python -m tv3.pipeline.run_tv3_rocket_baseline \
   --config configs/tv3_d2b_raw_dsp_mlp_target_scaled.json
 ```
 
-服务器正式结果回填后，更新本文件、`d2b_raw_dsp_implementation_plan.md`、项目记忆库和 `docs/active/README.md`；未验收的单 seed 结果不得提前写为“可部署模型通过”。
+正式结果已回填本文件、`d2b_raw_dsp_implementation_plan.md`、项目记忆库与 `docs/active/README.md`。
 
 ## 7. 检查清单
 
@@ -192,19 +219,15 @@ python -m tv3.pipeline.run_tv3_rocket_baseline \
 - [x] clean 6000 train-calibrated frame fidelity 已通过。
 - [x] 新增 B6 配置，特征字段逐项与 B1 一致。
 - [x] 为 RawDSP feature builder 写入并测试 `raw_dsp_provenance`。
-- [ ] 运行 B6 单 seed 正式训练。
-- [ ] 审计三 eval split、bins、closure、feature tracing 与 train-val gap。
-- [ ] 按通过线决定多 seed 复核或进入 B7。
+- [x] 运行 B6 单 seed 正式训练（正式产物为 `raw_dsp_mlp_target_scaled_v2`）。
+- [x] 审计三 eval split、bins、closure、feature tracing 与 train-val gap。
+- [ ] 多 seed 稳定性复核后，再决定是否进入 B7。
 
-### 7.1 2026-07-11 本地实施记录
+### 7.1 2026-07-11 实施记录
 
 已完成：
 
-1. `configs/tv3_d2b_raw_dsp_mlp_target_scaled.json`：特征契约与 B1 一致，MLP 字段复用 R5-T。
-2. `tv3/ml/rocket_training.py`：RawDSP 路径写入 `raw_dsp_provenance` 与 `o2_audit`（含 train−val O₂ gap、相对 B1 差值）；正式 cache 契约不符时直接失败。
-3. 最小验证通过：`tests/test_d2b_frame_fidelity_audit.py`、`tests/test_tv3_r5_mlp.py`、`tests/test_tv3_raw_dsp_pipeline.py` 共 23 passed。
-
-未完成：
-
-- 本地 `data/tv3-formal-6000/` 仅有 features 缓存，缺少 `manifest.json` 与完整序列数组，无法在本机跑正式 B6。
-- 服务器命令仍按 §4.2 执行；结果回填前不得把单 seed 写成可部署通过。
+1. `configs/tv3_d2b_raw_dsp_mlp_target_scaled.json`：特征契约与 B1 一致，MLP 字段复用 R5-T；并绑定 fidelity / B1 provenance 路径。
+2. `tv3/ml/rocket_training.py`：RawDSP 路径写入 `raw_dsp_provenance`、`raw_dsp_fidelity` 与证据驱动的 `o2_audit`；正式 cache 或证据不符时直接失败。
+3. 最小验证通过后，服务器完成单 seed 正式训练；本地已回填 `raw_dsp_mlp_target_scaled_v2/metrics.json`。
+4. 三 eval split 相对锁定 B1 全部通过；证据 sha 与本地 fidelity / ridge provenance 文件一致。

@@ -4,36 +4,14 @@ from dataclasses import asdict, replace
 from typing import Any
 
 import numpy as np
-from sklearn.linear_model import RidgeCV
 from sklearn.model_selection import KFold
-from sklearn.preprocessing import StandardScaler
 
 from tv3.ml.mlp_head import MlpHeadConfig, _ScaledMLPRegressor
+from tv3.ml.ridge_head import ScaledRidgeCVRegressor
 
 
 DEFAULT_OOF_FOLDS = 5
 DEFAULT_OOF_SEED = 20260711
-
-
-class _ScaledRidgeCVRegressor:
-    """Train-only StandardScaler + RidgeCV; identical contract to B1 rocket Ridge."""
-
-    def __init__(self, *, alphas: tuple[float, ...]):
-        self.scaler = StandardScaler()
-        self.model = RidgeCV(alphas=np.asarray(alphas, dtype=np.float64))
-
-    def fit(self, x: np.ndarray, y: np.ndarray) -> _ScaledRidgeCVRegressor:
-        x_scaled = self.scaler.fit_transform(np.asarray(x, dtype=np.float64))
-        self.model.fit(x_scaled, np.asarray(y, dtype=np.float64))
-        return self
-
-    def predict(self, x: np.ndarray) -> np.ndarray:
-        x_scaled = self.scaler.transform(np.asarray(x, dtype=np.float64))
-        return self.model.predict(x_scaled).astype(np.float32, copy=False)
-
-    @property
-    def selected_alpha(self) -> float:
-        return float(self.model.alpha_)
 
 
 class OofRidgeResidualMlpRegressor:
@@ -55,7 +33,7 @@ class OofRidgeResidualMlpRegressor:
         self.mlp_config = mlp_config or MlpHeadConfig()
         self.oof_folds = int(oof_folds)
         self.oof_seed = int(oof_seed)
-        self.ridge_full: _ScaledRidgeCVRegressor | None = None
+        self.ridge_full: ScaledRidgeCVRegressor | None = None
         self.residual_mlp: _ScaledMLPRegressor | None = None
         self.diagnostics: dict[str, Any] = {}
 
@@ -94,7 +72,7 @@ class OofRidgeResidualMlpRegressor:
         y_ridge_oof, oof_diagnostics = self._build_oof_ridge_predictions(x_arr, y_arr)
         r_train = y_arr - y_ridge_oof
 
-        ridge_full = _ScaledRidgeCVRegressor(alphas=self.ridge_alphas)
+        ridge_full = ScaledRidgeCVRegressor(alphas=self.ridge_alphas)
         ridge_full.fit(x_arr, y_arr)
         y_ridge_val = ridge_full.predict(x_val_arr)
         r_val = y_val_arr - y_ridge_val
@@ -171,7 +149,7 @@ class OofRidgeResidualMlpRegressor:
             hold_idx = np.asarray(hold_idx, dtype=np.int64)
             if np.intersect1d(fit_idx, hold_idx).size != 0:
                 raise RuntimeError(f"OOF fold {fold_index} has overlapping fit/holdout indices")
-            fold_ridge = _ScaledRidgeCVRegressor(alphas=self.ridge_alphas)
+            fold_ridge = ScaledRidgeCVRegressor(alphas=self.ridge_alphas)
             fold_ridge.fit(x[fit_idx], y[fit_idx])
             hold_pred = fold_ridge.predict(x[hold_idx])
             y_ridge_oof[hold_idx] = hold_pred

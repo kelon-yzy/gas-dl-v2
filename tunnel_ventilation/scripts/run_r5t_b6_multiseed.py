@@ -20,13 +20,20 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import subprocess
 import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
+
+from tv3.pipeline.multiseed_utils import (
+    evaluate_o2_single_seed,
+    extract_o2_r2 as _extract_o2_r2,
+    load_json as _load_json,
+    run_command as _run_command,
+    verify_dataset,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = PROJECT_ROOT / "configs"
@@ -122,22 +129,6 @@ def _experiment_output_dir(output_root: Path, spec: ExperimentSpec) -> Path:
     return output_root / spec.run_name
 
 
-def _run_command(cmd: Sequence[str], *, cwd: Path, dry_run: bool) -> subprocess.CompletedProcess[str] | None:
-    printable = " ".join(cmd)
-    print(f"\n[{_now_hms()}] {printable}", flush=True)
-    if dry_run:
-        return None
-    return subprocess.run(cmd, cwd=cwd, text=True, encoding="utf-8")
-
-
-def _now_hms() -> str:
-    return datetime.now().strftime("%H:%M:%S")
-
-
-def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
 def run_preflight(*, cwd: Path, dry_run: bool, skip: bool) -> None:
     if skip:
         print("[SKIP] preflight checks")
@@ -159,18 +150,6 @@ def run_preflight(*, cwd: Path, dry_run: bool, skip: bool) -> None:
         )
     signature = fidelity.get("source", {}).get("cache_build_signature")
     print(f"[OK] RawDSP fidelity passed; cache_build_signature={signature!r}")
-
-
-def verify_dataset(dataset_dir: Path) -> None:
-    manifest = dataset_dir / "manifest.json"
-    if not manifest.is_file():
-        raise FileNotFoundError(
-            f"dataset not found: {dataset_dir}\n"
-            "服务器上应已有 data/tv3-formal-6000；可用 DATASET_DIR 覆盖路径。"
-        )
-    payload = _load_json(manifest)
-    sequence_count = payload.get("sequence_count")
-    print(f"[OK] dataset {dataset_dir} sequence_count={sequence_count}")
 
 
 def run_experiment(
@@ -242,14 +221,6 @@ def run_experiment(
     return record
 
 
-def _extract_o2_r2(payload: dict[str, Any]) -> dict[str, float]:
-    evaluations = payload["evaluations"]
-    return {
-        split: float(evaluations[split]["component_metrics"]["x_O2"]["r2"])
-        for split in ("val", "test", "extrapolation")
-    }
-
-
 def _summarize_payload(payload: dict[str, Any], spec: ExperimentSpec) -> dict[str, Any]:
     diagnostics = payload.get("diagnostics", {})
     model_config = diagnostics.get("model_config", {})
@@ -308,30 +279,8 @@ def audit_metrics(payload: dict[str, Any], spec: ExperimentSpec) -> list[str]:
     return errors
 
 
-def _compare_threshold(value: float, threshold: float, *, strict: bool) -> bool:
-    return value > threshold if strict else value >= threshold
-
-
 def evaluate_single_seed(group: str, o2_r2: dict[str, float]) -> dict[str, Any]:
-    thresholds = SINGLE_SEED_THRESHOLDS[group]
-    checks = {
-        "val": _compare_threshold(o2_r2["val"], thresholds["val_o2_r2"], strict=False),
-        "test": _compare_threshold(
-            o2_r2["test"],
-            thresholds["test_o2_r2"],
-            strict=thresholds["test_strict"],
-        ),
-        "extrapolation": _compare_threshold(
-            o2_r2["extrapolation"],
-            thresholds["extrap_o2_r2"],
-            strict=thresholds["extrap_strict"],
-        ),
-    }
-    return {
-        "thresholds": thresholds,
-        "checks": checks,
-        "passed": all(checks.values()),
-    }
+    return evaluate_o2_single_seed(o2_r2, thresholds=SINGLE_SEED_THRESHOLDS[group])
 
 
 def _group_verdict(pass_count: int) -> str:

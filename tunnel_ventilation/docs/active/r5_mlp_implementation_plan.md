@@ -176,7 +176,7 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_r5_mlp.json
 - [x] 单元测试验证输出仍为 raw3；本地 R5/R7 联合测试 13 项通过。
 - [x] 服务器执行正式 `tv3-formal-6000`：`outputs/tv3_r5/mlp_observed_target_scaled/metrics.json`，best epoch=35。
 
-R5-T 是独立救援对照，不撤销默认 R5 的失败结论。本次三个 eval split 均达到 D0+0.05；下一步是用独立 split 或多 seed 检查稳定性，而不是继续在当前单 seed 上搜索超参数。
+R5-T 是独立救援对照，不撤销默认 R5 的失败结论。2026-07-11 的新增 seeds `42/123/456` 均达到三个 eval split 的 D0+0.05 门槛，val/test/extrap O₂ R²均值±标准差为 `0.6631±0.0082 / 0.6438±0.0055 / 0.5890±0.0197`。正式汇总见 `outputs/tv3_r5t_b6_multiseed/replication_report.json`；当前 random split 下 stable_pass，下一步改为独立 split / OOD 验证，而不是继续搜索当前 MLP 超参数。
 
 ---
 

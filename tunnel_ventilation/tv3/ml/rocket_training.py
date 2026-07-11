@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from sklearn.linear_model import RidgeCV
 from sklearn.preprocessing import StandardScaler
 
 from tv3.common.metrics import conditional_metrics_to_payload
@@ -28,6 +27,7 @@ from tv3.ml.rocket_features import (
 )
 from tv3.ml.raw_dsp_features import RAW_DSP_FRAME_SCHEMA_VERSION
 from tv3.ml.mlp_head import MlpHeadConfig, _ScaledMLPRegressor
+from tv3.ml.ridge_head import ScaledRidgeCVRegressor
 from tv3.ml.ridge_residual_head import (
     DEFAULT_OOF_FOLDS,
     DEFAULT_OOF_SEED,
@@ -68,21 +68,6 @@ class RocketTrainingResult:
     raw_dsp_fidelity: dict[str, Any] | None = None
     raw_dsp_reference: dict[str, Any] | None = None
     b6_reference: dict[str, Any] | None = None
-
-
-class _ScaledRidgeCVRegressor:
-    def __init__(self, *, alphas: tuple[float, ...]):
-        self.scaler = StandardScaler()
-        self.model = RidgeCV(alphas=np.asarray(alphas, dtype=np.float64))
-
-    def fit(self, x: np.ndarray, y: np.ndarray, *, feature_names: tuple[str, ...] | None = None) -> _ScaledRidgeCVRegressor:
-        x_scaled = self.scaler.fit_transform(np.asarray(x, dtype=np.float64))
-        self.model.fit(x_scaled, np.asarray(y, dtype=np.float64))
-        return self
-
-    def predict(self, x: np.ndarray) -> np.ndarray:
-        x_scaled = self.scaler.transform(np.asarray(x, dtype=np.float64))
-        return self.model.predict(x_scaled).astype(np.float32, copy=False)
 
 
 class _ScaledClosedFormRidgeRegressor:
@@ -558,7 +543,7 @@ def _build_head(
     oof_seed: int = DEFAULT_OOF_SEED,
 ) -> Any:
     if head == "ridgecv":
-        return _ScaledRidgeCVRegressor(alphas=ridge_alphas)
+        return ScaledRidgeCVRegressor(alphas=ridge_alphas)
     if head == "ridge_closed_form":
         return _ScaledClosedFormRidgeRegressor(alpha=closed_form_alpha)
     if head == "tabpfn":

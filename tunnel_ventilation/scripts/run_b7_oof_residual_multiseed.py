@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
+import hashlib
 import json
 import math
 import sys
@@ -26,29 +26,17 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from types import ModuleType
 from typing import Any, Sequence
 
+from tv3.pipeline.multiseed_utils import (
+    evaluate_o2_single_seed,
+    extract_o2_r2,
+    load_json,
+    run_command,
+    verify_dataset,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-
-def _load_sibling_module(module_name: str, filename: str) -> ModuleType:
-    path = Path(__file__).resolve().parent / filename
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load sibling module {filename}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-_b6 = _load_sibling_module("_tv3_r5t_b6_multiseed_helpers", "run_r5t_b6_multiseed.py")
-_extract_o2_r2 = _b6._extract_o2_r2
-_load_json = _b6._load_json
-_run_command = _b6._run_command
-evaluate_single_seed = _b6.evaluate_single_seed
-verify_dataset = _b6.verify_dataset
 
 CONFIG_DIR = PROJECT_ROOT / "configs"
 DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "outputs" / "tv3_d2b" / "b7_oof_ridge_residual_mlp"
@@ -64,10 +52,6 @@ B1_THRESHOLDS = {
     "extrap_o2_r2": 0.3695,
     "test_strict": True,
     "extrap_strict": True,
-}
-B6_FROZEN_MEANS = {
-    "test": 0.5356,
-    "extrapolation": 0.4835,
 }
 PREFLIGHT_TESTS = (
     "tests/test_tv3_b7_oof_residual.py",
@@ -96,20 +80,20 @@ def run_preflight(*, cwd: Path, dry_run: bool, skip: bool) -> None:
 
     print("==== preflight ====")
     pytest_cmd = [sys.executable, "-m", "pytest", *PREFLIGHT_TESTS, "-q"]
-    proc = _run_command(pytest_cmd, cwd=cwd, dry_run=dry_run)
+    proc = run_command(pytest_cmd, cwd=cwd, dry_run=dry_run)
     if proc is not None and proc.returncode != 0:
         raise RuntimeError(f"preflight pytest failed with exit code {proc.returncode}")
 
     if not RAW_DSP_FIDELITY_PATH.is_file():
         raise FileNotFoundError(f"RawDSP fidelity metrics missing: {RAW_DSP_FIDELITY_PATH}")
-    fidelity = _load_json(RAW_DSP_FIDELITY_PATH)
+    fidelity = load_json(RAW_DSP_FIDELITY_PATH)
     if fidelity.get("status") != "passed":
         raise RuntimeError(
             f"RawDSP fidelity status is {fidelity.get('status')!r}, expected 'passed'"
         )
     if not B6_REPORT_PATH.is_file():
         raise FileNotFoundError(f"B6 multiseed report missing: {B6_REPORT_PATH}")
-    b6_report = _load_json(B6_REPORT_PATH)
+    b6_report = load_json(B6_REPORT_PATH)
     verdict = b6_report.get("groups", {}).get("b6", {}).get("verdict")
     if verdict != "stable_pass":
         raise RuntimeError(f"B6 multiseed verdict is {verdict!r}, expected 'stable_pass'")
@@ -171,16 +155,64 @@ def audit_b7_metrics(payload: dict[str, Any], spec: B7ExperimentSpec) -> list[st
 
 
 def evaluate_b7_seed(o2_r2: dict[str, float]) -> dict[str, Any]:
-    # B7 single-seed gates reuse the B6/B1 thresholds already encoded in the shared helper.
-    return evaluate_single_seed("b6", o2_r2)
+    return evaluate_o2_single_seed(o2_r2, thresholds=B1_THRESHOLDS)
 
 
-def _paired_verdict(per_seed: list[dict[str, Any]], stats: dict[str, Any]) -> str:
-    if not per_seed or any(not row["seed_evaluation"]["passed"] for row in per_seed):
+def load_b6_seed_baseline(report_path: Path) -> dict[str, Any]:
+    report = load_json(report_path)
+    b6 = report.get("groups", {}).get("b6")
+    if not isinstance(b6, dict) or b6.get("verdict") != "stable_pass":
+        raise ValueError("B6 multiseed report must contain groups.b6 verdict='stable_pass'")
+    rows = b6.get("per_seed")
+    if not isinstance(rows, list):
+        raise ValueError("B6 multiseed report is missing groups.b6.per_seed")
+
+    by_seed: dict[int, dict[str, float]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("B6 multiseed per_seed entries must be objects")
+        seed = int(row["seed"])
+        o2_r2 = row.get("o2_r2")
+        if seed in by_seed or not isinstance(o2_r2, dict):
+            raise ValueError("B6 multiseed report has duplicate or malformed per_seed entries")
+        by_seed[seed] = {
+            split: float(o2_r2[split])
+            for split in ("val", "test", "extrapolation")
+        }
+    if set(by_seed) != set(SEEDS):
+        raise ValueError(f"B6 multiseed seeds must be {list(SEEDS)}, got {sorted(by_seed)}")
+
+    stats = b6.get("o2_r2_stats")
+    if not isinstance(stats, dict):
+        raise ValueError("B6 multiseed report is missing groups.b6.o2_r2_stats")
+    return {
+        "report_path": str(report_path),
+        "report_sha256": _file_sha256(report_path),
+        "per_seed": by_seed,
+        "std": {
+            split: float(stats[split]["std"])
+            for split in ("test", "extrapolation")
+        },
+    }
+
+
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _paired_verdict(
+    per_seed: list[dict[str, Any]],
+    stats: dict[str, Any],
+    *,
+    b6_std: dict[str, float],
+) -> str:
+    if {row["seed"] for row in per_seed} != set(SEEDS):
+        return "partial"
+    if any(not row["seed_evaluation"]["passed"] for row in per_seed):
         return "failed"
 
     mean_deltas = {
-        split: stats[split]["mean"] - B6_FROZEN_MEANS[split]
+        split: sum(row["b6_paired_delta"][split] for row in per_seed) / len(per_seed)
         for split in ("test", "extrapolation")
     }
     if any(delta < -0.01 for delta in mean_deltas.values()):
@@ -188,8 +220,6 @@ def _paired_verdict(per_seed: list[dict[str, Any]], stats: dict[str, Any]) -> st
 
     non_negative = all(delta >= 0.0 for delta in mean_deltas.values())
     uplift = any(delta >= 0.01 for delta in mean_deltas.values())
-    # B6 frozen stds from replication report.
-    b6_std = {"test": 0.0170, "extrapolation": 0.0036}
     both_higher_std = all(stats[split]["std"] > b6_std[split] for split in ("test", "extrapolation"))
     if non_negative and uplift and not both_higher_std:
         return "residual_pass"
@@ -220,7 +250,7 @@ def run_experiment(
     ]
     started = time.perf_counter()
     print(f"\n==== [B7 OOF Ridge Residual] seed={spec.seed} -> {output_dir} ====")
-    proc = _run_command(cmd, cwd=PROJECT_ROOT, dry_run=dry_run)
+    proc = run_command(cmd, cwd=PROJECT_ROOT, dry_run=dry_run)
     elapsed_s = time.perf_counter() - started
     record: dict[str, Any] = {
         "group": "b7",
@@ -245,31 +275,39 @@ def run_experiment(
         record["reason"] = "metrics.json missing after successful exit"
         return record
 
-    payload = _load_json(metrics_path)
+    payload = load_json(metrics_path)
     audit_errors = audit_b7_metrics(payload, spec)
     record["status"] = "ok" if not audit_errors else "audit_fail"
     record["audit_errors"] = audit_errors
-    record["o2_r2"] = _extract_o2_r2(payload)
+    record["o2_r2"] = extract_o2_r2(payload)
     return record
 
 
-def build_replication_report(records: list[dict[str, Any]]) -> dict[str, Any]:
+def build_replication_report(
+    records: list[dict[str, Any]],
+    *,
+    b6_baseline: dict[str, Any],
+) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for record in records:
         if record.get("status") != "ok":
             continue
         o2_r2 = record["o2_r2"]
+        seed = int(record["seed"])
+        b6_o2_r2 = b6_baseline["per_seed"].get(seed)
+        if b6_o2_r2 is None:
+            raise ValueError(f"B6 multiseed baseline is missing seed {seed}")
         seed_eval = evaluate_b7_seed(o2_r2)
         rows.append(
             {
-                "seed": record["seed"],
+                "seed": seed,
                 "run_name": record["run_name"],
                 "metrics_path": record["metrics_path"],
                 "elapsed_s": record["elapsed_s"],
                 "o2_r2": o2_r2,
                 "b6_paired_delta": {
-                    "test": o2_r2["test"] - B6_FROZEN_MEANS["test"],
-                    "extrapolation": o2_r2["extrapolation"] - B6_FROZEN_MEANS["extrapolation"],
+                    "test": o2_r2["test"] - b6_o2_r2["test"],
+                    "extrapolation": o2_r2["extrapolation"] - b6_o2_r2["extrapolation"],
                 },
                 "seed_evaluation": seed_eval,
             }
@@ -288,12 +326,17 @@ def build_replication_report(records: list[dict[str, Any]]) -> dict[str, Any]:
             "min": round(min(values), 4),
             "max": round(max(values), 4),
         }
-    verdict = _paired_verdict(rows, stats) if rows else "failed"
+    verdict = _paired_verdict(rows, stats, b6_std=b6_baseline["std"]) if rows else "partial"
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "seeds": list(SEEDS),
         "b1_thresholds": B1_THRESHOLDS,
-        "b6_frozen_means": B6_FROZEN_MEANS,
+        "expected_seeds": list(SEEDS),
+        "completed_seeds": [row["seed"] for row in rows],
+        "b6_reference": {
+            "report_path": b6_baseline["report_path"],
+            "report_sha256": b6_baseline["report_sha256"],
+        },
         "per_seed": rows,
         "o2_r2_stats": stats,
         "pass_count": sum(1 for row in rows if row["seed_evaluation"]["passed"]),
@@ -358,6 +401,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.dry_run:
         verify_dataset(dataset_dir)
     run_preflight(cwd=PROJECT_ROOT, dry_run=args.dry_run, skip=args.skip_preflight)
+    b6_baseline = load_b6_seed_baseline(B6_REPORT_PATH)
 
     if output_root.exists() and any(output_root.iterdir()) and not args.dry_run:
         # Formal B7 root must not silently overwrite prior seed metrics.
@@ -392,7 +436,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dumps(summary, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    report = build_replication_report([record for record in records if record.get("status") == "ok"])
+    report = build_replication_report(records, b6_baseline=b6_baseline)
     (output_root / "replication_report.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False),
         encoding="utf-8",

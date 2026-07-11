@@ -1,6 +1,6 @@
 # R5-T 与 B6 三 Seed 稳定性复核计划
 
-> 状态：待执行
+> 状态：已完成；R5-T 与 B6 均 stable_pass
 > 日期：2026-07-11
 > 目标：在不改变数据、split、特征、模型和超参数的前提下，分别用 3 个新增训练随机种子复核 R5-T observed MLP 与 B6 RawDSP MLP 的单 seed 结论。
 > 范围：只评估优化随机性；不在本轮混入 SPXY、新 OOD、B7 residual、特征选择、模型结构或超参数搜索。
@@ -129,3 +129,14 @@ python -m tv3.pipeline.run_tv3_rocket_baseline --config configs/tv3_d2b_raw_dsp_
 - 6 个不可覆盖的 seed 级 `metrics.json`（`r5t_s*` / `b6_s*` 子目录）；
 - `runs.jsonl`、`summary.json`、`replication_report.json`（含 `model × seed × split` 表、均值 / 标准差 / 最差 seed、Ridge 差值、运行时间与三 seed 判定）；
 - 对项目记忆库、R5 与 B6 实施计划的正式回填，只在 3 个 seed 全部完成并审计后进行。
+
+## 10. 2026-07-11 正式复核结果
+
+正式产物根目录：`outputs/tv3_r5t_b6_multiseed/`。`replication_report.json` 记录 6 次训练均为 `status=ok`、`audit_errors=[]`；三个新增 seed 均满足第 7 节的逐 seed 门槛。
+
+| 模型 | val O2 R2 mean ± std | test O2 R2 mean ± std | extrapolation O2 R2 mean ± std | 结论 |
+| --- | ---: | ---: | ---: | --- |
+| R5-T observed MLP | `0.6631 ± 0.0082` | `0.6438 ± 0.0055` | `0.5890 ± 0.0197` | 3 / 3 通过，stable_pass |
+| B6 RawDSP MLP | `0.5581 ± 0.0096` | `0.5356 ± 0.0170` | `0.4835 ± 0.0036` | 3 / 3 通过，stable_pass |
+
+下一步不再重复当前 flat MLP 的 seed 搜索：B6 可以进入 OOF Ridge residual MLP 对照；同时另行建立重复 split 与独立 OOD 协议。当前 extrapolation 仍不代表物理 OOD。

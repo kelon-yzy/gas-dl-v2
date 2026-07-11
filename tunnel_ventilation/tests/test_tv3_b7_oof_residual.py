@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 from pathlib import Path
+import sys
 
 import numpy as np
 import pytest
 
 from tv3.ml.mlp_head import MlpHeadConfig, build_raw3_mlp
+from tv3.ml.ridge_head import ScaledRidgeCVRegressor
 from tv3.ml.ridge_residual_head import OofRidgeResidualMlpRegressor
 from tv3.ml.rocket_training import (
     B7_HEAD,
@@ -18,6 +21,20 @@ from tv3.pipeline.run_tv3_rocket_baseline import main
 
 
 LABEL_NAMES = ("x_CO2", "x_O2", "x_N2")
+
+
+def _load_b7_runner_module():
+    project_root = Path(__file__).resolve().parents[1]
+    module_name = "test_b7_runner_module"
+    spec = importlib.util.spec_from_file_location(
+        module_name,
+        project_root / "scripts" / "run_b7_oof_residual_multiseed.py",
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _synthetic_regression(*, n_train: int = 80, n_val: int = 24, n_features: int = 12, seed: int = 0):
@@ -168,6 +185,16 @@ def test_build_head_registers_oof_ridge_residual_mlp():
     assert isinstance(model, OofRidgeResidualMlpRegressor)
 
 
+def test_b1_and_b7_share_scaled_ridgecv_implementation():
+    ridge = _build_head(
+        "ridgecv",
+        ridge_alphas=DEFAULT_RIDGE_ALPHAS,
+        closed_form_alpha=1.0,
+        mlp_config=MlpHeadConfig(device="cpu"),
+    )
+    assert isinstance(ridge, ScaledRidgeCVRegressor)
+
+
 def test_load_b6_multiseed_report_accepts_frozen_means(tmp_path: Path):
     report_path = _write_b6_report(tmp_path / "replication_report.json")
     payload = load_b6_multiseed_report(report_path)
@@ -231,3 +258,59 @@ def test_run_tv3_rocket_baseline_rejects_unknown_b7_config_keys(tmp_path: Path):
     )
     with pytest.raises(ValueError, match="unknown rocket config keys"):
         main(["--config", str(config_path)])
+
+
+def test_b7_report_marks_incomplete_seed_set_partial_and_uses_same_seed_b6_delta(tmp_path: Path):
+    runner = _load_b7_runner_module()
+    b6_report = _write_b6_report(tmp_path / "b6_report.json")
+    payload = json.loads(b6_report.read_text(encoding="utf-8"))
+    payload["groups"]["b6"]["per_seed"] = [
+        {"seed": 42, "o2_r2": {"val": 0.56, "test": 0.50, "extrapolation": 0.40}},
+        {"seed": 123, "o2_r2": {"val": 0.55, "test": 0.54, "extrapolation": 0.49}},
+        {"seed": 456, "o2_r2": {"val": 0.56, "test": 0.57, "extrapolation": 0.56}},
+    ]
+    b6_report.write_text(json.dumps(payload), encoding="utf-8")
+    baseline = runner.load_b6_seed_baseline(b6_report)
+
+    record = {
+        "status": "ok",
+        "seed": 42,
+        "run_name": "s42",
+        "metrics_path": "s42/metrics.json",
+        "elapsed_s": 1.0,
+        "o2_r2": {"val": 0.60, "test": 0.60, "extrapolation": 0.60},
+    }
+    report = runner.build_replication_report([record], b6_baseline=baseline)
+
+    assert report["verdict"] == "partial"
+    assert report["completed_seeds"] == [42]
+    assert report["per_seed"][0]["b6_paired_delta"]["test"] == pytest.approx(0.10)
+    assert report["per_seed"][0]["b6_paired_delta"]["extrapolation"] == pytest.approx(0.20)
+
+
+def test_b7_report_requires_all_expected_seeds_for_residual_pass(tmp_path: Path):
+    runner = _load_b7_runner_module()
+    b6_report = _write_b6_report(tmp_path / "b6_report.json")
+    payload = json.loads(b6_report.read_text(encoding="utf-8"))
+    payload["groups"]["b6"]["per_seed"] = [
+        {"seed": seed, "o2_r2": {"val": 0.55, "test": 0.52, "extrapolation": 0.47}}
+        for seed in (42, 123, 456)
+    ]
+    b6_report.write_text(json.dumps(payload), encoding="utf-8")
+    baseline = runner.load_b6_seed_baseline(b6_report)
+    records = [
+        {
+            "status": "ok",
+            "seed": seed,
+            "run_name": f"s{seed}",
+            "metrics_path": f"s{seed}/metrics.json",
+            "elapsed_s": 1.0,
+            "o2_r2": {"val": 0.60, "test": 0.55, "extrapolation": 0.49},
+        }
+        for seed in (42, 123, 456)
+    ]
+
+    report = runner.build_replication_report(records, b6_baseline=baseline)
+
+    assert report["completed_seeds"] == [42, 123, 456]
+    assert report["verdict"] == "residual_pass"
