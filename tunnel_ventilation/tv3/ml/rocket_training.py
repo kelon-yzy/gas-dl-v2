@@ -26,6 +26,8 @@ from tv3.ml.rocket_features import (
     load_cached_split_feature_matrix,
 )
 from tv3.ml.raw_dsp_features import RAW_DSP_FRAME_SCHEMA_VERSION
+from tv3.ml.grouped_bottleneck import GroupedBottleneckConfig
+from tv3.ml.grouped_ridge_residual_head import GroupedOofRidgeResidualMlpRegressor
 from tv3.ml.mlp_head import MlpHeadConfig, _ScaledMLPRegressor
 from tv3.ml.ridge_head import ScaledRidgeCVRegressor
 from tv3.ml.ridge_residual_head import (
@@ -39,6 +41,8 @@ from tv3.ml.training import SplitEvaluation, evaluate_regressor
 DEFAULT_RIDGE_ALPHAS = (1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1.0, 3.0, 10.0, 30.0, 100.0)
 RAW_DSP_FIDELITY_SCHEMA_VERSION = "tv3-d2b-frame-fidelity-1"
 B7_HEAD = "oof_ridge_residual_mlp"
+MODULE_C_HEAD = "grouped_oof_ridge_residual_mlp"
+RESIDUAL_HEADS = frozenset({B7_HEAD, MODULE_C_HEAD})
 B6_MULTISEED_EXPECTED_MEANS = {
     "test": 0.5356,
     "extrapolation": 0.4835,
@@ -133,6 +137,7 @@ def train_tv3_rocket_regressor(
     mlp_config: MlpHeadConfig | None = None,
     oof_folds: int = DEFAULT_OOF_FOLDS,
     oof_seed: int = DEFAULT_OOF_SEED,
+    grouped_bottleneck_config: GroupedBottleneckConfig | None = None,
     raw_dsp_fidelity_metrics_path: Path | str | None = None,
     raw_dsp_reference_metrics_path: Path | str | None = None,
     b6_multiseed_report_path: Path | str | None = None,
@@ -163,6 +168,12 @@ def train_tv3_rocket_regressor(
             raise ValueError(
                 "B7 requires RawDSP fidelity, B1 reference metrics, and B6 multiseed report paths"
             )
+        if head == MODULE_C_HEAD and (
+            raw_dsp_fidelity_metrics_path is None or raw_dsp_reference_metrics_path is None
+        ):
+            raise ValueError(
+                "Module C grouped residual requires RawDSP fidelity and B1 reference metrics paths"
+            )
         raw_dsp_provenance = load_raw_dsp_provenance(dataset_dir)
         if raw_dsp_fidelity_metrics_path is not None:
             raw_dsp_fidelity = load_raw_dsp_fidelity(
@@ -180,8 +191,12 @@ def train_tv3_rocket_regressor(
             if head != B7_HEAD:
                 raise ValueError("b6_multiseed_report_path is only valid for the B7 residual head")
             b6_reference = load_b6_multiseed_report(b6_multiseed_report_path)
-    elif head == B7_HEAD:
-        raise ValueError("B7 oof_ridge_residual_mlp requires the RawDSP feature builder")
+    elif head in RESIDUAL_HEADS:
+        raise ValueError(f"{head} requires the RawDSP feature builder")
+    if head == MODULE_C_HEAD and grouped_bottleneck_config is None:
+        raise ValueError("Module C head requires grouped_bottleneck_config")
+    if head != MODULE_C_HEAD and grouped_bottleneck_config is not None:
+        raise ValueError("grouped_bottleneck_config is only valid for grouped_oof_ridge_residual_mlp")
     feature_builder = feature_config.feature_builder
     cache_path = Path(cache_dir) if cache_dir is not None else default_cache_dir(dataset_dir, feature_builder)
     if isinstance(feature_config, MiniRocketFeatureConfig):
@@ -208,9 +223,10 @@ def train_tv3_rocket_regressor(
         mlp_config=resolved_mlp_config,
         oof_folds=oof_folds,
         oof_seed=oof_seed,
+        grouped_bottleneck_config=grouped_bottleneck_config,
     )
     fit_kwargs: dict[str, Any] = {"feature_names": train_matrix.feature_names}
-    if head in {"mlp", B7_HEAD}:
+    if head in {"mlp", *RESIDUAL_HEADS}:
         val_matrix = load_cached_split_feature_matrix(dataset_dir, cache_path, split="val")
         _validate_feature_contract(val_matrix, train_matrix)
         fit_kwargs["x_val"] = val_matrix.x
@@ -247,6 +263,18 @@ def train_tv3_rocket_regressor(
                 "report_sha256": b6_reference["report_sha256"],
                 "o2_r2_means": dict(b6_reference["o2_r2_means"]),
                 "verdict": b6_reference["verdict"],
+            },
+        }
+    elif head == MODULE_C_HEAD:
+        assert raw_dsp_reference is not None
+        diagnostics = {
+            **diagnostics,
+            "feature_builder": feature_builder,
+            "feature_count": len(train_matrix.feature_names),
+            "b1_reference": {
+                "metrics_path": raw_dsp_reference["metrics_path"],
+                "metrics_sha256": raw_dsp_reference["metrics_sha256"],
+                "o2_r2": dict(raw_dsp_reference["o2_r2"]),
             },
         }
     return RocketTrainingResult(
@@ -306,6 +334,31 @@ def rocket_training_payload(result: RocketTrainingResult) -> dict[str, Any]:
                     if split_name in result.evaluations
                 },
             }
+    if result.head == MODULE_C_HEAD:
+        grouped = result.diagnostics.get("grouped_bottleneck")
+        residual = result.diagnostics.get("residual_mlp")
+        if not isinstance(grouped, dict):
+            raise ValueError("Module C diagnostics must include grouped_bottleneck")
+        if not isinstance(residual, dict):
+            raise ValueError("Module C diagnostics must include residual_mlp")
+        payload["grouped_bottleneck"] = {
+            "group_spec": grouped.get("group_spec"),
+            "group_assignment": grouped.get("group_assignment"),
+            "group_counts": grouped.get("group_counts"),
+            "group_bottleneck_dim": grouped.get("group_bottleneck_dim"),
+            "group_dropout": grouped.get("group_dropout"),
+            "feature_names_digest": grouped.get("feature_names_digest"),
+            "permutation_seed": grouped.get("permutation_seed"),
+            "permutation_digest": grouped.get("permutation_digest") or "",
+            "parameter_count": grouped.get("parameter_count"),
+        }
+        early = residual.get("early_stopping")
+        if not isinstance(early, dict):
+            raise ValueError("Module C residual diagnostics must include early_stopping")
+        payload["early_stopping"] = {
+            "monitor": early.get("monitor"),
+            "uses_combined_ridge_prediction": bool(early.get("uses_combined_ridge_prediction")),
+        }
     return payload
 
 
@@ -541,6 +594,7 @@ def _build_head(
     mlp_config: MlpHeadConfig | None = None,
     oof_folds: int = DEFAULT_OOF_FOLDS,
     oof_seed: int = DEFAULT_OOF_SEED,
+    grouped_bottleneck_config: GroupedBottleneckConfig | None = None,
 ) -> Any:
     if head == "ridgecv":
         return ScaledRidgeCVRegressor(alphas=ridge_alphas)
@@ -557,9 +611,20 @@ def _build_head(
             oof_folds=oof_folds,
             oof_seed=oof_seed,
         )
+    if head == MODULE_C_HEAD:
+        if grouped_bottleneck_config is None:
+            raise ValueError("grouped_oof_ridge_residual_mlp requires grouped_bottleneck_config")
+        return GroupedOofRidgeResidualMlpRegressor(
+            ridge_alphas=ridge_alphas,
+            mlp_config=mlp_config or MlpHeadConfig(device=device),
+            oof_folds=oof_folds,
+            oof_seed=oof_seed,
+            grouped_config=grouped_bottleneck_config,
+        )
     raise ValueError(
         f"unsupported rocket head {head!r}. "
-        "available=('ridgecv', 'ridge_closed_form', 'tabpfn', 'mlp', 'oof_ridge_residual_mlp')"
+        "available=('ridgecv', 'ridge_closed_form', 'tabpfn', 'mlp', "
+        "'oof_ridge_residual_mlp', 'grouped_oof_ridge_residual_mlp')"
     )
 
 
@@ -595,7 +660,7 @@ def _model_diagnostics(
             "best_val_o2_r2": model.best_val_o2_r2,
             "standardize_targets": model.config.standardize_targets,
         }
-    elif head == B7_HEAD:
+    elif head in RESIDUAL_HEADS:
         return dict(model.diagnostics)
     else:
         raise ValueError(f"unsupported diagnostics head {head!r}")

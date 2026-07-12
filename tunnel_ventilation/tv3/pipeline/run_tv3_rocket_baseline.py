@@ -22,10 +22,18 @@ from tv3.ml.rocket_features import (
     DEFAULT_PHYSICS_ARRAYS,
     RocketFeatureConfig,
 )
+from tv3.ml.grouped_bottleneck import (
+    DEFAULT_GROUP_BOTTLENECK_DIM,
+    DEFAULT_GROUP_DROPOUT,
+    GROUP_SPEC_V1,
+    GroupedBottleneckConfig,
+)
 from tv3.ml.mlp_head import MlpHeadConfig
 from tv3.ml.ridge_residual_head import DEFAULT_OOF_FOLDS, DEFAULT_OOF_SEED
 from tv3.ml.rocket_training import (
     DEFAULT_RIDGE_ALPHAS,
+    MODULE_C_HEAD,
+    RESIDUAL_HEADS,
     rocket_training_payload,
     train_tv3_rocket_regressor,
     write_rocket_training_payload,
@@ -66,6 +74,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "oof_folds": DEFAULT_OOF_FOLDS,
     "oof_seed": DEFAULT_OOF_SEED,
     "seed": 20260704,
+    "group_spec": GROUP_SPEC_V1,
+    "group_assignment": None,
+    "group_bottleneck_dim": DEFAULT_GROUP_BOTTLENECK_DIM,
+    "group_dropout": DEFAULT_GROUP_DROPOUT,
+    "permutation_seed": None,
     "raw_dsp_fidelity_metrics_path": None,
     "raw_dsp_reference_metrics_path": None,
     "b6_multiseed_report_path": None,
@@ -87,7 +100,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, default=None, help="Where to write metrics.json.")
     parser.add_argument("--cache-dir", type=Path, default=None, help="Optional feature cache directory.")
     parser.add_argument("--feature-set", choices=("physics_stats", "minirocket_scalar", "minirocket_raw"), default=None, help="Feature family to run.")
-    parser.add_argument("--head", choices=("ridgecv", "ridge_closed_form", "tabpfn", "mlp", "oof_ridge_residual_mlp"), default=None, help="Regression head.")
+    parser.add_argument(
+        "--head",
+        choices=(
+            "ridgecv",
+            "ridge_closed_form",
+            "tabpfn",
+            "mlp",
+            "oof_ridge_residual_mlp",
+            "grouped_oof_ridge_residual_mlp",
+        ),
+        default=None,
+        help="Regression head.",
+    )
     parser.add_argument("--feature-builder", type=str, default=None, help="Feature builder cache name. Overrides feature_set's default mapping if given.")
     parser.add_argument("--include-slow", type=str, default=None, help="true/false.")
     parser.add_argument("--slow-channels", type=str, default=None, help="Comma-separated slow channel allowlist.")
@@ -113,9 +138,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mlp-patience", type=int, default=None, help="MLP early-stop patience on val O2 R2.")
     parser.add_argument("--mlp-loss-weights", type=str, default=None, help="Comma-separated per-target MLP loss weights.")
     parser.add_argument("--mlp-standardize-targets", type=str, default=None, help="true/false; standardize each raw target only during MLP optimization.")
-    parser.add_argument("--oof-folds", type=int, default=None, help="OOF fold count for oof_ridge_residual_mlp.")
-    parser.add_argument("--oof-seed", type=int, default=None, help="OOF KFold seed for oof_ridge_residual_mlp (independent of MLP seed).")
+    parser.add_argument("--oof-folds", type=int, default=None, help="OOF fold count for residual heads.")
+    parser.add_argument("--oof-seed", type=int, default=None, help="OOF KFold seed for residual heads (independent of MLP seed).")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for MLP training.")
+    parser.add_argument("--group-spec", type=str, default=None, help="Module C group spec id (frozen raw_dsp_physics_groups_v1).")
+    parser.add_argument("--group-assignment", choices=("physical", "permuted"), default=None, help="Module C group assignment.")
+    parser.add_argument("--group-bottleneck-dim", type=int, default=None, help="Module C per-group bottleneck dim (frozen 16).")
+    parser.add_argument("--group-dropout", type=float, default=None, help="Module C group dropout (frozen 0.0 for P0).")
+    parser.add_argument("--permutation-seed", type=int, default=None, help="Module C C2 permutation seed (frozen 20260712).")
     parser.add_argument("--raw-dsp-fidelity-metrics-path", type=Path, default=None, help="Passed frame-fidelity metrics.json required for compared RawDSP runs.")
     parser.add_argument("--raw-dsp-reference-metrics-path", type=Path, default=None, help="Verified B1 metrics.json for compared RawDSP runs.")
     parser.add_argument("--b6-multiseed-report-path", type=Path, default=None, help="Frozen B6 multiseed replication_report.json required for B7.")
@@ -158,9 +188,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         ridge_alphas=_parse_float_csv(args.ridge_alphas),
         closed_form_alpha=args.closed_form_alpha,
         device=args.device,
-        mlp_config=_build_mlp_config(args) if args.head in {"mlp", "oof_ridge_residual_mlp"} else None,
+        mlp_config=_build_mlp_config(args) if args.head in {"mlp", *RESIDUAL_HEADS} else None,
         oof_folds=int(args.oof_folds),
         oof_seed=int(args.oof_seed),
+        grouped_bottleneck_config=_build_grouped_config(args) if args.head == MODULE_C_HEAD else None,
         raw_dsp_fidelity_metrics_path=args.raw_dsp_fidelity_metrics_path,
         raw_dsp_reference_metrics_path=args.raw_dsp_reference_metrics_path,
         b6_multiseed_report_path=args.b6_multiseed_report_path,
@@ -184,6 +215,21 @@ def _build_mlp_config(args: argparse.Namespace) -> MlpHeadConfig:
         standardize_targets=_parse_bool(args.mlp_standardize_targets),
         device=str(args.device),
         seed=int(args.seed),
+    )
+
+
+def _build_grouped_config(args: argparse.Namespace) -> GroupedBottleneckConfig:
+    if args.group_assignment is None:
+        raise ValueError("grouped_oof_ridge_residual_mlp requires group_assignment")
+    permutation_seed = args.permutation_seed
+    if permutation_seed is not None:
+        permutation_seed = int(permutation_seed)
+    return GroupedBottleneckConfig(
+        group_spec=str(args.group_spec),
+        group_assignment=str(args.group_assignment),
+        group_bottleneck_dim=int(args.group_bottleneck_dim),
+        group_dropout=float(args.group_dropout),
+        permutation_seed=permutation_seed,
     )
 
 
@@ -244,6 +290,12 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
     config["raw_zscore"] = _parse_bool(config["raw_zscore"])
     config["mlp_standardize_targets"] = _parse_bool(config["mlp_standardize_targets"])
     config["overwrite"] = _parse_bool(config["overwrite"])
+    if config.get("permutation_seed") is not None:
+        config["permutation_seed"] = int(config["permutation_seed"])
+    if config.get("group_bottleneck_dim") is not None:
+        config["group_bottleneck_dim"] = int(config["group_bottleneck_dim"])
+    if config.get("group_dropout") is not None:
+        config["group_dropout"] = float(config["group_dropout"])
     return argparse.Namespace(**config)
 
 

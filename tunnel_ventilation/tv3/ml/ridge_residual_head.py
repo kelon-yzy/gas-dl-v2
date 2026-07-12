@@ -69,7 +69,13 @@ class OofRidgeResidualMlpRegressor:
                 f"train rows ({x_arr.shape[0]}) must be >= oof_folds ({self.oof_folds})"
             )
 
-        y_ridge_oof, oof_diagnostics = self._build_oof_ridge_predictions(x_arr, y_arr)
+        y_ridge_oof, oof_diagnostics = build_oof_ridge_predictions(
+            x_arr,
+            y_arr,
+            ridge_alphas=self.ridge_alphas,
+            oof_folds=self.oof_folds,
+            oof_seed=self.oof_seed,
+        )
         r_train = y_arr - y_ridge_oof
 
         ridge_full = ScaledRidgeCVRegressor(alphas=self.ridge_alphas)
@@ -112,7 +118,10 @@ class OofRidgeResidualMlpRegressor:
                 "best_val_o2_r2": residual_mlp.best_val_o2_r2,
                 "standardize_targets": True,
                 "zero_init_output": True,
-                "early_stopping": {"monitor": "val_o2_r2"},
+                "early_stopping": {
+                    "monitor": "val_o2_r2",
+                    "uses_combined_ridge_prediction": True,
+                },
                 "val_residual_rmse": float(np.sqrt(np.mean(np.square(r_val)))),
             },
             "leakage_audit": {
@@ -134,51 +143,56 @@ class OofRidgeResidualMlpRegressor:
             raise ValueError("combined oof ridge residual predictions contain non-finite values")
         return combined.astype(np.float32, copy=False)
 
-    def _build_oof_ridge_predictions(
-        self,
-        x: np.ndarray,
-        y: np.ndarray,
-    ) -> tuple[np.ndarray, dict[str, Any]]:
-        n_rows = x.shape[0]
-        y_ridge_oof = np.zeros_like(y, dtype=np.float64)
-        coverage = np.zeros(n_rows, dtype=np.int32)
-        fold_payloads: list[dict[str, Any]] = []
-        splitter = KFold(n_splits=self.oof_folds, shuffle=True, random_state=self.oof_seed)
 
-        for fold_index, (fit_idx, hold_idx) in enumerate(splitter.split(x)):
-            fit_idx = np.asarray(fit_idx, dtype=np.int64)
-            hold_idx = np.asarray(hold_idx, dtype=np.int64)
-            if np.intersect1d(fit_idx, hold_idx).size != 0:
-                raise RuntimeError(f"OOF fold {fold_index} has overlapping fit/holdout indices")
-            fold_ridge = ScaledRidgeCVRegressor(alphas=self.ridge_alphas)
-            fold_ridge.fit(x[fit_idx], y[fit_idx])
-            hold_pred = fold_ridge.predict(x[hold_idx])
-            y_ridge_oof[hold_idx] = hold_pred
-            coverage[hold_idx] += 1
-            fold_payloads.append(
-                {
-                    "fold_index": fold_index,
-                    "fit_row_count": int(fit_idx.size),
-                    "holdout_row_count": int(hold_idx.size),
-                    "selected_alpha": fold_ridge.selected_alpha,
-                    "fit_holdout_disjoint": True,
-                }
-            )
+def build_oof_ridge_predictions(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    ridge_alphas: tuple[float, ...],
+    oof_folds: int,
+    oof_seed: int,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """Train-only KFold OOF Ridge predictions shared by B7 and Module C residual heads."""
+    n_rows = x.shape[0]
+    y_ridge_oof = np.zeros_like(y, dtype=np.float64)
+    coverage = np.zeros(n_rows, dtype=np.int32)
+    fold_payloads: list[dict[str, Any]] = []
+    splitter = KFold(n_splits=oof_folds, shuffle=True, random_state=oof_seed)
 
-        if not np.array_equal(coverage, np.ones(n_rows, dtype=np.int32)):
-            raise RuntimeError(
-                "OOF coverage incomplete: each train row must be written by exactly one holdout fold"
-            )
-        if y_ridge_oof.shape[0] != n_rows:
-            raise RuntimeError("OOF prediction row count must equal train row count")
+    for fold_index, (fit_idx, hold_idx) in enumerate(splitter.split(x)):
+        fit_idx = np.asarray(fit_idx, dtype=np.int64)
+        hold_idx = np.asarray(hold_idx, dtype=np.int64)
+        if np.intersect1d(fit_idx, hold_idx).size != 0:
+            raise RuntimeError(f"OOF fold {fold_index} has overlapping fit/holdout indices")
+        fold_ridge = ScaledRidgeCVRegressor(alphas=ridge_alphas)
+        fold_ridge.fit(x[fit_idx], y[fit_idx])
+        hold_pred = fold_ridge.predict(x[hold_idx])
+        y_ridge_oof[hold_idx] = hold_pred
+        coverage[hold_idx] += 1
+        fold_payloads.append(
+            {
+                "fold_index": fold_index,
+                "fit_row_count": int(fit_idx.size),
+                "holdout_row_count": int(hold_idx.size),
+                "selected_alpha": fold_ridge.selected_alpha,
+                "fit_holdout_disjoint": True,
+            }
+        )
 
-        return y_ridge_oof, {
-            "fold_count": self.oof_folds,
-            "fold_seed": self.oof_seed,
-            "coverage_complete": True,
-            "train_row_count": int(n_rows),
-            "folds": fold_payloads,
-        }
+    if not np.array_equal(coverage, np.ones(n_rows, dtype=np.int32)):
+        raise RuntimeError(
+            "OOF coverage incomplete: each train row must be written by exactly one holdout fold"
+        )
+    if y_ridge_oof.shape[0] != n_rows:
+        raise RuntimeError("OOF prediction row count must equal train row count")
+
+    return y_ridge_oof, {
+        "fold_count": int(oof_folds),
+        "fold_seed": int(oof_seed),
+        "coverage_complete": True,
+        "train_row_count": int(n_rows),
+        "folds": fold_payloads,
+    }
 
 
 def _assert_zero_init_combined_equals_ridge(

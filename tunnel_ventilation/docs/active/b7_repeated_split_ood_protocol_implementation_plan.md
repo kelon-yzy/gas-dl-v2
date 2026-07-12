@@ -1,7 +1,7 @@
 # B7 冻结、重复 Split 与独立 OOD 协议实施计划
 
-> 状态：**P0，代码已落地；正式矩阵待服务器执行**
-> 日期：2026-07-11
+> 状态：**P0 已完成，完整正式矩阵 `protocol_pass`**
+> 日期：2026-07-12
 > 前置证据：B7 在 clean `tv3-formal-6000` 的当前 random split 上取得 `residual_pass`；三训练 seed 的 O₂ R²均值为 val/test/extrap `0.6964 / 0.7001 / 0.6157`。
 > 本文责任：冻结 B7 后的泛化验证协议、数据派生、运行矩阵、审计与判定。B7 的模型实现与既有 random-split 复核记录保留在 `b7_oof_ridge_residual_mlp_implementation_plan.md`；通用 SPXY 算法细节保留在 `spxy_split_implementation_plan.md`。
 
@@ -168,7 +168,7 @@ B7 保持“默认 raw-DSP 头候选”需要同时满足：
 | B7 在 S-Y、S-L 的任一协议内 test/OOD 均值不优于 B1 | 接受当前非线性增益依赖划分；停止扩大回归头，转入 shift 诊断 |
 | S-Y 通过、S-L 失败 | 结论限于组分边界 OOD；补做 L、T、RH、SNR 条件 holdout，不引入新模型 |
 | 两个 selector 都通过 | 进入模块 C 的分组 bottleneck → residual TabM 单变量消融 |
-| 所有严格 OOD 下稳定低于 0.70 | 报告声学路线与数据覆盖的综合上限；不以持续调参追逐阈值 |
+| S-Y 与 S-L 的 OOD O₂ R²均值均稳定低于 0.70 | 报告声学路线与数据覆盖的综合上限；不以持续调参追逐阈值 |
 
 模块 C 的开始条件是 `protocol_pass`，而不是某个 random-split 单次 R²。B7 通过后，首个新实验只能是同一残差结构上的 grouped bottleneck；residual TabM 只能在该对照完成后启动。
 
@@ -182,7 +182,7 @@ B7 保持“默认 raw-DSP 头候选”需要同时满足：
 | `scripts/recompute_tv3_split.py` | 接收 profile / protocol metadata，跳过 split-dependent RawDSP cache 的硬链接，写入 hash 与诊断，不重跑物理仿真 |
 | `tv3/pipeline/build_tv3_raw_dsp_features.py` 及其配置入口 | 对每个派生 split 以本 split 的 `train.csv` 重建 train-calibrated RawDSP cache，并写 template source / build signature |
 | `scripts/run_b7_repeated_split_ood_protocol.py` | 新增协议编排、已存在产物跳过规则和统一汇总 |
-| `tv3/ml/*` | 不改 B7 模型逻辑；只复用既有 B1 / B7 训练入口 |
+| `tv3/ml/ridge_residual_head.py` | 不改 B7 训练行为；输出可审计的 `early_stopping.monitor=val_o2_r2` 诊断 |
 | `tests/test_spxy_split.py` | 覆盖 observed-only profile、oracle profile 显式标记、selector 退化和 split 审计 |
 | RawDSP cache 测试 | 覆盖派生 split 不复用 source cache、模板只来自本 split train、manifest 与 split hash 绑定 |
 | 新增协议测试 | 覆盖矩阵完整性、B1 / B7 配对、OOD 不参与早停、result matrix 字段与 hash 一致性 |
@@ -229,7 +229,7 @@ python scripts/run_b7_repeated_split_ood_protocol.py --dry-run
 4. `scripts/run_b7_repeated_split_ood_protocol.py`
    - 编排 R / L / S-Y / S-L × 3 split seeds；每 split 重建 RawDSP → fidelity → B1 → B7×{42,123,456}
    - 产出 `protocol_manifest.json` / `runs.jsonl` / `result_matrix.csv|md` / `split_metrics.json`
-   - `--dry-run` 可用；已存在产物可跳过
+   - `--dry-run` 可用；已存在产物必须先通过 split、RawDSP、fidelity、B1/B7 配置与 metrics 复审
 
 5. 测试
    - `tests/test_spxy_split.py`：observed/oracle profile、selector 退化、recompute 跳过 RawDSP hardlink
@@ -246,10 +246,30 @@ python scripts/recompute_tv3_split.py --help
 python scripts/run_b7_repeated_split_ood_protocol.py --dry-run
 ```
 
-尚未执行（需服务器 `data/tv3-formal-6000` + source RawDSP bootstrap）：
+截至 2026-07-11 的该次实施记录尚未执行（需服务器 `data/tv3-formal-6000` + source RawDSP bootstrap）：
 
 - 完整 12 个派生 split 的 RawDSP 重建与 fidelity
 - B1 / B7 全矩阵训练与 `result_matrix.md` 回填
 - 记忆库 / 文献路线的正式结论更新（按本文档回填规则，等完整协议后再写）
 
 SPXY observed 的 X 划分目前显式借用 source RawDSP 作 bootstrap（写入 summary），模型特征仍必须用派生 split 的 train-calibrated 重建 cache；不是静默复用旧 random-train 模型特征。
+
+### 2026-07-12 — 完整正式矩阵完成（`protocol_pass`）
+
+正式产物：`outputs/tv3_b7_protocol/`。`protocol_manifest.json` 记录完整 `R / L / S-Y / S-L × 3 split seed × 3 training seed` 矩阵；`split_metrics.json` 判定 `protocol_pass=true`、`matrix_complete=true`、`unexpected_row_count=0`。最终 84 条阶段记录均为 `revalidated_exists`，无当前 audit error。
+
+| 协议 | B7 test O₂ R²（均值 ± std） | B7 OOD O₂ R²（均值 ± std） | 相对 B1 Δtest / ΔOOD |
+| --- | ---: | ---: | ---: |
+| R | 0.6880 ± 0.0190 | 0.6429 ± 0.0256 | +0.2323 / +0.1923 |
+| L | 0.6590 ± 0.0198 | 0.7006 ± 0.0231 | +0.2208 / +0.2606 |
+| S-Y | 0.6756 ± 0.0119 | 0.4340 ± 0.0279 | +0.1740 / +0.7009 |
+| S-L | 0.6975 ± 0.0100 | 0.7002 ± 0.0260 | +0.1895 / +0.2570 |
+
+判读：
+
+1. B7 在四类协议的 test 增益均为正；S-Y、S-L 的 test 与 OOD 增益均为正，且不存在同一 split seed 的三个训练 seed 全负，因此通过预注册的相对 B1 判据。
+2. S-Y 三个 split seed 的 `ood_set_hash` 相同；它们量化同一组 target-margin OOD 上的 ID 划分与训练 seed 方差，不是三组独立 OOD 集。S-L 的 OOD 集随 seed 改变；L 与同 seed 的 S-L 共享 `lhs_boundary` OOD 集，按设计仅作 ID 对照，不额外计为 OOD selector 独立性。
+3. `sum_abs_error` 维持约 `2e-4–4e-4`。36 个 B7 run 的 test 与 OOD 共 288 个 O₂ 0.8% bin 的组分级 R²均为负，均值分别为 `−4.0135` 与 `−5.6890`；整体范围辨识增益没有推翻窄区间物理墙。
+4. B7 升级为默认 RawDSP 头的 `protocol_pass` 候选。模块 C 可从 grouped bottleneck 单变量对照启动；后续结果必须分别报告 S-Y 与 S-L，不能把 S-L 约 0.70 的 OOD 表现概括为所有 OOD 均达到 0.70。
+
+本次同时收紧协议实现：`protocol_pass` 必须覆盖固定 36 条 B1 / B7 配对行；已有 split、RawDSP、fidelity 与训练 metrics 必须复审 provenance 和冻结配置；缺失 B7 `hidden_dims` 或 val-only early-stopping 诊断即失败。相关回归测试现为 48 passed。

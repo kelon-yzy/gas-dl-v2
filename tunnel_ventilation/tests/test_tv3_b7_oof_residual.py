@@ -147,7 +147,10 @@ def test_oof_ridge_residual_combined_predict_is_raw3_and_finite():
     assert model.residual_mlp.target_scaler is not None
     assert model.diagnostics["residual_mlp"]["standardize_targets"] is True
     assert model.diagnostics["residual_mlp"]["zero_init_output"] is True
-    assert model.diagnostics["residual_mlp"]["early_stopping"] == {"monitor": "val_o2_r2"}
+    assert model.diagnostics["residual_mlp"]["early_stopping"] == {
+        "monitor": "val_o2_r2",
+        "uses_combined_ridge_prediction": True,
+    }
 
 
 def test_oof_seed_is_independent_of_mlp_training_seed():

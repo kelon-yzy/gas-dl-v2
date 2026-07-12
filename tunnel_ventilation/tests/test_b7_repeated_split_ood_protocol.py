@@ -37,7 +37,10 @@ def _valid_b7_payload(mod, *, seed: int = 42):
                 "model_config": model_config,
                 "standardize_targets": True,
                 "zero_init_output": True,
-                "early_stopping": {"monitor": "val_o2_r2"},
+                "early_stopping": {
+                    "monitor": "val_o2_r2",
+                    "uses_combined_ridge_prediction": True,
+                },
             },
             "oof": {"fold_count": 5, "fold_seed": 20260711, "coverage_complete": True},
             "leakage_audit": {
