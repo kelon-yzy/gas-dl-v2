@@ -112,6 +112,7 @@ class OofRidgeResidualMlpRegressor:
                 "best_val_o2_r2": residual_mlp.best_val_o2_r2,
                 "standardize_targets": True,
                 "zero_init_output": True,
+                "early_stopping": {"monitor": "val_o2_r2"},
                 "val_residual_rmse": float(np.sqrt(np.mean(np.square(r_val)))),
             },
             "leakage_audit": {

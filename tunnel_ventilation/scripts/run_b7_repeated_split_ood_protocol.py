@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
+from tv3.ml.rocket_training import load_raw_dsp_fidelity, load_raw_dsp_provenance
 from tv3.pipeline.multiseed_utils import load_json, run_command, verify_dataset
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +46,22 @@ RAW_DSP_FEATURES_CONFIG = PROJECT_ROOT / "configs" / "tv3_d2b_raw_dsp_features.j
 SPLIT_SEEDS: tuple[int, ...] = (20260704, 20260712, 20260720)
 TRAINING_SEEDS: tuple[int, ...] = (42, 123, 456)
 PROTOCOL_IDS = ("R", "L", "S-Y", "S-L")
+SUCCESS_STATUSES = frozenset({"ok", "revalidated_exists"})
+EVALUATION_SPLITS = ("val", "test", "extrapolation")
+FROZEN_B7_MLP_CONFIG = {
+    "hidden_dims": [64, 64],
+    "dropout": 0.1,
+    "weight_decay": 0.0001,
+    "lr": 0.001,
+    "batch_size": 256,
+    "max_epochs": 200,
+    "patience": 20,
+    "loss_weights": [1.0, 2.0, 1.0],
+    "standardize_targets": True,
+    "device": "cuda",
+    "out_dim": 3,
+    "zero_init_output": True,
+}
 
 
 @dataclass(frozen=True)
@@ -131,6 +148,117 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+def _is_success_status(status: Any) -> bool:
+    return status in SUCCESS_STATUSES
+
+
+def _same_path(value: Any, expected: Path) -> bool:
+    return isinstance(value, str) and Path(value).resolve() == expected.resolve()
+
+
+def _source_hashes(source_dir: Path) -> dict[str, str]:
+    return {
+        "manifest_sha256": _file_sha256(source_dir / "manifest.json"),
+        "labels_sha256": _file_sha256(source_dir / "labels" / "y.npy"),
+        "condition_grid_sha256": _file_sha256(source_dir / "condition_grid_sequence.csv"),
+    }
+
+
+def _expected_split_policy(spec: ProtocolSplitSpec) -> str:
+    if spec.protocol_id == "R":
+        return "random_mixture_id_split_v4"
+    if spec.protocol_id == "L":
+        return "lhs_stratified_split_v1"
+    return f"spxy_v1:{spec.extrapolation_strategy}"
+
+
+def _audit_derived_split(
+    spec: ProtocolSplitSpec,
+    *,
+    source_dir: Path,
+    splits_root: Path,
+    raw_dsp_bootstrap: Path,
+) -> tuple[dict[str, Any], list[str]]:
+    dataset_dir = splits_root / spec.dataset_name
+    summary_path = dataset_dir / "splits" / "split_summary.json"
+    if not summary_path.is_file():
+        return {}, [f"split summary missing: {summary_path}"]
+    summary = load_json(summary_path)
+    errors: list[str] = []
+    if summary.get("split_policy") != _expected_split_policy(spec):
+        errors.append(f"split_policy={summary.get('split_policy')!r}")
+    if summary.get("split_seed") != spec.split_seed:
+        errors.append(f"split_seed={summary.get('split_seed')!r}")
+    if summary.get("source_hashes") != _source_hashes(source_dir):
+        errors.append("source_hashes do not match the current source dataset")
+    if "features" not in summary.get("skipped_hardlink_toplevel", []):
+        errors.append("derived split did not record features/ as skipped hardlink content")
+    for field in ("split_hash", "ood_set_hash"):
+        if not isinstance(summary.get(field), str) or not summary[field]:
+            errors.append(f"split summary is missing {field}")
+    if spec.spxy_x_profile is not None:
+        expected_profile = "spxy_observed_stats_v1"
+        if summary.get("spxy_x_profile_cli") != spec.spxy_x_profile:
+            errors.append(f"spxy_x_profile_cli={summary.get('spxy_x_profile_cli')!r}")
+        if summary.get("x_feature_profile") != expected_profile:
+            errors.append(f"x_feature_profile={summary.get('x_feature_profile')!r}")
+        if summary.get("x_feature_profile_role") != "protocol_default":
+            errors.append(f"x_feature_profile_role={summary.get('x_feature_profile_role')!r}")
+        if summary.get("spxy_alpha") != spec.spxy_alpha:
+            errors.append(f"spxy_alpha={summary.get('spxy_alpha')!r}")
+        if summary.get("extrapolation_strategy") != spec.extrapolation_strategy:
+            errors.append(f"extrapolation_strategy={summary.get('extrapolation_strategy')!r}")
+        bootstrap = summary.get("raw_dsp_bootstrap")
+        if not isinstance(bootstrap, dict):
+            errors.append("observed SPXY split is missing raw_dsp_bootstrap")
+        else:
+            if bootstrap.get("role") != "split_selection_bootstrap_only":
+                errors.append(f"raw_dsp_bootstrap.role={bootstrap.get('role')!r}")
+            if not _same_path(bootstrap.get("cache_dir"), raw_dsp_bootstrap):
+                errors.append("raw_dsp_bootstrap.cache_dir does not match the requested bootstrap")
+            manifest_path = raw_dsp_bootstrap / "manifest.json"
+            if not manifest_path.is_file() or bootstrap.get("manifest_sha256") != _file_sha256(manifest_path):
+                errors.append("raw_dsp_bootstrap manifest hash does not match")
+    return summary, errors
+
+
+def _audit_raw_dsp_cache(dataset_dir: Path, cache_dir: Path) -> list[str]:
+    manifest_path = cache_dir / "manifest.json"
+    summary_path = dataset_dir / "splits" / "split_summary.json"
+    if not manifest_path.is_file():
+        return [f"RawDSP manifest missing: {manifest_path}"]
+    if not summary_path.is_file():
+        return [f"split summary missing: {summary_path}"]
+    manifest = load_json(manifest_path)
+    summary = load_json(summary_path)
+    errors: list[str] = []
+    if manifest.get("template_source_split") != "train":
+        errors.append(f"template_source_split={manifest.get('template_source_split')!r}")
+    if manifest.get("split_hash") != summary.get("split_hash"):
+        errors.append("RawDSP manifest split_hash does not match split_summary")
+    if manifest.get("split_policy") != summary.get("split_policy"):
+        errors.append("RawDSP manifest split_policy does not match split_summary")
+    if manifest.get("split_seed") != summary.get("split_seed"):
+        errors.append("RawDSP manifest split_seed does not match split_summary")
+    if manifest.get("diagnostic_only") is True:
+        errors.append("diagnostic_only cache is not allowed for protocol")
+    for field in ("build_signature", "template_digest", "template_source_sequence_ids_digest"):
+        if not isinstance(manifest.get(field), str) or not manifest[field]:
+            errors.append(f"RawDSP manifest is missing {field}")
+    if manifest.get("complete_dataset") is not True:
+        errors.append(f"complete_dataset={manifest.get('complete_dataset')!r}")
+    return errors
+
+
+def _audit_fidelity_metrics(metrics_path: Path, dataset_dir: Path) -> list[str]:
+    try:
+        provenance = load_raw_dsp_provenance(dataset_dir)
+        load_raw_dsp_fidelity(metrics_path, dataset_dir=dataset_dir, provenance=provenance)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        return [str(exc)]
+    return []
+
+
 def derive_split(
     spec: ProtocolSplitSpec,
     *,
@@ -149,8 +277,14 @@ def derive_split(
         "split_seed": spec.split_seed,
     }
     if summary_path.is_file() and not dry_run:
-        summary = load_json(summary_path)
-        record["status"] = "skipped_exists"
+        summary, errors = _audit_derived_split(
+            spec,
+            source_dir=source_dir,
+            splits_root=splits_root,
+            raw_dsp_bootstrap=raw_dsp_bootstrap,
+        )
+        record["status"] = "revalidated_exists" if not errors else "audit_fail"
+        record["audit_errors"] = errors
         record["split_hash"] = summary.get("split_hash")
         record["x_feature_profile"] = summary.get("x_feature_profile")
         record["ood_set_hash"] = summary.get("ood_set_hash")
@@ -187,19 +321,14 @@ def derive_split(
         record["status"] = "fail"
         record["returncode"] = proc.returncode
         return record
-    summary = load_json(summary_path)
-    if spec.spxy_x_profile == "observed_v1":
-        if summary.get("x_feature_profile") != "spxy_observed_stats_v1":
-            record["status"] = "audit_fail"
-            record["reason"] = (
-                f"expected x_feature_profile=spxy_observed_stats_v1, got {summary.get('x_feature_profile')!r}"
-            )
-            return record
-        if (output_dir / "features" / "raw_dsp").exists():
-            record["status"] = "audit_fail"
-            record["reason"] = "source RawDSP cache was hard-linked into derived split"
-            return record
-    record["status"] = "ok"
+    summary, errors = _audit_derived_split(
+        spec,
+        source_dir=source_dir,
+        splits_root=splits_root,
+        raw_dsp_bootstrap=raw_dsp_bootstrap,
+    )
+    record["status"] = "ok" if not errors else "audit_fail"
+    record["audit_errors"] = errors
     record["split_hash"] = summary.get("split_hash")
     record["x_feature_profile"] = summary.get("x_feature_profile")
     record["ood_set_hash"] = summary.get("ood_set_hash")
@@ -222,13 +351,7 @@ def build_raw_dsp_for_split(
         "dataset_name": spec.dataset_name,
         "cache_dir": str(cache_dir),
     }
-    if manifest_path.is_file() and not dry_run:
-        manifest = load_json(manifest_path)
-        record["status"] = "skipped_exists"
-        record["build_signature"] = manifest.get("build_signature")
-        record["split_hash"] = manifest.get("split_hash")
-        record["template_source_split"] = manifest.get("template_source_split")
-        return record
+    cache_existed = manifest_path.is_file()
 
     cmd = [
         sys.executable,
@@ -255,19 +378,11 @@ def build_raw_dsp_for_split(
         record["returncode"] = proc.returncode
         return record
     manifest = load_json(manifest_path)
-    split_summary = load_json(dataset_dir / "splits" / "split_summary.json")
-    errors: list[str] = []
-    if manifest.get("template_source_split") != "train":
-        errors.append(f"template_source_split={manifest.get('template_source_split')!r}")
-    if manifest.get("split_hash") != split_summary.get("split_hash"):
-        errors.append("RawDSP manifest split_hash does not match split_summary")
-    if manifest.get("diagnostic_only") is True:
-        errors.append("diagnostic_only cache is not allowed for protocol")
+    errors = _audit_raw_dsp_cache(dataset_dir, cache_dir)
+    record["status"] = "revalidated_exists" if cache_existed and not errors else "ok"
     if errors:
         record["status"] = "audit_fail"
-        record["audit_errors"] = errors
-        return record
-    record["status"] = "ok"
+    record["audit_errors"] = errors
     record["build_signature"] = manifest.get("build_signature")
     record["split_hash"] = manifest.get("split_hash")
     record["template_digest"] = manifest.get("template_digest")
@@ -292,7 +407,9 @@ def audit_raw_dsp_fidelity(
     }
     if metrics_path.is_file() and not dry_run:
         payload = load_json(metrics_path)
-        record["status"] = "skipped_exists" if payload.get("status") == "passed" else "audit_fail"
+        errors = _audit_fidelity_metrics(metrics_path, dataset_dir)
+        record["status"] = "revalidated_exists" if not errors else "audit_fail"
+        record["audit_errors"] = errors
         record["fidelity_status"] = payload.get("status")
         return record
 
@@ -314,26 +431,28 @@ def audit_raw_dsp_fidelity(
     if dry_run or proc is None:
         record["status"] = "dry_run"
         return record
-    if not metrics_path.is_file():
+    if proc.returncode != 0 or not metrics_path.is_file():
         record["status"] = "fail"
+        record["returncode"] = proc.returncode
         record["reason"] = "fidelity metrics.json missing"
         return record
     payload = load_json(metrics_path)
     record["fidelity_status"] = payload.get("status")
-    record["status"] = "ok" if payload.get("status") == "passed" else "audit_fail"
+    errors = _audit_fidelity_metrics(metrics_path, dataset_dir)
+    record["status"] = "ok" if not errors else "audit_fail"
+    record["audit_errors"] = errors
     return record
 
 
-def _write_run_config(
+def _build_run_config_payload(
     *,
     base_config_path: Path,
-    output_path: Path,
     dataset_dir: Path,
     output_dir: Path,
     seed: int | None,
     fidelity_metrics_path: Path | None,
     b1_metrics_path: Path | None,
-) -> Path:
+) -> dict[str, Any]:
     config = load_json(base_config_path)
     config["dataset_dir"] = str(dataset_dir)
     config["output_dir"] = str(output_dir)
@@ -351,9 +470,90 @@ def _write_run_config(
             if not Path(config["b6_multiseed_report_path"]).is_absolute()
             else config["b6_multiseed_report_path"]
         )
+    return config
+
+
+def _write_run_config(
+    *,
+    base_config_path: Path,
+    output_path: Path,
+    dataset_dir: Path,
+    output_dir: Path,
+    seed: int | None,
+    fidelity_metrics_path: Path | None,
+    b1_metrics_path: Path | None,
+) -> Path:
+    config = _build_run_config_payload(
+        base_config_path=base_config_path,
+        dataset_dir=dataset_dir,
+        output_dir=output_dir,
+        seed=seed,
+        fidelity_metrics_path=fidelity_metrics_path,
+        b1_metrics_path=b1_metrics_path,
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
     return output_path
+
+
+def _audit_run_config(config_path: Path, expected_config: dict[str, Any]) -> list[str]:
+    if not config_path.is_file():
+        return [f"run config missing: {config_path}"]
+    actual_config = load_json(config_path)
+    if actual_config != expected_config:
+        return ["run config does not match the frozen protocol config"]
+    return []
+
+
+def _audit_raw_dsp_run_payload(
+    payload: dict[str, Any],
+    *,
+    dataset_dir: Path,
+    expected_head: str,
+) -> list[str]:
+    errors: list[str] = []
+    if payload.get("head") != expected_head:
+        errors.append(f"head={payload.get('head')!r}")
+    if payload.get("feature_builder") != "d0_raw_dsp_physics_stats_v1":
+        errors.append(f"feature_builder={payload.get('feature_builder')!r}")
+    if payload.get("feature_count") != 1008:
+        errors.append(f"feature_count={payload.get('feature_count')!r}")
+    if not _same_path(payload.get("dataset_dir"), dataset_dir):
+        errors.append("metrics dataset_dir does not match the derived split")
+    try:
+        expected_provenance = load_raw_dsp_provenance(dataset_dir)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        errors.append(str(exc))
+        return errors
+    provenance = payload.get("raw_dsp_provenance")
+    if not isinstance(provenance, dict):
+        errors.append("metrics are missing raw_dsp_provenance")
+    else:
+        for field in ("build_signature", "template_digest", "template_source_split"):
+            if provenance.get(field) != expected_provenance.get(field):
+                errors.append(f"metrics raw_dsp_provenance.{field} does not match the current cache")
+    evaluations = payload.get("evaluations")
+    if not isinstance(evaluations, dict):
+        errors.append("metrics are missing evaluations")
+        return errors
+    for split_name in EVALUATION_SPLITS:
+        split_payload = evaluations.get(split_name)
+        if not isinstance(split_payload, dict):
+            errors.append(f"metrics are missing {split_name} evaluation")
+            continue
+        components = split_payload.get("component_metrics")
+        if not isinstance(components, dict):
+            errors.append(f"metrics are missing {split_name}.component_metrics")
+            continue
+        for component in ("x_CO2", "x_O2", "x_N2"):
+            try:
+                value = float(components[component]["r2"])
+            except (KeyError, TypeError, ValueError):
+                errors.append(f"metrics are missing {split_name}.{component}.r2")
+                continue
+            if not math.isfinite(value):
+                errors.append(f"metrics {split_name}.{component}.r2 is not finite")
+    return errors
 
 
 def run_b1(
@@ -374,13 +574,24 @@ def run_b1(
         "training_seed": None,
         "metrics_path": str(metrics_path),
     }
+    config_path = run_dir / "run_config.json"
+    expected_config = _build_run_config_payload(
+        base_config_path=B1_CONFIG,
+        dataset_dir=dataset_dir,
+        output_dir=run_dir,
+        seed=None,
+        fidelity_metrics_path=None,
+        b1_metrics_path=None,
+    )
     if metrics_path.is_file() and not dry_run:
         payload = load_json(metrics_path)
-        record["status"] = "skipped_exists"
+        errors = _audit_run_config(config_path, expected_config)
+        errors.extend(_audit_raw_dsp_run_payload(payload, dataset_dir=dataset_dir, expected_head="ridgecv"))
+        record["status"] = "revalidated_exists" if not errors else "audit_fail"
+        record["audit_errors"] = errors
         record["metrics"] = _extract_run_metrics(payload)
         return record
 
-    config_path = run_dir / "run_config.json"
     if not dry_run:
         _write_run_config(
             base_config_path=B1_CONFIG,
@@ -410,7 +621,10 @@ def run_b1(
         record["returncode"] = None if proc is None else proc.returncode
         return record
     payload = load_json(metrics_path)
-    record["status"] = "ok"
+    errors = _audit_run_config(config_path, expected_config)
+    errors.extend(_audit_raw_dsp_run_payload(payload, dataset_dir=dataset_dir, expected_head="ridgecv"))
+    record["status"] = "ok" if not errors else "audit_fail"
+    record["audit_errors"] = errors
     record["metrics"] = _extract_run_metrics(payload)
     record["config_sha256"] = _file_sha256(config_path)
     return record
@@ -436,15 +650,27 @@ def run_b7_seed(
         "metrics_path": str(metrics_path),
         "b7_config_sha256": _file_sha256(B7_CONFIG),
     }
-    if metrics_path.is_file() and not dry_run:
-        payload = load_json(metrics_path)
-        record["status"] = "skipped_exists"
-        record["metrics"] = _extract_run_metrics(payload)
-        return record
-
     config_path = run_dir / "run_config.json"
     fidelity_path = output_root / spec.dataset_name / "raw_dsp_fidelity" / "metrics.json"
     b1_metrics = output_root / spec.dataset_name / "b1" / "metrics.json"
+    expected_config = _build_run_config_payload(
+        base_config_path=B7_CONFIG,
+        dataset_dir=dataset_dir,
+        output_dir=run_dir,
+        seed=training_seed,
+        fidelity_metrics_path=fidelity_path,
+        b1_metrics_path=b1_metrics,
+    )
+    if metrics_path.is_file() and not dry_run:
+        payload = load_json(metrics_path)
+        errors = _audit_run_config(config_path, expected_config)
+        errors.extend(_audit_raw_dsp_run_payload(payload, dataset_dir=dataset_dir, expected_head="oof_ridge_residual_mlp"))
+        errors.extend(_audit_b7_frozen(payload, training_seed=training_seed))
+        record["status"] = "revalidated_exists" if not errors else "audit_fail"
+        record["audit_errors"] = errors
+        record["metrics"] = _extract_run_metrics(payload)
+        return record
+
     if not dry_run:
         _write_run_config(
             base_config_path=B7_CONFIG,
@@ -476,7 +702,9 @@ def run_b7_seed(
         record["returncode"] = None if proc is None else proc.returncode
         return record
     payload = load_json(metrics_path)
-    errors = _audit_b7_frozen(payload, training_seed=training_seed)
+    errors = _audit_run_config(config_path, expected_config)
+    errors.extend(_audit_raw_dsp_run_payload(payload, dataset_dir=dataset_dir, expected_head="oof_ridge_residual_mlp"))
+    errors.extend(_audit_b7_frozen(payload, training_seed=training_seed))
     record["status"] = "ok" if not errors else "audit_fail"
     record["audit_errors"] = errors
     record["metrics"] = _extract_run_metrics(payload)
@@ -492,24 +720,45 @@ def _audit_b7_frozen(payload: dict[str, Any], *, training_seed: int) -> list[str
         errors.append(f"feature_builder={payload.get('feature_builder')!r}")
     if payload.get("feature_count") != 1008:
         errors.append(f"feature_count={payload.get('feature_count')!r}")
-    residual = payload.get("diagnostics", {}).get("residual_mlp", {})
+    diagnostics = payload.get("diagnostics")
+    if not isinstance(diagnostics, dict):
+        return [*errors, "diagnostics is missing or invalid"]
+    residual = diagnostics.get("residual_mlp")
+    if not isinstance(residual, dict):
+        return [*errors, "diagnostics.residual_mlp is missing or invalid"]
     model_config = residual.get("model_config", {})
+    if not isinstance(model_config, dict):
+        return [*errors, "residual_mlp.model_config is missing or invalid"]
     if model_config.get("seed") != training_seed:
         errors.append(f"training seed mismatch: {model_config.get('seed')} != {training_seed}")
-    if tuple(model_config.get("hidden_dims", residual.get("hidden_dims", []))) not in {(64, 64), ()}:
-        hidden = model_config.get("hidden_dims", residual.get("hidden_dims"))
-        if hidden != [64, 64] and hidden != (64, 64):
-            errors.append(f"hidden_dims not frozen (64,64): {hidden!r}")
-    oof = payload.get("diagnostics", {}).get("oof", {})
+    for field, expected in FROZEN_B7_MLP_CONFIG.items():
+        if model_config.get(field) != expected:
+            errors.append(f"model_config.{field}={model_config.get(field)!r}, expected {expected!r}")
+    if residual.get("standardize_targets") is not True:
+        errors.append(f"residual_mlp.standardize_targets={residual.get('standardize_targets')!r}")
+    if residual.get("zero_init_output") is not True:
+        errors.append(f"residual_mlp.zero_init_output={residual.get('zero_init_output')!r}")
+    oof = diagnostics.get("oof")
+    if not isinstance(oof, dict):
+        errors.append("diagnostics.oof is missing or invalid")
+        oof = {}
     if oof.get("fold_count") != 5:
         errors.append(f"oof fold_count={oof.get('fold_count')!r}")
     if oof.get("fold_seed") != 20260711:
         errors.append(f"oof fold_seed={oof.get('fold_seed')!r}")
-    # test / extrapolation 永不参与早停：早停字段只允许引用 val
-    early = residual.get("early_stopping") or residual.get("selection") or {}
-    monitor = str(early.get("monitor", early.get("metric", "val_o2_r2"))).lower()
-    if "test" in monitor or "extrap" in monitor:
-        errors.append(f"early stopping monitor must be val-only, got {monitor!r}")
+    if oof.get("coverage_complete") is not True:
+        errors.append(f"oof coverage_complete={oof.get('coverage_complete')!r}")
+    leakage = diagnostics.get("leakage_audit")
+    if not isinstance(leakage, dict):
+        errors.append("diagnostics.leakage_audit is missing or invalid")
+        leakage = {}
+    for field in ("oof_used_for_residual_targets", "full_ridge_fit_on_train_only", "val_residual_from_full_ridge", "oof_coverage_complete"):
+        if leakage.get(field) is not True:
+            errors.append(f"leakage_audit.{field}={leakage.get(field)!r}")
+    early = residual.get("early_stopping")
+    if not isinstance(early, dict) or early.get("monitor") != "val_o2_r2":
+        monitor = None if not isinstance(early, dict) else early.get("monitor")
+        errors.append(f"early stopping monitor must be 'val_o2_r2', got {monitor!r}")
     return errors
 
 
@@ -588,20 +837,50 @@ def _mean_std(values: list[float]) -> dict[str, float]:
 
 def evaluate_protocol_pass(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """按实施计划 §6.1 判定 protocol_pass（不报告 p 值）。"""
-    by_protocol: dict[str, list[dict[str, Any]]] = {pid: [] for pid in PROTOCOL_IDS}
+    expected_keys = {
+        (protocol_id, split_seed, training_seed)
+        for protocol_id in PROTOCOL_IDS
+        for split_seed in SPLIT_SEEDS
+        for training_seed in TRAINING_SEEDS
+    }
+    rows_by_key: dict[tuple[str, int, int], list[dict[str, Any]]] = {}
     for row in rows:
-        if row.get("b7_status") not in {"ok", "skipped_exists"}:
+        try:
+            key = (str(row["protocol_id"]), int(row["split_seed"]), int(row["training_seed"]))
+        except (KeyError, TypeError, ValueError):
             continue
-        if row.get("delta_o2_r2_test") is None:
-            continue
-        by_protocol[str(row["protocol_id"])].append(row)
+        rows_by_key.setdefault(key, []).append(row)
+    unexpected_keys = set(rows_by_key) - expected_keys
 
     checks: dict[str, Any] = {}
     all_ok = True
     for protocol_id in PROTOCOL_IDS:
-        protocol_rows = by_protocol[protocol_id]
-        if not protocol_rows:
-            checks[protocol_id] = {"passed": False, "reason": "missing paired rows"}
+        protocol_expected = {key for key in expected_keys if key[0] == protocol_id}
+        missing_keys = sorted(protocol_expected - set(rows_by_key))
+        duplicate_keys = sorted(key for key in protocol_expected if len(rows_by_key.get(key, [])) > 1)
+        protocol_rows = [rows_by_key[key][0] for key in sorted(protocol_expected) if len(rows_by_key.get(key, [])) == 1]
+        failed_rows = []
+        for row in protocol_rows:
+            if not _is_success_status(row.get("b7_status")) or not _is_success_status(row.get("b1_status")):
+                failed_rows.append(row)
+                continue
+            for field in ("delta_o2_r2_test", "delta_o2_r2_extrapolation"):
+                value = row.get(field)
+                try:
+                    valid_value = value is not None and math.isfinite(float(value))
+                except (TypeError, ValueError):
+                    valid_value = False
+                if not valid_value:
+                    failed_rows.append(row)
+                    break
+        if missing_keys or duplicate_keys or failed_rows:
+            checks[protocol_id] = {
+                "passed": False,
+                "reason": "incomplete, duplicate, failed, or unpaired protocol rows",
+                "missing_count": len(missing_keys),
+                "duplicate_count": len(duplicate_keys),
+                "invalid_count": len(failed_rows),
+            }
             all_ok = False
             continue
         test_deltas = [float(row["delta_o2_r2_test"]) for row in protocol_rows]
@@ -633,7 +912,15 @@ def evaluate_protocol_pass(rows: list[dict[str, Any]]) -> dict[str, Any]:
         all_ok = all_ok and passed
 
     return {
-        "protocol_pass": all_ok and all(checks[pid]["passed"] for pid in PROTOCOL_IDS),
+        "protocol_pass": (
+            not unexpected_keys
+            and all_ok
+            and all(checks[pid]["passed"] for pid in PROTOCOL_IDS)
+        ),
+        "matrix_complete": all(
+            len(rows_by_key.get(key, [])) == 1 for key in expected_keys
+        ) and not unexpected_keys,
+        "unexpected_row_count": sum(len(rows_by_key[key]) for key in unexpected_keys),
         "checks": checks,
         "note": (
             "3 training seeds are insufficient for significance claims; "
@@ -663,8 +950,8 @@ def write_result_matrix(rows: list[dict[str, Any]], output_root: Path) -> None:
     for row in rows:
         md_lines.append(
             "| {protocol_id} | {dataset_name} | {split_seed} | {training_seed} | "
-            "{b7_test:.4f} | {b1_test:.4f} | {d_test} | "
-            "{b7_ood:.4f} | {b1_ood:.4f} | {d_ood} | {status} |".format(
+            "{b7_test} | {b1_test} | {d_test} | "
+            "{b7_ood} | {b1_ood} | {d_ood} | {status} |".format(
                 protocol_id=row["protocol_id"],
                 dataset_name=row["dataset_name"],
                 split_seed=row["split_seed"],
@@ -734,6 +1021,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.training_seeds
         else TRAINING_SEEDS
     )
+    if not protocol_filter or len(set(protocol_filter)) != len(protocol_filter) or set(protocol_filter) - set(PROTOCOL_IDS):
+        raise ValueError(f"protocol_ids must be a non-empty subset of {PROTOCOL_IDS}")
+    if not split_seeds or len(set(split_seeds)) != len(split_seeds) or set(split_seeds) - set(SPLIT_SEEDS):
+        raise ValueError(f"split_seeds must be a non-empty subset of {SPLIT_SEEDS}")
+    if not training_seeds or len(set(training_seeds)) != len(training_seeds) or set(training_seeds) - set(TRAINING_SEEDS):
+        raise ValueError(f"training_seeds must be a non-empty subset of {TRAINING_SEEDS}")
     specs = [
         spec
         for spec in build_protocol_matrix()
@@ -769,6 +1062,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "split_seeds": list(split_seeds),
         "training_seeds": list(training_seeds),
         "protocol_ids": list(protocol_filter),
+        "is_complete_formal_matrix": (
+            set(protocol_filter) == set(PROTOCOL_IDS)
+            and set(split_seeds) == set(SPLIT_SEEDS)
+            and set(training_seeds) == set(TRAINING_SEEDS)
+        ),
         "matrix": [asdict(spec) | {"dataset_name": spec.dataset_name} for spec in specs],
         "invariants": {
             "feature_builder": "d0_raw_dsp_physics_stats_v1",
@@ -810,7 +1108,33 @@ def main(argv: Sequence[str] | None = None) -> int:
                 dry_run=False,
             )
             _append_jsonl(runs_path, {k: v for k, v in derive_record.items() if k != "command"})
-            if derive_record.get("status") not in {"ok", "skipped_exists"}:
+            if not _is_success_status(derive_record.get("status")):
+                failures += 1
+                continue
+        else:
+            summary_path = args.splits_root / spec.dataset_name / "splits" / "split_summary.json"
+            if not summary_path.is_file():
+                _append_jsonl(
+                    runs_path,
+                    {
+                        "stage": "derive_prerequisite",
+                        "protocol_id": spec.protocol_id,
+                        "dataset_name": spec.dataset_name,
+                        "status": "audit_fail",
+                        "reason": f"split summary missing: {summary_path}",
+                    },
+                )
+                failures += 1
+                continue
+            derive_record = derive_split(
+                spec,
+                source_dir=args.source_dir,
+                splits_root=args.splits_root,
+                raw_dsp_bootstrap=args.raw_dsp_bootstrap,
+                dry_run=False,
+            )
+            _append_jsonl(runs_path, {k: v for k, v in derive_record.items() if k != "command"})
+            if not _is_success_status(derive_record.get("status")):
                 failures += 1
                 continue
 
@@ -822,7 +1146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 workers=args.workers,
             )
             _append_jsonl(runs_path, {k: v for k, v in raw_record.items() if k != "command"})
-            if raw_record.get("status") not in {"ok", "skipped_exists"}:
+            if not _is_success_status(raw_record.get("status")):
                 failures += 1
                 continue
             fidelity_record = audit_raw_dsp_fidelity(
@@ -832,7 +1156,57 @@ def main(argv: Sequence[str] | None = None) -> int:
                 dry_run=False,
             )
             _append_jsonl(runs_path, {k: v for k, v in fidelity_record.items() if k != "command"})
-            if fidelity_record.get("status") not in {"ok", "skipped_exists"}:
+            if not _is_success_status(fidelity_record.get("status")):
+                failures += 1
+                continue
+        elif args.stage == "train":
+            dataset_dir = args.splits_root / spec.dataset_name
+            cache_manifest = dataset_dir / "features" / "raw_dsp" / "raw_dsp_frame_v1" / "manifest.json"
+            if not cache_manifest.is_file():
+                _append_jsonl(
+                    runs_path,
+                    {
+                        "stage": "raw_dsp_prerequisite",
+                        "protocol_id": spec.protocol_id,
+                        "dataset_name": spec.dataset_name,
+                        "status": "audit_fail",
+                        "reason": f"RawDSP manifest missing: {cache_manifest}",
+                    },
+                )
+                failures += 1
+                continue
+            raw_record = build_raw_dsp_for_split(
+                spec,
+                splits_root=args.splits_root,
+                dry_run=False,
+                workers=args.workers,
+            )
+            _append_jsonl(runs_path, {k: v for k, v in raw_record.items() if k != "command"})
+            if not _is_success_status(raw_record.get("status")):
+                failures += 1
+                continue
+            metrics_path = args.output_root / spec.dataset_name / "raw_dsp_fidelity" / "metrics.json"
+            if not metrics_path.is_file():
+                _append_jsonl(
+                    runs_path,
+                    {
+                        "stage": "fidelity_prerequisite",
+                        "protocol_id": spec.protocol_id,
+                        "dataset_name": spec.dataset_name,
+                        "status": "audit_fail",
+                        "reason": f"fidelity metrics missing: {metrics_path}",
+                    },
+                )
+                failures += 1
+                continue
+            fidelity_record = audit_raw_dsp_fidelity(
+                spec,
+                splits_root=args.splits_root,
+                output_root=args.output_root,
+                dry_run=False,
+            )
+            _append_jsonl(runs_path, {k: v for k, v in fidelity_record.items() if k != "command"})
+            if not _is_success_status(fidelity_record.get("status")):
                 failures += 1
                 continue
 
@@ -845,7 +1219,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _append_jsonl(runs_path, {k: v for k, v in b1_record.items() if k != "command"})
             b1_by_dataset[spec.dataset_name] = b1_record
-            if b1_record.get("status") not in {"ok", "skipped_exists"}:
+            if not _is_success_status(b1_record.get("status")):
                 failures += 1
                 continue
             for training_seed in training_seeds:
@@ -857,7 +1231,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     dry_run=False,
                 )
                 _append_jsonl(runs_path, {k: v for k, v in b7_record.items() if k != "command"})
-                if b7_record.get("status") not in {"ok", "skipped_exists"}:
+                if not _is_success_status(b7_record.get("status")):
                     failures += 1
                 matrix_rows.append(
                     _matrix_row_from_records(spec=spec, b1=b1_record, b7=b7_record)

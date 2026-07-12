@@ -25,6 +25,31 @@ def _load_protocol_module():
     return module
 
 
+def _valid_b7_payload(mod, *, seed: int = 42):
+    model_config = dict(mod.FROZEN_B7_MLP_CONFIG)
+    model_config["seed"] = seed
+    return {
+        "head": "oof_ridge_residual_mlp",
+        "feature_builder": "d0_raw_dsp_physics_stats_v1",
+        "feature_count": 1008,
+        "diagnostics": {
+            "residual_mlp": {
+                "model_config": model_config,
+                "standardize_targets": True,
+                "zero_init_output": True,
+                "early_stopping": {"monitor": "val_o2_r2"},
+            },
+            "oof": {"fold_count": 5, "fold_seed": 20260711, "coverage_complete": True},
+            "leakage_audit": {
+                "oof_used_for_residual_targets": True,
+                "full_ridge_fit_on_train_only": True,
+                "val_residual_from_full_ridge": True,
+                "oof_coverage_complete": True,
+            },
+        },
+    }
+
+
 def test_protocol_matrix_is_complete_and_frozen():
     mod = _load_protocol_module()
     specs = mod.build_protocol_matrix()
@@ -55,6 +80,7 @@ def test_protocol_pass_requires_positive_mean_delta_and_no_all_negative_ood_seed
                         "split_seed": split_seed,
                         "training_seed": training_seed,
                         "b7_status": "ok",
+                        "b1_status": "ok",
                         "delta_o2_r2_test": 0.02,
                         "delta_o2_r2_extrapolation": 0.01 if is_ood else 0.005,
                         "is_ood_evidence": is_ood,
@@ -72,21 +98,41 @@ def test_protocol_pass_requires_positive_mean_delta_and_no_all_negative_ood_seed
     assert verdict_fail["checks"]["S-Y"]["passed"] is False
 
 
+def test_protocol_pass_rejects_incomplete_or_non_frozen_matrix():
+    mod = _load_protocol_module()
+    rows = [
+        {
+            "protocol_id": protocol_id,
+            "split_seed": 20260704,
+            "training_seed": 42,
+            "b7_status": "ok",
+            "b1_status": "ok",
+            "delta_o2_r2_test": 0.02,
+            "delta_o2_r2_extrapolation": 0.01,
+        }
+        for protocol_id in ("R", "L", "S-Y", "S-L")
+    ]
+    verdict = mod.evaluate_protocol_pass(rows)
+    assert verdict["protocol_pass"] is False
+    assert verdict["matrix_complete"] is False
+    assert verdict["checks"]["S-Y"]["missing_count"] == 8
+
+
 def test_audit_b7_frozen_rejects_test_early_stopping_monitor():
     mod = _load_protocol_module()
-    payload = {
-        "head": "oof_ridge_residual_mlp",
-        "feature_builder": "d0_raw_dsp_physics_stats_v1",
-        "feature_count": 1008,
-        "diagnostics": {
-            "residual_mlp": {
-                "model_config": {"seed": 42, "hidden_dims": [64, 64]},
-                "early_stopping": {"monitor": "test_o2_r2"},
-            },
-            "oof": {"fold_count": 5, "fold_seed": 20260711},
-        },
-    }
+    payload = _valid_b7_payload(mod)
+    payload["diagnostics"]["residual_mlp"]["early_stopping"] = {"monitor": "test_o2_r2"}
     errors = mod._audit_b7_frozen(payload, training_seed=42)
+    assert any("early stopping" in err for err in errors)
+
+
+def test_audit_b7_frozen_rejects_missing_frozen_fields():
+    mod = _load_protocol_module()
+    payload = _valid_b7_payload(mod)
+    del payload["diagnostics"]["residual_mlp"]["model_config"]["hidden_dims"]
+    del payload["diagnostics"]["residual_mlp"]["early_stopping"]
+    errors = mod._audit_b7_frozen(payload, training_seed=42)
+    assert any("model_config.hidden_dims" in err for err in errors)
     assert any("early stopping" in err for err in errors)
 
 
@@ -111,8 +157,23 @@ def test_protocol_dry_run_writes_manifest(tmp_path):
     assert manifest["invariants"]["spxy_x_profile_for_ood"] == "spxy_observed_stats_v1"
     assert manifest["invariants"]["early_stopping"] == "val_only"
     assert manifest["training_seeds"] == [42]
+    assert manifest["is_complete_formal_matrix"] is False
     assert len(manifest["matrix"]) == 2
     assert {row["protocol_id"] for row in manifest["matrix"]} == {"R", "S-Y"}
+
+
+def test_protocol_rejects_non_frozen_training_seed(tmp_path):
+    mod = _load_protocol_module()
+    with pytest.raises(ValueError, match="training_seeds"):
+        mod.main(
+            [
+                "--dry-run",
+                "--output-root",
+                str(tmp_path / "protocol_out"),
+                "--training-seeds",
+                "999",
+            ]
+        )
 
 
 def test_result_matrix_requires_b1_pairing_fields():
@@ -156,3 +217,42 @@ def test_result_matrix_requires_b1_pairing_fields():
     assert row["delta_o2_r2_extrapolation"] == pytest.approx(0.24)
     assert row["b1_test_o2_r2"] == pytest.approx(0.48)
     assert row["b7_test_o2_r2"] == pytest.approx(0.70)
+
+
+def test_write_result_matrix_accepts_numeric_and_missing_values(tmp_path):
+    """_fmt 已返回字符串，markdown 模板不得再套 :.4f。"""
+    mod = _load_protocol_module()
+    rows = [
+        {
+            "protocol_id": "S-Y",
+            "dataset_name": "spxy_observed_a05_ymargin_s20260704",
+            "split_seed": 20260704,
+            "training_seed": 42,
+            "b7_status": "ok",
+            "b7_test_o2_r2": 0.7001,
+            "b1_test_o2_r2": 0.4786,
+            "delta_o2_r2_test": 0.2215,
+            "b7_extrapolation_o2_r2": 0.6157,
+            "b1_extrapolation_o2_r2": 0.3695,
+            "delta_o2_r2_extrapolation": 0.2462,
+        },
+        {
+            "protocol_id": "R",
+            "dataset_name": "random_s20260704",
+            "split_seed": 20260704,
+            "training_seed": 123,
+            "b7_status": "fail",
+            "b7_test_o2_r2": None,
+            "b1_test_o2_r2": None,
+            "delta_o2_r2_test": None,
+            "b7_extrapolation_o2_r2": None,
+            "b1_extrapolation_o2_r2": None,
+            "delta_o2_r2_extrapolation": None,
+        },
+    ]
+    mod.write_result_matrix(rows, tmp_path)
+    md = (tmp_path / "result_matrix.md").read_text(encoding="utf-8")
+    assert "0.7001" in md
+    assert "+0.2215" in md
+    assert "NA" in md
+    assert (tmp_path / "result_matrix.csv").is_file()
