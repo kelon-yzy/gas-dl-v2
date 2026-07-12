@@ -151,22 +151,29 @@ class Trainer:
         *,
         device: torch.device,
         non_blocking: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, object]]:
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, object], dict[str, torch.Tensor] | None]:
         """Unpack a DataLoader batch, handling both tensor and dict inputs.
 
-        Moves all tensors to *device* and returns (x, y, extra_kwargs) where
-        *extra_kwargs* is a dict of additional inputs for model forward kwargs.
+        Moves all tensors to *device* and returns (x, y, model_kwargs, aux_targets)
+        where *model_kwargs* are extra inputs for model forward kwargs and
+        *aux_targets* is a dict of auxiliary supervision targets (never passed to model).
         """
         xb, yb = batch
+        aux_targets: dict[str, torch.Tensor] | None = None
         if isinstance(xb, dict):
             x = xb["x"].to(device, non_blocking=non_blocking)
             kwargs = {
                 k: v.to(device, non_blocking=non_blocking)
                 for k, v in xb.items()
-                if k != "x"
+                if k not in ("x", "aux_targets")
             }
-            return x, yb.to(device, non_blocking=non_blocking), kwargs
-        return xb.to(device, non_blocking=non_blocking), yb.to(device, non_blocking=non_blocking), {}
+            if "aux_targets" in xb:
+                aux_targets = {
+                    k: v.to(device, non_blocking=non_blocking)
+                    for k, v in xb["aux_targets"].items()
+                }
+            return x, yb.to(device, non_blocking=non_blocking), kwargs, aux_targets
+        return xb.to(device, non_blocking=non_blocking), yb.to(device, non_blocking=non_blocking), {}, None
 
     def fit(
         self,
@@ -209,12 +216,12 @@ class Trainer:
             total_batches = len(train_loader)
             report_interval = max(1, total_batches // 5)  # 每 20% 报告一次
             for batch in train_loader:
-                xb, yb, model_kwargs = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
+                xb, yb, model_kwargs, aux_targets = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
                 self.optimizer.zero_grad(set_to_none=True)
                 if amp.enabled:
                     with torch.autocast(device_type="cuda", dtype=amp_dtype):
                         pred = self.model(xb, **model_kwargs)
-                        loss = self.loss_fn(pred, self._loss_targets(yb))
+                        loss = self._compute_loss(pred, self._loss_targets(yb), aux_targets)
                     scaler.scale(loss).backward()
                     if grad_clip_norm > 0.0:
                         scaler.unscale_(self.optimizer)
@@ -223,7 +230,7 @@ class Trainer:
                     scaler.update()
                 else:
                     pred = self.model(xb, **model_kwargs)
-                    loss = self.loss_fn(pred, self._loss_targets(yb))
+                    loss = self._compute_loss(pred, self._loss_targets(yb), aux_targets)
                     loss.backward()
                     if grad_clip_norm > 0.0:
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), grad_clip_norm)
@@ -304,21 +311,33 @@ class Trainer:
         loss_accum = torch.zeros((), dtype=torch.float64, device=self.device)
         all_preds: list[torch.Tensor] = []
         all_targets: list[torch.Tensor] = []
+        all_aux_preds: list[dict[str, torch.Tensor]] = []
+        all_aux_targets: list[dict[str, torch.Tensor]] = []
         n_batches = 0
 
         for batch in data_loader:
-            xb, yb, model_kwargs = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
+            xb, yb, model_kwargs, aux_targets = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
             if amp.enabled:
                 with torch.autocast(device_type="cuda", dtype=amp_dtype):
                     pred = self.model(xb, **model_kwargs)
-                    loss = self.loss_fn(pred, self._loss_targets(yb))
+                    loss = self._compute_loss(pred, self._loss_targets(yb), aux_targets)
             else:
                 pred = self.model(xb, **model_kwargs)
-                loss = self.loss_fn(pred, self._loss_targets(yb))
+                loss = self._compute_loss(pred, self._loss_targets(yb), aux_targets)
             loss_accum += loss.detach().double()
-            all_preds.append(pred.cpu())
+            main_pred = _main_prediction(pred)
+            all_preds.append(main_pred.cpu())
             all_targets.append(yb.cpu())
+            if aux_targets is not None:
+                aux_pred = _aux_prediction(pred)
+                if aux_pred is None:
+                    raise ValueError("aux_targets present during evaluation but model output has no 'aux' dict")
+                all_aux_preds.append(_detach_tensor_dict(aux_pred))
+                all_aux_targets.append(_detach_tensor_dict(aux_targets))
             n_batches += 1
+
+        if all_aux_preds and len(all_aux_preds) != n_batches:
+            raise ValueError("D2 auxiliary metrics require aux_targets on every evaluation batch")
 
         y_pred = torch.cat(all_preds)
         y_true = torch.cat(all_targets)
@@ -343,6 +362,7 @@ class Trainer:
             sum_abs_error = float(torch.mean(torch.abs(y_pred_raw.sum(dim=1) - 100.0)).item())
         else:
             sum_abs_error = None
+        auxiliary_metrics = _auxiliary_metrics(all_aux_preds, all_aux_targets)
 
         self.model.train()
         return {
@@ -352,6 +372,7 @@ class Trainer:
             "compositional_metrics": compositional_metrics,
             "conditional_metrics": conditional_metrics,
             "sum_abs_error": sum_abs_error,
+            "auxiliary_metrics": auxiliary_metrics,
         }
 
     @torch.inference_mode()
@@ -368,13 +389,13 @@ class Trainer:
         preds: list[torch.Tensor] = []
         targets: list[torch.Tensor] = []
         for batch in data_loader:
-            xb, yb, model_kwargs = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
+            xb, yb, model_kwargs, _aux_targets = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
             if amp.enabled:
                 with torch.autocast(device_type="cuda", dtype=amp_dtype):
                     pred = self.model(xb, **model_kwargs)
             else:
                 pred = self.model(xb, **model_kwargs)
-            preds.append(self._metric_predictions(pred).cpu())
+            preds.append(self._metric_predictions(_main_prediction(pred)).cpu())
             targets.append(yb.cpu())
         self.model.train()
         return torch.cat(preds), torch.cat(targets)
@@ -400,6 +421,21 @@ class Trainer:
         model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.history = checkpoint.get("history", TrainHistory())
+
+    def _compute_loss(
+        self,
+        pred: torch.Tensor | dict[str, object],
+        target: torch.Tensor,
+        aux_targets: dict[str, torch.Tensor] | None,
+    ) -> torch.Tensor:
+        if aux_targets is not None:
+            if not getattr(self.loss_fn, "accepts_aux_targets", False):
+                raise ValueError(
+                    f"aux_targets present in batch but loss {type(self.loss_fn).__name__} "
+                    f"does not accept aux_targets. Use D2TOFPhaseLoss or remove aux_target_arrays."
+                )
+            return self.loss_fn(pred, target, aux_targets=aux_targets)
+        return self.loss_fn(pred, target)
 
     def _conditional_bin_components(self) -> tuple[str, ...]:
         """Pick conditional-metric bin components per composition scheme.
@@ -467,6 +503,144 @@ class Trainer:
             aitchison_mean=float(np.mean(distances)),
             aitchison_rmse=float(np.sqrt(np.mean(distances * distances))),
         )
+
+
+def _main_prediction(pred: torch.Tensor | dict[str, object]) -> torch.Tensor:
+    if isinstance(pred, dict):
+        main = pred.get("prediction")
+        if main is None:
+            raise ValueError("structured model output must contain 'prediction' key")
+        if not isinstance(main, torch.Tensor):
+            raise TypeError(f"model output 'prediction' must be a tensor, got {type(main).__name__}")
+        return main
+    return pred
+
+
+def _aux_prediction(pred: torch.Tensor | dict[str, object]) -> dict[str, torch.Tensor] | None:
+    if not isinstance(pred, dict):
+        return None
+    aux = pred.get("aux")
+    if aux is None:
+        return None
+    if not isinstance(aux, dict):
+        raise TypeError(f"model output 'aux' must be a dict, got {type(aux).__name__}")
+    tensor_aux: dict[str, torch.Tensor] = {}
+    for key, value in aux.items():
+        if not isinstance(value, torch.Tensor):
+            raise TypeError(f"model output aux[{key!r}] must be a tensor, got {type(value).__name__}")
+        tensor_aux[str(key)] = value
+    return tensor_aux
+
+
+def _detach_tensor_dict(values: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    return {key: value.detach().cpu() for key, value in values.items()}
+
+
+def _concatenate_tensor_dicts(
+    batches: list[dict[str, torch.Tensor]],
+    *,
+    label: str,
+) -> dict[str, torch.Tensor]:
+    if not batches:
+        return {}
+    keys = set(batches[0])
+    for batch in batches[1:]:
+        if set(batch) != keys:
+            raise ValueError(f"{label} keys changed across evaluation batches")
+    return {key: torch.cat([batch[key] for batch in batches], dim=0) for key in keys}
+
+
+def _required_aux_tensor(values: dict[str, torch.Tensor], key: str, *, label: str) -> torch.Tensor:
+    if key not in values:
+        raise ValueError(f"{label} must contain {key!r} for D2 auxiliary metrics")
+    tensor = values[key].float()
+    if not torch.isfinite(tensor).all():
+        raise ValueError(f"{label}[{key!r}] contains non-finite values")
+    return tensor
+
+
+def _masked_values(values: torch.Tensor, mask: torch.Tensor | None) -> torch.Tensor:
+    if mask is None:
+        return values.reshape(-1)
+    if values.shape != mask.shape:
+        raise ValueError(f"auxiliary metric mask shape {tuple(mask.shape)} does not match values {tuple(values.shape)}")
+    return values[mask]
+
+
+def _pearson_corr(pred: torch.Tensor, target: torch.Tensor) -> float | None:
+    if pred.numel() < 2:
+        return None
+    pred64 = pred.double()
+    target64 = target.double()
+    pred_centered = pred64 - pred64.mean()
+    target_centered = target64 - target64.mean()
+    denom = torch.linalg.vector_norm(pred_centered) * torch.linalg.vector_norm(target_centered)
+    if float(denom.item()) == 0.0:
+        return None
+    return float(torch.sum(pred_centered * target_centered).item() / denom.item())
+
+
+def _auxiliary_metrics(
+    aux_pred_batches: list[dict[str, torch.Tensor]],
+    aux_target_batches: list[dict[str, torch.Tensor]],
+) -> dict[str, float | None] | None:
+    if not aux_pred_batches and not aux_target_batches:
+        return None
+    if not aux_pred_batches or not aux_target_batches:
+        raise ValueError("D2 auxiliary metrics require both aux predictions and aux targets")
+
+    aux_pred = _concatenate_tensor_dicts(aux_pred_batches, label="aux prediction")
+    aux_target = _concatenate_tensor_dicts(aux_target_batches, label="aux target")
+
+    tof_pred = _required_aux_tensor(aux_pred, "tof_s", label="aux prediction")
+    tof_true = _required_aux_tensor(aux_target, "tof_true_s", label="aux target")
+    peak_pred_samples = _required_aux_tensor(aux_pred, "peak_index_samples", label="aux prediction")
+    peak_true_samples = _required_aux_tensor(aux_target, "peak_index", label="aux target")
+    if tof_pred.shape != tof_true.shape:
+        raise ValueError(f"tof_s shape {tuple(tof_pred.shape)} does not match tof_true_s {tuple(tof_true.shape)}")
+    if peak_pred_samples.shape != peak_true_samples.shape:
+        raise ValueError(
+            f"peak_index_samples shape {tuple(peak_pred_samples.shape)} does not match peak_index {tuple(peak_true_samples.shape)}"
+        )
+
+    mask: torch.Tensor | None = None
+    if "tof_accepted" in aux_target:
+        accepted = _required_aux_tensor(aux_target, "tof_accepted", label="aux target")
+        if accepted.shape != tof_true.shape:
+            raise ValueError(f"tof_accepted shape {tuple(accepted.shape)} does not match tof_true_s {tuple(tof_true.shape)}")
+        mask = accepted > 0.5
+        if not bool(mask.any()):
+            raise ValueError("D2 auxiliary metrics: tof_accepted mask is all-zero")
+
+    tof_pred_flat = _masked_values(tof_pred, mask)
+    tof_true_flat = _masked_values(tof_true, mask)
+    peak_pred_flat = _masked_values(peak_pred_samples, mask)
+    peak_true_flat = _masked_values(peak_true_samples, mask)
+
+    tof_mae_s = float(torch.mean(torch.abs(tof_pred_flat - tof_true_flat)).item())
+    metrics: dict[str, float | None] = {
+        "tof_mae_s": tof_mae_s,
+        "tof_mae_us": tof_mae_s * 1_000_000.0,
+        "tof_corr": _pearson_corr(tof_pred_flat, tof_true_flat),
+        "peak_index_mae_samples": float(torch.mean(torch.abs(peak_pred_flat - peak_true_flat)).item()),
+        "observed_tof_mae_s": None,
+        "observed_tof_corr": None,
+        "d2_minus_observed_tof_mae_s": None,
+    }
+
+    if "tof_observed_s" in aux_target:
+        tof_observed = _required_aux_tensor(aux_target, "tof_observed_s", label="aux target")
+        if tof_observed.shape != tof_true.shape:
+            raise ValueError(
+                f"tof_observed_s shape {tuple(tof_observed.shape)} does not match tof_true_s {tuple(tof_true.shape)}"
+            )
+        tof_observed_flat = _masked_values(tof_observed, mask)
+        observed_mae_s = float(torch.mean(torch.abs(tof_observed_flat - tof_true_flat)).item())
+        metrics["observed_tof_mae_s"] = observed_mae_s
+        metrics["observed_tof_corr"] = _pearson_corr(tof_observed_flat, tof_true_flat)
+        metrics["d2_minus_observed_tof_mae_s"] = tof_mae_s - observed_mae_s
+
+    return metrics
 
 
 def _validate_early_stopping(

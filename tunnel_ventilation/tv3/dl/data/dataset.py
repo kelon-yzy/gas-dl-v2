@@ -17,6 +17,9 @@ from tv3.dl.data.splits import load_splits, resolve_split_indices
 MODALITY_OPTIONS = ("slow", "ultrasonic", "fiber_mic")
 """v4 benchmark 支持的输入模态。"""
 
+WAVEFORM_STATS_OPTIONS = ("log_std", "log_max_abs")
+"""可追加到 slow 分支的逐帧波形幅度统计。"""
+
 
 class V4BenchmarkDataset(Dataset):
     """v4 正式 benchmark PyTorch Dataset。
@@ -55,8 +58,11 @@ class V4BenchmarkDataset(Dataset):
         window: dict[str, object] | WindowConfig | None = None,
         phase_windows: tuple[dict[str, object] | WindowConfig | None, ...] | None = None,
         dequantize_waveforms: bool = False,
+        normalize_waveforms: bool = False,
+        waveform_stats_features: tuple[str, ...] = (),
         phase_stats_path: Path | str | None = None,
         slow_channels: tuple[str, ...] | None = None,
+        aux_target_arrays: dict[str, str] | None = None,
     ):
         dataset_dir = Path(dataset_dir)
         self._dataset_dir = dataset_dir
@@ -66,6 +72,8 @@ class V4BenchmarkDataset(Dataset):
         self._augment_config = augment_config
         self._augment_seed = augment_seed
         self._dequantize_waveforms = bool(dequantize_waveforms)
+        self._normalize_waveforms = bool(normalize_waveforms)
+        self._waveform_stats_features = tuple(waveform_stats_features)
         self._augment_rng: np.random.Generator | None = None
         self._window = resolve_window_config(window)
         self._phase_windows = _resolve_phase_windows(phase_windows)
@@ -73,6 +81,7 @@ class V4BenchmarkDataset(Dataset):
             raise ValueError("window and phase_windows cannot be combined")
 
         _validate_modalities(self._modalities)
+        _validate_waveform_stats_features(self._waveform_stats_features)
         self._slow_channels = tuple(slow_channels) if slow_channels is not None else None
         self._slow_channel_indices = _resolve_slow_channel_indices(
             dataset_dir, self._slow_channels, self._modalities
@@ -105,6 +114,18 @@ class V4BenchmarkDataset(Dataset):
         self._phase_stats_path = Path(phase_stats_path) if phase_stats_path is not None else None
         self._has_phase_stats = self._phase_stats_path is not None and self._phase_stats_path.is_file()
 
+        self._aux_target_arrays: dict[str, str] = {}
+        if aux_target_arrays is not None:
+            if not isinstance(aux_target_arrays, dict) or not aux_target_arrays:
+                raise ValueError("aux_target_arrays must be a non-empty dict mapping key -> npy filename")
+            for key, filename in aux_target_arrays.items():
+                if not isinstance(key, str) or not key.strip():
+                    raise ValueError(f"aux_target_arrays keys must be non-empty strings, got {key!r}")
+                if not isinstance(filename, str) or not filename.strip():
+                    raise ValueError(f"aux_target_arrays values must be non-empty strings, got {filename!r}")
+            self._aux_target_arrays = {str(k): str(v) for k, v in aux_target_arrays.items()}
+        self._aux_data: dict[str, np.ndarray] = {}
+
         if not lazy:
             self._load_arrays()
 
@@ -117,11 +138,20 @@ class V4BenchmarkDataset(Dataset):
         src_idx = self.indices[idx]
         xs = self._build_input(src_idx)
         y = torch.from_numpy(self._labels[src_idx].copy())
+        result: dict[str, torch.Tensor] = {"x": xs}
         if self._has_phase_stats:
             if self._phase_stats is None:
                 self._load_arrays()
             phase_vec = torch.from_numpy(self._phase_stats[src_idx].copy())
-            return {"x": xs, "phase_stats": phase_vec}, y
+            result["phase_stats"] = phase_vec
+        if self._aux_target_arrays:
+            aux = {
+                key: torch.from_numpy(self._aux_data[key][src_idx].copy())
+                for key in self._aux_target_arrays
+            }
+            result["aux_targets"] = aux
+        if len(result) > 1 or "x" not in result:
+            return result, y
         return xs, y
 
     @property
@@ -145,6 +175,7 @@ class V4BenchmarkDataset(Dataset):
         state["_fiber_mic_scale"] = None
         state["_labels"] = None
         state["_phase_stats"] = None
+        state["_aux_data"] = {}
         state["_augment_rng"] = None
         return state
 
@@ -164,6 +195,28 @@ class V4BenchmarkDataset(Dataset):
                 self._fiber_mic_scale = np.load(seq_dir / "fiber_mic_scale.npy", mmap_mode="r")
         if self._has_phase_stats and self._phase_stats is None:
             self._phase_stats = np.load(self._phase_stats_path, mmap_mode="r")
+        if self._aux_target_arrays and not self._aux_data:
+            self._load_aux_arrays()
+
+    def _load_aux_arrays(self) -> None:
+        seq_dir = self._dataset_dir / "sequences"
+        n_sequences = len(self._sequence_ids)
+        for key, filename in self._aux_target_arrays.items():
+            path = seq_dir / f"{filename}.npy"
+            if not path.is_file():
+                raise FileNotFoundError(f"aux_target_arrays[{key!r}]: file not found: {path}")
+            arr = np.load(path, mmap_mode="r")
+            if arr.ndim != 2:
+                raise ValueError(
+                    f"aux_target_arrays[{key!r}]: expected 2D array (N, T), got shape {arr.shape}"
+                )
+            if arr.shape[0] != n_sequences:
+                raise ValueError(
+                    f"aux_target_arrays[{key!r}]: expected {n_sequences} sequences, got {arr.shape[0]}"
+                )
+            if not np.isfinite(arr).all():
+                raise ValueError(f"aux_target_arrays[{key!r}]: contains non-finite values")
+            self._aux_data[key] = arr
 
     def _ensure_augment_rng(self) -> np.random.Generator:
         # 多 worker DataLoader 下，每个 worker 进程按 worker_id 派生独立 RNG，
@@ -184,6 +237,8 @@ class V4BenchmarkDataset(Dataset):
 
     def _build_single_input(self, src_idx: int, window_masks: dict[int, np.ndarray] | None) -> np.ndarray:
         parts: list[np.ndarray] = []
+        waveform_parts: list[np.ndarray] = []
+        waveform_stat_parts: list[np.ndarray] = []
         if self._slow is not None:
             sl = self._slow[src_idx]
             if self._scaler is not None:
@@ -193,26 +248,30 @@ class V4BenchmarkDataset(Dataset):
                 sl = sl[:, self._slow_channel_indices]
             parts.append(sl)
         if self._ultrasonic is not None:
-            parts.append(
-                self._waveform_values(
-                    self._ultrasonic,
-                    self._ultrasonic_scale,
-                    src_idx,
-                    window_masks,
-                    modality="ultrasonic",
-                )
+            values, stats = self._waveform_values(
+                self._ultrasonic,
+                self._ultrasonic_scale,
+                src_idx,
+                window_masks,
+                modality="ultrasonic",
             )
+            waveform_parts.append(values)
+            if stats is not None:
+                waveform_stat_parts.append(stats)
         if self._fiber_mic is not None:
-            parts.append(
-                self._waveform_values(
-                    self._fiber_mic,
-                    self._fiber_mic_scale,
-                    src_idx,
-                    window_masks,
-                    modality="fiber_mic",
-                )
+            values, stats = self._waveform_values(
+                self._fiber_mic,
+                self._fiber_mic_scale,
+                src_idx,
+                window_masks,
+                modality="fiber_mic",
             )
+            waveform_parts.append(values)
+            if stats is not None:
+                waveform_stat_parts.append(stats)
 
+        parts.extend(waveform_stat_parts)
+        parts.extend(waveform_parts)
         x = np.concatenate(parts, axis=-1) if len(parts) > 1 else parts[0]
         if self._augment_config is not None:
             x = augment_sequence(x, self._augment_config, self._ensure_augment_rng())
@@ -234,13 +293,25 @@ class V4BenchmarkDataset(Dataset):
         window_masks: dict[int, np.ndarray] | None,
         *,
         modality: str,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, np.ndarray | None]:
         values = waveform[src_idx]
         if self._dequantize_waveforms:
             if scale is None:
                 raise ValueError(f"{modality}_scale is required when dequantize_waveforms=true")
             values = values.astype(np.float32) * scale[src_idx].astype(np.float32)[:, np.newaxis]
-        return self._apply_window(values, src_idx, window_masks)
+        elif self._waveform_stats_features:
+            values = values.astype(np.float32)
+        stats = _waveform_stats(values, self._waveform_stats_features) if self._waveform_stats_features else None
+        if self._normalize_waveforms:
+            # per-timestep z-score：每帧波形点独立 zero-mean unit-var。
+            # 对标 wav2vec 2.0 整段波形 z-score；tv3 每帧独立承载一个声学事件，按帧归一化更贴合物理结构。
+            mean = values.mean(axis=-1, keepdims=True)
+            std = np.maximum(values.std(axis=-1, keepdims=True), 1e-6)
+            values = (values - mean) / std
+        values = self._apply_window(values, src_idx, window_masks)
+        if stats is not None:
+            stats = self._apply_window(stats, src_idx, window_masks)
+        return values, stats
 
 
 def _validate_modalities(modalities: tuple[str, ...]) -> None:
@@ -249,6 +320,26 @@ def _validate_modalities(modalities: tuple[str, ...]) -> None:
     for m in modalities:
         if m not in MODALITY_OPTIONS:
             raise ValueError(f"Unknown modality: {m!r}. Available: {MODALITY_OPTIONS}")
+
+
+def _validate_waveform_stats_features(features: tuple[str, ...]) -> None:
+    unknown = set(features) - set(WAVEFORM_STATS_OPTIONS)
+    if unknown:
+        raise ValueError(f"Unknown waveform stats features: {sorted(unknown)}. Available: {WAVEFORM_STATS_OPTIONS}")
+
+
+def _waveform_stats(values: np.ndarray, features: tuple[str, ...]) -> np.ndarray:
+    blocks: list[np.ndarray] = []
+    abs_values = np.abs(values)
+    for feature in features:
+        if feature == "log_std":
+            block = np.log1p(values.std(axis=-1, keepdims=True))
+        elif feature == "log_max_abs":
+            block = np.log1p(abs_values.max(axis=-1, keepdims=True))
+        else:
+            raise ValueError(f"Unsupported waveform stats feature: {feature!r}")
+        blocks.append(block.astype(np.float32, copy=False))
+    return np.concatenate(blocks, axis=-1).astype(np.float32, copy=False)
 
 
 def _resolve_slow_channel_indices(

@@ -2,6 +2,9 @@
 # Prevents CRLF churn when editing on WSL/Windows (repo had a 129-file CRLF incident, 2026-06-02).
 * text=auto eol=lf
 
+# Markdown uses two trailing spaces for explicit hard line breaks.
+*.md whitespace=-trailing-space
+
 # Explicit binary assets — never normalize.
 *.npy binary
 *.npz binary

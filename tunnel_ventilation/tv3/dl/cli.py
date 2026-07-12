@@ -23,7 +23,7 @@ from tv3.common.metrics import conditional_metrics_to_payload
 from tv3.common.windows import resolve_window_config, window_to_payload
 from tv3.common.splits import load_splits, resolve_split_indices
 from tv3.dl.data.augmentation import TimeSeriesAugmentConfig
-from tv3.dl.data.dataset import MODALITY_OPTIONS, V4BenchmarkDataset
+from tv3.dl.data.dataset import MODALITY_OPTIONS, WAVEFORM_STATS_OPTIONS, V4BenchmarkDataset
 from tv3.dl.data.feature_dataset import V4FeatureMatrixDataset
 from tv3.dl.models.registry import MODEL_REGISTRY, build_model
 from tv3.dl.training.losses import (
@@ -36,6 +36,7 @@ from tv3.dl.training.losses import (
 from tv3.dl.training.trainer import AmpConfig, EarlyStoppingConfig, OPTIMIZER_REGISTRY, Trainer, build_optimizer
 
 DEFAULT_EVAL_SPLITS = ("val", "test", "extrapolation")
+BOOLEAN_OPTIONAL_CLI_KEYS = frozenset(("dequantize_waveforms", "normalize_waveforms"))
 DEFAULT_DL_CONFIG: dict[str, Any] = {
     "model": "cnn1d",
     "model_kwargs": {},
@@ -47,6 +48,8 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "phase_windows": None,
     "phase_stats_path": None,
     "dequantize_waveforms": False,
+    "normalize_waveforms": False,
+    "waveform_stats_features": None,
     "augment": None,
     "augment_seed": 0,
     "resume_from": None,
@@ -72,6 +75,8 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "performance": {"cudnn_benchmark": False, "tf32": False, "compile": False, "compile_mode": "default"},
     "progress": {"enabled": True, "stdout": True, "jsonl": True, "jsonl_name": "metrics_live.jsonl"},
     "grad_clip_norm": 0.0,
+    "aux_target_arrays": None,
+    "aux_metrics": None,
     "json": False,
 }
 
@@ -128,9 +133,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--dequantize-waveforms",
-        action="store_true",
-        default=False,
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="Load waveform inputs as int16 * scale instead of raw int16 values.",
+    )
+    parser.add_argument(
+        "--normalize-waveforms",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Apply per-timestep z-score to waveforms after dequantization (wav2vec 2.0 style).",
+    )
+    parser.add_argument(
+        "--waveform-stats-features",
+        type=str,
+        default=None,
+        help="Comma-separated per-timestep waveform stats appended before waveform channels, e.g. log_std,log_max_abs.",
     )
     parser.add_argument(
         "--augment",
@@ -195,12 +212,19 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     modalities = _parse_modalities(args.modalities)
     print(f"[dl] modalities={list(modalities)}  loading train dataset ...", file=sys.stderr, flush=True)
     slow_channels = _parse_slow_channels(args.slow_channels)
+    waveform_stats_features = _parse_waveform_stats_features(args.waveform_stats_features)
     input_format = args.input_format or _model_input_format(args.model)
 
     phase_stats_path = _resolve_phase_stats_path(args.phase_stats_path, args.dataset_dir)
     phase_scaler_path = phase_stats_path.with_name("phase_stats_scaler.json") if phase_stats_path is not None else None
 
-    augment_config = _build_augment_config(args.augment, modalities)
+    slow_channel_count = _slow_channel_count_for_augment(
+        args.dataset_dir,
+        modalities,
+        slow_channels,
+        args.model_kwargs,
+    )
+    augment_config = _build_augment_config(args.augment, modalities, slow_channel_count=slow_channel_count)
     train_dataset = _build_dataset(
         args.dataset_dir,
         split="train",
@@ -210,11 +234,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         window=args.window,
         phase_windows=args.phase_windows,
         dequantize_waveforms=args.dequantize_waveforms,
+        normalize_waveforms=args.normalize_waveforms,
+        waveform_stats_features=waveform_stats_features,
         lazy=True,
         phase_stats_path=phase_stats_path,
         augment_config=augment_config,
         augment_seed=int(args.augment_seed),
         slow_channels=slow_channels,
+        aux_target_arrays=args.aux_target_arrays,
     )
     sample_x, sample_y = train_dataset[0]
     in_channels, timesteps = _infer_input_shape(sample_x, input_format)
@@ -235,12 +262,24 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     # cnn1d_tcn_fusion: 当 modalities 不含 fiber_mic 时自动设 fiber_mic_channels=0
     if args.model == "cnn1d_tcn_fusion" and "fiber_mic" not in modalities:
         model_config.setdefault("fiber_mic_channels", 0)
+    # tof_phase_net: 同样自动设 fiber_mic_channels=0；waveform stats 计入 slow_channels
+    if args.model == "tof_phase_net":
+        model_config.setdefault("fiber_mic_channels", 0)
+        model_config.setdefault("slow_channels", slow_channel_count)
+        model_config.setdefault("ultrasonic_channels", 5000)
+    waveform_stats_channel_count = _waveform_stats_channel_count(modalities, waveform_stats_features)
+    if args.model == "cnn1d_tcn_fusion" and waveform_stats_channel_count > 0:
+        model_config["slow_channels"] = int(model_config.get("slow_channels", slow_channel_count)) + waveform_stats_channel_count
+    if args.model == "tof_phase_net" and waveform_stats_channel_count > 0:
+        model_config["slow_channels"] = int(model_config.get("slow_channels", slow_channel_count)) + waveform_stats_channel_count
+    _resolve_raw_output_prior(args.model, model_config, train_labels, out_dim, target_transform=target_transform)
     if phase_stats_path is not None and train_dataset.has_phase_stats:
         model_config["phase_stat_dim"] = train_dataset.phase_stat_dim
         if phase_scaler_path is not None and phase_scaler_path.is_file():
             scaler = json.loads(phase_scaler_path.read_text(encoding="utf-8"))
             model_config["phase_stat_norm_mean"] = scaler["mean"]
             model_config["phase_stat_norm_std"] = scaler["std"]
+    _validate_waveform_normalization_config(args, model_config)
     validate_loss_model_output(
         args.loss,
         model_name=args.model,
@@ -253,6 +292,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     _n_params = sum(p.numel() for p in model.parameters())
     print(f"[dl] model={args.model}  params={_n_params:,}  out_dim={out_dim}", file=sys.stderr, flush=True)
     loss_fn = build_loss(args.loss, train_targets=train_labels)
+    resolved_loss = _resolved_loss_payload(loss_fn)
     optimizer = build_optimizer(
         model,
         {
@@ -300,6 +340,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.prefetch_factor,
         phase_stats_path=phase_stats_path,
         slow_channels=slow_channels,
+        normalize_waveforms=args.normalize_waveforms,
+        waveform_stats_features=waveform_stats_features,
+        aux_target_arrays=args.aux_target_arrays,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = args.output_dir / args.checkpoint_name
@@ -362,6 +405,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.prefetch_factor,
             phase_stats_path=phase_stats_path,
             slow_channels=slow_channels,
+            normalize_waveforms=args.normalize_waveforms,
+            waveform_stats_features=waveform_stats_features,
+            aux_target_arrays=args.aux_target_arrays,
         )
         if loader is not None:
             evaluations[split] = _evaluation_payload(
@@ -387,6 +433,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "phase_windows": _phase_windows_payload(args.phase_windows),
         "phase_stats_path": str(phase_stats_path) if phase_stats_path is not None else None,
         "dequantize_waveforms": args.dequantize_waveforms,
+        "normalize_waveforms": args.normalize_waveforms,
+        "waveform_stats_features": list(waveform_stats_features),
         "augment": _augment_payload(augment_config, args.augment_seed),
         "target_transform": asdict(target_transform) if target_transform is not None else None,
         "target_transform_audits": (
@@ -404,6 +452,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "amp": args.amp,
         "performance": args.performance,
         "loss": args.loss,
+        "resolved_loss": resolved_loss,
         "optimizer": {
             "name": args.optimizer,
             "lr": args.lr,
@@ -420,7 +469,19 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     }
     (args.output_dir / "metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     (args.output_dir / "run_config.json").write_text(
-        json.dumps(_run_config_payload(args, model_config, input_format, modalities, target_transform, slow_channels), indent=2),
+        json.dumps(
+            _run_config_payload(
+                args,
+                model_config,
+                input_format,
+                modalities,
+                target_transform,
+                slow_channels,
+                resolved_loss,
+                waveform_stats_features,
+            ),
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -438,7 +499,7 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
     for key, value in vars(args).items():
         if key == "config":
             continue
-        if value is not None and value is not False:
+        if value is not None and (value is not False or key in BOOLEAN_OPTIONAL_CLI_KEYS):
             config[key] = value
     config["dataset_dir"] = Path(config["dataset_dir"]) if config.get("dataset_dir") is not None else None
     config["output_dir"] = Path(config["output_dir"]) if config.get("output_dir") is not None else None
@@ -471,6 +532,8 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
         config["eval_splits"] = ",".join(str(item) for item in config["eval_splits"])
     if isinstance(config.get("modalities"), list):
         config["modalities"] = ",".join(str(item) for item in config["modalities"])
+    if isinstance(config.get("waveform_stats_features"), list):
+        config["waveform_stats_features"] = ",".join(str(item) for item in config["waveform_stats_features"])
     return argparse.Namespace(**config)
 
 
@@ -481,7 +544,7 @@ def _load_config(path: Path) -> dict[str, Any]:
         raise ValueError(f"DL config must be valid JSON: {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ValueError("DL config must be a JSON object")
-    allowed = set(DEFAULT_DL_CONFIG) | {"dataset_dir", "output_dir"}
+    allowed = set(DEFAULT_DL_CONFIG) | {"dataset_dir", "output_dir", "aux_target_arrays", "aux_metrics"}
     unknown = set(payload) - allowed
     if unknown:
         raise ValueError(f"Unknown DL config keys: {sorted(unknown)}")
@@ -522,15 +585,33 @@ def _validate_run_args(args: argparse.Namespace) -> None:
         parser.error(f"grad-clip-norm must be >= 0, got {args.grad_clip_norm}")
     if args.scheduler["name"] not in {"none", "reduce_on_plateau", "cosine_annealing"}:
         parser.error("scheduler.name must be one of ['none', 'reduce_on_plateau', 'cosine_annealing']")
+    if args.normalize_waveforms and not args.dequantize_waveforms:
+        parser.error("normalize_waveforms requires dequantize_waveforms=true")
     try:
+        waveform_stats_features = _parse_waveform_stats_features(args.waveform_stats_features)
+        if waveform_stats_features and not args.dequantize_waveforms:
+            raise ValueError("waveform_stats_features requires dequantize_waveforms=true")
+        if args.normalize_waveforms and args.model == "cnn1d_tcn_fusion":
+            raw_kwargs = _raw_model_kwargs(args.model_kwargs)
+            waveform_adc_scale = float(raw_kwargs.get("waveform_adc_scale", 524287.0))
+            if waveform_adc_scale != 1.0:
+                raise ValueError("normalize_waveforms requires model_kwargs.waveform_adc_scale=1.0")
+        modalities = _parse_modalities(args.modalities)
+        slow_channels = _parse_slow_channels(args.slow_channels)
+        slow_channel_count = _slow_channel_count_for_augment(
+            args.dataset_dir,
+            modalities,
+            slow_channels,
+            args.model_kwargs,
+        )
         resolve_window_config(args.window)
         _resolve_phase_windows(args.phase_windows)
         if args.window is not None and args.phase_windows is not None:
             raise ValueError("window and phase_windows cannot be combined")
         target_transform = resolve_target_transform_spec(args.target_transform)
         validate_loss_target_transform(args.loss, None if target_transform is None else target_transform.name)
-        _build_augment_config(args.augment, _parse_modalities(args.modalities))
-    except ValueError as exc:
+        _build_augment_config(args.augment, modalities, slow_channel_count=slow_channel_count)
+    except (FileNotFoundError, ValueError) as exc:
         parser.error(str(exc))
 
 
@@ -555,6 +636,19 @@ def _parse_slow_channels(value: object) -> tuple[str, ...] | None:
     else:
         items = _parse_comma(str(value))
     return items or None
+
+
+def _parse_waveform_stats_features(value: object) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, (list, tuple)):
+        features = tuple(str(item).strip() for item in value if str(item).strip())
+    else:
+        features = _parse_comma(str(value))
+    unknown = set(features) - set(WAVEFORM_STATS_OPTIONS)
+    if unknown:
+        raise ValueError(f"Unknown waveform_stats_features: {sorted(unknown)}. Available: {WAVEFORM_STATS_OPTIONS}")
+    return features
 
 
 def _parse_comma(value: str) -> tuple[str, ...]:
@@ -618,11 +712,14 @@ def _build_dataset(
     window: dict[str, object] | None,
     phase_windows: list[object] | tuple[object, ...] | None,
     dequantize_waveforms: bool,
+    normalize_waveforms: bool = False,
+    waveform_stats_features: tuple[str, ...] = (),
     lazy: bool,
     phase_stats_path: Path | None = None,
     augment_config: TimeSeriesAugmentConfig | None = None,
     augment_seed: int = 0,
     slow_channels: tuple[str, ...] | None = None,
+    aux_target_arrays: dict[str, str] | None = None,
 ):
     if input_format == "FEATURES":
         if slow_channels is not None:
@@ -644,11 +741,14 @@ def _build_dataset(
         window=window,
         phase_windows=phase_windows,
         dequantize_waveforms=dequantize_waveforms,
+        normalize_waveforms=normalize_waveforms,
+        waveform_stats_features=waveform_stats_features,
         lazy=lazy,
         phase_stats_path=phase_stats_path,
         augment_config=augment_config,
         augment_seed=augment_seed,
         slow_channels=slow_channels,
+        aux_target_arrays=aux_target_arrays,
     )
 
 
@@ -668,6 +768,8 @@ _AUGMENT_KEYS = frozenset(
 def _build_augment_config(
     raw: dict[str, Any] | None,
     modalities: tuple[str, ...],
+    *,
+    slow_channel_count: int | None = None,
 ) -> TimeSeriesAugmentConfig | None:
     """从 raw dict 构造 TimeSeriesAugmentConfig；若所有字段为默认则返回 None。"""
     if not raw:
@@ -693,8 +795,8 @@ def _build_augment_config(
     if "amplitude_apply_from_channel" in raw:
         kwargs["amplitude_apply_from_channel"] = int(raw["amplitude_apply_from_channel"])
     elif "amplitude_scale_range" in kwargs:
-        # 用户未显式指定 apply_from：根据模态推断（含 slow 则跳过前 8 列，否则 0）。
-        kwargs["amplitude_apply_from_channel"] = 8 if "slow" in modalities else 0
+        # 用户未显式指定 apply_from：根据实际 slow 通道数推断波形起始列。
+        kwargs["amplitude_apply_from_channel"] = int(slow_channel_count or 0) if "slow" in modalities else 0
     if "gaussian_noise_std" in raw:
         kwargs["gaussian_noise_std"] = float(raw["gaussian_noise_std"])
     if "apply_prob" in raw:
@@ -739,6 +841,100 @@ def _split_labels(dataset_dir: Path, split: str) -> np.ndarray:
     labels = np.load(dataset_dir / "labels" / "y.npy").astype(np.float32)
     split_indices = resolve_split_indices(split_rows, sequence_ids)
     return labels[split_indices[split]]
+
+
+def _raw_model_kwargs(model_kwargs: str | dict[str, Any]) -> dict[str, Any]:
+    if isinstance(model_kwargs, str):
+        try:
+            parsed = json.loads(model_kwargs)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"model-kwargs must be a JSON object: {exc}") from exc
+    else:
+        parsed = dict(model_kwargs)
+    if not isinstance(parsed, dict):
+        raise ValueError("model-kwargs must be a JSON object")
+    return parsed
+
+
+def _slow_channel_count_for_augment(
+    dataset_dir: Path,
+    modalities: tuple[str, ...],
+    slow_channels: tuple[str, ...] | None,
+    model_kwargs: str | dict[str, Any],
+) -> int:
+    if "slow" not in modalities:
+        return 0
+    if slow_channels is not None:
+        return len(slow_channels)
+    names_path = dataset_dir / "metadata" / "slow_channel_names.npy"
+    if names_path.is_file():
+        return len(_load_str_array(names_path))
+    raw_kwargs = _raw_model_kwargs(model_kwargs)
+    return int(raw_kwargs.get("slow_channels", 8))
+
+
+def _waveform_stats_channel_count(modalities: tuple[str, ...], waveform_stats_features: tuple[str, ...]) -> int:
+    waveform_modalities = tuple(modality for modality in modalities if modality in {"ultrasonic", "fiber_mic"})
+    return len(waveform_modalities) * len(waveform_stats_features)
+
+
+def _target_mean_prior(train_labels: np.ndarray, out_dim: int) -> list[float]:
+    if train_labels.ndim != 2 or train_labels.shape[1] < out_dim:
+        raise ValueError(f"train labels must be shaped (samples, >= {out_dim}), got {train_labels.shape}")
+    prior = np.mean(train_labels[:, :out_dim].astype(np.float32), axis=0)
+    if not np.isfinite(prior).all():
+        raise ValueError("raw3 output prior requires finite train label means")
+    return [float(value) for value in prior.tolist()]
+
+
+def _resolve_raw_output_prior(
+    model_name: str,
+    model_config: dict[str, Any],
+    train_labels: np.ndarray,
+    out_dim: int,
+    *,
+    target_transform: object | None,
+) -> None:
+    if target_transform is not None:
+        return
+    uses_raw3_prior = (
+        model_name == "cnn1d_tcn_fusion" and model_config.get("output_mode") == "raw3"
+    ) or model_name == "tof_phase_net"
+    if not uses_raw3_prior:
+        return
+    if "raw_output_prior" not in model_config or model_config.get("raw_output_prior") == "auto":
+        model_config["raw_output_prior"] = _target_mean_prior(train_labels, out_dim)
+
+
+def _validate_waveform_normalization_config(args: argparse.Namespace, model_config: dict[str, Any]) -> None:
+    if not args.normalize_waveforms:
+        return
+    if args.model not in ("cnn1d_tcn_fusion", "tof_phase_net"):
+        return
+    # tof_phase_net does not use waveform_adc_scale; skip the adc_scale check
+    if args.model == "tof_phase_net":
+        return
+    try:
+        waveform_adc_scale = float(model_config.get("waveform_adc_scale", 524287.0))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("normalize_waveforms requires numeric waveform_adc_scale=1.0") from exc
+    if waveform_adc_scale != 1.0:
+        raise ValueError("normalize_waveforms requires model_kwargs.waveform_adc_scale=1.0")
+
+
+def _resolved_loss_payload(loss_fn: nn.Module) -> dict[str, Any]:
+    payload: dict[str, Any] = {"class": loss_fn.__class__.__name__}
+    component_weights = getattr(loss_fn, "component_weights", None)
+    if component_weights is not None:
+        weights = component_weights.detach().cpu().float().tolist()
+        payload["component_weights"] = [float(value) for value in weights]
+    component_count = getattr(loss_fn, "component_count", None)
+    if component_count is not None:
+        payload["component_count"] = int(component_count)
+    aux_weights = getattr(loss_fn, "aux_weights", None)
+    if aux_weights is not None:
+        payload["aux_weights"] = dict(aux_weights)
+    return payload
 
 
 def _load_str_array(path: Path) -> list[str]:
@@ -1018,6 +1214,9 @@ def _optional_loader(
     prefetch_factor: int | None,
     phase_stats_path: Path | None = None,
     slow_channels: tuple[str, ...] | None = None,
+    normalize_waveforms: bool = False,
+    waveform_stats_features: tuple[str, ...] = (),
+    aux_target_arrays: dict[str, str] | None = None,
 ) -> DataLoader | None:
     dataset = _build_dataset(
         dataset_dir,
@@ -1031,6 +1230,9 @@ def _optional_loader(
         lazy=True,
         phase_stats_path=phase_stats_path,
         slow_channels=slow_channels,
+        normalize_waveforms=normalize_waveforms,
+        waveform_stats_features=waveform_stats_features,
+        aux_target_arrays=aux_target_arrays,
     )
     if len(dataset) == 0:
         return None
@@ -1056,6 +1258,7 @@ def _evaluation_payload(result: dict[str, Any]) -> dict[str, Any]:
         ),
         "conditional_metrics": conditional_metrics_to_payload(result["conditional_metrics"]),
         "sum_abs_error": result["sum_abs_error"],
+        "auxiliary_metrics": result.get("auxiliary_metrics"),
     }
 
 
@@ -1093,6 +1296,8 @@ def _run_config_payload(
     modalities: tuple[str, ...],
     target_transform: object | None,
     slow_channels: tuple[str, ...] | None = None,
+    resolved_loss: dict[str, Any] | None = None,
+    waveform_stats_features: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     return {
         "dataset_dir": str(args.dataset_dir),
@@ -1107,6 +1312,8 @@ def _run_config_payload(
         "phase_windows": _phase_windows_payload(args.phase_windows),
         "phase_stats_path": args.phase_stats_path,
         "dequantize_waveforms": args.dequantize_waveforms,
+        "normalize_waveforms": args.normalize_waveforms,
+        "waveform_stats_features": list(waveform_stats_features),
         "augment": args.augment,
         "augment_seed": int(args.augment_seed),
         "target_transform": args.target_transform,
@@ -1121,6 +1328,7 @@ def _run_config_payload(
         "seed": args.seed,
         "device": args.device,
         "loss": args.loss,
+        "resolved_loss": resolved_loss,
         "optimizer": {
             "name": args.optimizer,
             "lr": args.lr,

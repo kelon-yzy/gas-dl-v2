@@ -15,10 +15,11 @@ ILR_MSE_LOSS = "ilr_mse"
 FREE_COMPONENT_MSE_LOSS = "free_component_mse"
 WEIGHTED_COMPONENT_MSE_LOSS = "weighted_component_mse"
 WEIGHTED_FREE_COMPONENT_MSE_LOSS = "weighted_free_component_mse"
+D2_TOF_PHASE_LOSS = "d2_tof_phase_loss"
 TRANSFORMED_TARGET_MSE_LOSSES = frozenset((COMPOSITIONAL_MSE_LOSS, ILR_MSE_LOSS))
 DEFAULT_FREE_COMPONENT_COUNT = len(COMPONENT_FIELDS) - 1
 RAW_PERCENTAGE_LOSSES = frozenset(
-    (FREE_COMPONENT_MSE_LOSS, WEIGHTED_COMPONENT_MSE_LOSS, WEIGHTED_FREE_COMPONENT_MSE_LOSS)
+    (FREE_COMPONENT_MSE_LOSS, WEIGHTED_COMPONENT_MSE_LOSS, WEIGHTED_FREE_COMPONENT_MSE_LOSS, D2_TOF_PHASE_LOSS)
 )
 # 三个 raw-percentage loss 都需要做 head 相关校验，因此共用这个总入口集合。
 GAS_HEAD_PERCENTAGE_LOSSES = RAW_PERCENTAGE_LOSSES
@@ -129,6 +130,80 @@ class WeightedFreeComponentMSELoss(WeightedComponentMSELoss):
         super().__init__(component_weights=component_weights, component_count=free_components)
 
 
+class D2TOFPhaseLoss(nn.Module):
+    """D2 composite loss: 主三组分 loss + TOF / peak auxiliary loss.
+
+    接收结构化 pred dict (含 ``prediction`` 与 ``aux``)、主 target 张量、
+    以及 ``aux_targets`` dict（含 tof_true_s, tof_accepted 等），
+    计算加权组合 loss。
+    """
+
+    accepts_aux_targets = True
+
+    def __init__(
+        self,
+        component_loss: nn.Module,
+        tof_loss_fn: nn.Module,
+        peak_loss_fn: nn.Module,
+        aux_weights: dict[str, float],
+        waveform_length: int = 5000,
+    ):
+        super().__init__()
+        self.component_loss = component_loss
+        self.tof_loss_fn = tof_loss_fn
+        self.peak_loss_fn = peak_loss_fn
+        self.aux_weights = aux_weights
+        self.waveform_length = waveform_length
+
+    def forward(
+        self,
+        pred: dict[str, object] | torch.Tensor,
+        target: torch.Tensor,
+        aux_targets: dict[str, torch.Tensor] | None = None,
+    ) -> torch.Tensor:
+        if not isinstance(pred, dict):
+            raise ValueError("D2TOFPhaseLoss requires structured model output (dict with 'prediction' and 'aux')")
+        prediction = pred["prediction"]
+        aux = pred.get("aux")
+        if aux is None:
+            raise ValueError("D2TOFPhaseLoss requires model output to contain 'aux' dict")
+
+        main_loss = self.component_loss(prediction, target)
+
+        tof_weight = self.aux_weights.get("tof_s", 0.0)
+        peak_weight = self.aux_weights.get("peak_index", 0.0)
+
+        if aux_targets is None and (tof_weight > 0.0 or peak_weight > 0.0):
+            raise ValueError("D2TOFPhaseLoss requires aux_targets when aux_weights are non-zero")
+
+        total_loss = main_loss
+
+        if tof_weight > 0.0:
+            tof_pred = aux["tof_s"]  # (B, T)
+            tof_true = aux_targets["tof_true_s"]
+            tof_accepted = aux_targets.get("tof_accepted")
+            if tof_accepted is not None:
+                mask = tof_accepted > 0.5
+                if not mask.any():
+                    raise ValueError("D2TOFPhaseLoss: tof_accepted mask is all-zero, cannot compute TOF loss")
+                if mask.all():
+                    tof_loss = self.tof_loss_fn(tof_pred, tof_true)
+                else:
+                    tof_loss = self.tof_loss_fn(tof_pred[mask], tof_true[mask])
+            else:
+                tof_loss = self.tof_loss_fn(tof_pred, tof_true)
+            total_loss = total_loss + tof_weight * tof_loss
+
+        if peak_weight > 0.0:
+            peak_pred = aux["peak_index"]  # (B, T) — 模型输出需是归一化 index
+            peak_true = aux_targets["peak_index"]  # (B, T) — 原始样本 index
+            peak_true_norm = peak_true.float() / max(float(self.waveform_length) - 1.0, 1.0)
+            peak_loss = self.peak_loss_fn(peak_pred, peak_true_norm)
+            total_loss = total_loss + peak_weight * peak_loss
+
+        return total_loss
+
+
 LOSS_REGISTRY: dict[str, Callable[..., nn.Module]] = {
     "mse": nn.MSELoss,
     COMPOSITIONAL_MSE_LOSS: nn.MSELoss,
@@ -139,6 +214,7 @@ LOSS_REGISTRY: dict[str, Callable[..., nn.Module]] = {
     "mae": nn.L1Loss,
     "smooth_l1": nn.SmoothL1Loss,
     "huber": nn.HuberLoss,
+    D2_TOF_PHASE_LOSS: D2TOFPhaseLoss,  # sentinel; build_loss handles construction
 }
 
 
@@ -168,8 +244,44 @@ def build_loss(config: str | dict[str, object], *, train_targets: object | None 
 
     if name not in LOSS_REGISTRY:
         raise ValueError(f"Unknown loss name: {name!r}. Available: {sorted(LOSS_REGISTRY)}")
+
+    if name == D2_TOF_PHASE_LOSS:
+        return _build_d2_tof_phase_loss(kwargs, train_targets=train_targets)
+
     kwargs = _resolve_weighted_loss_kwargs(name, kwargs, train_targets=train_targets)
     return LOSS_REGISTRY[name](**kwargs)
+
+
+def _build_d2_tof_phase_loss(
+    kwargs: dict[str, object],
+    *,
+    train_targets: object | None,
+) -> D2TOFPhaseLoss:
+    component_loss_config = kwargs.get("component_loss")
+    if component_loss_config is None:
+        raise ValueError("d2_tof_phase_loss requires 'component_loss' config")
+    component_loss = build_loss(component_loss_config, train_targets=train_targets)
+
+    tof_loss_name = str(kwargs.get("tof_loss", "smooth_l1"))
+    peak_loss_name = str(kwargs.get("peak_loss", "smooth_l1"))
+    tof_loss_fn = build_loss(tof_loss_name)
+    peak_loss_fn = build_loss(peak_loss_name)
+
+    aux_weights_raw = kwargs.get("aux_weights")
+    if not isinstance(aux_weights_raw, dict):
+        raise ValueError("d2_tof_phase_loss requires 'aux_weights' dict")
+    aux_weights: dict[str, float] = {}
+    for k, v in aux_weights_raw.items():
+        aux_weights[str(k)] = float(v)
+
+    waveform_length = int(kwargs.get("waveform_length", 5000))
+    return D2TOFPhaseLoss(
+        component_loss=component_loss,
+        tof_loss_fn=tof_loss_fn,
+        peak_loss_fn=peak_loss_fn,
+        aux_weights=aux_weights,
+        waveform_length=waveform_length,
+    )
 
 
 def validate_loss_target_transform(loss_config: str | dict[str, object], target_transform_name: str | None) -> None:
@@ -232,6 +344,11 @@ def validate_loss_model_output(
     if composition_scheme == "tunnel_ventilation":
         if not isinstance(model_kwargs, dict):
             raise ValueError(f"model_kwargs must be a JSON object for tunnel_ventilation {loss_name}")
+        if model_name == "tof_phase_net":
+            output_mode = model_kwargs.get("output_mode", "raw3")
+            if output_mode != "raw3":
+                raise ValueError(f"tunnel_ventilation {loss_name} requires tof_phase_net model_kwargs.output_mode='raw3'")
+            return
         _validate_tunnel_ventilation_output_mode(model_name, model_kwargs, loss_name=loss_name)
         return
     if loss_name not in GAS_HEAD_PERCENTAGE_LOSSES:
@@ -331,19 +448,39 @@ def _resolve_weighted_loss_kwargs(
         return kwargs
     resolved = dict(kwargs)
     weighting = resolved.pop("weighting", None)
+    weight_normalization = str(resolved.pop("weight_normalization", "none"))
+    if weight_normalization not in {"none", "mean_one"}:
+        raise ValueError(f"{loss_name} weight_normalization must be one of ['none', 'mean_one']")
     if weighting is None:
         if "component_weights" not in resolved:
-            raise ValueError(f"{loss_name} requires component_weights or weighting='inverse_train_var'")
+            raise ValueError(
+                f"{loss_name} requires component_weights or weighting in ['inverse_train_var', 'fixed']"
+            )
+        resolved["component_weights"] = _normalize_component_weights(
+            resolved["component_weights"],
+            normalization=weight_normalization,
+        )
         return resolved
-    if weighting != "inverse_train_var":
-        raise ValueError(f"{loss_name} unknown weighting: {weighting!r}")
-    if "component_weights" in resolved:
-        raise ValueError(f"{loss_name} cannot combine component_weights with weighting='inverse_train_var'")
-    if train_targets is None:
-        raise ValueError(f"{loss_name} weighting='inverse_train_var' requires train_targets")
-    component_count = _weighted_loss_component_count(loss_name, resolved)
-    resolved["component_weights"] = _inverse_train_variance_weights(train_targets, component_count)
-    return resolved
+    if weighting == "inverse_train_var":
+        if "component_weights" in resolved:
+            raise ValueError(f"{loss_name} cannot combine component_weights with weighting='inverse_train_var'")
+        if train_targets is None:
+            raise ValueError(f"{loss_name} weighting='inverse_train_var' requires train_targets")
+        component_count = _weighted_loss_component_count(loss_name, resolved)
+        weights = _inverse_train_variance_weights(train_targets, component_count)
+        resolved["component_weights"] = _normalize_component_weights(weights, normalization=weight_normalization)
+        return resolved
+    if weighting == "fixed":
+        if "loss_weights" not in resolved:
+            raise ValueError(f"{loss_name} weighting='fixed' requires loss_weights")
+        if "component_weights" in resolved:
+            raise ValueError(f"{loss_name} cannot combine component_weights with weighting='fixed'")
+        resolved["component_weights"] = _normalize_component_weights(
+            resolved.pop("loss_weights"),
+            normalization=weight_normalization,
+        )
+        return resolved
+    raise ValueError(f"{loss_name} unknown weighting: {weighting!r}")
 
 
 def _weighted_loss_component_count(loss_name: str, kwargs: dict[str, object]) -> int:
@@ -365,3 +502,18 @@ def _inverse_train_variance_weights(train_targets: object, component_count: int)
         raise ValueError("inverse_train_var requires positive train variance for every selected component")
     weights = 1.0 / variances
     return tuple(float(value) for value in weights.tolist())
+
+
+def _normalize_component_weights(weights: object, *, normalization: str) -> tuple[float, ...]:
+    values = torch.as_tensor(tuple(weights), dtype=torch.float32)
+    if normalization == "none":
+        return tuple(float(value) for value in values.tolist())
+    if normalization == "mean_one":
+        if values.numel() < 1:
+            raise ValueError("weight_normalization='mean_one' requires at least one weight")
+        mean = torch.mean(values)
+        if not bool(torch.isfinite(mean)) or float(mean.item()) <= 0.0:
+            raise ValueError("weight_normalization='mean_one' requires positive finite mean weight")
+        values = values / mean
+        return tuple(float(value) for value in values.tolist())
+    raise ValueError(f"unknown weight_normalization: {normalization!r}")

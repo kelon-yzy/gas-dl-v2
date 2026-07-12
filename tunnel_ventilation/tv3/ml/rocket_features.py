@@ -9,6 +9,7 @@ import numpy as np
 
 from tv3.common.splits import load_splits, resolve_split_indices
 from tv3.ml.features import MLFeatureMatrix, sequence_stat_features
+from tv3.ml.raw_dsp_features import FORMAL_SLOW_CHANNELS, RAW_DSP_FRAME_SCHEMA_VERSION
 
 
 DEFAULT_ROCKET_SEQUENCE_STATISTICS = ("mean", "std", "min", "max", "range", "first", "last", "delta", "slope")
@@ -26,6 +27,33 @@ DEFAULT_PHYSICS_ARRAYS = (
 )
 DEFAULT_FEATURE_BUILDER = "physics_stats_v1"
 DEFAULT_FEATURE_CACHE_ROOT = Path("features") / "rocket"
+D0_OBSERVED_FEATURE_BUILDER = "d0_observed_physics_stats_v1"
+D0_OBSERVED_PHYSICS_ARRAYS = (
+    "ultrasonic_tof_observed_s",
+    "ultrasonic_peak_index",
+    "ultrasonic_sound_speed_estimated_m_per_s",
+    "ultrasonic_tof_quality",
+    "ultrasonic_tof_accepted",
+)
+RAW_DSP_FEATURE_BUILDER = "d0_raw_dsp_physics_stats_v1"
+RAW_DSP_FRAME_CACHE_ROOT = Path("features") / "raw_dsp" / "raw_dsp_frame_v1"
+RAW_DSP_PHYSICS_ARRAYS = (
+    "ultrasonic_tof_observed_raw_dsp_s",
+    "ultrasonic_peak_index_raw_dsp",
+    "ultrasonic_sound_speed_raw_dsp_m_per_s",
+    "ultrasonic_corr_peak",
+    "ultrasonic_snr_db",
+    "ultrasonic_raw_dsp_quality",
+    "ultrasonic_raw_dsp_accepted",
+)
+RAW_DSP_FORBIDDEN_SIMULATOR_ARRAYS = (
+    "ultrasonic_tof_s",
+    "ultrasonic_tof_observed_s",
+    "ultrasonic_peak_index",
+    "ultrasonic_sound_speed_m_per_s",
+    "ultrasonic_sound_speed_estimated_m_per_s",
+    "ultrasonic_alpha_true_npm",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +65,48 @@ class RocketFeatureConfig:
     sequence_statistics: tuple[str, ...] = DEFAULT_ROCKET_SEQUENCE_STATISTICS
     phase_windows: tuple[str, ...] = DEFAULT_PHASE_WINDOWS
     early_fractions: tuple[float, ...] = DEFAULT_EARLY_FRACTIONS
+
+
+def d0_observed_feature_config() -> RocketFeatureConfig:
+    return RocketFeatureConfig(
+        feature_builder=D0_OBSERVED_FEATURE_BUILDER,
+        include_slow=True,
+        slow_channels=None,
+        physics_arrays=D0_OBSERVED_PHYSICS_ARRAYS,
+        sequence_statistics=DEFAULT_ROCKET_SEQUENCE_STATISTICS,
+        phase_windows=DEFAULT_PHASE_WINDOWS,
+        early_fractions=DEFAULT_EARLY_FRACTIONS,
+    )
+
+
+def validate_d0_observed_feature_config(config: RocketFeatureConfig) -> None:
+    expected = d0_observed_feature_config()
+    if config != expected:
+        raise ValueError(
+            "R7 requires the frozen D0-observed feature contract; "
+            f"expected={expected!r}, got={config!r}"
+        )
+
+
+def d0_raw_dsp_feature_config() -> RocketFeatureConfig:
+    return RocketFeatureConfig(
+        feature_builder=RAW_DSP_FEATURE_BUILDER,
+        include_slow=True,
+        slow_channels=FORMAL_SLOW_CHANNELS,
+        physics_arrays=RAW_DSP_PHYSICS_ARRAYS,
+        sequence_statistics=DEFAULT_ROCKET_SEQUENCE_STATISTICS,
+        phase_windows=DEFAULT_PHASE_WINDOWS,
+        early_fractions=DEFAULT_EARLY_FRACTIONS,
+    )
+
+
+def validate_d0_raw_dsp_feature_config(config: RocketFeatureConfig) -> None:
+    expected = d0_raw_dsp_feature_config()
+    if config != expected:
+        raise ValueError(
+            "D2b B1 requires the frozen D0-RawDSP feature contract; "
+            f"expected={expected!r}, got={config!r}"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +138,7 @@ def build_tv3_physics_feature_cache(
 
     splits = load_splits(dataset_dir / "splits")
     master_sequence_ids = _load_str_array(dataset_dir / "metadata" / "sequence_ids.npy")
+    _validate_physics_array_source(dataset_dir, config, master_sequence_ids)
     split_indices = resolve_split_indices(splits, master_sequence_ids)
     labels = np.load(dataset_dir / "labels" / "y.npy").astype(np.float32)
     label_names = tuple(_load_str_array(dataset_dir / "metadata" / "label_names.npy"))
@@ -181,7 +252,9 @@ def _build_split_features(
         feature_names.extend(names)
 
     for array_name in config.physics_arrays:
-        values = np.load(dataset_dir / "sequences" / f"{array_name}.npy", mmap_mode="r")[split_indices].astype(np.float32)
+        values = np.load(_physics_array_path(dataset_dir, config, array_name), mmap_mode="r")[split_indices].astype(
+            np.float32
+        )
         block, names = _windowed_sequence_features(
             values[..., np.newaxis],
             sequence_ids=sequence_ids,
@@ -294,6 +367,11 @@ def _validate_feature_config(config: RocketFeatureConfig) -> None:
     for fraction in config.early_fractions:
         if fraction <= 0.0 or fraction > 1.0:
             raise ValueError(f"early fraction must be in (0, 1], got {fraction}")
+    if config.feature_builder == RAW_DSP_FEATURE_BUILDER:
+        validate_d0_raw_dsp_feature_config(config)
+        forbidden = set(config.physics_arrays).intersection(RAW_DSP_FORBIDDEN_SIMULATOR_ARRAYS)
+        if forbidden:
+            raise ValueError(f"RawDSP feature contract cannot read simulator-derived arrays: {sorted(forbidden)}")
 
 
 def _validate_tunnel_ventilation_dataset(dataset_dir: Path) -> None:
@@ -318,6 +396,41 @@ def _select_slow_channels(
             raise ValueError(f"unknown slow channel {channel!r}. available={list(channel_names)}")
         indices.append(name_to_index[channel])
     return slow[:, :, indices], tuple(channel_names[index] for index in indices)
+
+
+def _physics_array_path(dataset_dir: Path, config: RocketFeatureConfig, array_name: str) -> Path:
+    if config.feature_builder == RAW_DSP_FEATURE_BUILDER:
+        return dataset_dir / RAW_DSP_FRAME_CACHE_ROOT / f"{array_name}.npy"
+    return dataset_dir / "sequences" / f"{array_name}.npy"
+
+
+def _validate_physics_array_source(
+    dataset_dir: Path,
+    config: RocketFeatureConfig,
+    master_sequence_ids: list[str],
+) -> None:
+    if config.feature_builder != RAW_DSP_FEATURE_BUILDER:
+        return
+    raw_dsp_dir = dataset_dir / RAW_DSP_FRAME_CACHE_ROOT
+    manifest_path = raw_dsp_dir / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"missing RawDSP frame cache manifest: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != RAW_DSP_FRAME_SCHEMA_VERSION:
+        raise ValueError(
+            f"RawDSP frame schema mismatch: {manifest.get('schema_version')!r} != {RAW_DSP_FRAME_SCHEMA_VERSION!r}"
+        )
+    if manifest.get("diagnostic_only") is not False:
+        raise ValueError("D2b B1 requires train_baseline_median RawDSP cache, not diagnostic exact template")
+    if manifest.get("complete_dataset") is not True:
+        raise ValueError("D2b B1 requires a complete-dataset RawDSP cache")
+    cached_sequence_ids = _load_str_array(raw_dsp_dir / "sequence_ids.npy")
+    if cached_sequence_ids != master_sequence_ids:
+        raise ValueError("RawDSP cache sequence_ids do not match dataset metadata ordering")
+    for array_name in config.physics_arrays:
+        path = raw_dsp_dir / f"{array_name}.npy"
+        if not path.is_file():
+            raise FileNotFoundError(f"missing RawDSP feature array: {path}")
 
 
 def _load_phase_lookup(path: Path) -> dict[str, tuple[str, ...]]:
@@ -371,6 +484,9 @@ def _write_manifest(
         "modalities": _modalities_payload(config),
         "slow_channels": list(config.slow_channels or slow_channel_names),
         "source_arrays": list(config.physics_arrays),
+        "source_array_root": str(
+            RAW_DSP_FRAME_CACHE_ROOT if config.feature_builder == RAW_DSP_FEATURE_BUILDER else Path("sequences")
+        ),
         "phase_windows": list(config.phase_windows),
         "early_fractions": list(config.early_fractions),
         "label_names": list(label_names),
@@ -405,4 +521,3 @@ def _validate_cache_shapes(dataset_dir: Path, cache_dir: Path, feature_names: tu
             )
         if not np.isfinite(matrix).all():
             raise ValueError(f"cached matrix contains non-finite values for split {split_name}")
-

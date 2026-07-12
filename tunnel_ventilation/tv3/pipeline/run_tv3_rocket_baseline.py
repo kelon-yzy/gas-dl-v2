@@ -2,9 +2,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from pathlib import Path
 from typing import Any, Sequence
 
+from tv3.ml.minirocket_features import (
+    MINIROCKET_RAW_BUILDER,
+    MINIROCKET_SCALAR_BUILDER,
+    DEFAULT_MINIROCKET_KERNEL_LENGTHS,
+    DEFAULT_MINIROCKET_NUM_KERNELS,
+    DEFAULT_MINIROCKET_KERNEL_SEED,
+    MiniRocketFeatureConfig,
+)
 from tv3.ml.rocket_features import (
     DEFAULT_EARLY_FRACTIONS,
     DEFAULT_FEATURE_BUILDER,
@@ -13,6 +22,8 @@ from tv3.ml.rocket_features import (
     DEFAULT_PHYSICS_ARRAYS,
     RocketFeatureConfig,
 )
+from tv3.ml.mlp_head import MlpHeadConfig
+from tv3.ml.ridge_residual_head import DEFAULT_OOF_FOLDS, DEFAULT_OOF_SEED
 from tv3.ml.rocket_training import (
     DEFAULT_RIDGE_ALPHAS,
     rocket_training_payload,
@@ -27,18 +38,46 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "cache_dir": None,
     "feature_set": "physics_stats",
     "head": "ridgecv",
-    "feature_builder": DEFAULT_FEATURE_BUILDER,
+    "feature_builder": None,
     "include_slow": True,
     "slow_channels": None,
     "physics_arrays": ",".join(DEFAULT_PHYSICS_ARRAYS),
     "sequence_statistics": ",".join(DEFAULT_ROCKET_SEQUENCE_STATISTICS),
     "phase_windows": ",".join(DEFAULT_PHASE_WINDOWS),
     "early_fractions": ",".join(str(value) for value in DEFAULT_EARLY_FRACTIONS),
+    "num_kernels": DEFAULT_MINIROCKET_NUM_KERNELS,
+    "kernel_lengths": ",".join(str(value) for value in DEFAULT_MINIROCKET_KERNEL_LENGTHS),
+    "kernel_seed": DEFAULT_MINIROCKET_KERNEL_SEED,
+    "raw_zscore": True,
     "train_split": "train",
     "eval_splits": "val,test,extrapolation",
     "ridge_alphas": ",".join(str(value) for value in DEFAULT_RIDGE_ALPHAS),
     "closed_form_alpha": 1.0,
+    "device": "auto",
+    "mlp_hidden_dims": "256,128",
+    "mlp_dropout": 0.1,
+    "mlp_weight_decay": 1e-4,
+    "mlp_lr": 1e-3,
+    "mlp_batch_size": 256,
+    "mlp_max_epochs": 200,
+    "mlp_patience": 20,
+    "mlp_loss_weights": "1.0,2.0,1.0",
+    "mlp_standardize_targets": False,
+    "oof_folds": DEFAULT_OOF_FOLDS,
+    "oof_seed": DEFAULT_OOF_SEED,
+    "seed": 20260704,
+    "raw_dsp_fidelity_metrics_path": None,
+    "raw_dsp_reference_metrics_path": None,
+    "b6_multiseed_report_path": None,
+    "overwrite": False,
 }
+
+FEATURE_SET_TO_BUILDER = {
+    "physics_stats": DEFAULT_FEATURE_BUILDER,
+    "minirocket_scalar": MINIROCKET_SCALAR_BUILDER,
+    "minirocket_raw": MINIROCKET_RAW_BUILDER,
+}
+MINIROCKET_FEATURE_SETS = ("minirocket_scalar", "minirocket_raw")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -47,41 +86,68 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset-dir", type=Path, default=None, help="tv3 dataset root directory.")
     parser.add_argument("--output-dir", type=Path, default=None, help="Where to write metrics.json.")
     parser.add_argument("--cache-dir", type=Path, default=None, help="Optional feature cache directory.")
-    parser.add_argument("--feature-set", choices=("physics_stats",), default=None, help="Feature family to run.")
-    parser.add_argument("--head", choices=("ridgecv", "ridge_closed_form"), default=None, help="Regression head.")
-    parser.add_argument("--feature-builder", type=str, default=None, help="Feature builder cache name.")
+    parser.add_argument("--feature-set", choices=("physics_stats", "minirocket_scalar", "minirocket_raw"), default=None, help="Feature family to run.")
+    parser.add_argument("--head", choices=("ridgecv", "ridge_closed_form", "tabpfn", "mlp", "oof_ridge_residual_mlp"), default=None, help="Regression head.")
+    parser.add_argument("--feature-builder", type=str, default=None, help="Feature builder cache name. Overrides feature_set's default mapping if given.")
     parser.add_argument("--include-slow", type=str, default=None, help="true/false.")
     parser.add_argument("--slow-channels", type=str, default=None, help="Comma-separated slow channel allowlist.")
-    parser.add_argument("--physics-arrays", type=str, default=None, help="Comma-separated physics array names.")
-    parser.add_argument("--sequence-statistics", type=str, default=None, help="Comma-separated sequence statistics.")
-    parser.add_argument("--phase-windows", type=str, default=None, help="Comma-separated phase windows.")
-    parser.add_argument("--early-fractions", type=str, default=None, help="Comma-separated early fractions in (0,1].")
+    parser.add_argument("--physics-arrays", type=str, default=None, help="Comma-separated physics array names (R1a only).")
+    parser.add_argument("--sequence-statistics", type=str, default=None, help="Comma-separated sequence statistics (R1b cross-timestep pooling).")
+    parser.add_argument("--phase-windows", type=str, default=None, help="Comma-separated phase windows (physics_stats only).")
+    parser.add_argument("--early-fractions", type=str, default=None, help="Comma-separated early fractions in (0,1] (physics_stats only).")
+    parser.add_argument("--num-kernels", type=int, default=None, help="MiniRocket fixed kernel count (R1a/R1b).")
+    parser.add_argument("--kernel-lengths", type=str, default=None, help="Comma-separated MiniRocket kernel lengths (R1a/R1b).")
+    parser.add_argument("--kernel-seed", type=int, default=None, help="MiniRocket kernel RNG seed (R1a/R1b).")
+    parser.add_argument("--raw-zscore", type=str, default=None, help="true/false, R1b per-frame z-score on dequantized waveform.")
     parser.add_argument("--train-split", type=str, default=None, help="Train split name.")
     parser.add_argument("--eval-splits", type=str, default=None, help="Comma-separated eval splits.")
     parser.add_argument("--ridge-alphas", type=str, default=None, help="Comma-separated RidgeCV alphas.")
     parser.add_argument("--closed-form-alpha", type=float, default=None, help="Alpha for ridge_closed_form.")
+    parser.add_argument("--device", type=str, default=None, help="Device for tabpfn/mlp head (auto/cuda/cpu).")
+    parser.add_argument("--mlp-hidden-dims", type=str, default=None, help="Comma-separated MLP hidden layer sizes.")
+    parser.add_argument("--mlp-dropout", type=float, default=None, help="MLP dropout rate.")
+    parser.add_argument("--mlp-weight-decay", type=float, default=None, help="AdamW weight decay for MLP.")
+    parser.add_argument("--mlp-lr", type=float, default=None, help="AdamW learning rate for MLP.")
+    parser.add_argument("--mlp-batch-size", type=int, default=None, help="MLP mini-batch size.")
+    parser.add_argument("--mlp-max-epochs", type=int, default=None, help="MLP maximum training epochs.")
+    parser.add_argument("--mlp-patience", type=int, default=None, help="MLP early-stop patience on val O2 R2.")
+    parser.add_argument("--mlp-loss-weights", type=str, default=None, help="Comma-separated per-target MLP loss weights.")
+    parser.add_argument("--mlp-standardize-targets", type=str, default=None, help="true/false; standardize each raw target only during MLP optimization.")
+    parser.add_argument("--oof-folds", type=int, default=None, help="OOF fold count for oof_ridge_residual_mlp.")
+    parser.add_argument("--oof-seed", type=int, default=None, help="OOF KFold seed for oof_ridge_residual_mlp (independent of MLP seed).")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for MLP training.")
+    parser.add_argument("--raw-dsp-fidelity-metrics-path", type=Path, default=None, help="Passed frame-fidelity metrics.json required for compared RawDSP runs.")
+    parser.add_argument("--raw-dsp-reference-metrics-path", type=Path, default=None, help="Verified B1 metrics.json for compared RawDSP runs.")
+    parser.add_argument("--b6-multiseed-report-path", type=Path, default=None, help="Frozen B6 multiseed replication_report.json required for B7.")
+    parser.add_argument("--overwrite", action="store_true", default=None, help="Explicitly allow overwriting an existing metrics.json.")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     parser = build_parser()
     args = _resolve_args(parser.parse_args(argv))
     if args.dataset_dir is None:
         parser.error("--dataset-dir is required")
     if args.output_dir is None:
         parser.error("--output-dir is required")
-    if args.feature_set != "physics_stats":
+    if args.feature_set not in FEATURE_SET_TO_BUILDER:
         raise ValueError(f"unsupported feature_set {args.feature_set!r}")
 
-    feature_config = RocketFeatureConfig(
-        feature_builder=args.feature_builder,
-        include_slow=args.include_slow,
-        slow_channels=_parse_optional_csv(args.slow_channels),
-        physics_arrays=_parse_csv(args.physics_arrays),
-        sequence_statistics=_parse_csv(args.sequence_statistics),
-        phase_windows=_parse_csv(args.phase_windows),
-        early_fractions=_parse_float_csv(args.early_fractions),
-    )
+    # --feature-builder 未显式覆盖时按 feature_set 取默认映射
+    feature_builder = args.feature_builder or FEATURE_SET_TO_BUILDER[args.feature_set]
+    is_minirocket = args.feature_set in MINIROCKET_FEATURE_SETS
+
+    if is_minirocket:
+        feature_config = _build_minirocket_config(args, feature_builder)
+    else:
+        feature_config = _build_physics_config(args, feature_builder)
+
+    output_dir = Path(args.output_dir)
+    output_path = output_dir / "metrics.json"
+    if output_path.exists() and not args.overwrite:
+        raise FileExistsError(f"refusing to overwrite existing formal metrics: {output_path}")
+
     result = train_tv3_rocket_regressor(
         args.dataset_dir,
         feature_config=feature_config,
@@ -91,12 +157,60 @@ def main(argv: Sequence[str] | None = None) -> int:
         eval_splits=_parse_csv(args.eval_splits),
         ridge_alphas=_parse_float_csv(args.ridge_alphas),
         closed_form_alpha=args.closed_form_alpha,
+        device=args.device,
+        mlp_config=_build_mlp_config(args) if args.head in {"mlp", "oof_ridge_residual_mlp"} else None,
+        oof_folds=int(args.oof_folds),
+        oof_seed=int(args.oof_seed),
+        raw_dsp_fidelity_metrics_path=args.raw_dsp_fidelity_metrics_path,
+        raw_dsp_reference_metrics_path=args.raw_dsp_reference_metrics_path,
+        b6_multiseed_report_path=args.b6_multiseed_report_path,
     )
-    output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = write_rocket_training_payload(result, output_dir / "metrics.json")
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
+
+
+def _build_mlp_config(args: argparse.Namespace) -> MlpHeadConfig:
+    return MlpHeadConfig(
+        hidden_dims=_parse_int_csv(args.mlp_hidden_dims),
+        dropout=float(args.mlp_dropout),
+        weight_decay=float(args.mlp_weight_decay),
+        lr=float(args.mlp_lr),
+        batch_size=int(args.mlp_batch_size),
+        max_epochs=int(args.mlp_max_epochs),
+        patience=int(args.mlp_patience),
+        loss_weights=_parse_float_csv(args.mlp_loss_weights),
+        standardize_targets=_parse_bool(args.mlp_standardize_targets),
+        device=str(args.device),
+        seed=int(args.seed),
+    )
+
+
+def _build_physics_config(args: argparse.Namespace, feature_builder: str) -> RocketFeatureConfig:
+    return RocketFeatureConfig(
+        feature_builder=feature_builder,
+        include_slow=args.include_slow,
+        slow_channels=_parse_optional_csv(args.slow_channels),
+        physics_arrays=_parse_csv(args.physics_arrays),
+        sequence_statistics=_parse_csv(args.sequence_statistics),
+        phase_windows=_parse_csv(args.phase_windows),
+        early_fractions=_parse_float_csv(args.early_fractions),
+    )
+
+
+def _build_minirocket_config(args: argparse.Namespace, feature_builder: str) -> MiniRocketFeatureConfig:
+    return MiniRocketFeatureConfig(
+        feature_builder=feature_builder,
+        include_slow=args.include_slow,
+        slow_channels=_parse_optional_csv(args.slow_channels),
+        physics_arrays=_parse_csv(args.physics_arrays),
+        sequence_statistics=_parse_csv(args.sequence_statistics),
+        num_kernels=args.num_kernels,
+        kernel_lengths=_parse_int_csv(args.kernel_lengths),
+        kernel_seed=args.kernel_seed,
+        raw_zscore=_parse_bool(args.raw_zscore),
+    )
 
 
 def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
@@ -111,7 +225,25 @@ def _resolve_args(args: argparse.Namespace) -> argparse.Namespace:
     config["dataset_dir"] = Path(config["dataset_dir"]) if config.get("dataset_dir") is not None else None
     config["output_dir"] = Path(config["output_dir"]) if config.get("output_dir") is not None else None
     config["cache_dir"] = Path(config["cache_dir"]) if config.get("cache_dir") is not None else None
+    config["raw_dsp_fidelity_metrics_path"] = (
+        Path(config["raw_dsp_fidelity_metrics_path"])
+        if config.get("raw_dsp_fidelity_metrics_path") is not None
+        else None
+    )
+    config["raw_dsp_reference_metrics_path"] = (
+        Path(config["raw_dsp_reference_metrics_path"])
+        if config.get("raw_dsp_reference_metrics_path") is not None
+        else None
+    )
+    config["b6_multiseed_report_path"] = (
+        Path(config["b6_multiseed_report_path"])
+        if config.get("b6_multiseed_report_path") is not None
+        else None
+    )
     config["include_slow"] = _parse_bool(config["include_slow"])
+    config["raw_zscore"] = _parse_bool(config["raw_zscore"])
+    config["mlp_standardize_targets"] = _parse_bool(config["mlp_standardize_targets"])
+    config["overwrite"] = _parse_bool(config["overwrite"])
     return argparse.Namespace(**config)
 
 
@@ -128,12 +260,8 @@ def _load_config(path: Path) -> dict[str, Any]:
 
 def _parse_csv(value: Any) -> tuple[str, ...]:
     if isinstance(value, (list, tuple)):
-        parts = tuple(str(item).strip() for item in value if str(item).strip())
-    else:
-        parts = tuple(item.strip() for item in str(value).split(",") if item.strip())
-    if not parts:
-        raise ValueError("comma-separated argument must not be empty")
-    return parts
+        return tuple(str(item).strip() for item in value if str(item).strip())
+    return tuple(item.strip() for item in str(value).split(",") if item.strip())
 
 
 def _parse_optional_csv(value: Any | None) -> tuple[str, ...] | None:
@@ -145,6 +273,10 @@ def _parse_optional_csv(value: Any | None) -> tuple[str, ...] | None:
 
 def _parse_float_csv(value: Any) -> tuple[float, ...]:
     return tuple(float(item) for item in _parse_csv(value))
+
+
+def _parse_int_csv(value: Any) -> tuple[int, ...]:
+    return tuple(int(item) for item in _parse_csv(value))
 
 
 def _parse_bool(value: Any) -> bool:

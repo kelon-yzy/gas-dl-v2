@@ -17,8 +17,8 @@ class TimeSeriesAugmentConfig:
       取值 1.0 时永远应用；取值 0.0 时永远跳过。
     - ``window_fraction`` 与 ``jitter_std`` 保留向后兼容字段；P3 新引入
       ``max_shift`` / ``amplitude_scale_range`` / ``gaussian_noise_std`` 三种策略。
-    - ``amplitude_apply_from_channel`` 控制幅度缩放只作用于波形通道（默认 8，表示跳过
-      slow 通道前 8 列）。当模态不包含 slow 时，调用方需自行将该值设为 0。
+    - ``amplitude_apply_from_channel`` 控制幅度缩放只作用于波形通道。dataclass 默认 8
+      保留 legacy 行为；CLI 会按实际 slow 通道数推断该值。
     """
 
     jitter_std: float = 0.0

@@ -2,9 +2,9 @@
 
 > 本文档定义掘进通风场景的仿真链路适配方案。
 > 场景目标、组分定义和数据契约见 [CO2_O2_N2_气体检测场景规划.md](CO2_O2_N2_气体检测场景规划.md)。
-> 仿真框架详细说明见 [../dl_model_architecture.md §13](../dl_model_architecture.md#十三仿真框架dl-输入数据来源)，本文档在其基础上做组分替换和场景适配。
+> 仿真框架详细说明见 [../dl_model_architecture.md §13](../../../hydrogen_ng/docs/dl_model_architecture.md#十三仿真框架dl-输入数据来源)，本文档在其基础上做组分替换和场景适配。
 
-## 实施进度（截至 2026-07-06）
+## 实施进度（截至 2026-07-08）
 
 | 阶段 | 范围 | 状态 |
 |------|------|------|
@@ -12,7 +12,7 @@
 | 2 | 声学 / 热导 / 光学物理适配 | ✅ 已完成（25 tests） |
 | 3 | 慢通道 + benchmark + CLI | ✅ 已完成（18 tests） |
 | 4 | DL 训练适配 | ✅ 已完成（13 tests） |
-| 5 | formal 数据集 + 基线训练 | 🔶 进行中（tv3-formal 600 序列已生成 + Ridge/TCN 首轮基线完成 + rocket 阶段 A 已落地） |
+| 5 | formal 数据集 + 基线训练 | 🔶 进行中（tv3-formal 6000 clean + R0/R1a/R1b + D0 六组 clean 6000 完成，D2 优先/D1 暂缓，待执行） |
 
 已落地契约：
 - `composition_scheme = "tunnel_ventilation"`，`schema_version = "tunnel-ventilation-1"`
@@ -25,12 +25,13 @@
 - **2026-07-05 存储优化**：tv3 默认 `WaveformSpec(per_timestep_scale=True, waveform_dtype="int16")` + CLI `--skip-fiber-mic`；物理 ADC 仍 20-bit，存储 int16 + per-timestep scale（误差/噪声 ≈ 1%）；fiber_mic 代码保留但默认不生成；数据集 17 GB → 3 GB（600 序列）
 - **2026-07-06 固定特征回归分支**：已新增 `tv3/ml/rocket_features.py`、`tv3/ml/rocket_training.py`、`tv3/pipeline/run_tv3_rocket_baseline.py` 与 `configs/tv3_rocket_ridge.json`；阶段 A 先支持 `physics_stats + RidgeCV`，用于把 O₂ / N₂ 物理信号验证与端到端 DL 训练失败解耦
 - **2026-07-07 场景隔离重构**：tv3 子工程自包含化，原 `src/sim|dl|ml|pipeline|common` 全部迁入 `tunnel_ventilation/tv3/` 下，包名 `tv3`，独立 `pyproject.toml`；以下文件清单中的 `tv3/...` 路径为隔离后的实际位置（重构前位于 `src/...`）
+- **2026-07-08 D0 oracle/observed 特征拆分（clean 6000 完成）**：6 组 Ridge 配置（oracle/observed/tof_only/slow_only/no_tof/no_tcs）在服务器 tv3-formal-6000（CLEAN）上完成；新增 `scripts/check_slow_channels.py` 核查工具；oracle 膨胀 0.18、o2_bins 物理极限确认，结论 D2 优先、D1 暂缓，详见 [掘进通风项目记忆库.md §6.4](../掘进通风项目记忆库.md)
 
 首轮基线结果（slow-only，600 序列）：
 - Ridge: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌
 - TCN: 全组分 R²≈0（600 序列对 DL 严重不足）
 - Rocket 阶段 A：smoke 测试已通过；R0 正式集（6000 序列）已回填——val CO₂ R²=0.993、O₂ R²=0.603、N₂ R²=0.925，O₂ 物理特征有正信号但窄分箱 R² 全负
-- 详见 [experiment_roadmap.md](experiment_roadmap.md) 基线结果分析与 rocket 方向 C
+- 详见 [experiment_roadmap.md](../archive/legacy/experiment_roadmap.md) 基线结果分析与 rocket 方向 C
 
 ---
 
@@ -94,7 +95,7 @@ SLOW_CHANNELS = (
 
 ### B. 声学与热导物理适配（阶段 2）
 
-参考 [../dl_model_architecture.md §13.5](../dl_model_architecture.md#135-声学物理acoustic_physicspy) 中的现有实现。
+参考 [../dl_model_architecture.md §13.5](../../../hydrogen_ng/docs/dl_model_architecture.md#135-声学物理acoustic_physicspy) 中的现有实现。
 
 #### B1. 创建 `tv3/sim/generation/tunnel_ventilation/acoustic_physics.py`
 
@@ -115,7 +116,7 @@ SLOW_CHANNELS = (
 
 #### B3. 波形验证
 
-波形仿真（[§13.6](../dl_model_architecture.md#136-波形仿真waveformspy)）完全复用，不修改 `waveforms.py`。通过注入 `sound_speed_fn` / `attenuation_fn` 挂钩三组分物理后端。
+波形仿真（[§13.6](../../../hydrogen_ng/docs/dl_model_architecture.md#136-波形仿真waveformspy)）完全复用，不修改 `waveforms.py`。通过注入 `sound_speed_fn` / `attenuation_fn` 挂钩三组分物理后端。
 
 验证项：
 - 空气组成（~78% N₂ + 21% O₂ + 0.04% CO₂）下 c_mix ≈ 346 m/s（与已知空气声速交叉验证）
@@ -124,7 +125,7 @@ SLOW_CHANNELS = (
 
 ### C. 光学通道适配（阶段 2）
 
-参考 [../dl_model_architecture.md §13.7](../dl_model_architecture.md#137-ndir-光学后端)。
+参考 [../dl_model_architecture.md §13.7](../../../hydrogen_ng/docs/dl_model_architecture.md#137-ndir-光学后端)。
 
 #### C1. CO₂ NDIR 通道
 
@@ -140,11 +141,11 @@ O₂ 和 N₂ 均为同核双原子分子，无永久偶极矩，基频振动不
 
 ### D. 慢通道与 benchmark（阶段 3）
 
-参考 [../dl_model_architecture.md §13.4](../dl_model_architecture.md#134-慢通道动力学slowpy)（慢通道动力学）和 [§13.8](../dl_model_architecture.md#138-打包与校验packaging--validation)（打包与校验）。
+参考 [../dl_model_architecture.md §13.4](../../../hydrogen_ng/docs/dl_model_architecture.md#134-慢通道动力学slowpy)（慢通道动力学）和 [§13.8](../../../hydrogen_ng/docs/dl_model_architecture.md#138-打包与校验packaging--validation)（打包与校验）。
 
 #### D1. 创建 `tv3/sim/generation/tunnel_ventilation/slow.py`
 
-8 个慢通道，与 hg 默认通道组织方式相同。气体组分输入替换为 CO₂/O₂/N₂。动力学模式复用 multi-tau 双指数（`_multi_tau_channel_step`），phase schedule 复用 `standard_exposure` 预设（[§13.9](../dl_model_architecture.md#139-phase-schedule-系统phasepy)）。phase blend 的 baseline 语义固定为标准新鲜空气（CO₂ 0.04%、O₂ 20.90%、N₂ 79.06%），不是纯 N₂。
+8 个慢通道，与 hg 默认通道组织方式相同。气体组分输入替换为 CO₂/O₂/N₂。动力学模式复用 multi-tau 双指数（`_multi_tau_channel_step`），phase schedule 复用 `standard_exposure` 预设（[§13.9](../../../hydrogen_ng/docs/dl_model_architecture.md#139-phase-schedule-系统phasepy)）。phase blend 的 baseline 语义固定为标准新鲜空气（CO₂ 0.04%、O₂ 20.90%、N₂ 79.06%），不是纯 N₂。
 
 #### D2. Benchmark 编排
 
@@ -192,7 +193,7 @@ python -m tv3.pipeline.generate_tunnel_ventilation_benchmark `
 | `tv3_ridge.json` | Ridge | — (repo `RidgeRegressor`) |
 | `tv3_tcn_multimodal.json` | `cnn1d_tcn_fusion` | weighted_component_mse (`raw3`, out_dim=3) |
 
-详见 [dl_training_plan.md](dl_training_plan.md)。
+详见 [dl_training_plan.md](../archive/legacy/dl_training_plan.md)。
 
 ## 四、已确认决策
 
@@ -235,7 +236,7 @@ python -m tv3.pipeline.generate_tunnel_ventilation_benchmark `
 | `tv3/sim/generation/waveforms.py` | 修改 | E | ✅ 已完成（`_digitize_waveform` 支持 `per_timestep_scale`；WaveformSpec/FiberMicSpec 添加字段） |
 | `tv3/sim/packaging/arrays.py` | 修改 | E | ✅ 已完成（`write_arrays` 支持可选 fiber_mic） |
 | `tv3/sim/validation/integrity.py` | 修改 | E | ✅ 已完成（`_validate_array_shapes` 支持可选 fiber_mic） |
-| `docs/server_training_guide.md` | 新增 | E | ✅ 已完成（Linux + RTX 5880 48GB 服务器训练操作手册） |
+| `docs/operations/server_training_guide.md` | 新增 | E | ✅ 已完成（Linux + RTX 5880 48GB 服务器训练操作手册） |
 
 ## 六、验证流程
 

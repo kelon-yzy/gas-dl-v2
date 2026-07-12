@@ -8,7 +8,7 @@
 
 - **掺氢天然气（hydrogen_ng）**：H₂/CH₄/CO₂/N₂，sum=100% 闭包。benchmark `wv4-*`。
 - **合成气 / 煤气化制气（syngas）**：H₂/CH₄/CO₂/CO，N₂ 为背景气，sum<100%。Stage Ⅰ 基线 + Stage Ⅱ ablation 完成，benchmark `sg4-smoke` / `sg4-formal`（empirical 后端，6000 序列）可用，HITRAN 后端待补。独立模块路径。
-- **掘进通风（tunnel_ventilation）**：CO₂/O₂/N₂，sum=100% 严格闭包但模型层不使用闭包残差头。N₂ 升格为显式预测目标，O₂ 为同核双原子（无红外活性，仅声学+TCS 间接推断）。阶段 1–4 链路 + DL 适配已落地，benchmark `tv3-smoke` 与 600 序列 `tv3-formal` 可用，Ridge/TCN 首轮基线已完成；多模态 fusion 必须用 `raw3` 直接三输出。2026-07-05 存储优化：tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`（数据集 17→3 GB，误差/噪声 ≈ 1%，光纤代码保留可恢复，见 `docs/掘进通风/server_training_guide.md`）。独立模块路径。
+- **掘进通风（tunnel_ventilation）**：CO₂/O₂/N₂，sum=100% 严格闭包但模型层不使用闭包残差头。N₂ 升格为显式预测目标，O₂ 为同核双原子（无红外活性，仅声学+TCS 间接推断）。阶段 1–4 链路 + DL 适配已落地，benchmark `tv3-smoke` 与 `tv3-formal`（600 序列，旧 schema 含 V_NDIR_CH4，待重新生成）/ `tv3-formal-6000`（clean，7 通道无 V_NDIR_CH4）可用，Ridge/TCN 首轮基线 + R0/R1a/R1b + D0 六组特征拆分（clean 6000）已完成；D0 确认 oracle 膨胀 0.18（oracle val O₂ R²=0.6025 vs observed 0.4226）、o2_bins 物理极限，结论 D2 优先、D1 暂缓；多模态 fusion 必须用 `raw3` 直接三输出。2026-07-05 存储优化：tv3 默认 int16 + per-timestep scale + `--skip-fiber-mic`（数据集 17→3 GB，误差/噪声 ≈ 1%，光纤代码保留可恢复，见 `tunnel_ventilation/docs/operations/server_training_guide.md`）。独立模块路径。
 
 ## 代码结构
 
@@ -115,13 +115,13 @@ syngas / tunnel_ventilation 场景下闭包类 loss 由 `validate_loss_compositi
 | CO 光学参数 | `docs/syngas/references/co_optical_hitran.md` | HITRAN 谱线/NDIR 滤光片/串扰 |
 | 组分分布 | `docs/syngas/references/syngas_composition_ranges.md` | LHS 采样区间文献支撑 |
 | 传感器综述 | `docs/syngas/references/syngas_sensing_survey.md` | 商用系统对比 + 可行性评估 |
-| 掘进通风文档导航 | `docs/掘进通风/README.md` | tv3 场景文档索引、阅读顺序与实施状态 |
-| 掘进通风适配方案 | `docs/掘进通风/adaptation_plan.md` | tv3 主实施方案：架构决策、分阶段任务、文件清单 |
-| 掘进通风物性常数 | `docs/掘进通风/physics_references.md` | CO₂/O₂/N₂ 声学、热导、光学物性速查 |
-| 掘进通风采样设计 | `docs/掘进通风/sampling_design.md` | 2D LHS 采样、联合约束、状态分层 |
-| 掘进通风 DL 方案 | `docs/掘进通风/dl_training_plan.md` | 通道可辨识性、模型选型、Loss、实验矩阵 |
-| 掘进通风服务器训练手册 | `docs/掘进通风/server_training_guide.md` | Linux + RTX 5880 48GB 服务器训练完整步骤（环境/生成/训练/回收） |
-| 掘进通风小样本 DL 策略 | `docs/掘进通风/small_sample_dl_strategies.md` | 9 类小样本策略（数据增强/正则化/轻量模型/集成/蒸馏/元学习/自监督/半监督/物理约束）+ 文献 + 优先级 |
+| 掘进通风文档导航 | `tunnel_ventilation/docs/README.md` | tv3 场景文档索引、阅读顺序与实施状态 |
+| 掘进通风适配方案 | `tunnel_ventilation/docs/foundation/adaptation_plan.md` | tv3 主实施方案：架构决策、分阶段任务、文件清单 |
+| 掘进通风物性常数 | `tunnel_ventilation/docs/foundation/physics_references.md` | CO₂/O₂/N₂ 声学、热导、光学物性速查 |
+| 掘进通风采样设计 | `tunnel_ventilation/docs/foundation/sampling_design.md` | 2D LHS 采样、联合约束、状态分层 |
+| 掘进通风 DL 方案 | `tunnel_ventilation/docs/archive/legacy/dl_training_plan.md` | 通道可辨识性、模型选型、Loss、实验矩阵 |
+| 掘进通风服务器训练手册 | `tunnel_ventilation/docs/operations/server_training_guide.md` | Linux + RTX 5880 48GB 服务器训练完整步骤（环境/生成/训练/回收） |
+| 掘进通风小样本 DL 策略 | `tunnel_ventilation/docs/methods/small_sample_dl_strategies.md` | 9 类小样本策略（数据增强/正则化/轻量模型/集成/蒸馏/元学习/自监督/半监督/物理约束）+ 文献 + 优先级 |
 | 学长 RCDW 复现 | `docs/学长算法/RCDW_实施完成情况.md` | 独立子工程 `rcdw_mgda/` 的端到端落地状态（与主线 src/ 完全隔离，互不影响主线 tests） |
 | 工作原则 | `AGENTS.md` | AI 协作规则与边界 |
 

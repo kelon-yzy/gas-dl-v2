@@ -1,8 +1,8 @@
 # 掘进通风小样本 DL 训练策略
 
 > 本文档汇总 tv3 场景（CO₂/O₂/N₂ 三组分多模态时序回归）下可用的小样本深度学习训练策略，基于 2026-07-05 文献检索结果整理。
-> 与 [dl_training_plan.md](dl_training_plan.md) §9 的 O₂ 可辨识性策略互补：§9 聚焦"弱组分信号被压制"的结构性问题，本文档聚焦"数据量不足"的通用小样本问题。
-> 实验路线见 [experiment_roadmap.md](experiment_roadmap.md)，服务器执行见 [server_training_guide.md](server_training_guide.md)。
+> 与 [dl_training_plan.md](../archive/legacy/dl_training_plan.md) §9 的 O₂ 可辨识性策略互补：§9 聚焦"弱组分信号被压制"的结构性问题，本文档聚焦"数据量不足"的通用小样本问题。
+> 实验路线见 [experiment_roadmap.md](../archive/legacy/experiment_roadmap.md)，服务器执行见 [server_training_guide.md](../operations/server_training_guide.md)。
 
 ## 1. 背景与问题定义
 
@@ -180,7 +180,7 @@ ensemble_pred = np.mean(preds, axis=0)  # 简单平均
 
 - [Wang & Lu, 2021, ICAICE] 多教师小样本知识蒸馏，DOI:10.1109/icaice54393.2021.00127
 - [Hinton et al., 2015, Distilling the Knowledge in a Neural Network] 知识蒸馏经典工作（本次检索未直接命中但领域共识）
-- 项目内 [dl_training_plan.md §9 T6](dl_training_plan.md) 已规划 Ridge Teacher 蒸馏
+- 项目内 [dl_training_plan.md §9 T6](../archive/legacy/dl_training_plan.md) 已规划 Ridge Teacher 蒸馏
 
 **tv3 适用性**：中。Ridge CO₂ R²=0.91（teacher 有效），但 O₂ R²≈0（teacher 也无法预测 O₂）。蒸馏对 CO₂ 有效，对 O₂ 无效。
 
@@ -306,7 +306,7 @@ L = L_regression + lambda * physics_loss
 
 ## 4. 与 dl_training_plan.md §9 的关系
 
-[dl_training_plan.md §9](dl_training_plan.md) 定义了 6 个针对 O₂ 可辨识性的策略（T1-T6），本文档补充 9 个通用小样本策略（S1-S9）。两者关系：
+[dl_training_plan.md §9](../archive/legacy/dl_training_plan.md) 定义了 6 个针对 O₂ 可辨识性的策略（T1-T6），本文档补充 9 个通用小样本策略（S1-S9）。两者关系：
 
 | §9 策略                      | 本文档对应     | 关系                            |
 | -------------------------- | --------- | ----------------------------- |
@@ -365,7 +365,7 @@ L = L_regression + lambda * physics_loss
 
 ### 5.3 停止条件
 
-沿用 [dl_training_plan.md §10](dl_training_plan.md) 停止条件：
+沿用 [dl_training_plan.md §10](../archive/legacy/dl_training_plan.md) 停止条件：
 
 - 如果 O₂ R² < 0.50（across all models and all channel combinations）→ 当前通道组合无法有效检测 O₂，必须引入 O₂ 专用通道（阶段 Ⅲ-1）
 - 如果 O₂ R² > 0.70 → 达标，进入阶段 Ⅱ ablation

@@ -1,10 +1,10 @@
 # 掘进通风场景物性常数速查
 
 > 本文档提供 CO₂/O₂/N₂ 三组分的可编码物性常数。
-> 详细文献来源见 [references/co2_o2_n2_gas_properties.md](references/co2_o2_n2_gas_properties.md)。
+> 详细文献来源见 [references/co2_o2_n2_gas_properties.md](../references/co2_o2_n2_gas_properties.md)。
 > 目标代码文件：`tv3/sim/generation/tunnel_ventilation/acoustic_physics.py`
 >
-> CO₂ 和 N₂ 的部分常数已在主线代码中使用（来源：[../dl_model_architecture.md §13.5](../dl_model_architecture.md#135-声学物理acoustic_physicspy)，原始数据为 NIST @298.15 K），标注为 `[代码已有]`。
+> CO₂ 和 N₂ 的部分常数已在主线代码中使用（来源：[../dl_model_architecture.md §13.5](../../../hydrogen_ng/docs/dl_model_architecture.md#135-声学物理acoustic_physicspy)，原始数据为 NIST @298.15 K），标注为 `[代码已有]`。
 > O₂ 为新增组分，参数来源见各表"来源"列。
 >
 > **数据核实状态（2026-07-04 经 smart-search 多源验证）**：O₂ cp/λ/η/M 已通过 NIST WebBook Shomate 方程手算 + Engineering ToolBox + search 多源交叉确认。O₂ 弛豫机制经 Bass 1990 JASA 公式确认。国标条款经应急管理部官方 PDF 确认。置信度标注于各条目。
@@ -116,7 +116,7 @@ O₂ 的振动弛豫频率远低于 200 kHz 载波（O₂ 基频 1556 cm⁻¹ �
 相对差异 ≈ 2.3%
 ```
 
-来源：NIST Thermophysical Properties / CRC Handbook / Engineering ToolBox（详见 [references/co2_o2_n2_gas_properties.md](references/co2_o2_n2_gas_properties.md) §2.4）。
+来源：NIST Thermophysical Properties / CRC Handbook / Engineering ToolBox（详见 [references/co2_o2_n2_gas_properties.md](../references/co2_o2_n2_gas_properties.md) §2.4）。
 
 这一差异是 TCS 通道区分 O₂ 和 N₂ 的物理上限。差值约 0.6 mW/m·K（2.3%），与文档早期估计 ~2% 一致；TCS 通道提供边际辨识力，作为声学通道的独立补充信息源。
 

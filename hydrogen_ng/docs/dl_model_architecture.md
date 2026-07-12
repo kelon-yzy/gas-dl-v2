@@ -878,7 +878,7 @@ syngas 的 CO 与 N₂ 摩尔质量均为 28，声速差 <1 m/s，声学通道�
 | 数据集前缀             | wv4-*                    | tv3-*                                                                            |
 | composition_scheme | hydrogen_ng             | tunnel_ventilation                                                               |
 
-掘进通风的核心挑战是 O₂/N₂ 辨识性：两者声速差 6.4%（可测）但热导率差仅 ~2%（边际），物理可分辨性远低于 hg 中 H₂/CH₄/CO₂/N₂ 之间的差异。详见 `docs/掘进通风/` 系列文档。
+掘进通风的核心挑战是 O₂/N₂ 辨识性：两者声速差 6.4%（可测）但热导率差仅 ~2%（边际），物理可分辨性远低于 hg 中 H₂/CH₄/CO₂/N₂ 之间的差异。详见 `tunnel_ventilation/docs/` 系列文档。
 
 实现约束：tv3 虽然数据层 `CO₂+O₂+N₂=100%`，但模型层不使用闭包残差头。`cnn1d_tcn_fusion` 在 tv3 多模态配置中使用 `output_mode="raw3"`、`out_dim=3`；`gas_head` 在 out_dim=3 时表示 log-ratio 坐标头语义，已在 tv3 loss/model 校验中拒绝。
 
