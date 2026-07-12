@@ -6,6 +6,7 @@
 1. 复审 B7 protocol 的 12 个派生 split + RawDSP / fidelity / B7 provenance
 2. 对每个 split 以单一冻结 training seed 跑 C1 physical 与 C2 permuted
 3. 与 C0 B7 做同 split / 同 seed paired 汇总，输出 bottleneck verdict
+4. 无论 --stage 为 train 或 all，均先执行前置审计
 
 矩阵规模（为控制成本，不做 multi-seed）：
     4 protocols × 3 split seeds × 1 training seed × 2 variants = 24 条训练
@@ -13,7 +14,7 @@
 用法（在 tunnel_ventilation 根目录）：
 
     python scripts/run_module_c_grouped_bottleneck_protocol.py --dry-run
-    python scripts/run_module_c_grouped_bottleneck_protocol.py --stage train
+    python scripts/run_module_c_grouped_bottleneck_protocol.py --stage all
 """
 from __future__ import annotations
 
@@ -35,16 +36,17 @@ from tv3.ml.grouped_bottleneck import (
     EXPECTED_PARAMETER_COUNT,
     GROUP_SPEC_V1,
     PRE_REGISTERED_PERMUTATION_SEED,
+    feature_names_digest,
 )
 from tv3.pipeline.multiseed_utils import load_json, run_command
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SPLITS_ROOT = PROJECT_ROOT / "data" / "tv3-formal-6000-splits"
 DEFAULT_B7_PROTOCOL_ROOT = PROJECT_ROOT / "outputs" / "tv3_b7_protocol"
-DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "outputs"
-DEFAULT_RUNS_ROOT = DEFAULT_OUTPUT_ROOT / "runs" / "tv3_module_c_grouped_bottleneck"
-DEFAULT_SUMMARY_ROOT = DEFAULT_OUTPUT_ROOT / "summary" / "tv3_module_c_grouped_bottleneck"
-DEFAULT_REPORTS_ROOT = DEFAULT_OUTPUT_ROOT / "reports" / "tv3_module_c_grouped_bottleneck"
+DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "outputs" / "tv3_module_c_grouped_bottleneck"
+DEFAULT_RUNS_ROOT = DEFAULT_OUTPUT_ROOT
+DEFAULT_SUMMARY_ROOT = DEFAULT_OUTPUT_ROOT
+DEFAULT_REPORTS_ROOT = DEFAULT_OUTPUT_ROOT
 
 C1_CONFIG = PROJECT_ROOT / "configs" / "tv3_module_c_grouped_bottleneck_physical.json"
 C2_CONFIG = PROJECT_ROOT / "configs" / "tv3_module_c_grouped_bottleneck_permuted.json"
@@ -123,12 +125,52 @@ def _mean_std(values: list[float]) -> dict[str, float]:
     return {"mean": round(mean, 6), "std": round(math.sqrt(var), 6), "n": len(values)}
 
 
+def _validate_b7_protocol_root(b7_protocol_root: Path) -> None:
+    split_metrics_path = b7_protocol_root / "split_metrics.json"
+    if not split_metrics_path.is_file():
+        raise FileNotFoundError(f"missing B7 split metrics: {split_metrics_path}")
+    payload = load_json(split_metrics_path)
+    verdict = payload.get("verdict")
+    if not isinstance(verdict, dict):
+        raise ValueError("B7 split metrics are missing verdict")
+    if verdict.get("protocol_pass") is not True:
+        raise ValueError("B7 split metrics verdict.protocol_pass must be true")
+    if verdict.get("matrix_complete") is not True:
+        raise ValueError("B7 split metrics verdict.matrix_complete must be true")
+    if verdict.get("unexpected_row_count") != 0:
+        raise ValueError("B7 split metrics verdict.unexpected_row_count must be 0")
+
+    b7 = _load_b7_protocol_module()
+    expected_keys = {
+        (spec.protocol_id, spec.split_seed, training_seed)
+        for spec in b7.build_protocol_matrix()
+        for training_seed in b7.TRAINING_SEEDS
+    }
+    rows = payload.get("rows")
+    if not isinstance(rows, list):
+        raise ValueError("B7 split metrics are missing rows")
+    actual_keys = {
+        (
+            str(row.get("protocol_id")),
+            int(row.get("split_seed")),
+            int(row.get("training_seed")),
+        )
+        for row in rows
+        if isinstance(row, dict)
+    }
+    if actual_keys != expected_keys or len(rows) != len(expected_keys):
+        raise ValueError(
+            "B7 split metrics rows do not match the complete frozen protocol matrix"
+        )
+
+
 def load_c0_b7_matrix(b7_protocol_root: Path) -> dict[tuple[str, int, int], dict[str, Any]]:
     """Load frozen B7 protocol rows as C0 anchors for the Module C training-seed set.
 
     B7 formal matrix may contain multi-seed rows; Module C only keeps TRAINING_SEEDS
     (currently the single seed 42) for paired comparison.
     """
+    _validate_b7_protocol_root(b7_protocol_root)
     matrix_path = b7_protocol_root / "result_matrix.csv"
     if not matrix_path.is_file():
         raise FileNotFoundError(f"missing B7 protocol result matrix: {matrix_path}")
@@ -148,6 +190,11 @@ def load_c0_b7_matrix(b7_protocol_root: Path) -> dict[tuple[str, int, int], dict
                 raise ValueError(f"duplicate C0 B7 row for {key}")
             if not _is_success_status(raw.get("b7_status")):
                 raise ValueError(f"C0 B7 row not successful for {key}: {raw.get('b7_status')!r}")
+            b7_metrics_path = b7_protocol_root / str(raw["dataset_name"]) / "b7_s42" / "metrics.json"
+            b7_metrics = load_json(b7_metrics_path)
+            b7_feature_names = b7_metrics.get("feature_names")
+            if not isinstance(b7_feature_names, list):
+                raise ValueError(f"C0 B7 metrics are missing feature_names: {b7_metrics_path}")
             rows_by_key[key] = {
                 "protocol_id": key[0],
                 "dataset_name": raw["dataset_name"],
@@ -158,6 +205,7 @@ def load_c0_b7_matrix(b7_protocol_root: Path) -> dict[tuple[str, int, int], dict
                 "c0_test_o2_r2": _optional_float(raw.get("b7_test_o2_r2")),
                 "c0_extrapolation_o2_r2": _optional_float(raw.get("b7_extrapolation_o2_r2")),
                 "c0_val_o2_r2": _optional_float(raw.get("b7_val_o2_r2")),
+                "c0_feature_names_digest": feature_names_digest(b7_feature_names),
             }
     expected = {
         (protocol_id, split_seed, training_seed)
@@ -221,6 +269,7 @@ def run_module_c_seed(
     splits_root: Path,
     runs_root: Path,
     b7_protocol_root: Path,
+    c0_feature_names_digest: str,
     dry_run: bool,
     overwrite: bool,
 ) -> dict[str, Any]:
@@ -250,6 +299,7 @@ def run_module_c_seed(
             variant=variant,
             training_seed=training_seed,
             dataset_dir=dataset_dir,
+            expected_feature_names_digest=c0_feature_names_digest,
         )
         record["status"] = "revalidated_exists" if not errors else "audit_fail"
         record["audit_errors"] = errors
@@ -294,6 +344,7 @@ def run_module_c_seed(
         variant=variant,
         training_seed=training_seed,
         dataset_dir=dataset_dir,
+        expected_feature_names_digest=c0_feature_names_digest,
     )
     record["status"] = "ok" if not errors else "audit_fail"
     record["audit_errors"] = errors
@@ -307,6 +358,7 @@ def _audit_module_c_payload(
     variant: str,
     training_seed: int,
     dataset_dir: Path,
+    expected_feature_names_digest: str,
 ) -> list[str]:
     errors: list[str] = []
     if payload.get("head") != MODULE_C_HEAD:
@@ -335,6 +387,8 @@ def _audit_module_c_payload(
         errors.append(f"group_dropout={grouped.get('group_dropout')!r}")
     if grouped.get("parameter_count") != EXPECTED_PARAMETER_COUNT:
         errors.append(f"parameter_count={grouped.get('parameter_count')!r}")
+    if grouped.get("feature_names_digest") != expected_feature_names_digest:
+        errors.append("feature_names_digest does not match the paired C0 B7 metrics")
     if variant == "permuted":
         if grouped.get("permutation_seed") != PRE_REGISTERED_PERMUTATION_SEED:
             errors.append(f"permutation_seed={grouped.get('permutation_seed')!r}")
@@ -721,7 +775,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--stage", choices=("audit", "train", "all"), default="all")
     parser.add_argument("--protocol", default="all", help="Comma-separated R,L,S-Y,S-L or all.")
     parser.add_argument("--split-seeds", default="all")
-    parser.add_argument("--training-seeds", default="all")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     return parser
@@ -742,7 +795,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         else [item.strip() for item in args.protocol.split(",") if item.strip()]
     )
     split_seeds = _parse_int_list(args.split_seeds, default=SPLIT_SEEDS)
-    training_seeds = _parse_int_list(args.training_seeds, default=TRAINING_SEEDS)
+    training_seeds = TRAINING_SEEDS
 
     all_specs = build_protocol_matrix()
     specs = [
@@ -806,26 +859,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     failures = 0
 
     for spec in specs:
-        if args.stage in {"audit", "all"}:
-            audit_errors = _audit_prerequisites(
-                spec,
-                splits_root=args.splits_root,
-                b7_protocol_root=args.b7_protocol_root,
-            )
-            audit_record = {
-                "stage": "audit",
-                "protocol_id": spec.protocol_id,
-                "dataset_name": spec.dataset_name,
-                "status": "ok" if not audit_errors else "audit_fail",
-                "audit_errors": audit_errors,
-            }
-            _append_jsonl(runs_path, audit_record)
-            if audit_errors:
-                failures += 1
-                if args.stage == "audit":
-                    continue
-                # train stage still attempts only if audit passes for all prerequisites
-                continue
+        audit_errors = _audit_prerequisites(
+            spec,
+            splits_root=args.splits_root,
+            b7_protocol_root=args.b7_protocol_root,
+        )
+        audit_record = {
+            "stage": "audit",
+            "protocol_id": spec.protocol_id,
+            "dataset_name": spec.dataset_name,
+            "status": "ok" if not audit_errors else "audit_fail",
+            "audit_errors": audit_errors,
+        }
+        _append_jsonl(runs_path, audit_record)
+        if audit_errors:
+            failures += 1
+            continue
 
         if args.stage in {"train", "all"}:
             for training_seed in training_seeds:
@@ -838,6 +887,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         splits_root=args.splits_root,
                         runs_root=args.runs_root,
                         b7_protocol_root=args.b7_protocol_root,
+                        c0_feature_names_digest=str(c0["c0_feature_names_digest"]),
                         dry_run=False,
                         overwrite=args.overwrite,
                     )

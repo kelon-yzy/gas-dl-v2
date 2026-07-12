@@ -111,6 +111,51 @@ def test_protocol_matrix_is_single_training_seed_and_24_runs():
     assert mod.EXPECTED_PARAMETER_COUNT == 28051
 
 
+def test_b7_protocol_root_requires_complete_protocol_pass(tmp_path: Path):
+    mod = _load_protocol_module()
+    b7 = mod._load_b7_protocol_module()
+    rows = [
+        {
+            "protocol_id": spec.protocol_id,
+            "split_seed": spec.split_seed,
+            "training_seed": seed,
+        }
+        for spec in b7.build_protocol_matrix()
+        for seed in b7.TRAINING_SEEDS
+    ]
+    split_metrics_path = tmp_path / "split_metrics.json"
+    split_metrics_path.write_text(
+        json.dumps(
+            {
+                "rows": rows,
+                "verdict": {
+                    "protocol_pass": False,
+                    "matrix_complete": True,
+                    "unexpected_row_count": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="protocol_pass"):
+        mod._validate_b7_protocol_root(tmp_path)
+
+    split_metrics_path.write_text(
+        json.dumps(
+            {
+                "rows": rows,
+                "verdict": {
+                    "protocol_pass": True,
+                    "matrix_complete": True,
+                    "unexpected_row_count": 0,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    mod._validate_b7_protocol_root(tmp_path)
+
+
 def test_bottleneck_pass_requires_non_inferior_c0_and_better_than_permuted():
     mod = _load_protocol_module()
     physical, permuted = _full_matrix(
@@ -183,6 +228,7 @@ def test_load_c0_b7_matrix_filters_to_single_training_seed():
     rows = mod.load_c0_b7_matrix(project_root / "outputs" / "tv3_b7_protocol")
     assert len(rows) == 12
     assert all(key[2] == 42 for key in rows)
+    assert all(row["c0_feature_names_digest"] for row in rows.values())
     assert ("R", 20260704, 42) in rows
     assert ("R", 20260704, 123) not in rows
 
@@ -198,3 +244,53 @@ def test_c1_c2_config_hashes_stable():
     c2_payload = json.loads(c2.read_text(encoding="utf-8"))
     assert c1_payload["group_assignment"] == "physical"
     assert c2_payload["group_assignment"] == "permuted"
+    assert c1_payload["output_dir"] == "outputs/tv3_module_c_grouped_bottleneck/physical"
+    assert c2_payload["output_dir"] == "outputs/tv3_module_c_grouped_bottleneck/permuted"
+
+
+def test_protocol_cli_rejects_unfrozen_training_seed_option():
+    mod = _load_protocol_module()
+    with pytest.raises(SystemExit):
+        mod.build_parser().parse_args(["--training-seeds", "123"])
+
+
+def test_train_stage_audits_before_model_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    mod = _load_protocol_module()
+    spec = next(
+        item
+        for item in mod.build_protocol_matrix()
+        if item.protocol_id == "R" and item.split_seed == 20260704
+    )
+    audit_calls: list[object] = []
+
+    def fail_if_training_starts(*args, **kwargs):
+        raise AssertionError("train stage must stop after a failed prerequisite audit")
+
+    monkeypatch.setattr(mod, "build_protocol_matrix", lambda: [spec])
+    monkeypatch.setattr(mod, "load_c0_b7_matrix", lambda _root: {})
+    monkeypatch.setattr(
+        mod,
+        "_audit_prerequisites",
+        lambda *args, **kwargs: audit_calls.append(args[0]) or ["stale provenance"],
+    )
+    monkeypatch.setattr(mod, "run_module_c_seed", fail_if_training_starts)
+
+    exit_code = mod.main(
+        [
+            "--stage",
+            "train",
+            "--protocol",
+            "R",
+            "--split-seeds",
+            "20260704",
+            "--runs-root",
+            str(tmp_path / "runs"),
+            "--summary-root",
+            str(tmp_path / "summary"),
+            "--reports-root",
+            str(tmp_path / "reports"),
+        ]
+    )
+
+    assert exit_code == 1
+    assert audit_calls == [spec]

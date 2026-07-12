@@ -173,23 +173,19 @@ R / L / S-Y / S-L
 
 ### 2. metrics 与汇总产物
 
-正式运行产物按 outputs/runs、outputs/summary、outputs/reports、outputs/archive 目录约定管理：
+正式运行产物与 tv3_b7_protocol 同层，按模块 C 实验统一归档：
 
 ~~~text
-outputs/runs/tv3_module_c_grouped_bottleneck/
+outputs/tv3_module_c_grouped_bottleneck/
   physical/
     R|L|S-Y|S-L/
       split_<seed>/seed_<seed>/metrics.json
   permuted/
     R|L|S-Y|S-L/
       split_<seed>/seed_<seed>/metrics.json
-
-outputs/summary/tv3_module_c_grouped_bottleneck/
   protocol_manifest.json
   result_matrix.csv
   split_metrics.json
-
-outputs/reports/tv3_module_c_grouped_bottleneck/
   result_matrix.md
   verdict.md
 ~~~
@@ -227,9 +223,10 @@ python scripts/run_module_c_grouped_bottleneck_protocol.py --dry-run
 在服务器完成全部正式矩阵后，额外复审：
 
 1. C1 / C2 每组均有 12 条成功训练，且 24 条运行均能关联同一行 C0 B7（seed=42）；
-2. 所有派生 split 的 hash、cache manifest、template source、fidelity 与 frozen config 一致；
-3. S-Y 与 S-L 分列的 paired delta、最差 split seed 和未聚合行完整可追溯；
-4. 输出没有覆盖历史 B7 或 B1 正式 metrics。
+2. B7 split_metrics 必须为 protocol_pass、matrix_complete 且完整含 36 条冻结配对行；
+3. 所有派生 split 的 hash、cache manifest、template source、fidelity、feature names digest 与 frozen config 一致；
+4. S-Y 与 S-L 分列的 paired delta、最差 split seed 和未聚合行完整可追溯；
+5. 输出没有覆盖历史 B7 或 B1 正式 metrics。
 
 ### 4. 文档回填规则
 

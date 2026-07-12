@@ -1,6 +1,6 @@
 {
   "dataset_dir": "data/tv3-formal-6000",
-  "output_dir": "outputs/runs/tv3_module_c_grouped_bottleneck/permuted",
+  "output_dir": "outputs/tv3_module_c_grouped_bottleneck/permuted",
   "raw_dsp_fidelity_metrics_path": "outputs/tv3_d2b/raw_dsp_frame_fidelity/metrics.json",
   "raw_dsp_reference_metrics_path": "outputs/tv3_d2b/raw_dsp_ridge_provenance/metrics.json",
   "overwrite": false,
