@@ -3,7 +3,8 @@ __pycache__/
 *.pyc
 
 # 运行产物
-outputs/
+outputs/*
+!outputs/README.md
 data/*
 !data/.gitkeep
 .ace-tool/

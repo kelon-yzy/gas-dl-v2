@@ -11,6 +11,7 @@
 | 2 | [tunnel_ventilation_sensing_survey.md](tunnel_ventilation_sensing_survey.md) | 掘进通风气体检测技术综述：矿用传感器国标、商用系统、多模态融合可行性 |
 | 3 | [observed_o2_algorithm_review.md](observed_o2_algorithm_review.md) | TDLAS 暂缓期的 observed O₂ 识别算法综述：TOF 温湿压补偿、树模型、漂移补偿适用边界 |
 | 4 | [传感器硬件资料整理.md](传感器硬件资料整理.md) | TCS205、NDIR、超声、光纤麦克风和数据采集硬件规格汇总 |
+| 5 | [tv3_identifiability_business_threshold_evidence.md](tv3_identifiability_business_threshold_evidence.md) | O₂ P90 与 nuisance 比例门限的法规、文献和项目内推导；同时记录安全联锁边界 |
 
 ## 与编码文件的对应
 
@@ -20,6 +21,7 @@
 | `tunnel_ventilation_sensing_survey.md` | — | 场景设计与可行性判断依据 |
 | `observed_o2_algorithm_review.md` | [active/r7_extratrees_implementation_plan.md](../active/r7_extratrees_implementation_plan.md) | `tv3/ml/extratrees_head.py` / `tv3/ml/extratrees_training.py` |
 | `传感器硬件资料整理.md` | — | 传感器选型、信号链和采集硬件核对 |
+| `tv3_identifiability_business_threshold_evidence.md` | [active/tv3_identifiability_implementation_plan.md](../active/tv3_identifiability_implementation_plan.md) | `configs/tv3_identifiability.json` / `scripts/run_tv3_identifiability.py` |
 
 ## 使用说明
 

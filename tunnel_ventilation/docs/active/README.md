@@ -4,7 +4,9 @@
 
 | 优先级 | 文档 | 当前状态 |
 | --- | --- | --- |
-| P0 | [tv3_identifiability_implementation_plan.md](tv3_identifiability_implementation_plan.md) | 规划中；先冻结 B1/B7 基线，再量化 O₂ 与 nuisance 的可辨识性及误差预算 |
+| P1 | [tv3_ec_msw_gatednet_implementation_plan.md](tv3_ec_msw_gatednet_implementation_plan.md) | E1 模型与审计链已实现；smoke 审计清晰失败且不作性能证据，待 clean 6000 fidelity/parity |
+| P0 | [tv3_static_air_feasibility_implementation_plan.md](tv3_static_air_feasibility_implementation_plan.md) | 新主线：先在经风速核验的静止空气中验证 O₂ 可测性；不外推为通风现场能力 |
+| ⏸ | [tv3_identifiability_implementation_plan.md](tv3_identifiability_implementation_plan.md) | v1 审计已完成、`information_source_upgrade_required`；双向声学 / flow holdout 暂停保留，现有 verdict 不改写 |
 | P0 | [b7_repeated_split_ood_protocol_implementation_plan.md](b7_repeated_split_ood_protocol_implementation_plan.md) | 完整 12-split × 3 training seed 矩阵已完成，判定 **protocol_pass** |
 | P0 | [d2b_raw_dsp_implementation_plan.md](d2b_raw_dsp_implementation_plan.md) | B1/fidelity/B6 通过；B7 residual_pass，可作为默认 raw-DSP 头候选 |
 | P0 | [d2b_raw_dsp_mlp_implementation_plan.md](d2b_raw_dsp_mlp_implementation_plan.md) | B6 三新增 seed stable_pass；已被 B7 residual 超越 |

@@ -1,0 +1,92 @@
+{
+  "schema_version": "tv3-identifiability-1",
+  "baseline": {
+    "dir": "outputs/tv3_baseline_freeze",
+    "manifest_sha256": "a704485c18df2efb0059a3c48347c75767bbd0b59f3337386d677194aa317559",
+    "expected_contract": {
+      "component_fields": ["x_CO2", "x_O2", "x_N2"],
+      "output": "raw3",
+      "feature_builder": "d0_raw_dsp_physics_stats_v1",
+      "feature_count": 1008
+    }
+  },
+  "output_dir": "outputs/tv3_identifiability",
+  "parameter_bounds": {
+    "co2_percent": [0.03, 5.0],
+    "o2_percent": [18.0, 21.2],
+    "t_c": [15.0, 35.0],
+    "path_length_m": [0.2, 0.3]
+  },
+  "global_grid": {
+    "co2_percent": [0.03, 2.515, 5.0],
+    "o2_percent": [18.0, 19.6, 21.2],
+    "t_c": [15.0, 25.0, 35.0],
+    "path_length_m": [0.2, 0.25, 0.3]
+  },
+  "narrow_windows": [
+    {"id": "o2_18_4", "center_percent": 18.4, "width_percent": 0.8},
+    {"id": "o2_19_2", "center_percent": 19.2, "width_percent": 0.8},
+    {"id": "o2_20_0", "center_percent": 20.0, "width_percent": 0.8},
+    {"id": "o2_20_8", "center_percent": 20.8, "width_percent": 0.8}
+  ],
+  "narrow_context_grid": {
+    "co2_percent": [0.03, 2.515, 5.0],
+    "t_c": [15.0, 25.0, 35.0],
+    "path_length_m": [0.2, 0.25, 0.3]
+  },
+  "finite_difference": {
+    "steps": {
+      "o2_percent": 0.01,
+      "co2_percent": 0.01,
+      "t_c": 0.1,
+      "path_length_m": 0.001
+    },
+    "max_relative_step_disagreement": 0.01
+  },
+  "observation": {
+    "fixed_delay_s": 0.000082,
+    "tof_std_s": 0.000003,
+    "source": "WaveformSpec.system_delay_s + cable_delay_s; trigger_jitter_std_s"
+  },
+  "uncertainty_scenarios": [
+    {
+      "id": "temperature_1K_scenario",
+      "parameter": "t_c",
+      "std": 1.0,
+      "source": "统一研究与实施路线 §4.2 的 1 K 温度误差情景"
+    },
+    {
+      "id": "trigger_jitter_v1",
+      "parameter": "tof_s",
+      "std": 0.000003,
+      "source": "WaveformSpec.trigger_jitter_std_s"
+    }
+  ],
+  "uncertainty_model": {
+    "type": "diagonal",
+    "source": "首轮仅含 1 K 温度情景与 WaveformSpec trigger jitter；未声明相关项不得进入联合 P90"
+  },
+  "representation_audit": [
+    {"name": "x_O2", "unit": "percent", "representation": "sound_speed", "source": "hidden_sound_speed_v2", "distribution": "target_grid", "correlation_group": "composition", "deployable_observable": false, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "x_CO2", "unit": "percent", "representation": "sound_speed", "source": "hidden_sound_speed_v2", "distribution": "target_grid", "correlation_group": "composition", "deployable_observable": true, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "x_N2", "unit": "percent", "representation": "derived_closure", "source": "condition sampling", "distribution": "derived_from_CO2_O2", "correlation_group": "composition", "deployable_observable": false, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "T_C", "unit": "C", "representation": "sound_speed", "source": "hidden_sound_speed_v2", "distribution": "uniform_15_35C", "correlation_group": "environment", "deployable_observable": true, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "P_MPa", "unit": "MPa", "representation": "attenuation_only", "source": "hidden_attenuation_v2", "distribution": "uniform_0.10_0.709MPa", "correlation_group": "environment", "deployable_observable": true, "v1_representation": "represented_outside_tof", "blocks_go_verdict": false},
+    {"name": "H_RH", "unit": "percent", "representation": "attenuation_only", "source": "hidden_attenuation_v2", "distribution": "uniform_20_80percent", "correlation_group": "environment", "deployable_observable": true, "v1_representation": "represented_outside_tof", "blocks_go_verdict": false},
+    {"name": "L_m", "unit": "m", "representation": "tof_geometry", "source": "WaveformSpec propagation", "distribution": "uniform_0.2_0.3m", "correlation_group": "geometry", "deployable_observable": true, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "system_delay", "unit": "s", "representation": "fixed_observation_offset", "source": "WaveformSpec", "distribution": "fixed_82us", "correlation_group": "instrument", "deployable_observable": false, "v1_representation": "represented_fixed", "blocks_go_verdict": false},
+    {"name": "trigger_jitter", "unit": "s", "representation": "stochastic_observation_noise", "source": "WaveformSpec", "distribution": "normal_std_3us", "correlation_group": "instrument", "deployable_observable": false, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "SNR", "unit": "dB", "representation": "waveform_quality_only", "source": "RawDSP quality", "distribution": "waveform_noise_model", "correlation_group": "instrument", "deployable_observable": true, "v1_representation": "represented_outside_tof", "blocks_go_verdict": false},
+    {"name": "flow_projection", "unit": "m/s", "representation": "not_represented", "source": "not in acoustic_measurement_v1", "distribution": "not_available", "correlation_group": "flow", "deployable_observable": false, "v1_representation": "not_represented", "blocks_go_verdict": true}
+  ],
+  "business_thresholds": {
+    "target_p90_o2_error_percent": 0.4,
+    "max_nuisance_fraction_of_signal": 0.5,
+    "max_rejection_rate": 0.05
+  },
+  "rejection_policy": {
+    "id": "v1_blocking_nuisance_reject_all",
+    "source": "docs/references/tv3_identifiability_business_threshold_evidence.md §3",
+    "reject_if_unrepresented_blocking_nuisance": true
+  }
+}

@@ -116,6 +116,7 @@ def test_exact_template_cache_writes_only_derived_feature_directory_and_auditabl
         "waveform_scale",
         "slow",
         "phase_csv",
+        "split_summary",
         "split_train",
         "split_val",
         "split_test",

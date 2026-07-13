@@ -6,6 +6,7 @@ from torch import nn
 
 from tv3.dl.models.cnn1d import CNN1DRegressor
 from tv3.dl.models.cnn1d_tcn_fusion import CNN1DTCNFusionRegressor
+from tv3.dl.models.ec_msw_e1 import ECMSWE1Regressor
 from tv3.dl.models.handcraft_mlp import HandcraftMLPRegressor
 from tv3.dl.models.lstm import LSTMRegressor
 from tv3.dl.models.patchtst import PatchTSTRegressor
@@ -17,6 +18,7 @@ from tv3.dl.models.transformer import TransformerRegressor
 MODEL_REGISTRY: dict[str, type[nn.Module] | Callable[..., nn.Module]] = {
     "cnn1d": CNN1DRegressor,
     "cnn1d_tcn_fusion": CNN1DTCNFusionRegressor,
+    "ec_msw_e1": ECMSWE1Regressor,
     "handcraft_mlp": HandcraftMLPRegressor,
     "lstm": LSTMRegressor,
     "patchtst": PatchTSTRegressor,

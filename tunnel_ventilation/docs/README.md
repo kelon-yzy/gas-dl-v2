@@ -5,11 +5,14 @@
 ## 推荐阅读顺序
 
 1. [掘进通风项目记忆库.md](掘进通风项目记忆库.md)：当前有效事实、正式结果、硬不变量和执行门。
-2. [active/b7_repeated_split_ood_protocol_implementation_plan.md](active/b7_repeated_split_ood_protocol_implementation_plan.md)：B7 冻结后的重复 split、独立 OOD、审计和通过门。
-3. [active/README.md](active/README.md)：D2b、B6、B7、R5-T、R7、SPXY 等当前工作。
-4. [foundation/README.md](foundation/README.md)：场景、适配、采样和物理基础。
-5. [operations/README.md](operations/README.md)：服务器训练与运行操作。
-6. [references/README.md](references/README.md)：物性、传感器和算法文献。
+2. [methods/tv3_名词与实验顺序导读.md](methods/tv3_名词与实验顺序导读.md)：初学者名词说明，按实验顺序分级检索。
+3. [active/tv3_static_air_feasibility_implementation_plan.md](active/tv3_static_air_feasibility_implementation_plan.md)：当前 P0，静止空气范围、测量链校准与独立 holdout。
+4. [active/tv3_ec_msw_gatednet_implementation_plan.md](active/tv3_ec_msw_gatednet_implementation_plan.md)：P1 算法实验线；E1 模型与独立审计链已实现，smoke 审计失败且不作性能证据，待 clean 6000 fidelity/parity。
+5. [active/b7_repeated_split_ood_protocol_implementation_plan.md](active/b7_repeated_split_ood_protocol_implementation_plan.md)：B7 冻结后的重复 split、独立 OOD、审计和通过门。
+6. [active/README.md](active/README.md)：D2b、B6、B7、R5-T、R7、SPXY 等当前工作。
+7. [foundation/README.md](foundation/README.md)：场景、适配、采样和物理基础。
+8. [operations/README.md](operations/README.md)：服务器训练与运行操作。
+9. [references/README.md](references/README.md)：物性、传感器和算法文献。
 
 ## 目录结构
 
@@ -34,7 +37,7 @@ docs/
 | 当前事实 | [掘进通风项目记忆库.md](掘进通风项目记忆库.md) | 当前状态、正式指标、结论和停止条件 |
 | 基础设计 | [foundation/README.md](foundation/README.md) | 场景定义、数据与物理契约 |
 | 活跃任务 | [active/README.md](active/README.md) | 待实现或待服务器验收的方案 |
-| 方法资料 | [methods/README.md](methods/README.md) | 波形、小样本和模型方法 |
+| 方法资料 | [methods/README.md](methods/README.md) | 名词导读、波形、小样本和模型方法 |
 | 运行手册 | [operations/README.md](operations/README.md) | 环境、命令和服务器操作 |
 | 参考资料 | [references/README.md](references/README.md) | 文献、物性和硬件资料 |
 | 历史归档 | [archive/README.md](archive/README.md) | 完成记录与过时路线 |

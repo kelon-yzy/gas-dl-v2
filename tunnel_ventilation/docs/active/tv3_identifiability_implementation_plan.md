@@ -1,6 +1,6 @@
 # tv3 可辨识性与误差预算实施计划
 
-> 状态：**规划中；前置 B1/B7 基线冻结未完成**
+> 状态：**首轮 v1 审计已完成；`audit=passed`，P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 已预注册；flow 未表示，verdict=`information_source_upgrade_required`。双向 flow 路线暂停，当前执行入口为 [静止空气可测性计划](tv3_static_air_feasibility_implementation_plan.md)**
 >
 > 责任：在不新增回归模型、不改正式 RawDSP builder 的条件下，量化 O₂ 声学信息相对 nuisance 不确定度的理论边界，并给出是否继续追求窄区间连续回归的可审计 verdict。
 
@@ -48,7 +48,7 @@ python scripts/freeze_tv3_baseline.py
 - 组分域、窄窗口中心及宽度、各 nuisance 的物理范围、标准差或协方差来源；
 - `target_p90_o2_error_percent`、`max_nuisance_fraction_of_signal` 与业务可接受拒绝率。
 
-业务精度未定义时，执行只允许输出 `inconclusive_missing_business_threshold`，不得自行选择阈值并给出继续或停止结论。
+业务精度未定义时，执行只允许输出 `inconclusive_missing_business_threshold`，不得自行选择阈值并给出继续或停止结论。2026-07-13 已依据 `docs/references/tv3_identifiability_business_threshold_evidence.md` 登记 `target_p90_o2_error_percent=0.4`、`max_nuisance_fraction_of_signal=0.50` 和 `max_rejection_rate=0.05`。v1 拒绝规则为：存在 `blocks_go_verdict=true` 的未表示 nuisance 时拒绝全部审计点；这使 flow 缺失可量化，而非被静默忽略。
 
 参数清单的每一行包括 `name`、unit、representation、source、distribution、correlation_group、是否部署可测、是否由当前 v1 表示。范围必须来自 schema、物理配置或校准记录；禁止在实现中复制魔法数。
 
@@ -80,6 +80,7 @@ outputs/tv3_identifiability/
   fisher_information.csv
   error_budget.csv
   narrow_window_summary.csv
+  nuisance_fraction_summary.csv
   metrics.json
   audit.json
   verdict.json
@@ -96,7 +97,7 @@ outputs/tv3_identifiability/
 | `inconclusive_missing_business_threshold` | 缺少业务精度或协方差依据 | 不做继续 / 停止声明，补齐输入 |
 | `audit_failed` | 基线 hash、物理映射、数值稳定性或闭包审计失败 | 修审计或物理参数，不训练新头 |
 
-若 flow projection 是主导可测误差，下一步是 `raw_dsp_bidirectional_v1` 的单向 / 外部风速校正 / 双向解耦对照；若 RH 或设备参数主导，下一步是 `acoustic_measurement_v2`。不得在两种机制尚未量化前同时修改前端、数字孪生和模型头。
+若 flow projection 是主导可测误差，通常下一步是 `raw_dsp_bidirectional_v1` 的单向 / 外部风速校正 / 双向解耦对照；该路线现已暂停保留。当前先执行 [静止空气可测性计划](tv3_static_air_feasibility_implementation_plan.md)：在经风速核验的范围内校准单向测量链。若 RH 或设备参数主导，后续再进入 `acoustic_measurement_v2`。不得在两种机制尚未量化前同时修改前端、数字孪生和模型头。
 
 ## Format
 
@@ -122,3 +123,14 @@ python scripts/run_tv3_identifiability.py --config configs/tv3_identifiability.j
 ### 3. 文档回填规则
 
 在 `audit_failed`、`inconclusive_missing_business_threshold` 或任何单项敏感度结果阶段，不更新项目能力结论。只有正式 `verdict.json` 产生后，才更新项目记忆库中的物理上限、当前执行路线和风险控制；S-Y 与 S-L 的既有模型结论仍保持分列。
+
+## 实施记录
+
+### 2026-07-13 — 冻结 v1 单向 TOF 审计完成
+
+- 前置基线 `outputs/tv3_baseline_freeze/` 已验证为 `frozen`，并绑定 B1/B7、12 个派生 split 与 12 个 RawDSP cache provenance。
+- 正式产物写入 `outputs/tv3_identifiability/`：全域 81 点、四个窄窗口各 27 点，共 189 个点；标签闭包、基线 hash、有限差分稳定性和单一 TOF 观测审计均通过。
+- 四参数 `O₂ / CO₂ / T / L` 的联合 Fisher 矩阵在单一 TOF 观测下秩为 1，正确标记为 `unavailable_rank_deficient`；声速未被当作独立观测重复计入。
+- 在预注册的 1 K 温度与 3 μs trigger jitter 情景下，四个 0.8% O₂ 窄窗口的联合 P90 为 8.85–12.99% O₂。这是 v1 TOF 情景误差预算，不是部署精度或项目能力结论。
+- `target_p90_o2_error_percent=0.4 vol%`、`max_nuisance_fraction_of_signal=0.50` 与 `max_rejection_rate=0.05` 已登记；`nuisance_fraction_summary.csv` 以每个单项情景的最坏等效 O₂ P90 除以 `0.8 vol%` 窄窗口宽度。flow 是阻断性未表示 nuisance，故 `v1_blocking_nuisance_reject_all` 拒绝 189/189 点，拒绝率 100% 超过 5% 门。
+- 当前 v1 窄窗口联合 P90 最大值为 `12.99 vol%`，远高于 `0.4 vol%` 门限；温度和 trigger jitter 的单项比例也在新表中显式失败。flow 缺失、100% 拒绝和两项误差门失败共同触发 `information_source_upgrade_required`。这只针对登记的单向 TOF 情景；双向 flow 重新审计现暂停，当前不将其作为下一步执行前提。

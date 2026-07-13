@@ -262,15 +262,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     # cnn1d_tcn_fusion: 当 modalities 不含 fiber_mic 时自动设 fiber_mic_channels=0
     if args.model == "cnn1d_tcn_fusion" and "fiber_mic" not in modalities:
         model_config.setdefault("fiber_mic_channels", 0)
-    # tof_phase_net: 同样自动设 fiber_mic_channels=0；waveform stats 计入 slow_channels
-    if args.model == "tof_phase_net":
+    # 专用 ultrasonic 模型不接收 fiber_mic；waveform stats 计入 slow_channels。
+    if args.model in ("tof_phase_net", "ec_msw_e1"):
         model_config.setdefault("fiber_mic_channels", 0)
         model_config.setdefault("slow_channels", slow_channel_count)
         model_config.setdefault("ultrasonic_channels", 5000)
     waveform_stats_channel_count = _waveform_stats_channel_count(modalities, waveform_stats_features)
     if args.model == "cnn1d_tcn_fusion" and waveform_stats_channel_count > 0:
         model_config["slow_channels"] = int(model_config.get("slow_channels", slow_channel_count)) + waveform_stats_channel_count
-    if args.model == "tof_phase_net" and waveform_stats_channel_count > 0:
+    if args.model in ("tof_phase_net", "ec_msw_e1") and waveform_stats_channel_count > 0:
         model_config["slow_channels"] = int(model_config.get("slow_channels", slow_channel_count)) + waveform_stats_channel_count
     _resolve_raw_output_prior(args.model, model_config, train_labels, out_dim, target_transform=target_transform)
     if phase_stats_path is not None and train_dataset.has_phase_stats:
@@ -899,7 +899,7 @@ def _resolve_raw_output_prior(
         return
     uses_raw3_prior = (
         model_name == "cnn1d_tcn_fusion" and model_config.get("output_mode") == "raw3"
-    ) or model_name == "tof_phase_net"
+    ) or model_name in ("tof_phase_net", "ec_msw_e1")
     if not uses_raw3_prior:
         return
     if "raw_output_prior" not in model_config or model_config.get("raw_output_prior") == "auto":
@@ -909,10 +909,10 @@ def _resolve_raw_output_prior(
 def _validate_waveform_normalization_config(args: argparse.Namespace, model_config: dict[str, Any]) -> None:
     if not args.normalize_waveforms:
         return
-    if args.model not in ("cnn1d_tcn_fusion", "tof_phase_net"):
+    if args.model not in ("cnn1d_tcn_fusion", "tof_phase_net", "ec_msw_e1"):
         return
-    # tof_phase_net does not use waveform_adc_scale; skip the adc_scale check
-    if args.model == "tof_phase_net":
+    # 这两个专用前端直接消费已归一化 float waveform，不再做 ADC scale 变换。
+    if args.model in ("tof_phase_net", "ec_msw_e1"):
         return
     try:
         waveform_adc_scale = float(model_config.get("waveform_adc_scale", 524287.0))

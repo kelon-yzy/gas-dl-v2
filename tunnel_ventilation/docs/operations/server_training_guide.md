@@ -181,6 +181,26 @@ for seed in 42 123 456; do
 done
 ```
 
+### 4.4 EC-MSW E1 正式训练与审计
+
+该实验只在完整 clean `tv3-formal-6000` 上执行。运行前必须确认以下文件存在，不能只同步 `features/` cache：
+
+```bash
+test -f data/tv3-formal-6000/sequences/ultrasonic_int16.npy
+test -f data/tv3-formal-6000/sequences/ultrasonic_peak_index.npy
+test -f data/tv3-formal-6000/metadata/sequence_ids.npy
+test -f data/tv3-formal-6000/splits/train.csv
+```
+
+先训练 E1，再执行独立审计：
+
+```bash
+python -m tv3.dl.cli --config configs/tv3_ec_msw_e1.json
+python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
+```
+
+审计器冻结 encoder，仅在 train split 拟合 peak-index probe 和 sequence Ridge probe；val/test/extrapolation 全量评价。只有 `outputs/tv3_ec_msw/e1_s20260704/audit/verdict.json` 同时满足 `status="e1_pass"` 与 `e2_allowed=true` 才能启动 E2。失败时保留原始 JSON/CSV，不修改门限重跑。
+
 ## 5. 结果回收
 
 训练完成后，需回收的产物：
@@ -193,6 +213,8 @@ done
 | `metrics.json`       | `outputs/tv3_tcn_multimodal/s*/metrics.json`           | 小        | 多模态指标         |
 | `best_checkpoint.pt` | 同上目录                                                   | 0.5–3 MB | 最优模型权重（按需）    |
 | `metrics_live.jsonl` | 同上目录                                                   | 小        | 每 epoch 训练日志  |
+| `frame_fidelity.json`、`b1_parity.json` | `outputs/tv3_ec_msw/e1_s20260704/audit/` | 小 | EC-MSW E1 正式门 |
+| `narrow_o2_windows.csv`、`verdict.json`、`manifest.json` | 同上目录 | 小 | 固定窄窗、最终判定与 provenance |
 
 打包回收（在服务器上）：
 
