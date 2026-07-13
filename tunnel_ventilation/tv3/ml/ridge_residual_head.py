@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 from sklearn.model_selection import KFold
 
-from tv3.ml.mlp_head import MlpHeadConfig, _ScaledMLPRegressor
+from tv3.ml.mlp_head import MlpHeadConfig, _ScaledMLPRegressor, _as_finite_2d, _resolve_device
 from tv3.ml.ridge_head import ScaledRidgeCVRegressor
 
 
@@ -222,26 +222,3 @@ def _assert_zero_init_combined_equals_ridge(
     combined = np.asarray(ridge_predictions, dtype=np.float64) + residual
     if not np.allclose(combined, ridge_predictions, atol=1e-6, rtol=0.0):
         raise RuntimeError("combined prediction must equal ridge_full before residual training")
-
-
-def _as_finite_2d(values: np.ndarray, *, name: str, expected_cols: int | None = None) -> np.ndarray:
-    arr = np.asarray(values, dtype=np.float64)
-    if arr.ndim == 1:
-        arr = arr.reshape(-1, 1)
-    if arr.ndim != 2:
-        raise ValueError(f"{name} must be a 2D array, got ndim={arr.ndim}")
-    if arr.size == 0:
-        raise ValueError(f"{name} must not be empty")
-    if expected_cols is not None and arr.shape[1] != expected_cols:
-        raise ValueError(f"{name} must have {expected_cols} columns, got {arr.shape[1]}")
-    if not np.isfinite(arr).all():
-        raise ValueError(f"{name} contains non-finite values")
-    return arr
-
-
-def _resolve_device(device: str):
-    import torch
-
-    if device == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return torch.device(device)

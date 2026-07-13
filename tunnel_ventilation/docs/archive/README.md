@@ -22,5 +22,7 @@
 | [legacy/experiment_roadmap.md](legacy/experiment_roadmap.md) | 旧阶段路线，保留实验历史 |
 | [legacy/dl_training_plan.md](legacy/dl_training_plan.md) | 旧 DL 总计划，多个优先级已变化 |
 | [legacy/三组分检测深度学习新框架方案.md](legacy/三组分检测深度学习新框架方案.md) | D0–D5 历史框架，D2b 已修订 raw 路线 |
+| [legacy/掘进通风_深度学习算法研究方向与文献路线.md](legacy/掘进通风_深度学习算法研究方向与文献路线.md) | 已由统一路线吸收；保留算法结论与文献追溯 |
+| [legacy/tv3_掘进通风项目改进方案.md](legacy/tv3_掘进通风项目改进方案.md) | 已由统一路线吸收；保留测量系统改进与硬件路线追溯 |
 
-当前事实、术语和优先级统一查看[项目记忆库](../掘进通风项目记忆库.md)。
+当前执行路线统一查看[统一研究与实施路线](../掘进通风_统一研究与实施路线.md)；当前事实和术语查看[项目记忆库](../掘进通风项目记忆库.md)。

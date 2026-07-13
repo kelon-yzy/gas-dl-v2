@@ -324,13 +324,18 @@ def build_grouped_bottleneck_module(
         raise ValueError("out_dim must be >= 1")
     if activation_dropout < 0.0 or group_dropout < 0.0:
         raise ValueError("dropout rates must be >= 0")
+    if group_dropout > 0.0:
+        raise NotImplementedError(
+            "group-level dropout is not implemented for the P0 grouped bottleneck "
+            "(GroupedBottleneckConfig freezes group_dropout=0.0); add an inverted-dropout "
+            "implementation with train/eval rescaling before enabling it"
+        )
 
     class _GroupedBottleneckResidualNet(nn.Module):
         def __init__(self) -> None:
             super().__init__()
             self.group_dims = tuple(int(dim) for dim in group_dims)
             self.bottleneck_dim = int(bottleneck_dim)
-            self.group_dropout_p = float(group_dropout)
             encoders: list[nn.Module] = []
             for dim in self.group_dims:
                 encoders.append(
@@ -374,14 +379,6 @@ def build_grouped_bottleneck_module(
                         f"group tensor shape {tuple(group_x.shape)} does not match dim {expected_dim}"
                     )
                 encoded.append(encoder(group_x))
-            if self.group_dropout_p > 0.0 and self.training:
-                keep = []
-                for tensor in encoded:
-                    if torch.rand((), device=tensor.device) < self.group_dropout_p:
-                        keep.append(torch.zeros_like(tensor))
-                    else:
-                        keep.append(tensor)
-                encoded = keep
             return self.trunk(torch.cat(encoded, dim=-1))
 
     return _GroupedBottleneckResidualNet()

@@ -202,7 +202,7 @@ python scripts/run_b7_repeated_split_ood_protocol.py --dry-run
 只有完成完整协议矩阵且生成 `result_matrix.md` 后，才更新：
 
 1. `掘进通风项目记忆库.md` 的正式结论、执行门和停止条件；
-2. `掘进通风_深度学习算法研究方向与文献路线.md` 的 P0 状态与实验矩阵；
+2. `掘进通风_统一研究与实施路线.md` 的基线状态、实验矩阵与停止条件；
 3. 本文的“实施记录”。
 
 中途 smoke、单个 split 或失败日志只写入本文件的实施记录与 `outputs/tv3_b7_protocol/`，不得提前提升 B7 的泛化结论。

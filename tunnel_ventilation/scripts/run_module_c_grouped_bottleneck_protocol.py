@@ -336,7 +336,7 @@ def run_module_c_seed(
         return record
     if proc.returncode != 0 or not metrics_path.is_file():
         record["status"] = "fail"
-        record["returncode"] = None if proc is None else proc.returncode
+        record["returncode"] = proc.returncode
         return record
     payload = load_json(metrics_path)
     errors = _audit_module_c_payload(

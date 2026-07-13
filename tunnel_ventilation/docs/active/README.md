@@ -4,7 +4,7 @@
 
 | 优先级 | 文档 | 当前状态 |
 | --- | --- | --- |
-| P0 | [module_c_grouped_bottleneck_implementation_plan.md](module_c_grouped_bottleneck_implementation_plan.md) | **计划中**；B7 protocol_pass 后的首个模块 C 单变量正式对照 |
+| P0 | [tv3_identifiability_implementation_plan.md](tv3_identifiability_implementation_plan.md) | 规划中；先冻结 B1/B7 基线，再量化 O₂ 与 nuisance 的可辨识性及误差预算 |
 | P0 | [b7_repeated_split_ood_protocol_implementation_plan.md](b7_repeated_split_ood_protocol_implementation_plan.md) | 完整 12-split × 3 training seed 矩阵已完成，判定 **protocol_pass** |
 | P0 | [d2b_raw_dsp_implementation_plan.md](d2b_raw_dsp_implementation_plan.md) | B1/fidelity/B6 通过；B7 residual_pass，可作为默认 raw-DSP 头候选 |
 | P0 | [d2b_raw_dsp_mlp_implementation_plan.md](d2b_raw_dsp_mlp_implementation_plan.md) | B6 三新增 seed stable_pass；已被 B7 residual 超越 |

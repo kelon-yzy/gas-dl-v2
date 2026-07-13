@@ -1,6 +1,6 @@
-# 模块 C：分组 Bottleneck 单变量对照实施计划
+# 模块 C：分组 Bottleneck 单变量对照实施记录
 
-> 状态：**代码已落地，等待服务器正式 24 条矩阵与 verdict**
+> 状态：**已归档。正式 24 条矩阵完成，判定 grouped_failed**
 > 日期：2026-07-12
 > 前置条件：B7 OOF Ridge residual 已完成 repeated split 与双 selector OOD 复核，判定 protocol_pass。
 > 范围：仅检验冻结 RawDSP 特征上的物理分组 bottleneck；不在本轮引入 TabM、group gating、新特征、可微 DSP 或新数据划分。
@@ -274,7 +274,25 @@ python scripts/run_module_c_grouped_bottleneck_protocol.py --dry-run
 - 去掉 multi-seed cluster 门，仅保留 split 间 paired mean 门；
 - C0 加载从 B7 的 36 行中过滤出 seed=42 的 12 行。
 
-**尚未**在服务器跑完整 24 条正式训练，**未**产生正式性能结论，也未回填项目记忆库。
+### 2026-07-12 — 正式 24 条矩阵完成（grouped_failed）
+
+正式产物：`outputs/tv3_module_c_grouped_bottleneck/`。12 条 prerequisite audit 与 24 条 C1 / C2 训练均为 `ok`；`split_metrics.json` 的 matrix complete=true，24 条均有同 split、同 seed 的 C0 B7 配对。
+
+| 协议 | C1 physical test O₂ R² | C1 对 C0 Δtest | C1 physical OOD O₂ R² | C1 对 C0 ΔOOD |
+| --- | ---: | ---: | ---: | ---: |
+| R | 0.5450 | −0.1482 | 0.5174 | −0.1253 |
+| L | 0.5193 | −0.1392 | 0.5463 | −0.1461 |
+| S-Y | 0.5414 | −0.1303 | 0.1948 | −0.2662 |
+| S-L | 0.5661 | −0.1350 | 0.5142 | −0.1823 |
+
+结论：
+
+1. C1 在四类协议的 test 均远低于 C0，S-Y 与 S-L 的 OOD 也分别低 0.2662 与 0.1823，触发预注册的 `grouped_failed`。
+2. 同为 28,051 参数的 C2 permuted 明显优于 C1：S-Y / S-L 的 C1−C2 OOD 均值为 −0.0929 / −0.1706。因此失败不能归因于总参数量下降，而指向“按物理模态独立早期压缩”限制了跨 TOF、声速、路径长度和环境量的残差交互。
+3. C2 仍不替代 B7，尤其 S-Y OOD 为 0.2877、相对 C0 低 0.1733；它仅作为容量对照，不升级为默认头。
+4. 本矩阵只覆盖 training seed=42。三个 split seed 的失败方向一致，足以停止当前 C1 配方；但不构成训练随机性稳定性的多 seed 声明。
+
+按 §5.3，停止 C1 的 bottleneck 维度、group dropout、group gating 与 C1 encoder TabM 扩展；B7 保持默认 RawDSP 头。若后续研究 flat residual TabM，必须以独立计划重新预注册，不得将其写为本 C1 分支的续跑。
 
 服务器入口：
 

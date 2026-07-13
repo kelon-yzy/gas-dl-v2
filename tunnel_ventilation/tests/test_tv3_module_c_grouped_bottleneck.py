@@ -165,6 +165,19 @@ def test_zero_init_grouped_encoder_predicts_zeros():
     assert np.allclose(out, 0.0, atol=1e-7)
 
 
+def test_nonzero_group_dropout_is_rejected():
+    with pytest.raises(NotImplementedError, match="group-level dropout is not implemented"):
+        build_grouped_bottleneck_module(
+            group_dims=(8, 8, 16),
+            bottleneck_dim=4,
+            hidden_dims=(8, 8),
+            out_dim=3,
+            activation_dropout=0.0,
+            group_dropout=0.1,
+            zero_init_output=True,
+        )
+
+
 def test_grouped_oof_residual_coverage_raw3_and_diagnostics():
     names = _synthetic_feature_names()
     x_train, y_train, x_val, y_val = _synthetic_regression(seed=11)

@@ -5,6 +5,8 @@ from dataclasses import dataclass
 import numpy as np
 from sklearn.ensemble import ExtraTreesRegressor
 
+from tv3.ml.mlp_head import _as_finite_2d
+
 
 @dataclass(frozen=True, slots=True)
 class ExtraTreesHeadConfig:
@@ -74,18 +76,3 @@ def _validate_config(config: ExtraTreesHeadConfig) -> None:
         raise ValueError("n_jobs must not be 0")
     if config.out_dim != 3:
         raise ValueError("tv3 extratrees head requires raw3 output")
-
-
-def _as_finite_2d(values: np.ndarray, *, name: str, expected_cols: int | None = None) -> np.ndarray:
-    arr = np.asarray(values, dtype=np.float64)
-    if arr.ndim == 1:
-        arr = arr.reshape(-1, 1)
-    if arr.ndim != 2:
-        raise ValueError(f"{name} must be a 2D array, got ndim={arr.ndim}")
-    if arr.size == 0:
-        raise ValueError(f"{name} must not be empty")
-    if expected_cols is not None and arr.shape[1] != expected_cols:
-        raise ValueError(f"{name} must have {expected_cols} columns, got {arr.shape[1]}")
-    if not np.isfinite(arr).all():
-        raise ValueError(f"{name} contains non-finite values")
-    return arr
