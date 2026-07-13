@@ -181,7 +181,9 @@ for seed in 42 123 456; do
 done
 ```
 
-### 4.4 EC-MSW E1 正式训练与审计
+### 4.4 EC-MSW E1 失败证据与 E1r 正式训练
+
+> 2026-07-13 状态：旧 E1 的 clean 6000 正式训练与审计已完成，最终 `status="frame_fidelity_failed"`、`e2_allowed=false`；E1r smoke frame fidelity 已通过，clean 6000 preflight 与 parity 待执行。
 
 该实验只在完整 clean `tv3-formal-6000` 上执行。运行前必须确认以下文件存在，不能只同步 `features/` cache：
 
@@ -192,14 +194,32 @@ test -f data/tv3-formal-6000/metadata/sequence_ids.npy
 test -f data/tv3-formal-6000/splits/train.csv
 ```
 
-先训练 E1，再执行独立审计：
+以下旧 E1 命令只保留为失败证据的复现入口，不得覆盖原 run：
 
 ```bash
 python -m tv3.dl.cli --config configs/tv3_ec_msw_e1.json
 python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
 ```
 
-审计器冻结 encoder，仅在 train split 拟合 peak-index probe 和 sequence Ridge probe；val/test/extrapolation 全量评价。只有 `outputs/tv3_ec_msw/e1_s20260704/audit/verdict.json` 同时满足 `status="e1_pass"` 与 `e2_allowed=true` 才能启动 E2。失败时保留原始 JSON/CSV，不修改门限重跑。
+E1r 不覆盖上述失败 run。它复用 train-only RawDSP cache 的冻结模板；运行前先确认模板存在，再使用独立配置：
+
+```bash
+test -f data/tv3-formal-6000/features/raw_dsp/raw_dsp_frame_v1/template.npy
+
+# 先做 1 epoch clean 6000 前端预检；只以 frame_fidelity.passed 为继续条件
+python -m tv3.dl.cli --config configs/tv3_ec_msw_e1r.json \
+  --epochs 1 \
+  --output-dir outputs/tv3_ec_msw/e1r_preflight_s20260704
+python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1r_preflight_audit.json
+
+# preflight frame fidelity 通过后，才启动正式 80 epochs 与 B1 parity
+python -m tv3.dl.cli --config configs/tv3_ec_msw_e1r.json
+python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1r_audit.json
+```
+
+只有 E1r 正式审计的 `frame_fidelity.json` 与 `b1_parity.json` 均通过时，才允许改变 `e2_allowed=false`；smoke frame pass 不构成正式 parity。
+
+审计器冻结 encoder，仅在 train split 拟合 peak-index probe 和 sequence Ridge probe；val/test/extrapolation 全量评价。旧 E1 的 `e1_s20260704/audit/` 保留为失败证据；当前只允许 E1r 的 `e1r_s20260704/audit/verdict.json` 在 frame fidelity 与 B1 parity 均通过后令 `e2_allowed=true`。失败时保留原始 JSON/CSV，不修改门限重跑。
 
 ## 5. 结果回收
 
@@ -215,6 +235,9 @@ python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
 | `metrics_live.jsonl` | 同上目录                                                   | 小        | 每 epoch 训练日志  |
 | `frame_fidelity.json`、`b1_parity.json` | `outputs/tv3_ec_msw/e1_s20260704/audit/` | 小 | EC-MSW E1 正式门 |
 | `narrow_o2_windows.csv`、`verdict.json`、`manifest.json` | 同上目录 | 小 | 固定窄窗、最终判定与 provenance |
+| `frame_fidelity.json`、`verdict.json` | `outputs/tv3_ec_msw/e1r_preflight_s20260704/audit/` | 小 | E1r 1-epoch clean 6000 前端预检 |
+| `metrics.json`、`metrics_live.jsonl`、`run_config.json` | `outputs/tv3_ec_msw/e1r_s20260704/` | 小 | E1r 正式训练与配置证据 |
+| `frame_fidelity.json`、`b1_parity.json`、`narrow_o2_windows.csv` | `outputs/tv3_ec_msw/e1r_s20260704/audit/` | 小 | E1r 正式门与窄窗口结果 |
 
 打包回收（在服务器上）：
 

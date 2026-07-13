@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import random
 import sys
@@ -272,6 +273,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         model_config["slow_channels"] = int(model_config.get("slow_channels", slow_channel_count)) + waveform_stats_channel_count
     if args.model in ("tof_phase_net", "ec_msw_e1") and waveform_stats_channel_count > 0:
         model_config["slow_channels"] = int(model_config.get("slow_channels", slow_channel_count)) + waveform_stats_channel_count
+    _resolve_ec_msw_peak_coordinate_template(args.model, model_config)
     _resolve_raw_output_prior(args.model, model_config, train_labels, out_dim, target_transform=target_transform)
     if phase_stats_path is not None and train_dataset.has_phase_stats:
         model_config["phase_stat_dim"] = train_dataset.phase_stat_dim
@@ -990,6 +992,32 @@ def _build_model_config(
         config["target_timesteps"] = timesteps
     config.update(model_kwargs)
     return config
+
+
+def _resolve_ec_msw_peak_coordinate_template(
+    model_name: str,
+    model_config: dict[str, Any],
+) -> None:
+    path_value = model_config.pop("peak_coordinate_template_path", None)
+    if path_value is None:
+        return
+    if model_name != "ec_msw_e1":
+        raise ValueError("peak_coordinate_template_path is only supported by ec_msw_e1")
+    if "peak_coordinate_template" in model_config:
+        raise ValueError(
+            "peak_coordinate_template_path conflicts with inline peak_coordinate_template"
+        )
+    path = Path(str(path_value))
+    if not path.is_file():
+        raise FileNotFoundError(f"peak coordinate template not found: {path}")
+    values = np.load(path, allow_pickle=False)
+    if values.ndim != 1 or values.size < 3 or not np.isfinite(values).all():
+        raise ValueError(f"peak coordinate template must be a finite 1D array: {path}")
+    values = values.astype("<f4", copy=False)
+    model_config["peak_coordinate_template"] = values.tolist()
+    model_config["peak_coordinate_template_digest"] = hashlib.sha256(
+        values.tobytes()
+    ).hexdigest()
 
 
 def _remove_stale_best_checkpoint(path: Path) -> None:

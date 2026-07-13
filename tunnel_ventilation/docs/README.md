@@ -7,7 +7,7 @@
 1. [掘进通风项目记忆库.md](掘进通风项目记忆库.md)：当前有效事实、正式结果、硬不变量和执行门。
 2. [methods/tv3_名词与实验顺序导读.md](methods/tv3_名词与实验顺序导读.md)：初学者名词说明，按实验顺序分级检索。
 3. [active/tv3_static_air_feasibility_implementation_plan.md](active/tv3_static_air_feasibility_implementation_plan.md)：当前 P0，静止空气范围、测量链校准与独立 holdout。
-4. [active/tv3_ec_msw_gatednet_implementation_plan.md](active/tv3_ec_msw_gatednet_implementation_plan.md)：P1 算法实验线；E1 模型与独立审计链已实现，smoke 审计失败且不作性能证据，待 clean 6000 fidelity/parity。
+4. [active/tv3_ec_msw_gatednet_implementation_plan.md](active/tv3_ec_msw_gatednet_implementation_plan.md)：P1 算法实验线；正式 E1 已失败，E1r 模板坐标锚点 smoke fidelity 已通过，待 clean 6000 preflight/parity，E2 仍禁止。
 5. [active/b7_repeated_split_ood_protocol_implementation_plan.md](active/b7_repeated_split_ood_protocol_implementation_plan.md)：B7 冻结后的重复 split、独立 OOD、审计和通过门。
 6. [active/README.md](active/README.md)：D2b、B6、B7、R5-T、R7、SPXY 等当前工作。
 7. [foundation/README.md](foundation/README.md)：场景、适配、采样和物理基础。

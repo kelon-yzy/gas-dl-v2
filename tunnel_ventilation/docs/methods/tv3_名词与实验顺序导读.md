@@ -33,7 +33,7 @@
   → 模块 C：物理分组失败，停止该分支
   → 可辨识性 v1：物理误差预算；P90=0.4 vol%、nuisance=50%、拒绝率=5% 均失败，flow 未表示 → information-source-upgrade
   → 当前 P0：先在经风速核验的静止空气中验证单向链路，不外推到通风现场
-  → 并行 P1-exp：EC-MSW 先做位置敏感 E1；clean 6000 fidelity/parity 未过前不做动态门控
+  → 并行 P1-exp：EC-MSW 正式 E1 已失败；E1r 模板坐标锚点 smoke fidelity 通过，待 clean 6000 preflight/parity
 ```
 
 ---
@@ -274,15 +274,17 @@
 | --- | --- |
 | **EC-MSW-GatedNet** | Environment-Conditioned Multi-Scale Waveform Gated Network。规划中的环境条件化、多尺度波形、晚期软门控框架。 |
 | **E0–E5** | 单因素实验序列：冻结基线 → E1 encoder → FiLM → attention → soft gate → 混合/纯端到端对照。每步未过门不得进入下一步。 |
-| **E1 / `ec_msw_e1`** | 当前已实现阶段：共享卷积 stem、三种 kernel/dilation 分支、显式位置统计、固定跨帧聚合和 raw3 小头。 |
+| **E1 / `ec_msw_e1`** | 已完成正式训练与审计的阶段：共享卷积 stem、三种 kernel/dilation 分支、显式位置统计、固定跨帧聚合和 raw3 小头；正式判定失败。 |
 | **位置敏感统计** | 对分支激活同时保留均值、最大值及关于绝对采样坐标的一阶矩，避免只做全局池化后丢失峰位。 |
 | **FiLM** | 用可部署环境 token 生成逐通道缩放与偏置。属于 E2，当前未启动。 |
 | **attentive statistics pooling** | 动态加权多个 frame/window，并输出加权均值与标准差。属于 E2，当前未启动。 |
 | **soft gate / MoE** | 样本级软路由多个尺度或机制专家。属于 E3 以后，当前未启动。 |
 | **smoke** | 最小链路运行检查，只证明数据、模型、训练器和产物写出可工作；不证明精度、parity 或 OOD 泛化。 |
-| **当前门** | clean 6000 frame fidelity 与 B1 parity。未通过时停止在 E1，B7 继续作为默认头。 |
+| **当前门** | 旧 E1 已 `frame_fidelity_failed`；当前等待 E1r 的 1-epoch clean 6000 frame preflight，只有通过后才运行 80 epochs 与 B1 parity。`e2_allowed=false`，B7 继续作为默认头。 |
 | **position fidelity probe** | 冻结 encoder 后，仅用 train frame embedding 拟合线性 peak-index probe，在 val/test/extrapolation 全帧评价；peak target 不进入模型或主损失。 |
 | **E1 parity probe** | 冻结 sequence embedding 后另训 train-only Ridge，与 B1 的三个 split R²做非劣比较；原神经网络输出头不参与 parity。 |
+| **E1 正式失败** | frame peak MAE 约 `71–72 samples`、P95 约 `155 samples`；冻结 embedding 的 O₂ R²在三个 split 均为负，说明 learned encoder 没有保留 RawDSP 已能恢复的峰位 / TOF 信息。 |
+| **E1r / 模板坐标锚点** | 使用 RawDSP train-only baseline median 模板对当前 raw waveform 做冻结匹配滤波，将绝对峰位直接保留为 embedding 第一维；smoke fidelity 已通过，clean 6000 preflight 与 parity 待执行。 |
 
 ---
 
@@ -388,7 +390,7 @@
 | 6 | B 系列 | RawDSP 默认头 | B1、B6、B7、OOF、residual、protocol_pass |
 | 7 | 模块 C | 物理早期分组是否有用 | grouped bottleneck、grouped_failed |
 | 8 | Identifiability | 物理上限与分流 | 灵敏度、Fisher、CRLB、误差预算、verdict |
-| 9 | 当前并行线 | 受控静止空气可测性与新波形表示是否值得继续 | static air、EC-MSW、E1、smoke、parity |
+| 9 | 当前并行线 | 受控静止空气可测性与新波形表示是否值得继续 | static air、EC-MSW、E1、E1r、preflight、parity |
 
 ---
 
@@ -410,7 +412,7 @@
 | D0 / D0-observed / oracle | [§4](#4-阶段-d0信息在哪特征消融基线) |
 | D2 / TOF-PhaseNet | [§5.1](#51-d2失败路线) |
 | D2b / RawDSP / DSP | [§5.2](#52-d2b--rawdsp成功路线) |
-| E0–E5 / E1 / `ec_msw_e1` | [§7.4](#74-ec-msw-gatednet当前-p1-实验线) |
+| E0–E5 / E1 / E1r / `ec_msw_e1` | [§7.4](#74-ec-msw-gatednet当前-p1-实验线) |
 | EC-MSW-GatedNet | [§7.4](#74-ec-msw-gatednet当前-p1-实验线) |
 | error budget / 误差预算 | [§8.1](#81-目标与非目标) |
 | fidelity | [§5.2](#52-d2b--rawdsp成功路线) |
@@ -455,7 +457,7 @@
 | [掘进通风项目记忆库.md](../掘进通风项目记忆库.md) | 当前事实与正式结论 |
 | [active/tv3_identifiability_implementation_plan.md](../active/tv3_identifiability_implementation_plan.md) | 可辨识性实施计划 |
 | [active/tv3_static_air_feasibility_implementation_plan.md](../active/tv3_static_air_feasibility_implementation_plan.md) | 当前 P0：静止空气的测量链校准与独立 holdout |
-| [active/tv3_ec_msw_gatednet_implementation_plan.md](../active/tv3_ec_msw_gatednet_implementation_plan.md) | EC-MSW P0 契约、E0–E5 门和 E1 当前状态 |
+| [active/tv3_ec_msw_gatednet_implementation_plan.md](../active/tv3_ec_msw_gatednet_implementation_plan.md) | EC-MSW P0 契约、E0–E5 门、E1 失败与 E1r 当前状态 |
 | [端到端波形动态门控组分反演框架与文献证据.md](../端到端波形动态门控组分反演框架与文献证据.md) | EC-MSW 算法框架与文献证据边界 |
 | [references/tv3_identifiability_business_threshold_evidence.md](../references/tv3_identifiability_business_threshold_evidence.md) | P90 与 nuisance 门限的证据和适用边界 |
 | [active/b7_repeated_split_ood_protocol_implementation_plan.md](../active/b7_repeated_split_ood_protocol_implementation_plan.md) | B7 协议 |

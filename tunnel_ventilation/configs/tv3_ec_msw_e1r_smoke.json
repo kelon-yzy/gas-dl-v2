@@ -1,0 +1,50 @@
+{
+  "dataset_dir": "data/tv3-smoke7",
+  "output_dir": "outputs/tv3_ec_msw/e1r_smoke_s20260704",
+  "model": "ec_msw_e1",
+  "model_kwargs": {
+    "output_mode": "raw3",
+    "slow_channels": 7,
+    "ultrasonic_channels": 5000,
+    "fiber_mic_channels": 0,
+    "waveform_embedding_dim": 16,
+    "slow_embedding_dim": 8,
+    "stem_channels": 4,
+    "branch_channels": 4,
+    "kernel_sizes": [5, 15, 31],
+    "dilations": [1, 2, 4],
+    "downsample_factor": 4,
+    "dropout": 0.0,
+    "peak_coordinate_template_path": "data/tv3-smoke7/features/raw_dsp/raw_dsp_frame_v1/template.npy",
+    "head_hidden_dim": 16,
+    "raw_output_prior": "auto"
+  },
+  "modalities": "slow,ultrasonic",
+  "scaler_path": "data/tv3-smoke7/scalers/scaler_slow_sequence.json",
+  "dequantize_waveforms": true,
+  "normalize_waveforms": true,
+  "waveform_stats_features": "log_std,log_max_abs",
+  "augment": null,
+  "epochs": 1,
+  "batch_size": 4,
+  "num_workers": 0,
+  "seed": 20260704,
+  "device": "cpu",
+  "loss": {
+    "name": "weighted_component_mse",
+    "weighting": "inverse_train_var",
+    "weight_normalization": "mean_one",
+    "component_count": 3
+  },
+  "optimizer": "adamw",
+  "lr": 0.0001,
+  "weight_decay": 0.0001,
+  "grad_clip_norm": 1.0,
+  "eval_splits": "val,test",
+  "early_stopping": {
+    "enabled": false
+  },
+  "amp": {
+    "enabled": false
+  }
+}

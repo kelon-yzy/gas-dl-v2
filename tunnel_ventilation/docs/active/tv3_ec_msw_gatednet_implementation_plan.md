@@ -1,6 +1,6 @@
 # tv3 EC-MSW-GatedNet 实施计划
 
-> 状态：**P0 契约已冻结；P1/E1 模型与独立审计链已实现；本地 smoke 审计按正式门清晰失败且仅作链路证据；clean 6000 frame fidelity/B1 parity 待执行；E2 未启动。**
+> 状态：**clean 6000 正式 E1 已 `frame_fidelity_failed`；E1r 已实现 train-only 模板坐标锚点且 smoke frame fidelity 通过；clean 6000 preflight 与 B1 parity 待执行，`e2_allowed=false`，E2 继续禁止。**
 > 基线边界：B7 仍是冻结默认 RawDSP 头，identifiability v1 的 `information_source_upgrade_required` verdict 不变。
 
 ## 1. 范围与不变量
@@ -90,15 +90,53 @@ python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
 | --- | --- | --- |
 | P0 数据与部署输入契约 | ✅ | 本文 §2；E1 明确禁用 simulator 同步辅助数组 |
 | E0–E5 门与停止条件 | ✅ | 本文 §3；B1 parity 阈值沿用冻结协议 |
-| E1 位置敏感多尺度 encoder | ✅ | `tv3/dl/models/ec_msw_e1.py` |
+| E1/E1r 位置敏感多尺度 encoder | ✅ | `tv3/dl/models/ec_msw_e1.py`；E1r 新增冻结模板坐标锚点 |
 | 模型注册与 CLI 集成 | ✅ | `tv3/dl/models/registry.py`、`tv3/dl/cli.py` |
-| 正式与 smoke 配置 | ✅ | `configs/tv3_ec_msw_e1.json`、`configs/tv3_ec_msw_e1_smoke.json` |
-| 新增及相关回归测试 | ✅ | E1 与审计共 11 项、D2 与波形归一化 58 项，共 69 项通过 |
+| E1/E1r 正式、smoke 与 preflight 配置 | ✅ | `configs/tv3_ec_msw_e1*.json`、`configs/tv3_ec_msw_e1r*.json` |
+| 新增及相关回归测试 | ✅ | E1/E1r 与审计 17 项、D2 与波形归一化 58 项，共 75 项通过 |
 | 1 epoch 本地 smoke | ✅ | checkpoint、run config、val/test metrics 已生成；不作性能证据 |
 | 独立 fidelity/parity 审计器 | ✅ | train-only probes、固定窄窗、verdict 与 provenance 已实现 |
 | 本地 smoke 审计 | ✅ 链路 / ❌ 正式门 | `frame_fidelity_failed`，峰位 P95 约 90–141 samples；`e2_allowed=false`，不作正式性能结论 |
-| clean 6000 frame fidelity | ⏳ | 未执行 |
-| clean 6000 B1 parity | ⏳ | 未执行；未过门前禁止 E2 |
-| E2 FiLM/attention | ⛔ | 未启动，等待 E1 正式门 |
+| clean 6000 正式训练 | ✅ | 80 epochs；最佳 epoch 72，val loss `0.7272`；约 `1.57 h` |
+| clean 6000 frame fidelity | ❌ | val/test/extrap peak MAE `71.19 / 71.87 / 72.33 samples`，P95 `154.96 / 154.97 / 154.83 samples` |
+| clean 6000 B1 parity | ❌ | O₂ ΔR² `-0.4697 / -0.5052 / -0.4590`；N₂亦未通过，只有 CO₂通过 |
+| 固定 O₂ 窄窗口 | ❌ | 边缘 MAE `1.16–1.21 vol.%`，局部斜率 `-0.168–0.088`，输出向均值收缩 |
+| 正式 provenance | ✅ | config、checkpoint、run config、B1 reference 的 SHA-256 与 manifest 完全一致 |
+| E2 FiLM/attention | ⛔ | `e2_allowed=false`；不得启动 |
+| E1r 前端修复 | ✅ | train-only baseline median 模板匹配滤波；绝对峰位坐标绕过 learned projection |
+| E1r smoke frame fidelity | ✅ | val/test/extrap MAE `0.00526 / 0.00573 / 0.00455`，P95 `0.01045 / 0.00819 / 0.01042 sample` |
+| clean 6000 E1r | ⏳ | 新 run `e1r_s20260704`；不得覆盖 E1 正式失败证据 |
 
-当前本机 `data/tv3-formal-6000/` 只有 RawDSP feature cache，缺少 `sequences/ultrasonic_int16.npy`、`metadata/sequence_ids.npy`，且尚无 `outputs/tv3_ec_msw/e1_s20260704/checkpoint.pt`。因此 clean 6000 训练与正式审计必须在持有完整 benchmark arrays 的服务器执行；不得从 feature cache 或 smoke 产物伪造正式输入。
+正式结果已回收到 `outputs/tv3_ec_msw/e1_s20260704/`。本机 `data/tv3-formal-6000/` 仍只有 RawDSP feature cache，不能在本地重新执行正式训练或审计；但下载的训练配置、checkpoint、B1 reference 与审计 manifest 已完成 SHA-256 核对，且 `checkpoint.pt` 与 `best_checkpoint.pt` 的模型张量完全相同。
+
+## 6. 正式失败分析与修复门
+
+本次训练过程稳定：80 epochs 完整结束，验证 loss 在 epoch 72 达到最优，最终验证 loss 仅比最优高 `1.51%`，train/val 间隙较小。train frame probe 的 peak MAE/P95 为 `70.92 / 154.49 samples`，与三个评价 split 几乎一致，因此失败不是 probe 过拟合、split 漂移或 checkpoint 选择错误。
+
+冻结 sequence Ridge 对 CO₂ 有改善，但 O₂ R²在三个 split 均为负，N₂也显著落后 B1。B1 的 O₂ R²仍为 `0.4280 / 0.4786 / 0.3695`，说明 RawDSP 能恢复部分 O₂信息，而当前 learned encoder 没有保留相应峰位 / TOF 表示。按预注册失败动作，后续只允许修波形前端，不允许通过调整门限、延长同结构训练或添加 FiLM、attention、MoE 绕过 E1。
+
+修复后的验收顺序保持不变：
+
+1. 在波形轴下采样前保留由当前 raw waveform 可部署计算的位置坐标或高分辨率位置特征；不得把 oracle peak/TOF 作为部署输入。
+2. 先运行冻结 frame peak-index probe，三个 split 全部通过 fidelity 门后再继续。
+3. 再运行冻结 sequence Ridge 与 B1 parity；O₂、CO₂、N₂全部通过非劣门后，才允许恢复 E2 讨论。
+4. 原神经头的正式指标需补齐 component bias；`sum_abs_error` 继续只监控，不进行 N₂闭包回填。
+
+## 7. E1r 实施记录
+
+E1r 新增 `MatchedFilterPeakCoordinate`，输入只包含当前帧归一化 raw waveform 与 RawDSP 已冻结的 train-only baseline median 模板。模板相关峰位除以 `waveform_length-1` 后成为 frame embedding 第一维；其余维度仍由原多尺度卷积分支生成。坐标不经过 learned projection，因此组分损失不能再次把它压掉。模板在 CLI 解析时转为 float32 数组并写入 run config，checkpoint 内保存同一冻结 buffer 与 digest。
+
+新增配置：
+
+```powershell
+python -m tv3.dl.cli --config configs/tv3_ec_msw_e1r_smoke.json
+python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1r_audit_smoke.json
+
+python -m tv3.dl.cli --config configs/tv3_ec_msw_e1r.json --epochs 1 --output-dir outputs/tv3_ec_msw/e1r_preflight_s20260704
+python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1r_preflight_audit.json
+
+python -m tv3.dl.cli --config configs/tv3_ec_msw_e1r.json
+python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1r_audit.json
+```
+
+smoke 审计的 frame fidelity 已通过，但 tiny split 的 B1 parity 不作正式结论，当前 verdict 仍为 `b1_parity_failed`、`e2_allowed=false`。服务器先运行 1 epoch clean 6000 preflight，只读取其中的 `frame_fidelity.passed`；通过后才执行 80 epochs 正式训练及 B1 parity。只有 clean 6000 E1r 的正式 frame fidelity 与 B1 parity 同时通过，才允许恢复 E2 讨论。

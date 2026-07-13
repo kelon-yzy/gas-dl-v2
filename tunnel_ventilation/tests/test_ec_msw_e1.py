@@ -11,6 +11,7 @@ from tv3.dl.cli import (
     _build_model_config,
     _parse_comma,
     _parse_waveform_stats_features,
+    _resolve_ec_msw_peak_coordinate_template,
     _resolve_raw_output_prior,
     _waveform_stats_channel_count,
 )
@@ -24,6 +25,7 @@ from tv3.dl.evaluation.ec_msw_e1_audit import (
 )
 from tv3.dl.models.ec_msw_e1 import (
     ECMSWE1Regressor,
+    MatchedFilterPeakCoordinate,
     PositionSensitiveMultiScaleEncoder,
     PositionSensitiveStatisticsPool,
 )
@@ -50,6 +52,27 @@ class TestPositionSensitiveStatisticsPool:
         assert late_centroid > early_centroid
 
 
+class TestMatchedFilterPeakCoordinate:
+    def test_recovers_inserted_absolute_peak_position(self):
+        template = [0.0, -1.0, 2.0, -1.0, 0.0]
+        coordinate = MatchedFilterPeakCoordinate(32, template)
+        waveform = torch.zeros(2, 1, 32)
+        waveform[0, 0, 5:10] = torch.tensor(template)
+        waveform[1, 0, 20:25] = torch.tensor(template)
+
+        peak_index = coordinate(waveform).squeeze(1) * 31.0
+
+        assert torch.allclose(peak_index, torch.tensor([7.0, 22.0]))
+
+    def test_rejects_digest_mismatch(self):
+        with pytest.raises(ValueError, match="digest"):
+            MatchedFilterPeakCoordinate(
+                32,
+                [0.0, -1.0, 2.0, -1.0, 0.0],
+                expected_digest="not-the-template-digest",
+            )
+
+
 class TestPositionSensitiveMultiScaleEncoder:
     def test_shape_and_gradient(self):
         encoder = PositionSensitiveMultiScaleEncoder(
@@ -69,6 +92,29 @@ class TestPositionSensitiveMultiScaleEncoder:
         assert embedding.shape == (2, 3, 12)
         assert waveform.grad is not None
         assert torch.isfinite(waveform.grad).all()
+
+    def test_peak_coordinate_bypasses_learned_projection(self):
+        template = [0.0, -1.0, 2.0, -1.0, 0.0]
+        encoder = PositionSensitiveMultiScaleEncoder(
+            waveform_length=64,
+            embedding_dim=8,
+            stem_channels=2,
+            branch_channels=2,
+            kernel_sizes=(3,),
+            dilations=(1,),
+            downsample_factor=2,
+            dropout=0.0,
+            peak_coordinate_template=template,
+        ).eval()
+        waveform = torch.zeros(1, 2, 64)
+        waveform[0, 0, 5:10] = torch.tensor(template)
+        waveform[0, 1, 40:45] = torch.tensor(template)
+
+        with torch.inference_mode():
+            embedding = encoder(waveform)
+
+        assert embedding.shape == (1, 2, 8)
+        assert torch.allclose(embedding[0, :, 0] * 63.0, torch.tensor([7.0, 42.0]))
 
 
 class TestECMSWE1Regressor:
@@ -131,6 +177,36 @@ class TestECMSWE1Regressor:
         assert torch.allclose(prediction, prediction_from_sequence)
         assert torch.allclose(frames, changed_frames)
 
+    def test_peak_coordinate_bypasses_frame_norm_and_reaches_sequence_pooling(self):
+        template = [0.0, -1.0, 2.0, -1.0, 0.0]
+        model = ECMSWE1Regressor(
+            in_channels=41,
+            slow_channels=9,
+            ultrasonic_channels=32,
+            waveform_embedding_dim=8,
+            slow_embedding_dim=4,
+            stem_channels=2,
+            branch_channels=2,
+            kernel_sizes=(3,),
+            dilations=(1,),
+            downsample_factor=2,
+            head_hidden_dim=8,
+            dropout=0.0,
+            peak_coordinate_template=template,
+        ).eval()
+        x = torch.zeros(1, 3, 41)
+        x[0, 0, 9 + 3 : 9 + 8] = torch.tensor(template)
+        x[0, 1, 9 + 10 : 9 + 15] = torch.tensor(template)
+        x[0, 2, 9 + 20 : 9 + 25] = torch.tensor(template)
+
+        with torch.inference_mode():
+            sequence = model.encode_sequence(x)
+
+        frame_dim = 12
+        assert sequence[0, 0] * 31.0 == pytest.approx(22.0)
+        assert sequence[0, frame_dim] * 31.0 == pytest.approx(13.0)
+        assert sequence[0, frame_dim * 2] * 31.0 == pytest.approx(22.0)
+
     def test_rejects_non_raw3_and_fiber_mic(self):
         with pytest.raises(ValueError, match="raw3"):
             ECMSWE1Regressor(output_mode="gas_head")
@@ -157,6 +233,29 @@ class TestECMSWE1Regressor:
 
 
 class TestECMSWE1Config:
+    def test_resolves_train_only_peak_coordinate_template(self, tmp_path: Path):
+        template_path = tmp_path / "template.npy"
+        np.save(
+            template_path,
+            np.array([0.0, -1.0, 2.0, -1.0, 0.0], dtype=np.float32),
+        )
+        model_config = {"peak_coordinate_template_path": str(template_path)}
+
+        _resolve_ec_msw_peak_coordinate_template("ec_msw_e1", model_config)
+
+        assert "peak_coordinate_template_path" not in model_config
+        assert model_config["peak_coordinate_template"] == [0.0, -1.0, 2.0, -1.0, 0.0]
+        assert len(model_config["peak_coordinate_template_digest"]) == 64
+
+    def test_repair_config_keeps_failed_e1_outputs_immutable(self):
+        config = json.loads(
+            Path("configs/tv3_ec_msw_e1r_smoke.json").read_text(encoding="utf-8")
+        )
+
+        assert config["output_dir"] == "outputs/tv3_ec_msw/e1r_smoke_s20260704"
+        assert config["model_kwargs"]["peak_coordinate_template_path"].endswith("template.npy")
+        assert "aux_target_arrays" not in config
+
     def test_smoke_config_builds_with_waveform_stats_and_auto_prior(self):
         config_path = Path("configs/tv3_ec_msw_e1_smoke.json")
         config = json.loads(config_path.read_text(encoding="utf-8"))

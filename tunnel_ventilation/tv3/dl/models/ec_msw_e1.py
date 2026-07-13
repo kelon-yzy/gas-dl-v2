@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from typing import Sequence
 
 import torch
@@ -7,6 +8,54 @@ from torch import nn
 import torch.nn.functional as F
 
 from tv3.dl.models.base import BaseRegressor
+
+
+class MatchedFilterPeakCoordinate(nn.Module):
+    """用冻结的 train-only 模板从当前波形直接恢复绝对峰位坐标。"""
+
+    def __init__(
+        self,
+        waveform_length: int,
+        template: Sequence[float],
+        *,
+        expected_digest: str | None = None,
+    ):
+        super().__init__()
+        values = torch.tensor(template, dtype=torch.float32)
+        if values.ndim != 1 or values.numel() < 3:
+            raise ValueError(
+                "peak_coordinate_template must be a 1D sequence with at least 3 values"
+            )
+        if values.numel() > waveform_length:
+            raise ValueError("peak_coordinate_template must not exceed waveform_length")
+        if not bool(torch.isfinite(values).all()):
+            raise ValueError("peak_coordinate_template must contain finite values")
+        digest = hashlib.sha256(
+            values.numpy().astype("<f4", copy=False).tobytes()
+        ).hexdigest()
+        if expected_digest is not None and digest != expected_digest:
+            raise ValueError("peak_coordinate_template_digest does not match template values")
+
+        centered = values - values.mean()
+        norm = torch.linalg.vector_norm(centered)
+        if float(norm.item()) == 0.0:
+            raise ValueError("peak_coordinate_template must have non-zero centered energy")
+        self.waveform_length = waveform_length
+        self.template_peak_offset = int(torch.argmax(values.abs()).item())
+        self.template_digest = digest
+        self.register_buffer("template", (centered / norm).reshape(1, 1, -1))
+
+    def forward(self, waveform: torch.Tensor) -> torch.Tensor:
+        if waveform.ndim != 3 or waveform.shape[1] != 1:
+            raise ValueError(f"waveform must be shaped (N, 1, L), got {tuple(waveform.shape)}")
+        if waveform.shape[-1] != self.waveform_length:
+            raise ValueError(
+                f"Expected waveform length {self.waveform_length}, got {waveform.shape[-1]}"
+            )
+        with torch.autocast(device_type=waveform.device.type, enabled=False):
+            correlation = F.conv1d(waveform.float(), self.template)
+        peak_index = correlation.argmax(dim=-1).float() + self.template_peak_offset
+        return peak_index / float(self.waveform_length - 1)
 
 
 class PositionSensitiveStatisticsPool(nn.Module):
@@ -43,6 +92,8 @@ class PositionSensitiveMultiScaleEncoder(nn.Module):
         dilations: Sequence[int] = (1, 2, 4),
         downsample_factor: int = 4,
         dropout: float = 0.1,
+        peak_coordinate_template: Sequence[float] | None = None,
+        peak_coordinate_template_digest: str | None = None,
     ):
         super().__init__()
         if waveform_length < 1:
@@ -84,8 +135,22 @@ class PositionSensitiveMultiScaleEncoder(nn.Module):
         self.downsample_factor = downsample_factor
         self.pool = PositionSensitiveStatisticsPool()
         pooled_dim = len(kernel_sizes) * branch_channels * 3 + 1
+        self.peak_coordinate = (
+            None
+            if peak_coordinate_template is None
+            else MatchedFilterPeakCoordinate(
+                waveform_length,
+                peak_coordinate_template,
+                expected_digest=peak_coordinate_template_digest,
+            )
+        )
+        learned_embedding_dim = embedding_dim - int(self.peak_coordinate is not None)
+        if learned_embedding_dim < 1:
+            raise ValueError(
+                "embedding_dim must be >= 2 when peak_coordinate_template is configured"
+            )
         self.projection = nn.Sequential(
-            nn.Linear(pooled_dim, embedding_dim),
+            nn.Linear(pooled_dim, learned_embedding_dim),
             nn.GELU(),
             nn.Dropout(dropout),
         )
@@ -110,7 +175,12 @@ class PositionSensitiveMultiScaleEncoder(nn.Module):
                 )
             branch_summaries.append(self.pool(branch_features))
         log_amplitude = torch.log1p(flat.abs().mean(dim=-1))
-        embedding = self.projection(torch.cat([*branch_summaries, log_amplitude], dim=-1))
+        learned_embedding = self.projection(torch.cat([*branch_summaries, log_amplitude], dim=-1))
+        embedding = (
+            learned_embedding
+            if self.peak_coordinate is None
+            else torch.cat([self.peak_coordinate(flat), learned_embedding], dim=-1)
+        )
         return embedding.reshape(batch_size, timesteps, -1)
 
 
@@ -134,6 +204,8 @@ class ECMSWE1Regressor(BaseRegressor):
         dilations: Sequence[int] = (1, 2, 4),
         downsample_factor: int = 4,
         dropout: float = 0.1,
+        peak_coordinate_template: Sequence[float] | None = None,
+        peak_coordinate_template_digest: str | None = None,
         head_hidden_dim: int = 64,
         raw_output_prior: Sequence[float] | None = None,
         output_mode: str = "raw3",
@@ -154,6 +226,7 @@ class ECMSWE1Regressor(BaseRegressor):
         self.slow_channels = slow_channels
         self.ultrasonic_channels = ultrasonic_channels
         self.waveform_embedding_dim = waveform_embedding_dim
+        self.has_peak_coordinate = peak_coordinate_template is not None
         self.waveform_encoder = PositionSensitiveMultiScaleEncoder(
             waveform_length=ultrasonic_channels,
             embedding_dim=waveform_embedding_dim,
@@ -163,13 +236,15 @@ class ECMSWE1Regressor(BaseRegressor):
             dilations=dilations,
             downsample_factor=downsample_factor,
             dropout=dropout,
+            peak_coordinate_template=peak_coordinate_template,
+            peak_coordinate_template_digest=peak_coordinate_template_digest,
         )
         self.slow_encoder = nn.Sequential(
             nn.Linear(slow_channels, slow_embedding_dim),
             nn.GELU(),
         )
         frame_dim = waveform_embedding_dim + slow_embedding_dim
-        self.frame_norm = nn.LayerNorm(frame_dim)
+        self.frame_norm = nn.LayerNorm(frame_dim - int(self.has_peak_coordinate))
         self.head = nn.Sequential(
             nn.Linear(frame_dim * 3, head_hidden_dim),
             nn.GELU(),
@@ -217,9 +292,14 @@ class ECMSWE1Regressor(BaseRegressor):
             raise ValueError(
                 f"frame_embeddings must be shaped {expected_shape}, got {tuple(frame_embeddings.shape)}"
             )
-        frames = self.frame_norm(
-            torch.cat([frame_embeddings, self.slow_encoder(slow.float())], dim=-1)
-        )
+        slow_embeddings = self.slow_encoder(slow.float())
+        if self.has_peak_coordinate:
+            peak_coordinate = frame_embeddings[:, :, :1]
+            learned_frames = frame_embeddings[:, :, 1:]
+            normalized = self.frame_norm(torch.cat([learned_frames, slow_embeddings], dim=-1))
+            frames = torch.cat([peak_coordinate, normalized], dim=-1)
+        else:
+            frames = self.frame_norm(torch.cat([frame_embeddings, slow_embeddings], dim=-1))
         return torch.cat(
             [frames[:, -1, :], frames.mean(dim=1), frames.amax(dim=1)],
             dim=-1,

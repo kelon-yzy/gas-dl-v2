@@ -17,13 +17,13 @@
 | `tv3_module_c_grouped_bottleneck/` | 模块 C 分组 bottleneck C1 / C2 协议 | ❌ 24 条正式矩阵 `grouped_failed` |
 | `tv3_baseline_freeze/` | B1/B7 配置、结果、split、RawDSP 与环境 hash 冻结 | ✅ `frozen` |
 | `tv3_identifiability/` | 冻结 v1 单向 TOF 的敏感度、Fisher 与误差预算审计 | ✅ `audit=passed`；P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 均失败，flow 未表示，verdict=`information_source_upgrade_required` |
-| `tv3_ec_msw/` | EC-MSW-GatedNet 分阶段实验 | 当前仅 E1 本地 smoke；clean 6000 fidelity/parity 未执行，不计入正式证据 |
+| `tv3_ec_msw/` | EC-MSW-GatedNet 分阶段实验 | E1 正式失败；E1r smoke frame pass，clean 6000 preflight/parity 待执行；E2 禁止 |
 | `summary/` | 跨运行汇总产物 | 汇总索引 |
 | `archive/` | 调试、本地 600、历史 DL、已取代子运行 | 仅追溯 |
 
 新实验默认写入对应顶层目录；调试与 smoke 直接写入 `archive/debug/`。
 
-`tv3_ec_msw/e1_smoke_s20260704/` 是本轮已生成的非正式链路记录，不升级为正式证据。其独立审计位于 `archive/debug/tv3_ec_msw/e1_smoke_audit_s20260704/`，verdict 为 `frame_fidelity_failed`、`e2_allowed=false`；该结果只证明审计链能暴露失败。后续 EC-MSW smoke 应写入 `archive/debug/`。
+`tv3_ec_msw/e1_s20260704/` 是 clean 6000 正式失败证据：80 epochs 最佳 epoch 72；正式 verdict 为 `frame_fidelity_failed`、`e2_allowed=false`，训练配置、checkpoint、run config 与 B1 reference 的 SHA-256 已与 audit manifest 核对一致。`e1_smoke_s20260704/` 与 `e1r_smoke_s20260704/` 均为非正式链路记录；后者只证明模板坐标锚点在 smoke 上通过 frame fidelity。`e1r_preflight_s20260704/` 和 `e1r_s20260704/` 是预注册待执行路径，尚不登记正式结果。
 
 ## 正式产物（configs 与记忆库引用）
 
@@ -49,6 +49,10 @@
 | `tv3_rocket/r0|r1a|r1b/metrics.json` | Rocket 固定特征回归 |
 | `tv3_identifiability/verdict.json` | 单向 TOF 可辨识性正式 verdict |
 | `tv3_identifiability/nuisance_fraction_summary.csv` | 窄窗口内每个已声明 nuisance 情景相对 `0.8 vol%` 信号的最坏 P90 比例 |
+| `tv3_ec_msw/e1_s20260704/metrics.json` | EC-MSW E1 正式训练曲线与神经头指标 |
+| `tv3_ec_msw/e1_s20260704/audit/verdict.json` | EC-MSW E1 正式 `frame_fidelity_failed` 判定与 E2 门 |
+| `tv3_ec_msw/e1_s20260704/audit/frame_fidelity.json` | learned frame embedding 的正式 peak-index fidelity 失败证据 |
+| `tv3_ec_msw/e1_s20260704/audit/b1_parity.json` | 冻结 sequence embedding 相对 B1 的非劣审计 |
 
 ## archive 分类
 
