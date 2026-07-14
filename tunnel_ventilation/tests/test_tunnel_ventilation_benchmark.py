@@ -254,3 +254,41 @@ def test_generic_tv3_default_hitran_cache_root_uses_workspace_shared_cache():
     workspace_root = Path(__file__).resolve().parents[2]
 
     assert Path(DEFAULT_HITRAN_CACHE_ROOT) == workspace_root / "shared" / "hitran_cache"
+
+
+def test_generation_cli_maps_formal_arguments(monkeypatch, tmp_path):
+    from tv3.pipeline import generate_tunnel_ventilation_benchmark as cli
+
+    captured = {}
+
+    def fake_generate(output_root, spec):
+        captured["output_root"] = output_root
+        captured["spec"] = spec
+        return {"output_dir": str(output_root / spec.dataset_slug), "sequence_count": spec.sequence_count}
+
+    monkeypatch.setattr(cli, "generate_tunnel_ventilation_benchmark_dataset", fake_generate)
+
+    assert cli.main([
+        "--output-root", str(tmp_path),
+        "--dataset", "tv3-formal-6000",
+        "--sequences", "6000",
+        "--seed", "20260704",
+        "--timesteps", "512",
+        "--dt-s", "0.5",
+        "--storage", "memmap",
+        "--workers", "4",
+        "--skip-fiber-mic",
+    ]) == 0
+
+    spec = captured["spec"]
+    assert captured["output_root"] == tmp_path
+    assert spec.dataset_slug == "tv3-formal-6000"
+    assert spec.sequence_count == 6000
+    assert spec.seed == 20260704
+    assert spec.timesteps == 512
+    assert spec.dt_s == 0.5
+    assert spec.storage == "memmap"
+    assert spec.workers == 4
+    assert spec.skip_fiber_mic is True
+    assert spec.optical_absorption_backend == "empirical_v1"
+    assert spec.split_strategy == "random"
