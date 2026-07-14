@@ -13,6 +13,14 @@ from tv3.common.windows import WINDOW_KIND_EARLY, WINDOW_KIND_PHASE, WindowConfi
 from tv3.dl.data.augmentation import TimeSeriesAugmentConfig, augment_sequence
 from tv3.dl.data.scalers import apply_scaler, load_scaler
 from tv3.dl.data.splits import load_splits, resolve_split_indices
+from tv3.dl.data.waveform_preprocess import (
+    WAVEFORM_MODALITY_ORDER,
+    WAVEFORM_PREPROCESS_OPTIONS,
+    dequantize_waveform_numpy,
+    normalize_waveform_numpy,
+    numpy_to_tensor,
+    waveform_stats_numpy,
+)
 
 MODALITY_OPTIONS = ("slow", "ultrasonic", "fiber_mic")
 """v4 benchmark 支持的输入模态。"""
@@ -43,6 +51,10 @@ class V4BenchmarkDataset(Dataset):
         对 slow 通道做归一化。
     lazy:
         若为 ``True``，首次 ``__getitem__`` 时才从磁盘加载数组（默认）。
+    waveform_preprocess:
+        ``"cpu"``（默认）在 worker 内 dequant/normalize 后返回组装好的 ``x``；
+        ``"gpu"`` 仅返回 int16 波形 + scale 等 raw 张量，由
+        :class:`WaveformDevicePreprocessor` 在训练设备上组装。
     """
 
     def __init__(
@@ -63,6 +75,7 @@ class V4BenchmarkDataset(Dataset):
         phase_stats_path: Path | str | None = None,
         slow_channels: tuple[str, ...] | None = None,
         aux_target_arrays: dict[str, str] | None = None,
+        waveform_preprocess: str = "cpu",
     ):
         dataset_dir = Path(dataset_dir)
         self._dataset_dir = dataset_dir
@@ -74,6 +87,7 @@ class V4BenchmarkDataset(Dataset):
         self._dequantize_waveforms = bool(dequantize_waveforms)
         self._normalize_waveforms = bool(normalize_waveforms)
         self._waveform_stats_features = tuple(waveform_stats_features)
+        self._waveform_preprocess = str(waveform_preprocess).lower()
         self._augment_rng: np.random.Generator | None = None
         self._window = resolve_window_config(window)
         self._phase_windows = _resolve_phase_windows(phase_windows)
@@ -82,12 +96,20 @@ class V4BenchmarkDataset(Dataset):
 
         _validate_modalities(self._modalities)
         _validate_waveform_stats_features(self._waveform_stats_features)
+        if self._waveform_preprocess not in WAVEFORM_PREPROCESS_OPTIONS:
+            raise ValueError(
+                f"waveform_preprocess must be one of {WAVEFORM_PREPROCESS_OPTIONS}, "
+                f"got {self._waveform_preprocess!r}"
+            )
         self._slow_channels = tuple(slow_channels) if slow_channels is not None else None
         self._slow_channel_indices = _resolve_slow_channel_indices(
             dataset_dir, self._slow_channels, self._modalities
         )
         if self._input_format not in {"NTC", "NCT"}:
             raise ValueError(f"input_format must be 'NTC' or 'NCT', got {self._input_format!r}")
+
+        if self._waveform_preprocess == "gpu":
+            self._validate_gpu_preprocess_contract()
 
         splits = load_splits(dataset_dir / "splits")
         sequence_ids = _load_sequence_ids(dataset_dir)
@@ -132,24 +154,59 @@ class V4BenchmarkDataset(Dataset):
     def __len__(self) -> int:
         return len(self.indices)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    @property
+    def waveform_preprocess(self) -> str:
+        return self._waveform_preprocess
+
+    @property
+    def modalities(self) -> tuple[str, ...]:
+        return self._modalities
+
+    @property
+    def waveform_stats_features(self) -> tuple[str, ...]:
+        return self._waveform_stats_features
+
+    @property
+    def normalize_waveforms(self) -> bool:
+        return self._normalize_waveforms
+
+    @property
+    def dequantize_waveforms(self) -> bool:
+        return self._dequantize_waveforms
+
+    @property
+    def input_format(self) -> str:
+        return self._input_format
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor | dict[str, torch.Tensor], torch.Tensor]:
         if self._labels is None:
             self._load_arrays()
         src_idx = self.indices[idx]
+        y = numpy_to_tensor(self._labels[src_idx], dtype=np.float32)
+        if self._waveform_preprocess == "gpu":
+            payload = self._build_raw_input(src_idx)
+            if self._has_phase_stats:
+                if self._phase_stats is None:
+                    self._load_arrays()
+                payload["phase_stats"] = numpy_to_tensor(self._phase_stats[src_idx], dtype=np.float32)
+            if self._aux_target_arrays:
+                payload["aux_targets"] = {
+                    key: numpy_to_tensor(self._aux_data[key][src_idx], dtype=np.float32)
+                    for key in self._aux_target_arrays
+                }
+            return payload, y
+
         xs = self._build_input(src_idx)
-        y = torch.from_numpy(self._labels[src_idx].copy())
         result: dict[str, torch.Tensor] = {"x": xs}
         if self._has_phase_stats:
             if self._phase_stats is None:
                 self._load_arrays()
-            phase_vec = torch.from_numpy(self._phase_stats[src_idx].copy())
-            result["phase_stats"] = phase_vec
+            result["phase_stats"] = numpy_to_tensor(self._phase_stats[src_idx], dtype=np.float32)
         if self._aux_target_arrays:
-            aux = {
-                key: torch.from_numpy(self._aux_data[key][src_idx].copy())
+            result["aux_targets"] = {
+                key: numpy_to_tensor(self._aux_data[key][src_idx], dtype=np.float32)
                 for key in self._aux_target_arrays
             }
-            result["aux_targets"] = aux
         if len(result) > 1 or "x" not in result:
             return result, y
         return xs, y
@@ -166,6 +223,40 @@ class V4BenchmarkDataset(Dataset):
             self._load_arrays()
         return int(self._phase_stats.shape[1])
 
+    def assembled_channel_count(self) -> int:
+        """组装后 NTC 通道数（含 waveform stats）。"""
+        if self._labels is None:
+            self._load_arrays()
+        count = 0
+        if self._slow is not None:
+            if self._slow_channel_indices is not None:
+                count += len(self._slow_channel_indices)
+            else:
+                count += int(self._slow.shape[-1])
+        waveform_modalities = [
+            modality for modality in WAVEFORM_MODALITY_ORDER if modality in self._modalities
+        ]
+        count += len(waveform_modalities) * len(self._waveform_stats_features)
+        if self._ultrasonic is not None:
+            count += int(self._ultrasonic.shape[-1])
+        if self._fiber_mic is not None:
+            count += int(self._fiber_mic.shape[-1])
+        if count < 1:
+            raise ValueError("assembled_channel_count requires at least one modality channel")
+        return count
+
+    def timesteps(self) -> int:
+        """时间步数；gpu 路径禁止 window，直接读原始数组。"""
+        if self._labels is None:
+            self._load_arrays()
+        if self._slow is not None:
+            return int(self._slow.shape[1])
+        if self._ultrasonic is not None:
+            return int(self._ultrasonic.shape[1])
+        if self._fiber_mic is not None:
+            return int(self._fiber_mic.shape[1])
+        raise ValueError("timesteps requires at least one loaded modality array")
+
     def __getstate__(self) -> dict[str, object]:
         state = self.__dict__.copy()
         state["_slow"] = None
@@ -178,6 +269,20 @@ class V4BenchmarkDataset(Dataset):
         state["_aux_data"] = {}
         state["_augment_rng"] = None
         return state
+
+    def _validate_gpu_preprocess_contract(self) -> None:
+        if not any(modality in self._modalities for modality in WAVEFORM_MODALITY_ORDER):
+            raise ValueError("waveform_preprocess='gpu' requires ultrasonic and/or fiber_mic modalities")
+        if not self._dequantize_waveforms:
+            raise ValueError("waveform_preprocess='gpu' requires dequantize_waveforms=true")
+        if self._window is not None:
+            raise ValueError("waveform_preprocess='gpu' does not support window")
+        if self._phase_windows is not None:
+            raise ValueError("waveform_preprocess='gpu' does not support phase_windows")
+        if self._augment_config is not None:
+            raise ValueError("waveform_preprocess='gpu' does not support augment")
+        if self._input_format not in {"NTC", "NCT"}:
+            raise ValueError("waveform_preprocess='gpu' requires input_format NTC or NCT")
 
     def _load_arrays(self) -> None:
         seq_dir = self._dataset_dir / "sequences"
@@ -227,13 +332,34 @@ class V4BenchmarkDataset(Dataset):
             self._augment_rng = np.random.default_rng(self._augment_seed + worker_id)
         return self._augment_rng
 
+    def _build_raw_input(self, src_idx: int) -> dict[str, torch.Tensor]:
+        payload: dict[str, torch.Tensor] = {}
+        if self._slow is not None:
+            sl = self._slow[src_idx]
+            if self._scaler is not None:
+                sl = apply_scaler(sl, self._scaler)
+            if self._slow_channel_indices is not None:
+                sl = sl[:, self._slow_channel_indices]
+            payload["slow"] = numpy_to_tensor(sl, dtype=np.float32)
+        if self._ultrasonic is not None:
+            if self._ultrasonic_scale is None:
+                raise ValueError("ultrasonic_scale is required when dequantize_waveforms=true")
+            payload["ultrasonic"] = numpy_to_tensor(self._ultrasonic[src_idx])
+            payload["ultrasonic_scale"] = numpy_to_tensor(self._ultrasonic_scale[src_idx], dtype=np.float32)
+        if self._fiber_mic is not None:
+            if self._fiber_mic_scale is None:
+                raise ValueError("fiber_mic_scale is required when dequantize_waveforms=true")
+            payload["fiber_mic"] = numpy_to_tensor(self._fiber_mic[src_idx])
+            payload["fiber_mic_scale"] = numpy_to_tensor(self._fiber_mic_scale[src_idx], dtype=np.float32)
+        return payload
+
     def _build_input(self, src_idx: int) -> torch.Tensor:
         if self._phase_window_masks is not None:
             views = [self._build_single_input(src_idx, masks) for masks in self._phase_window_masks]
             x = np.stack(views, axis=0)
-            return torch.from_numpy(np.array(x, dtype=np.float32, copy=True))
+            return numpy_to_tensor(x, dtype=np.float32)
         x = self._build_single_input(src_idx, self._window_masks)
-        return torch.from_numpy(np.array(x, dtype=np.float32, copy=True))
+        return numpy_to_tensor(x, dtype=np.float32)
 
     def _build_single_input(self, src_idx: int, window_masks: dict[int, np.ndarray] | None) -> np.ndarray:
         parts: list[np.ndarray] = []
@@ -298,16 +424,18 @@ class V4BenchmarkDataset(Dataset):
         if self._dequantize_waveforms:
             if scale is None:
                 raise ValueError(f"{modality}_scale is required when dequantize_waveforms=true")
-            values = values.astype(np.float32) * scale[src_idx].astype(np.float32)[:, np.newaxis]
+            values = dequantize_waveform_numpy(values, scale[src_idx])
         elif self._waveform_stats_features:
-            values = values.astype(np.float32)
-        stats = _waveform_stats(values, self._waveform_stats_features) if self._waveform_stats_features else None
+            values = values.astype(np.float32, copy=False)
+        stats = (
+            waveform_stats_numpy(values, self._waveform_stats_features)
+            if self._waveform_stats_features
+            else None
+        )
         if self._normalize_waveforms:
             # per-timestep z-score：每帧波形点独立 zero-mean unit-var。
             # 对标 wav2vec 2.0 整段波形 z-score；tv3 每帧独立承载一个声学事件，按帧归一化更贴合物理结构。
-            mean = values.mean(axis=-1, keepdims=True)
-            std = np.maximum(values.std(axis=-1, keepdims=True), 1e-6)
-            values = (values - mean) / std
+            values = normalize_waveform_numpy(values)
         values = self._apply_window(values, src_idx, window_masks)
         if stats is not None:
             stats = self._apply_window(stats, src_idx, window_masks)
@@ -326,20 +454,6 @@ def _validate_waveform_stats_features(features: tuple[str, ...]) -> None:
     unknown = set(features) - set(WAVEFORM_STATS_OPTIONS)
     if unknown:
         raise ValueError(f"Unknown waveform stats features: {sorted(unknown)}. Available: {WAVEFORM_STATS_OPTIONS}")
-
-
-def _waveform_stats(values: np.ndarray, features: tuple[str, ...]) -> np.ndarray:
-    blocks: list[np.ndarray] = []
-    abs_values = np.abs(values)
-    for feature in features:
-        if feature == "log_std":
-            block = np.log1p(values.std(axis=-1, keepdims=True))
-        elif feature == "log_max_abs":
-            block = np.log1p(abs_values.max(axis=-1, keepdims=True))
-        else:
-            raise ValueError(f"Unsupported waveform stats feature: {feature!r}")
-        blocks.append(block.astype(np.float32, copy=False))
-    return np.concatenate(blocks, axis=-1).astype(np.float32, copy=False)
 
 
 def _resolve_slow_channel_indices(

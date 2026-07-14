@@ -1,0 +1,50 @@
+{
+  "dataset_dir": "data/tv3-smoke7",
+  "output_dir": "outputs/tv3_ec_msw/e1d_smoke_s20260704",
+  "run_kind": "smoke",
+  "training_run_dir": "outputs/tv3_ec_msw/e1r_smoke_s20260704",
+  "device": "cpu",
+  "batch_size": 4,
+  "num_workers": 0,
+  "ridge_alphas": [
+    0.0001,
+    0.001,
+    0.01,
+    0.1,
+    1.0,
+    10.0,
+    100.0
+  ],
+  "eval_splits": ["val", "test", "extrapolation"],
+  "parity_gates": {
+    "o2_r2_drop_max": 0.05,
+    "co2_n2_r2_drop_max": 0.03
+  },
+  "positive_control_r2_tolerance": 0.000001,
+  "narrow_o2_windows": [
+    {"id": "o2_18.0_18.8", "low_percent": 18.0, "high_percent": 18.8},
+    {"id": "o2_18.8_19.6", "low_percent": 18.8, "high_percent": 19.6},
+    {"id": "o2_19.6_20.4", "low_percent": 19.6, "high_percent": 20.4},
+    {"id": "o2_20.4_21.2", "low_percent": 20.4, "high_percent": 21.2}
+  ],
+  "feature_sets": [
+    "full_b1",
+    "e1r_sequence_embedding",
+    "e1r_peak_lmm",
+    "e1r_peak_b1_windows",
+    "peak_lmm",
+    "peak_stats7",
+    "peak_stats7_phase",
+    "peak_b1_windows",
+    "peak_phase_plus_delay",
+    "peak_phase_plus_delay_tof_corr",
+    "peak_phase_plus_delay_tof_corr_tofl",
+    "peak_phase_plus_calibration_sound",
+    "cal_plus_corr_peak",
+    "cal_plus_corr_psr",
+    "cal_plus_corr_psr_snr",
+    "cal_plus_quality_width",
+    "cal_plus_quality_full"
+  ],
+  "notes": "smoke7 only proves the diagnosis pipeline; not formal parity evidence"
+}

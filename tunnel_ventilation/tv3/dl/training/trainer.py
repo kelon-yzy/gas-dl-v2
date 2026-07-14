@@ -21,6 +21,10 @@ from tv3.common.composition import (
     resolve_target_transform_spec,
 )
 from tv3.common.metrics import CompositionalMetrics, conditional_component_metrics
+from tv3.dl.data.waveform_preprocess import (
+    model_kwargs_from_raw_batch,
+    move_raw_batch_to_device,
+)
 from tv3.dl.training.metrics import RegressionMetrics, component_regression_metrics, regression_metrics
 from tv3.sim.core.schema import COMPONENT_FIELDS as DEFAULT_COMPONENT_FIELDS
 
@@ -119,6 +123,7 @@ class Trainer:
         *,
         component_names: tuple[str, ...] = DEFAULT_COMPONENT_FIELDS,
         composition_scheme: str = TUNNEL_VENTILATION_SCHEME,
+        input_preprocess: Callable[[dict[str, torch.Tensor]], torch.Tensor] | None = None,
     ):
         if composition_scheme not in _VALID_SCHEMES:
             raise ValueError(
@@ -143,6 +148,9 @@ class Trainer:
             raise ValueError("Trainer target_transform epsilon must be resolved before training")
         self.component_names = tuple(component_names)
         self.composition_scheme = composition_scheme
+        self.input_preprocess = input_preprocess
+        if self.input_preprocess is not None and isinstance(self.input_preprocess, nn.Module):
+            self.input_preprocess = self.input_preprocess.to(self.device)
         self.history = TrainHistory()
 
     @staticmethod
@@ -151,29 +159,47 @@ class Trainer:
         *,
         device: torch.device,
         non_blocking: bool = False,
+        input_preprocess: Callable[[dict[str, torch.Tensor]], torch.Tensor] | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, object], dict[str, torch.Tensor] | None]:
         """Unpack a DataLoader batch, handling both tensor and dict inputs.
 
         Moves all tensors to *device* and returns (x, y, model_kwargs, aux_targets)
         where *model_kwargs* are extra inputs for model forward kwargs and
         *aux_targets* is a dict of auxiliary supervision targets (never passed to model).
+
+        When ``input_preprocess`` is set, *xb* must be a raw waveform dict without
+        preassembled ``x``; dequant/normalize/assembly runs on *device*.
         """
         xb, yb = batch
-        aux_targets: dict[str, torch.Tensor] | None = None
+        y = yb.to(device, non_blocking=non_blocking)
         if isinstance(xb, dict):
+            if input_preprocess is not None:
+                if "x" in xb:
+                    raise ValueError(
+                        "input_preprocess expects raw waveform batch without preassembled 'x'"
+                    )
+                moved, aux_targets = move_raw_batch_to_device(
+                    xb, device=device, non_blocking=non_blocking
+                )
+                x = input_preprocess(moved)
+                kwargs = model_kwargs_from_raw_batch(moved)
+                return x, y, kwargs, aux_targets
             x = xb["x"].to(device, non_blocking=non_blocking)
             kwargs = {
                 k: v.to(device, non_blocking=non_blocking)
                 for k, v in xb.items()
                 if k not in ("x", "aux_targets")
             }
+            aux_targets = None
             if "aux_targets" in xb:
                 aux_targets = {
                     k: v.to(device, non_blocking=non_blocking)
                     for k, v in xb["aux_targets"].items()
                 }
-            return x, yb.to(device, non_blocking=non_blocking), kwargs, aux_targets
-        return xb.to(device, non_blocking=non_blocking), yb.to(device, non_blocking=non_blocking), {}, None
+            return x, y, kwargs, aux_targets
+        if input_preprocess is not None:
+            raise ValueError("input_preprocess requires dict batches from waveform_preprocess='gpu'")
+        return xb.to(device, non_blocking=non_blocking), y, {}, None
 
     def fit(
         self,
@@ -216,7 +242,12 @@ class Trainer:
             total_batches = len(train_loader)
             report_interval = max(1, total_batches // 5)  # 每 20% 报告一次
             for batch in train_loader:
-                xb, yb, model_kwargs, aux_targets = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
+                xb, yb, model_kwargs, aux_targets = self._unpack_batch(
+                    batch,
+                    device=self.device,
+                    non_blocking=non_blocking,
+                    input_preprocess=self.input_preprocess,
+                )
                 self.optimizer.zero_grad(set_to_none=True)
                 if amp.enabled:
                     with torch.autocast(device_type="cuda", dtype=amp_dtype):
@@ -316,7 +347,12 @@ class Trainer:
         n_batches = 0
 
         for batch in data_loader:
-            xb, yb, model_kwargs, aux_targets = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
+            xb, yb, model_kwargs, aux_targets = self._unpack_batch(
+                batch,
+                device=self.device,
+                non_blocking=non_blocking,
+                input_preprocess=self.input_preprocess,
+            )
             if amp.enabled:
                 with torch.autocast(device_type="cuda", dtype=amp_dtype):
                     pred = self.model(xb, **model_kwargs)
@@ -389,7 +425,12 @@ class Trainer:
         preds: list[torch.Tensor] = []
         targets: list[torch.Tensor] = []
         for batch in data_loader:
-            xb, yb, model_kwargs, _aux_targets = self._unpack_batch(batch, device=self.device, non_blocking=non_blocking)
+            xb, yb, model_kwargs, _aux_targets = self._unpack_batch(
+                batch,
+                device=self.device,
+                non_blocking=non_blocking,
+                input_preprocess=self.input_preprocess,
+            )
             if amp.enabled:
                 with torch.autocast(device_type="cuda", dtype=amp_dtype):
                     pred = self.model(xb, **model_kwargs)

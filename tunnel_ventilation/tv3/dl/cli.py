@@ -26,6 +26,10 @@ from tv3.common.splits import load_splits, resolve_split_indices
 from tv3.dl.data.augmentation import TimeSeriesAugmentConfig
 from tv3.dl.data.dataset import MODALITY_OPTIONS, WAVEFORM_STATS_OPTIONS, V4BenchmarkDataset
 from tv3.dl.data.feature_dataset import V4FeatureMatrixDataset
+from tv3.dl.data.waveform_preprocess import (
+    WAVEFORM_PREPROCESS_OPTIONS,
+    WaveformDevicePreprocessor,
+)
 from tv3.dl.models.registry import MODEL_REGISTRY, build_model
 from tv3.dl.training.losses import (
     LOSS_REGISTRY,
@@ -50,6 +54,7 @@ DEFAULT_DL_CONFIG: dict[str, Any] = {
     "phase_stats_path": None,
     "dequantize_waveforms": False,
     "normalize_waveforms": False,
+    "waveform_preprocess": "cpu",
     "waveform_stats_features": None,
     "augment": None,
     "augment_seed": 0,
@@ -145,6 +150,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply per-timestep z-score to waveforms after dequantization (wav2vec 2.0 style).",
     )
     parser.add_argument(
+        "--waveform-preprocess",
+        choices=sorted(WAVEFORM_PREPROCESS_OPTIONS),
+        default=None,
+        help="cpu: dequant/normalize in DataLoader workers; gpu: transfer int16+scale and assemble on device.",
+    )
+    parser.add_argument(
         "--waveform-stats-features",
         type=str,
         default=None,
@@ -226,6 +237,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.model_kwargs,
     )
     augment_config = _build_augment_config(args.augment, modalities, slow_channel_count=slow_channel_count)
+    waveform_preprocess = _parse_waveform_preprocess(args.waveform_preprocess)
     train_dataset = _build_dataset(
         args.dataset_dir,
         split="train",
@@ -237,6 +249,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         dequantize_waveforms=args.dequantize_waveforms,
         normalize_waveforms=args.normalize_waveforms,
         waveform_stats_features=waveform_stats_features,
+        waveform_preprocess=waveform_preprocess,
         lazy=True,
         phase_stats_path=phase_stats_path,
         augment_config=augment_config,
@@ -245,8 +258,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         aux_target_arrays=args.aux_target_arrays,
     )
     sample_x, sample_y = train_dataset[0]
-    in_channels, timesteps = _infer_input_shape(sample_x, input_format)
-    print(f"[dl] train samples={len(train_dataset)}  in_channels={in_channels}  timesteps={timesteps}", file=sys.stderr, flush=True)
+    in_channels, timesteps = _infer_input_shape(
+        sample_x,
+        input_format,
+        dataset=train_dataset if isinstance(train_dataset, V4BenchmarkDataset) else None,
+    )
+    print(
+        f"[dl] train samples={len(train_dataset)}  in_channels={in_channels}  "
+        f"timesteps={timesteps}  waveform_preprocess={waveform_preprocess}",
+        file=sys.stderr,
+        flush=True,
+    )
     train_labels = _split_labels(args.dataset_dir, "train")
     target_transform = resolve_target_transform_for_training(
         args.target_transform,
@@ -303,6 +325,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "weight_decay": args.weight_decay,
         },
     )
+    input_preprocess = None
+    if waveform_preprocess == "gpu":
+        input_preprocess = WaveformDevicePreprocessor(
+            modalities=modalities,
+            waveform_stats_features=waveform_stats_features,
+            normalize_waveforms=args.normalize_waveforms,
+            input_format=input_format,
+        )
     trainer = Trainer(
         model=model,
         optimizer=optimizer,
@@ -311,6 +341,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         target_transform=target_transform,
         component_names=component_names,
         composition_scheme=composition_scheme,
+        input_preprocess=input_preprocess,
     )
     if performance["compile"]:
         trainer.model = torch.compile(trainer.model, mode=performance["compile_mode"])
@@ -344,6 +375,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         slow_channels=slow_channels,
         normalize_waveforms=args.normalize_waveforms,
         waveform_stats_features=waveform_stats_features,
+        waveform_preprocess=waveform_preprocess,
         aux_target_arrays=args.aux_target_arrays,
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -409,6 +441,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             slow_channels=slow_channels,
             normalize_waveforms=args.normalize_waveforms,
             waveform_stats_features=waveform_stats_features,
+            waveform_preprocess=waveform_preprocess,
             aux_target_arrays=args.aux_target_arrays,
         )
         if loader is not None:
@@ -436,6 +469,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "phase_stats_path": str(phase_stats_path) if phase_stats_path is not None else None,
         "dequantize_waveforms": args.dequantize_waveforms,
         "normalize_waveforms": args.normalize_waveforms,
+        "waveform_preprocess": waveform_preprocess,
         "waveform_stats_features": list(waveform_stats_features),
         "augment": _augment_payload(augment_config, args.augment_seed),
         "target_transform": asdict(target_transform) if target_transform is not None else None,
@@ -590,6 +624,7 @@ def _validate_run_args(args: argparse.Namespace) -> None:
     if args.normalize_waveforms and not args.dequantize_waveforms:
         parser.error("normalize_waveforms requires dequantize_waveforms=true")
     try:
+        waveform_preprocess = _parse_waveform_preprocess(args.waveform_preprocess)
         waveform_stats_features = _parse_waveform_stats_features(args.waveform_stats_features)
         if waveform_stats_features and not args.dequantize_waveforms:
             raise ValueError("waveform_stats_features requires dequantize_waveforms=true")
@@ -612,7 +647,21 @@ def _validate_run_args(args: argparse.Namespace) -> None:
             raise ValueError("window and phase_windows cannot be combined")
         target_transform = resolve_target_transform_spec(args.target_transform)
         validate_loss_target_transform(args.loss, None if target_transform is None else target_transform.name)
-        _build_augment_config(args.augment, modalities, slow_channel_count=slow_channel_count)
+        augment_config = _build_augment_config(args.augment, modalities, slow_channel_count=slow_channel_count)
+        input_format = args.input_format or _model_input_format(args.model)
+        if waveform_preprocess == "gpu":
+            if input_format == "FEATURES":
+                raise ValueError("waveform_preprocess='gpu' is not supported for FEATURES input_format")
+            if not any(modality in modalities for modality in ("ultrasonic", "fiber_mic")):
+                raise ValueError("waveform_preprocess='gpu' requires ultrasonic and/or fiber_mic modalities")
+            if not args.dequantize_waveforms:
+                raise ValueError("waveform_preprocess='gpu' requires dequantize_waveforms=true")
+            if args.window is not None:
+                raise ValueError("waveform_preprocess='gpu' does not support window")
+            if args.phase_windows is not None:
+                raise ValueError("waveform_preprocess='gpu' does not support phase_windows")
+            if augment_config is not None:
+                raise ValueError("waveform_preprocess='gpu' does not support augment")
     except (FileNotFoundError, ValueError) as exc:
         parser.error(str(exc))
 
@@ -653,6 +702,17 @@ def _parse_waveform_stats_features(value: object) -> tuple[str, ...]:
     return features
 
 
+def _parse_waveform_preprocess(value: object) -> str:
+    if value is None:
+        return "cpu"
+    text = str(value).strip().lower()
+    if text not in WAVEFORM_PREPROCESS_OPTIONS:
+        raise ValueError(
+            f"waveform_preprocess must be one of {WAVEFORM_PREPROCESS_OPTIONS}, got {value!r}"
+        )
+    return text
+
+
 def _parse_comma(value: str) -> tuple[str, ...]:
     return tuple(s.strip() for s in value.split(",") if s.strip())
 
@@ -665,9 +725,20 @@ def _model_input_format(model_name: str) -> str:
     return str(input_format)
 
 
-def _infer_input_shape(sample_x: torch.Tensor | dict[str, object], input_format: str) -> tuple[int, int]:
+def _infer_input_shape(
+    sample_x: torch.Tensor | dict[str, object],
+    input_format: str,
+    *,
+    dataset: V4BenchmarkDataset | None = None,
+) -> tuple[int, int]:
+    if isinstance(sample_x, dict) and "x" not in sample_x:
+        if dataset is None:
+            raise ValueError("raw waveform sample requires dataset metadata for shape inference")
+        return dataset.assembled_channel_count(), dataset.timesteps()
     if isinstance(sample_x, dict):
-        sample_x = sample_x["x"]
+        sample_x = sample_x["x"]  # type: ignore[assignment]
+    if not isinstance(sample_x, torch.Tensor):
+        raise TypeError(f"Expected Tensor sample, got {type(sample_x).__name__}")
     if input_format == "FEATURES":
         if sample_x.ndim != 1:
             raise ValueError(f"Expected one feature sample shaped (F,), got {tuple(sample_x.shape)}")
@@ -716,6 +787,7 @@ def _build_dataset(
     dequantize_waveforms: bool,
     normalize_waveforms: bool = False,
     waveform_stats_features: tuple[str, ...] = (),
+    waveform_preprocess: str = "cpu",
     lazy: bool,
     phase_stats_path: Path | None = None,
     augment_config: TimeSeriesAugmentConfig | None = None,
@@ -726,6 +798,8 @@ def _build_dataset(
     if input_format == "FEATURES":
         if slow_channels is not None:
             raise ValueError("slow_channels is only supported for sequence DL inputs")
+        if waveform_preprocess != "cpu":
+            raise ValueError("waveform_preprocess='gpu' is not supported for FEATURES input_format")
         return V4FeatureMatrixDataset(
             dataset_dir,
             split=split,
@@ -745,6 +819,7 @@ def _build_dataset(
         dequantize_waveforms=dequantize_waveforms,
         normalize_waveforms=normalize_waveforms,
         waveform_stats_features=waveform_stats_features,
+        waveform_preprocess=waveform_preprocess,
         lazy=lazy,
         phase_stats_path=phase_stats_path,
         augment_config=augment_config,
@@ -1244,6 +1319,7 @@ def _optional_loader(
     slow_channels: tuple[str, ...] | None = None,
     normalize_waveforms: bool = False,
     waveform_stats_features: tuple[str, ...] = (),
+    waveform_preprocess: str = "cpu",
     aux_target_arrays: dict[str, str] | None = None,
 ) -> DataLoader | None:
     dataset = _build_dataset(
@@ -1260,6 +1336,7 @@ def _optional_loader(
         slow_channels=slow_channels,
         normalize_waveforms=normalize_waveforms,
         waveform_stats_features=waveform_stats_features,
+        waveform_preprocess=waveform_preprocess,
         aux_target_arrays=aux_target_arrays,
     )
     if len(dataset) == 0:
@@ -1341,6 +1418,7 @@ def _run_config_payload(
         "phase_stats_path": args.phase_stats_path,
         "dequantize_waveforms": args.dequantize_waveforms,
         "normalize_waveforms": args.normalize_waveforms,
+        "waveform_preprocess": args.waveform_preprocess,
         "waveform_stats_features": list(waveform_stats_features),
         "augment": args.augment,
         "augment_seed": int(args.augment_seed),

@@ -273,6 +273,7 @@ class GatedFusion(nn.Module):
   "scaler_path": "data/tv3-formal-6000/scalers/scaler_slow_sequence.json",
   "dequantize_waveforms": true,
   "normalize_waveforms": true,
+  "waveform_preprocess": "gpu",
   "waveform_stats_features": "log_std,log_max_abs",
   "augment": null,
   "epochs": 50,
@@ -586,3 +587,35 @@ CO₂ 分箱中，v3_l2 在中间段（1.3%–3.8%）MAE 仅 0.54–0.67%，但�
 3. **混合架构**：slow 分支直接用线性头（对齐 Ridge 的优势），waveform 分支作为辅助特征拼接进来。
 4. **TOF 特征工程**：不依赖 CNN1D 端到端学习 TOF，而是在数据层显式提取 TOF 作为额外 slow 特征（类似 `waveform_stats_features` 的思路）。
 5. **数据增强 + 更大数据集**：当前 augment=null，可尝试启用增强；或增大 formal 集规模。
+
+## 12. 设备侧预处理扩展（2026-07-14）
+
+> 本节**不改变** §1–§11 的归一化科学结论（fusion 未学到 O₂ 的根因仍在 encoder/物理可辨识性），只记录训练吞吐上的数据通路工程扩展。
+
+### 12.1 问题
+
+clean 6000 波形训练在 batch=16、AMP、pin_memory 已开的情况下，每 epoch 仍在 CPU worker 内对全量 int16 做 float32 dequant + z-score，再 H2D 传输约 10 MB/序列的 float32。GPU reserved 仅约 20–25% / 48 GB，CPU 预处理与带宽成为吞吐上限之一。
+
+### 12.2 方案
+
+新增配置 `waveform_preprocess: "cpu" | "gpu"`（CLI：`--waveform-preprocess`）：
+
+| 模式 | 行为 |
+| --- | --- |
+| `cpu` | 历史默认：worker 内 dequant/normalize/stats，返回组装好的 `x` |
+| `gpu` | worker 只返回 int16 波形 + scale（及 slow/aux）；`WaveformDevicePreprocessor` 在训练设备上 dequant → 归一化前 stats → z-score → 组装 |
+
+数值约定与 §3.1 / 层 1 完全一致：population std、`1e-6` 下限、stats 在 normalize 前、通道顺序 slow → stats → waveform。
+
+实现入口：
+
+- `tv3/dl/data/waveform_preprocess.py`
+- `tv3/dl/data/dataset.py`（`waveform_preprocess`）
+- `tv3/dl/training/trainer.py`（`input_preprocess`）
+- `tv3/dl/cli.py` / E1 审计读 `run_config`
+
+gpu 路径**禁止** `window` / `phase_windows` / `augment` / `FEATURES`（与正式波形配置一致：`augment: null`、全序列）。
+
+### 12.3 正式配置
+
+`tv3_tcn_multimodal_v3*.json`、`tv3_ec_msw_e1(r).json`、`tv3_d2_tof_phasenet.json` 默认 `waveform_preprocess: "gpu"`。操作细节与对照命令见 [server_training_guide.md §4.5](../../operations/server_training_guide.md#45-波形数据通路-waveform_preprocessp1-吞吐)。测试：`tests/test_waveform_device_preprocess.py`（CPU/GPU 数值对齐 + CLI 端到端）。

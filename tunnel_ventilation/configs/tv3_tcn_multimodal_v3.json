@@ -23,6 +23,7 @@
   "scaler_path": "data/tv3-formal-6000/scalers/scaler_slow_sequence.json",
   "dequantize_waveforms": true,
   "normalize_waveforms": true,
+  "waveform_preprocess": "gpu",
   "waveform_stats_features": "log_std,log_max_abs",
   "augment": null,
   "epochs": 50,

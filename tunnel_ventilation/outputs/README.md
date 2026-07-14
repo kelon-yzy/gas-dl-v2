@@ -1,6 +1,6 @@
 # tv3 运行产物索引
 
-> 整理日期：2026-07-13。正式结论以 clean `tv3-formal-6000` 为准；路径与 [掘进通风项目记忆库](../docs/掘进通风项目记忆库.md) §七 对齐。
+> 整理日期：2026-07-14。正式结论以 clean `tv3-formal-6000` 为准；路径与 [掘进通风项目记忆库](../docs/掘进通风项目记忆库.md) §七 对齐。
 
 ## 顶层结构
 
@@ -17,13 +17,13 @@
 | `tv3_module_c_grouped_bottleneck/` | 模块 C 分组 bottleneck C1 / C2 协议 | ❌ 24 条正式矩阵 `grouped_failed` |
 | `tv3_baseline_freeze/` | B1/B7 配置、结果、split、RawDSP 与环境 hash 冻结 | ✅ `frozen` |
 | `tv3_identifiability/` | 冻结 v1 单向 TOF 的敏感度、Fisher 与误差预算审计 | ✅ `audit=passed`；P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 均失败，flow 未表示，verdict=`information_source_upgrade_required` |
-| `tv3_ec_msw/` | EC-MSW-GatedNet 分阶段实验 | E1 正式失败；E1r smoke frame pass，clean 6000 preflight/parity 待执行；E2 禁止 |
+| `tv3_ec_msw/` | EC-MSW-GatedNet 分阶段实验 | E1 fail；E1r frame pass / B1 parity fail；E1d 管线已落地（正式待跑）；E2 禁止 |
 | `summary/` | 跨运行汇总产物 | 汇总索引 |
 | `archive/` | 调试、本地 600、历史 DL、已取代子运行 | 仅追溯 |
 
 新实验默认写入对应顶层目录；调试与 smoke 直接写入 `archive/debug/`。
 
-`tv3_ec_msw/e1_s20260704/` 是 clean 6000 正式失败证据：80 epochs 最佳 epoch 72；正式 verdict 为 `frame_fidelity_failed`、`e2_allowed=false`，训练配置、checkpoint、run config 与 B1 reference 的 SHA-256 已与 audit manifest 核对一致。`e1_smoke_s20260704/` 与 `e1r_smoke_s20260704/` 均为非正式链路记录；后者只证明模板坐标锚点在 smoke 上通过 frame fidelity。`e1r_preflight_s20260704/` 和 `e1r_s20260704/` 是预注册待执行路径，尚不登记正式结果。
+`tv3_ec_msw/e1_s20260704/` 是旧 E1 的 `frame_fidelity_failed` 证据。`e1r_s20260704/` 是 E1r clean 6000 正式证据：53 epochs 早停、最佳 epoch 41；frame fidelity 三 split 全部通过，但冻结 sequence embedding 相对 B1 的 O₂ ΔR²为 `-0.4118 / -0.4461 / -0.3689`，最终 verdict=`b1_parity_failed`、`e2_allowed=false`。`e1d_smoke_s20260704/` 是 E1d 冻结表示诊断链路产物（非正式）；正式 E1d 目标目录为 `e1d_s20260704/`。`e1_smoke_s20260704/`、`e1r_smoke_s20260704/` 与 `e1r_preflight_s20260704/` 只作链路追溯。
 
 ## 正式产物（configs 与记忆库引用）
 
@@ -53,6 +53,13 @@
 | `tv3_ec_msw/e1_s20260704/audit/verdict.json` | EC-MSW E1 正式 `frame_fidelity_failed` 判定与 E2 门 |
 | `tv3_ec_msw/e1_s20260704/audit/frame_fidelity.json` | learned frame embedding 的正式 peak-index fidelity 失败证据 |
 | `tv3_ec_msw/e1_s20260704/audit/b1_parity.json` | 冻结 sequence embedding 相对 B1 的非劣审计 |
+| `tv3_ec_msw/e1r_s20260704/metrics.json` | EC-MSW E1r 正式训练曲线与神经头指标 |
+| `tv3_ec_msw/e1r_s20260704/audit/frame_fidelity.json` | E1r 模板坐标锚点正式 frame fidelity 通过证据 |
+| `tv3_ec_msw/e1r_s20260704/audit/b1_parity.json` | E1r 冻结 sequence embedding 的正式非劣失败证据 |
+| `tv3_ec_msw/e1r_s20260704/audit/verdict.json` | E1r 正式 `b1_parity_failed` 与 E2 门 |
+| `tv3_ec_msw/e1d_smoke_s20260704/verdict.json` | E1d smoke 诊断 verdict（非正式） |
+| `tv3_ec_msw/e1d_smoke_s20260704/ablation_table.csv` | E1d smoke 组增量消融表 |
+| `tv3_ec_msw/e1d_s20260704/` | E1d clean 6000 正式诊断（待跑） |
 
 ## archive 分类
 

@@ -10,7 +10,7 @@
 | 数据集     | tv3-formal 600 序列 × 512 时步       | 服务器上由 CLI 重新生成，**跳过 fiber_mic**（`--skip-fiber-mic`）+ **int16 per-timestep scale** |
 | 基线训练    | 5 模型 × 3 seeds = 15 runs         | `scripts/run_tv3_baseline.py` 编排                                                  |
 | 多模态方向 B | cnn1d_tcn_fusion，slow+ultrasonic | `tv3_tcn_multimodal.json` + `--modalities slow,ultrasonic`，验证 O₂ 是否可辨识            |
-| GPU     | RTX 5880 48GB                    | 多模态 batch_size 可从 2 调到 8（见 §4.2）                                                  |
+| GPU     | RTX 5880 48GB                    | 正式波形 batch_size 默认 16；吞吐见 §4.5 `waveform_preprocess`                              |
 
 > **波形存储优化**：tv3 默认采用 int16 + per-timestep 自适应 scale（方案 B），物理 ADC 仍为 20-bit（`daq_bits=20`），存储时按每 timestep 峰值定标压缩为 int16。实测峰值占满量程 ~22%，per-timestep scale 比固定 scale 量化步长小 ~4.6×；int16 量化误差 max ~1e-5 V，远小于噪声 std 1e-3 V（误差/噪声 ≈ 1%），精度损失可忽略。数据集从 int32 的 ~6 GB 降至 int16 的 ~3 GB。
 
@@ -154,17 +154,18 @@ python -m tv3.dl.cli \
 
 > `--modalities slow,ultrasonic` 必须显式传入，否则配置默认含 `fiber_mic` 会因找不到 `fiber_mic_int32.npy` 报错。
 
-batch_size 选择建议（slow+ultrasonic 两模态，无 fiber_mic，显存占用比三模态低）：
+batch_size 选择建议（slow+ultrasonic 两模态，无 fiber_mic；**以 clean 6000 实测 reserved VRAM 为准**，旧估算偏高）：
 
-| batch_size | 预计显存占用 | 适用                 |
-|:----------:|:------:| ------------------ |
-| 2          | ~5 GB  | 配置默认（保守）           |
-| 4          | ~9 GB  | 中等                 |
-| **8**      | ~18 GB | **推荐**（48 GB 显存充足） |
-| 16         | ~34 GB | 激进（48 GB 显存仍有余量）   |
+| batch_size | 实测/估计 reserved（约） | 适用 |
+|:----------:|:---------------------:| --- |
+| 8 | ~6 GB | 旧手册推荐；本地小显存 |
+| **16** | **~10–12 GB** | **正式配置默认**（E1 / fusion v3 已验证） |
+| 32 | 估计 ~20–24 GB | 48 GB 上优先扫吞吐 |
+| 64 | 估计仍 < 48 GB | 需单 run 验证 OOM 与指标 |
 
-> 若 OOM，降到 4 或 8；若显存有余量，可试 16。AMP fp16 已在配置中启用。
+> 若 OOM，先降 batch；AMP fp16 已在正式配置中启用。
 > 多模态训练 epochs=50，early stopping patience=10。如需多 seed，手动改 `--seed` 和 `--output-dir` 重复运行。
+> clean 6000 上 batch=16 时 GPU reserved 仅约 20–25% / 48 GB，**显存不是当前瓶颈**；吞吐优化优先见 §4.5。
 
 ### 4.3 多模态多 seed（可选）
 
@@ -181,9 +182,9 @@ for seed in 42 123 456; do
 done
 ```
 
-### 4.4 EC-MSW E1 失败证据与 E1r 正式训练
+### 4.4 EC-MSW E1 / E1r 正式失败证据
 
-> 2026-07-13 状态：旧 E1 的 clean 6000 正式训练与审计已完成，最终 `status="frame_fidelity_failed"`、`e2_allowed=false`；E1r smoke frame fidelity 已通过，clean 6000 preflight 与 parity 待执行。
+> 2026-07-14 状态：旧 E1 最终 `status="frame_fidelity_failed"`；E1r clean 6000 的 frame fidelity 已通过，但最终 `status="b1_parity_failed"`、`e2_allowed=false`。两组命令均为正式证据复现入口，不得覆盖原 run。
 
 该实验只在完整 clean `tv3-formal-6000` 上执行。运行前必须确认以下文件存在，不能只同步 `features/` cache：
 
@@ -201,7 +202,7 @@ python -m tv3.dl.cli --config configs/tv3_ec_msw_e1.json
 python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
 ```
 
-E1r 不覆盖上述失败 run。它复用 train-only RawDSP cache 的冻结模板；运行前先确认模板存在，再使用独立配置：
+E1r 不覆盖上述失败 run。它复用 train-only RawDSP cache 的冻结模板；以下命令保留为 E1r 正式证据复现入口：
 
 ```bash
 test -f data/tv3-formal-6000/features/raw_dsp/raw_dsp_frame_v1/template.npy
@@ -212,14 +213,68 @@ python -m tv3.dl.cli --config configs/tv3_ec_msw_e1r.json \
   --output-dir outputs/tv3_ec_msw/e1r_preflight_s20260704
 python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1r_preflight_audit.json
 
-# preflight frame fidelity 通过后，才启动正式 80 epochs 与 B1 parity
+# 已完成的正式训练与 B1 parity 复现入口
 python -m tv3.dl.cli --config configs/tv3_ec_msw_e1r.json
 python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1r_audit.json
 ```
 
-只有 E1r 正式审计的 `frame_fidelity.json` 与 `b1_parity.json` 均通过时，才允许改变 `e2_allowed=false`；smoke frame pass 不构成正式 parity。
+本次 E1r 正式审计只有 `frame_fidelity.json` 通过，`b1_parity.json` 未通过，因此不得改变 `e2_allowed=false`。不要通过修改门限、延长同结构训练或直接进入 E2 覆盖该 verdict。
 
-审计器冻结 encoder，仅在 train split 拟合 peak-index probe 和 sequence Ridge probe；val/test/extrapolation 全量评价。旧 E1 的 `e1_s20260704/audit/` 保留为失败证据；当前只允许 E1r 的 `e1r_s20260704/audit/verdict.json` 在 frame fidelity 与 B1 parity 均通过后令 `e2_allowed=true`。失败时保留原始 JSON/CSV，不修改门限重跑。
+审计器冻结 encoder，仅在 train split 拟合 peak-index probe 和 sequence Ridge probe；val/test/extrapolation 全量评价。旧 E1 的 `e1_s20260704/audit/` 与 E1r 的 `e1r_s20260704/audit/` 都是正式失败证据。下一步 E1d 只做冻结分组诊断；在新的结构化表示重新通过同一 parity 门前，E2保持禁止。失败时保留原始 JSON/CSV，不修改门限重跑。
+
+> E1 / E1r 正式配置已含 `waveform_preprocess: "gpu"`（见 §4.5）。审计脚本读取 `run_config.json` 中的同名字段，保证训练与审计组装路径一致。
+
+### 4.5 波形数据通路 `waveform_preprocess`（P1 吞吐）
+
+> 2026-07-14 落地。目标是抬高 clean 6000 波形训练吞吐，**不改变** dequant / z-score / stats 的数值语义。
+
+| 模式 | 行为 | 何时用 |
+| --- | --- | --- |
+| **`gpu`（正式默认）** | DataLoader 只产出 `int16` 波形 + `scale`（及 slow / aux）；在训练设备上 dequant → 归一化前 stats → per-timestep z-score → 组装 NTC/NCT | 正式波形 run：E1/E1r、D2、`tv3_tcn_multimodal_v3*` |
+| `cpu`（默认回退） | 与历史行为一致：worker 内 dequant/normalize 后返回已组装的 `x` | 调试、带 `window`/`phase_windows`/`augment` 的路径、对照实验 |
+
+**数值契约（cpu / gpu 共用）**
+
+1. dequant：`waveform * scale[:, None]`（per-timestep scale）
+2. stats（若启用）：在 **normalize 之前** 对 dequant 电压算 `log_std` / `log_max_abs`
+3. normalize：逐帧 population std（`ddof=0`），下限 `1e-6`
+4. 通道顺序：`slow → 各波形 stats → 各波形样本`（ultrasonic 先于 fiber_mic）
+
+**代码入口**
+
+| 组件 | 路径 |
+| --- | --- |
+| 共享数学与设备组装 | `tv3/dl/data/waveform_preprocess.py`（`WaveformDevicePreprocessor`） |
+| Dataset | `tv3/dl/data/dataset.py` 参数 `waveform_preprocess` |
+| Trainer | `input_preprocess=`，在 device 上组装后再进模型 |
+| CLI | `--waveform-preprocess {cpu,gpu}`；写入 `metrics.json` / `run_config.json` |
+| E1 审计 | 读 `run_config.waveform_preprocess`，与训练一致 |
+
+**gpu 路径硬约束**（违例直接报错，不做静默降级）
+
+- 必须 `dequantize_waveforms=true`
+- modalities 须含 `ultrasonic` 和/或 `fiber_mic`
+- **不支持** `window`、`phase_windows`、`augment`、`FEATURES` 输入
+
+**已启用 `waveform_preprocess: "gpu"` 的配置**
+
+- `configs/tv3_tcn_multimodal_v3.json` 及 `v3b` / `v3_l2` / `v3_l3`
+- `configs/tv3_ec_msw_e1.json`、`tv3_ec_msw_e1r.json`
+- `configs/tv3_d2_tof_phasenet.json`
+
+smoke 配置默认仍为 `cpu`（`num_workers=0` 本地通路验证）。
+
+```bash
+# 正式配置已默认 gpu；也可显式指定
+python -m tv3.dl.cli --config configs/tv3_ec_msw_e1r.json --waveform-preprocess gpu
+
+# 回退 CPU 路径做吞吐/数值对照（同 seed）
+python -m tv3.dl.cli --config configs/tv3_ec_msw_e1r.json \
+  --waveform-preprocess cpu \
+  --output-dir outputs/tv3_ec_msw/e1r_cpu_ref_s20260704
+```
+
+**观测指标**：`metrics_live.jsonl` 中的 `train_samples_per_second`、`epoch_seconds`、`gpu_memory_reserved_mb`。对照实验须固定 seed，并核对 val/test/extrap 关键指标不劣于 cpu 路径。
 
 ## 5. 结果回收
 
@@ -306,9 +361,11 @@ python scripts/run_tv3_baseline.py
 
 | 问题                   | 排查方向                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------ |
-| `CUDA out of memory` | 降低 `--batch-size`；多模态从 8 降到 4 或 2                                                          |
+| `CUDA out of memory` | 降低 `--batch-size`；正式波形 batch=16 约 10–12 GB，一般先查是否误开 fiber 或过大 batch |
 | 数据生成 OOM             | 降低 `--workers`；`build_sequence_arrays` 预分配 chunk 内存                                        |
 | 磁盘不足                 | 清理 `data/tv3-formal/.chunks/` 临时文件；`du -sh data/tv3-formal/`                               |
-| 测试失败                 | `python -m pytest tests/test_tunnel_ventilation_*.py -v` 查看详情                              |
+| 测试失败                 | `python -m pytest tests/test_tunnel_ventilation_*.py tests/test_waveform_device_preprocess.py -v` 查看详情 |
 | DL run 非零退出          | 查看 `outputs/tv3_baseline/{model}/seed{seed}/` 下是否有 `metrics.json`（诊断用），`runs.jsonl` 记录失败原因 |
 | 多模态 `gas_head` 报错    | tv3 下 `output_mode` 必须为 `raw3`、`out_dim=3`，`gas_head` / `target_transform` 被拒绝             |
+| `waveform_preprocess='gpu' does not support …` | gpu 路径禁用 `window`/`phase_windows`/`augment`；改用 `--waveform-preprocess cpu` 或去掉这些选项 |
+| 审计与训练输入不一致 | 确认 `run_config.json` 含 `waveform_preprocess`；审计从该文件读取，勿手工覆盖 Dataset 参数 |

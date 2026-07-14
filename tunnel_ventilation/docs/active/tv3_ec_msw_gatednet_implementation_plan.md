@@ -1,6 +1,6 @@
 # tv3 EC-MSW-GatedNet 实施计划
 
-> 状态：**clean 6000 正式 E1 已 `frame_fidelity_failed`；E1r 已实现 train-only 模板坐标锚点且 smoke frame fidelity 通过；clean 6000 preflight 与 B1 parity 待执行，`e2_allowed=false`，E2 继续禁止。**
+> 状态：**E1d 诊断管线已落地并通过本地单元测试与 smoke7 链路；clean 6000 正式 E1d 待服务器完整 RawDSP cache 上执行。E1r 正式 frame pass / B1 parity fail 不变；E2 继续禁止。**
 > 基线边界：B7 仍是冻结默认 RawDSP 头，identifiability v1 的 `information_source_upgrade_required` verdict 不变。
 
 ## 1. 范围与不变量
@@ -22,6 +22,8 @@
 | `frame_embedding` | `(B,T,64)` | 共享多尺度波形 encoder 输出 |
 | `prediction` | `(B,3)` | 独立 raw3 线性输出 |
 
+数据通路（工程，非算法门）：正式 E1/E1r 配置默认 `waveform_preprocess: "gpu"`——DataLoader 只搬运 int16 与 scale，在训练设备上完成 dequant、归一化前 stats 与 z-score，再组装为上表 NTC 输入。数值语义与 `cpu` 路径对齐；审计读 `run_config.waveform_preprocess`。细节见 [server_training_guide.md §4.5](../operations/server_training_guide.md#45-波形数据通路-waveform_preprocessp1-吞吐)。
+
 E1 不读取 `aux_target_arrays`。真实 TOF 与 peak index 仅允许由离线审计程序读取，用于 frame fidelity 评价，不作为训练输入或 loss target。
 
 P2 及以后预留但在 E1 禁用的契约如下：
@@ -41,6 +43,7 @@ P2 及以后预留但在 E1 禁用的契约如下：
 | --- | --- | --- | --- |
 | E0 | 冻结 B1/B7 | 已完成 | 不改写基线 |
 | E1 | 位置敏感多尺度 encoder 加固定聚合 | frame fidelity 通过且固定头达到下列 B1 parity | 停止组分扩展，修前端 |
+| E1d | 冻结 E1r 与 B1，逐组诊断坐标、聚合、校准和质量特征 | 找到明显小于完整 B1 且三个 split 均过 parity 的可部署集合 | 找不到则停止 learned encoder 分支 |
 | E2a | E1 加环境 FiLM | 固定 holdout 的 P90 和 MAE 改善 | 不进入 attention |
 | E2b | E2a 加 attentive statistics pooling | test、S-Y、S-L 同步改善 | 保留固定聚合 |
 | E3 | 晚期共享 soft gate | 优于等权和单专家且 gate 不塌缩 | 判为路由失败 |
@@ -92,8 +95,9 @@ python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
 | E0–E5 门与停止条件 | ✅ | 本文 §3；B1 parity 阈值沿用冻结协议 |
 | E1/E1r 位置敏感多尺度 encoder | ✅ | `tv3/dl/models/ec_msw_e1.py`；E1r 新增冻结模板坐标锚点 |
 | 模型注册与 CLI 集成 | ✅ | `tv3/dl/models/registry.py`、`tv3/dl/cli.py` |
-| E1/E1r 正式、smoke 与 preflight 配置 | ✅ | `configs/tv3_ec_msw_e1*.json`、`configs/tv3_ec_msw_e1r*.json` |
-| 新增及相关回归测试 | ✅ | E1/E1r 与审计 17 项、D2 与波形归一化 58 项，共 75 项通过 |
+| E1/E1r 正式、smoke 与 preflight 配置 | ✅ | `configs/tv3_ec_msw_e1*.json`、`configs/tv3_ec_msw_e1r*.json`；正式配置含 `waveform_preprocess: "gpu"` |
+| 波形设备侧预处理（P1 吞吐） | ✅ | `tv3/dl/data/waveform_preprocess.py`；Dataset/CLI/Trainer/E1 审计联通 |
+| 新增及相关回归测试 | ✅ | 含 `test_waveform_device_preprocess.py`；E1/D2/归一化相关套件通过 |
 | 1 epoch 本地 smoke | ✅ | checkpoint、run config、val/test metrics 已生成；不作性能证据 |
 | 独立 fidelity/parity 审计器 | ✅ | train-only probes、固定窄窗、verdict 与 provenance 已实现 |
 | 本地 smoke 审计 | ✅ 链路 / ❌ 正式门 | `frame_fidelity_failed`，峰位 P95 约 90–141 samples；`e2_allowed=false`，不作正式性能结论 |
@@ -105,9 +109,15 @@ python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
 | E2 FiLM/attention | ⛔ | `e2_allowed=false`；不得启动 |
 | E1r 前端修复 | ✅ | train-only baseline median 模板匹配滤波；绝对峰位坐标绕过 learned projection |
 | E1r smoke frame fidelity | ✅ | val/test/extrap MAE `0.00526 / 0.00573 / 0.00455`，P95 `0.01045 / 0.00819 / 0.01042 sample` |
-| clean 6000 E1r | ⏳ | 新 run `e1r_s20260704`；不得覆盖 E1 正式失败证据 |
+| clean 6000 E1r 训练 | ✅ | 53/80 epochs 早停；最佳 epoch 41，val loss `0.79995`，约 `1.05 h` |
+| clean 6000 E1r frame fidelity | ✅ | MAE `0.03717 / 0.03746 / 0.03774 sample`，P95 `0.08643 / 0.08643 / 0.08716 sample` |
+| clean 6000 E1r B1 parity | ❌ | O₂ ΔR² `-0.4118 / -0.4461 / -0.3689`；CO₂、N₂亦未通过 |
+| clean 6000 E1r verdict | ❌ | `b1_parity_failed`、`e2_allowed=false` |
+| E1d 诊断管线（代码 / 配置 / 测试） | ✅ | `tv3/dl/evaluation/ec_msw_e1d_diagnosis.py`、`scripts/run_ec_msw_e1d.py`、`configs/tv3_ec_msw_e1d*.json`；`tests/test_ec_msw_e1d.py` 12 passed |
+| E1d smoke7 链路 | ✅ 链路 / ❌ 非正式 | `outputs/tv3_ec_msw/e1d_smoke_s20260704/`；n=16 不作 parity 结论 |
+| clean 6000 正式 E1d | ▶️ | 需完整 `raw_dsp_frame_v1` 数组 + B1 reference；入口见 §8 |
 
-正式结果已回收到 `outputs/tv3_ec_msw/e1_s20260704/`。本机 `data/tv3-formal-6000/` 仍只有 RawDSP feature cache，不能在本地重新执行正式训练或审计；但下载的训练配置、checkpoint、B1 reference 与审计 manifest 已完成 SHA-256 核对，且 `checkpoint.pt` 与 `best_checkpoint.pt` 的模型张量完全相同。
+E1 与 E1r 正式结果分别位于 `outputs/tv3_ec_msw/e1_s20260704/` 和 `outputs/tv3_ec_msw/e1r_s20260704/`。E1r audit manifest 已固定训练配置、checkpoint、run config 与 B1 reference 的 SHA-256；模型输入排除了 peak/TOF 真值、真实声速、真实衰减与组分标签。
 
 ## 6. 正式失败分析与修复门
 
@@ -139,4 +149,50 @@ python -m tv3.dl.cli --config configs/tv3_ec_msw_e1r.json
 python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1r_audit.json
 ```
 
-smoke 审计的 frame fidelity 已通过，但 tiny split 的 B1 parity 不作正式结论，当前 verdict 仍为 `b1_parity_failed`、`e2_allowed=false`。服务器先运行 1 epoch clean 6000 preflight，只读取其中的 `frame_fidelity.passed`；通过后才执行 80 epochs 正式训练及 B1 parity。只有 clean 6000 E1r 的正式 frame fidelity 与 B1 parity 同时通过，才允许恢复 E2 讨论。
+smoke 与 1-epoch preflight 只保留为链路证据，不参与正式 parity 结论。clean 6000 E1r 已按预注册顺序完成，原始产物不得由后续诊断覆盖。
+
+clean 6000 E1r 已按上述顺序完成。正式 frame fidelity 通过，但冻结 sequence embedding 的 val/test/extrapolation O₂ R²仅 `0.0162 / 0.0325 / 0.0006`，相对 B1 下降 `0.4118 / 0.4461 / 0.3689`；CO₂和 N₂也未过门。神经头 O₂ R²为 `-0.0089 / -0.0097 / -0.0165`，且整个训练的最佳 val O₂ R²仅 `0.0055`。因此不再把问题表述为峰位坐标丢失，而是当前 sequence representation 信息不足。
+
+## 8. E1d 冻结表示诊断
+
+E1d 的目标是定位 E1r 与 B1 之间的信息缺口，不是构造第二套 RawDSP 或提前实现 E2。所有实验使用冻结 split、train-only `StandardScaler + RidgeCV` 和现有 parity 门。慢通道固定为完整 B1 窗口契约，仅消融超声 / RawDSP 导出量，避免把 slow 变化误判为波形表示收益。
+
+| 阶段 | 输入对照 | 要回答的问题 | 产物 |
+| --- | --- | --- | --- |
+| E1d-0 | 完整 B1 RawDSP | reference、feature names、split 和指标能否原样复现 | 冻结 manifest 与正对照指标 |
+| E1d-1 | 冻结 E1r sequence embedding 与实际 matched peak；再对照 RawDSP peak 的 `last/mean/max`、七统计与四 phase 分窗 | learned embedding、固定聚合或 peak 语义在哪一层丢失信息 | 逐 split 指标和 ΔR² |
+| E1d-2 | 在 phase 峰位集合上逐组加 delay calibration、corrected TOF、TOF-L intercept/slope、sound speed | B1 的 O₂能力是否来自序列内校准与声程解耦 | 组增量消融表 |
+| E1d-3 | 再逐组加 corr peak、PSR、SNR、peak width、quality/accepted | 质量筛选是否是缺失信息源 | 组增量消融表 |
+
+预注册 feature set 名称见 `default_e1d_specs()`：真实 E1r 对照 `e1r_sequence_embedding`、`e1r_peak_lmm`、`e1r_peak_b1_windows`；RawDSP 对照 `full_b1`、`peak_lmm`、`peak_stats7`、`peak_stats7_phase`、`peak_b1_windows`；校准组 `peak_phase_plus_*`、质量组 `cal_plus_*`。
+
+运行入口：
+
+```powershell
+python scripts/run_ec_msw_e1d.py --config configs/tv3_ec_msw_e1d_smoke.json
+python scripts/run_ec_msw_e1d.py --config configs/tv3_ec_msw_e1d.json
+```
+
+正式配置要求：
+
+1. `data/tv3-formal-6000` 完整可用；
+2. `features/raw_dsp/raw_dsp_frame_v1/` 为 `train_baseline_median`、`complete_dataset=true`，且含帧级与序列级数组（含 delay / TOF-L / corrected TOF / PSR / width）；
+3. `training_run_dir` 指向冻结 E1r 正式 run，checkpoint 的模板 digest 必须与 RawDSP cache 一致；
+4. `b1_reference_metrics` 指向冻结 B1 provenance metrics；
+5. `eval_splits` 必须精确为 val/test/extrapolation；输出目录不得覆盖既有 E1 / E1r 产物。
+
+产物：`manifest.json`、`feature_sets.json`、`summary.json`、`ablation_table.csv`、`narrow_o2_windows.csv`、`verdict.json`。`verdict.e2_allowed` 恒为 `false`。
+
+执行约束：
+
+1. full B1 只作正对照，不得将完整 RawDSP 拼接后命名为端到端改进。
+2. full B1 每次正式 run 重建，并须以 R²绝对容差 `1e-6` 在完整三 split 复现冻结 reference；否则 verdict=`positive_control_failed`，停止解释其他候选。
+3. 每一步都报告 val/test/extrapolation 的三组分 R²、MAE、bias、`sum_abs_error` 与固定 O₂窄窗口；缺失任一 split 直接失败。
+4. 扣除冻结 slow 后的诊断特征数 ≤ full B1 诊断块一半，且通过 O₂ `-0.05`、CO₂/N₂ `-0.03` 非劣门后，才能实现新的单一结构化 sequence builder。
+5. 若只有接近完整 B1 的集合通过，或改善不能同步到三个 split，则停止 EC-MSW learned encoder 分支，保留 B7，E2不启动；smoke verdict 固定为 `smoke_only`。
+
+### 8.1 本地完成记录（2026-07-14）
+
+- 代码与配置已合入；`tests/test_ec_msw_e1d.py` 12 passed；真实 E1r smoke checkpoint 的 embedding/coordinate 提取集成通过。
+- smoke7 写出 `outputs/tv3_ec_msw/e1d_smoke_s20260704/`，链路完整；n=16 的 R²不可作正式判断。
+- 本机 `data/tv3-formal-6000` 仅有 RawDSP manifest、缺少数据集主体与特征数组，正式 E1d 必须在服务器完整数据上执行。

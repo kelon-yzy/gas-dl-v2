@@ -3,7 +3,7 @@
 > 面向初学者的名词说明。按**实验推进顺序**分级，便于对照记忆库与专项计划阅读。  
 > 正式指标与当前状态以 [掘进通风项目记忆库.md](../掘进通风项目记忆库.md) 为准；本文件只解释概念，不重复承担全局结论源责任。  
 > **维护义务**（记忆库 §1.4 / §8.3）：新增或实质变更正式实验、代码模块、算法/builder/头、协议门禁或 verdict 语义时，必须在同一变更批次更新本导读的名词定义、分级位置与索引；未联更不得视为文档齐全。  
-> 编写日期：2026-07-13。
+> 编写日期：2026-07-13；2026-07-14 增补 `waveform_preprocess` 工程名词。
 
 ---
 
@@ -33,7 +33,7 @@
   → 模块 C：物理分组失败，停止该分支
   → 可辨识性 v1：物理误差预算；P90=0.4 vol%、nuisance=50%、拒绝率=5% 均失败，flow 未表示 → information-source-upgrade
   → 当前 P0：先在经风速核验的静止空气中验证单向链路，不外推到通风现场
-  → 并行 P1-exp：EC-MSW 正式 E1 已失败；E1r 模板坐标锚点 smoke fidelity 通过，待 clean 6000 preflight/parity
+  → 并行 P1-exp：EC-MSW E1r frame pass / B1 parity fail；E1d 诊断管线已落地，正式 6000 待跑，E2 仍禁止
 ```
 
 ---
@@ -71,6 +71,10 @@
 | **fiber_mic** | 光纤麦克风通道；可跳过存储以减小数据集体积，代码可恢复。 |
 | **slow channels（慢通道）** | 相对波形的低频/标量通道：`V_NDIR_CO2`, `V_TCS`, `T_C`, `P_MPa`, `H_RH`, `L_m`, `piston_position_m`。 |
 | **waveform / raw ultrasonic** | 超声时间序列电压。可从中估 TOF、峰值、衰减等。 |
+| **dequantize / scale** | 存储为 int16 时，用 per-timestep `scale` 还原电压：`int16 * scale`。 |
+| **normalize_waveforms** | 对 dequant 后波形做**逐帧** z-score（population std）。正式 fusion/E1 与 `waveform_adc_scale=1.0` 联用。 |
+| **waveform_stats_features** | 归一化**前**从 dequant 电压算的逐帧统计（如 `log_std`、`log_max_abs`），拼进 slow 侧通道，保留绝对幅度信息。 |
+| **waveform_preprocess** | 训练数据通路开关：`cpu`（worker 内组装）或 **`gpu`（正式默认：只搬 int16+scale，设备侧 dequant/stats/z-score）**。不改变数值语义；gpu 不支持 window/phase_windows/augment。见 [server_training_guide §4.5](../operations/server_training_guide.md#45-波形数据通路-waveform_preprocessp1-吞吐)。 |
 
 ### 1.4 数据标识与基准集
 
@@ -280,11 +284,17 @@
 | **attentive statistics pooling** | 动态加权多个 frame/window，并输出加权均值与标准差。属于 E2，当前未启动。 |
 | **soft gate / MoE** | 样本级软路由多个尺度或机制专家。属于 E3 以后，当前未启动。 |
 | **smoke** | 最小链路运行检查，只证明数据、模型、训练器和产物写出可工作；不证明精度、parity 或 OOD 泛化。 |
-| **当前门** | 旧 E1 已 `frame_fidelity_failed`；当前等待 E1r 的 1-epoch clean 6000 frame preflight，只有通过后才运行 80 epochs 与 B1 parity。`e2_allowed=false`，B7 继续作为默认头。 |
+| **当前门** | E1r clean 6000 的 frame fidelity 已通过，但 B1 parity 正式失败。当前只允许 E1d 冻结表示诊断；`e2_allowed=false`，B7 继续作为默认头。 |
 | **position fidelity probe** | 冻结 encoder 后，仅用 train frame embedding 拟合线性 peak-index probe，在 val/test/extrapolation 全帧评价；peak target 不进入模型或主损失。 |
 | **E1 parity probe** | 冻结 sequence embedding 后另训 train-only Ridge，与 B1 的三个 split R²做非劣比较；原神经网络输出头不参与 parity。 |
 | **E1 正式失败** | frame peak MAE 约 `71–72 samples`、P95 约 `155 samples`；冻结 embedding 的 O₂ R²在三个 split 均为负，说明 learned encoder 没有保留 RawDSP 已能恢复的峰位 / TOF 信息。 |
-| **E1r / 模板坐标锚点** | 使用 RawDSP train-only baseline median 模板对当前 raw waveform 做冻结匹配滤波，将绝对峰位直接保留为 embedding 第一维；smoke fidelity 已通过，clean 6000 preflight 与 parity 待执行。 |
+| **E1r / 模板坐标锚点** | 使用 RawDSP train-only baseline median 模板对当前 raw waveform 做冻结匹配滤波，将绝对峰位直接保留为 embedding 第一维。正式 frame MAE约 `0.037 sample`，但冻结 embedding 的 O₂ R²仅 `0.0006–0.0325`，verdict=`b1_parity_failed`。 |
+| **frame fidelity 非充分性** | 峰位可被高精度线性恢复，只证明坐标存在；不能证明固定 sequence embedding 同时保留了 phase、校准、声程与质量信息。E1r 正式结果已验证这一边界。 |
+| **E1d** | E1r 之后的冻结表示诊断阶段。依次对比时序/phase 聚合、delay/TOF-L 校准组和 waveform quality 组，只用 train-only Ridge 定位相对 B1 的信息缺口；不是 E2，也不训练新深网。 |
+| **E1d 入口** | `python scripts/run_ec_msw_e1d.py --config configs/tv3_ec_msw_e1d.json`；实现 `tv3/dl/evaluation/ec_msw_e1d_diagnosis.py`。正式输出 `outputs/tv3_ec_msw/e1d_s20260704/`；smoke 只证链路。 |
+| **E1d feature set** | 真实冻结 E1r 对照为 `e1r_sequence_embedding`、`e1r_peak_lmm`、`e1r_peak_b1_windows`；RawDSP 消融如 `peak_lmm`、`peak_stats7_phase`、`peak_phase_plus_delay`、`cal_plus_quality_full`；`full_b1` 仅正对照。 |
+| **E1d 正对照门** | 正式 run 重建 full B1，并以 R²绝对容差 `1e-6` 在 val/test/extrapolation 复现冻结 reference；否则 `positive_control_failed`，不解释其他候选。 |
+| **compact parity set** | 扣除冻结 slow 后的诊断特征数 ≤ full B1 诊断块一半，且完整三 split 过 O₂/CO₂/N₂非劣门的最小可部署集合；只有它允许实现新 sequence builder。smoke verdict 固定为 `smoke_only`。 |
 
 ---
 
@@ -390,7 +400,7 @@
 | 6 | B 系列 | RawDSP 默认头 | B1、B6、B7、OOF、residual、protocol_pass |
 | 7 | 模块 C | 物理早期分组是否有用 | grouped bottleneck、grouped_failed |
 | 8 | Identifiability | 物理上限与分流 | 灵敏度、Fisher、CRLB、误差预算、verdict |
-| 9 | 当前并行线 | 受控静止空气可测性与新波形表示是否值得继续 | static air、EC-MSW、E1、E1r、preflight、parity |
+| 9 | 当前并行线 | 受控静止空气可测性与新波形表示是否值得继续 | static air、EC-MSW、E1、E1r、E1d、parity |
 
 ---
 
@@ -412,7 +422,8 @@
 | D0 / D0-observed / oracle | [§4](#4-阶段-d0信息在哪特征消融基线) |
 | D2 / TOF-PhaseNet | [§5.1](#51-d2失败路线) |
 | D2b / RawDSP / DSP | [§5.2](#52-d2b--rawdsp成功路线) |
-| E0–E5 / E1 / E1r / `ec_msw_e1` | [§7.4](#74-ec-msw-gatednet当前-p1-实验线) |
+| dequantize / scale | [§1.3](#13-传感模态与慢通道) |
+| E0–E5 / E1 / E1r / E1d / `ec_msw_e1` | [§7.4](#74-ec-msw-gatednet当前-p1-实验线) |
 | EC-MSW-GatedNet | [§7.4](#74-ec-msw-gatednet当前-p1-实验线) |
 | error budget / 误差预算 | [§8.1](#81-目标与非目标) |
 | fidelity | [§5.2](#52-d2b--rawdsp成功路线) |
@@ -428,6 +439,7 @@
 | MLP / Ridge | [§6](#6-阶段-r-系列observed-特征上的回归头探索) |
 | 模块 C | [§7.3](#73-模块-c旁支证伪) |
 | NDIR / TCS | [§1.3](#13-传感模态与慢通道) |
+| normalize_waveforms | [§1.3](#13-传感模态与慢通道) |
 | nuisance / 已表示未表示 | [§2.2](#22-环境与流动干扰) |
 | OOD / S-Y / S-L | [§3.2](#32-数据划分) |
 | OOF / residual | [§7.1](#71-头版本) |
@@ -445,6 +457,9 @@
 | TOF / 声速 c | [§2.1](#21-传播与计时) |
 | tv3 | [§1.1](#11-场景命名) |
 | verdict 各状态 | [§8.5](#85-业务门限与-verdict) |
+| waveform / raw ultrasonic | [§1.3](#13-传感模态与慢通道) |
+| waveform_preprocess | [§1.3](#13-传感模态与慢通道) |
+| waveform_stats_features | [§1.3](#13-传感模态与慢通道) |
 | 等效 O₂ 误差 | [§8.4](#84-误差折算与联合传播) |
 | 窄窗口 0.8% bin | [§3.1](#31-误差与拟合指标) |
 
@@ -464,3 +479,5 @@
 | [active/d2b_raw_dsp_implementation_plan.md](../active/d2b_raw_dsp_implementation_plan.md) | D2b / RawDSP |
 | [foundation/adaptation_plan.md](../foundation/adaptation_plan.md) | 场景适配与契约 |
 | [foundation/physics_references.md](../foundation/physics_references.md) | 物性常数 |
+| [operations/server_training_guide.md](../operations/server_training_guide.md) | 服务器训练；§4.5 `waveform_preprocess` |
+| [archive/completed/waveform_normalization_plan.md](../archive/completed/waveform_normalization_plan.md) | 三层归一化；§12 设备侧预处理 |

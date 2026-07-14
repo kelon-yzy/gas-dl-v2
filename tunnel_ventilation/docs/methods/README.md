@@ -11,3 +11,5 @@
 | [small_sample_dl_strategies.md](small_sample_dl_strategies.md) | 小样本训练策略与风险 |
 
 Raw waveform 的当前优先结论以 [D2b / RawDSP 计划](../active/d2b_raw_dsp_implementation_plan.md)为准；方法文档中的早期算法排序不覆盖正式实验结果。
+
+波形训练工程通路（dequant / z-score / 设备侧组装）见 [server_training_guide.md §4.5](../operations/server_training_guide.md#45-波形数据通路-waveform_preprocessp1-吞吐) 与 [waveform_normalization_plan.md §12](../archive/completed/waveform_normalization_plan.md#12-设备侧预处理扩展2026-07-14)。

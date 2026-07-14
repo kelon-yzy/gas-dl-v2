@@ -23,6 +23,7 @@
 - sum_abs_error 在 tv3 下计算（数据层 sum=100% 闭包，模型层不强制归一化）
 - HITRAN 后端阶段 1 未实现，CLI 拒绝 `hitran_hapi_v1`
 - **2026-07-05 存储优化**：tv3 默认 `WaveformSpec(per_timestep_scale=True, waveform_dtype="int16")` + CLI `--skip-fiber-mic`；物理 ADC 仍 20-bit，存储 int16 + per-timestep scale（误差/噪声 ≈ 1%）；fiber_mic 代码保留但默认不生成；数据集 17 GB → 3 GB（600 序列）
+- **2026-07-14 训练数据通路**：正式波形配置默认 `waveform_preprocess: "gpu"`（int16+scale 上卡后 dequant/normalize）；见 `docs/operations/server_training_guide.md` §4.5
 - **2026-07-06 固定特征回归分支**：已新增 `tv3/ml/rocket_features.py`、`tv3/ml/rocket_training.py`、`tv3/pipeline/run_tv3_rocket_baseline.py` 与 `configs/tv3_rocket_ridge.json`；阶段 A 先支持 `physics_stats + RidgeCV`，用于把 O₂ / N₂ 物理信号验证与端到端 DL 训练失败解耦
 - **2026-07-07 场景隔离重构**：tv3 子工程自包含化，原 `src/sim|dl|ml|pipeline|common` 全部迁入 `tunnel_ventilation/tv3/` 下，包名 `tv3`，独立 `pyproject.toml`；以下文件清单中的 `tv3/...` 路径为隔离后的实际位置（重构前位于 `src/...`）
 - **2026-07-08 D0 oracle/observed 特征拆分（clean 6000 完成）**：6 组 Ridge 配置（oracle/observed/tof_only/slow_only/no_tof/no_tcs）在服务器 tv3-formal-6000（CLEAN）上完成；新增 `scripts/check_slow_channels.py` 核查工具；oracle 膨胀 0.18、o2_bins 物理极限确认，结论 D2 优先、D1 暂缓，详见 [掘进通风项目记忆库.md §6.4](../掘进通风项目记忆库.md)

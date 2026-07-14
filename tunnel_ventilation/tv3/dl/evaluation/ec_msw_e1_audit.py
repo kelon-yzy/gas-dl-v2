@@ -12,6 +12,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from tv3.dl.data.dataset import V4BenchmarkDataset
+from tv3.dl.data.waveform_preprocess import WaveformDevicePreprocessor
 from tv3.dl.models.ec_msw_e1 import ECMSWE1Regressor
 from tv3.dl.models.registry import build_model
 from tv3.ml.metrics import component_regression_metrics, regression_metrics
@@ -61,12 +62,15 @@ def run_ec_msw_e1_audit(
     model = _load_model(run_config, checkpoint_path, device=str(config["device"]))
     reference = _read_json(reference_path)
     peak_targets = _load_peak_targets(dataset_dir)
+    input_preprocess = _build_input_preprocess(run_config)
     datasets = {
         split: _build_dataset(dataset_dir, split, run_config, project_root=project_root)
         for split in ("train", *EVAL_SPLITS)
     }
 
-    train_frames = len(datasets["train"]) * _timesteps(datasets["train"])
+    train_frames = len(datasets["train"]) * _timesteps(
+        datasets["train"], input_preprocess=input_preprocess
+    )
     sampled_frame_indices = _sample_frame_indices(
         train_frames,
         maximum=int(config["max_train_probe_frames"]),
@@ -80,6 +84,7 @@ def run_ec_msw_e1_audit(
         batch_size=int(config["batch_size"]),
         num_workers=int(config["num_workers"]),
         device=torch.device(str(config["device"])),
+        input_preprocess=input_preprocess,
     )
 
     alphas = tuple(float(value) for value in config["ridge_alphas"])
@@ -117,6 +122,7 @@ def run_ec_msw_e1_audit(
             batch_size=int(config["batch_size"]),
             num_workers=int(config["num_workers"]),
             device=torch.device(str(config["device"])),
+            input_preprocess=input_preprocess,
         )
         frame_metrics = _peak_error_metrics(peak_error)
         frame_payload["splits"][split] = {
@@ -232,6 +238,7 @@ def _build_dataset(
     if any(run_config.get(name) is not None for name in ("window", "phase_windows", "phase_stats_path")):
         raise ValueError("EC-MSW E1 audit requires the fixed full-sequence E1 input contract")
     slow_channels = run_config.get("slow_channels")
+    waveform_preprocess = str(run_config.get("waveform_preprocess", "cpu")).lower()
     return V4BenchmarkDataset(
         dataset_dir,
         split=split,
@@ -241,7 +248,22 @@ def _build_dataset(
         dequantize_waveforms=bool(run_config["dequantize_waveforms"]),
         normalize_waveforms=bool(run_config["normalize_waveforms"]),
         waveform_stats_features=tuple(run_config["waveform_stats_features"]),
+        waveform_preprocess=waveform_preprocess,
         slow_channels=None if slow_channels is None else tuple(slow_channels),
+    )
+
+
+def _build_input_preprocess(
+    run_config: dict[str, Any],
+) -> WaveformDevicePreprocessor | None:
+    waveform_preprocess = str(run_config.get("waveform_preprocess", "cpu")).lower()
+    if waveform_preprocess != "gpu":
+        return None
+    return WaveformDevicePreprocessor(
+        modalities=tuple(run_config["modalities"]),
+        waveform_stats_features=tuple(run_config["waveform_stats_features"]),
+        normalize_waveforms=bool(run_config["normalize_waveforms"]),
+        input_format=str(run_config["input_format"]),
     )
 
 
@@ -254,16 +276,18 @@ def _extract_train_features(
     batch_size: int,
     num_workers: int,
     device: torch.device,
+    input_preprocess: WaveformDevicePreprocessor | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     sequence_blocks: list[np.ndarray] = []
     label_blocks: list[np.ndarray] = []
     frame_blocks: list[np.ndarray] = []
     peak_blocks: list[np.ndarray] = []
     sequence_offset = 0
-    timesteps = _timesteps(dataset)
+    timesteps = _timesteps(dataset, input_preprocess=input_preprocess)
+    preprocess = None if input_preprocess is None else input_preprocess.to(device)
     with torch.inference_mode():
         for xb, yb in _loader(dataset, batch_size, num_workers, device):
-            x = _batch_x(xb).to(device)
+            x = _batch_x(xb, device=device, input_preprocess=preprocess)
             frame_tensor = model.encode_frames(x)
             sequences = model.encode_sequence(x, frame_embeddings=frame_tensor).cpu().numpy()
             frames = frame_tensor.cpu().numpy()
@@ -299,14 +323,16 @@ def _extract_eval_features(
     batch_size: int,
     num_workers: int,
     device: torch.device,
+    input_preprocess: WaveformDevicePreprocessor | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     sequence_blocks: list[np.ndarray] = []
     label_blocks: list[np.ndarray] = []
     peak_error_blocks: list[np.ndarray] = []
     sequence_offset = 0
+    preprocess = None if input_preprocess is None else input_preprocess.to(device)
     with torch.inference_mode():
         for xb, yb in _loader(dataset, batch_size, num_workers, device):
-            x = _batch_x(xb).to(device)
+            x = _batch_x(xb, device=device, input_preprocess=preprocess)
             frame_tensor = model.encode_frames(x)
             sequences = model.encode_sequence(x, frame_embeddings=frame_tensor).cpu().numpy()
             frames = frame_tensor.cpu().numpy()
@@ -341,8 +367,23 @@ def _loader(
     )
 
 
-def _batch_x(batch: torch.Tensor | dict[str, torch.Tensor]) -> torch.Tensor:
-    return batch["x"] if isinstance(batch, dict) else batch
+def _batch_x(
+    batch: torch.Tensor | dict[str, torch.Tensor],
+    *,
+    device: torch.device,
+    input_preprocess: WaveformDevicePreprocessor | None = None,
+) -> torch.Tensor:
+    if isinstance(batch, dict) and "x" not in batch:
+        if input_preprocess is None:
+            raise ValueError("raw waveform batch requires waveform_preprocess='gpu' assembler")
+        moved = {
+            key: value.to(device)
+            for key, value in batch.items()
+            if key != "aux_targets" and isinstance(value, torch.Tensor)
+        }
+        return input_preprocess(moved)
+    tensor = batch["x"] if isinstance(batch, dict) else batch
+    return tensor.to(device)
 
 
 def _peak_error_metrics(errors: np.ndarray) -> dict[str, float | int]:
@@ -502,9 +543,20 @@ def _load_peak_targets(dataset_dir: Path) -> np.ndarray:
     return values
 
 
-def _timesteps(dataset: V4BenchmarkDataset) -> int:
+def _timesteps(
+    dataset: V4BenchmarkDataset,
+    *,
+    input_preprocess: WaveformDevicePreprocessor | None = None,
+) -> int:
+    if dataset.waveform_preprocess == "gpu" or input_preprocess is not None:
+        return dataset.timesteps()
     x, _y = dataset[0]
-    tensor = _batch_x(x)
+    if isinstance(x, dict) and "x" in x:
+        tensor = x["x"]
+    elif isinstance(x, torch.Tensor):
+        tensor = x
+    else:
+        raise ValueError("E1 cpu dataset item must provide assembled tensor 'x'")
     if tensor.ndim != 2:
         raise ValueError(f"E1 dataset item must be shaped (T, C), got {tuple(tensor.shape)}")
     return int(tensor.shape[0])
