@@ -23,6 +23,7 @@ from tv3.dl.evaluation.ec_msw_e1d_diagnosis import (
     _validate_raw_dsp_cache,
 )
 from tv3.ml.e1d_sb_features import (
+    E1DSB_FEATURE_BUILDER,
     E1DSB_LS_FEATURE_BUILDER,
     E1DSB_LS_SPEC_NAME,
     build_e1d_sb_ls_feature_matrix,
@@ -89,7 +90,10 @@ def run_ec_msw_e1d_sb_ls_audit(
 
     baseline_summary = None
     baseline_path = config.get("baseline_e1d_sb_summary")
-    if baseline_path is not None:
+    if baseline_path is None:
+        if run_kind == "formal":
+            raise ValueError("formal E1d-SB LS requires baseline_e1d_sb_summary")
+    else:
         baseline_path = _resolve(project_root, baseline_path)
         if not baseline_path.is_file():
             raise FileNotFoundError(f"baseline_e1d_sb_summary not found: {baseline_path}")
@@ -161,7 +165,12 @@ def run_ec_msw_e1d_sb_ls_audit(
             (split_payload[split].get("gate") or {}).get("passed") is True for split in eval_splits
         )
     )
-    delta_vs_baseline = _delta_vs_baseline(split_payload, baseline_summary, eval_splits)
+    delta_vs_baseline = _delta_vs_baseline(
+        split_payload,
+        baseline_summary,
+        eval_splits,
+        require=run_kind == "formal",
+    )
     verdict = _build_verdict(
         run_kind=run_kind,
         attachment_gate=attachment_gate,
@@ -184,6 +193,9 @@ def run_ec_msw_e1d_sb_ls_audit(
         "b1_reference_metrics_sha256": None if reference_path is None else _sha256(reference_path),
         "attachment_gate": attachment_gate,
         "baseline_e1d_sb_summary": None if baseline_path is None else str(baseline_path),
+        "baseline_e1d_sb_summary_sha256": (
+            None if baseline_path is None else _sha256(baseline_path)
+        ),
         "run_kind": run_kind,
         "feature_source": feature_source,
         "feature_builder": E1DSB_LS_FEATURE_BUILDER,
@@ -325,24 +337,75 @@ def _delta_vs_baseline(
     split_payload: Mapping[str, Any],
     baseline_summary: Mapping[str, Any] | None,
     eval_splits: tuple[str, ...],
+    *,
+    require: bool = False,
 ) -> dict[str, Any] | None:
     if baseline_summary is None:
+        if require:
+            raise ValueError("formal E1d-SB LS requires baseline_e1d_sb_summary")
         return None
     baseline_eval = baseline_summary.get("eval")
     if not isinstance(baseline_eval, dict):
+        if require:
+            raise ValueError("baseline_e1d_sb_summary must contain an object field 'eval'")
         return None
     out: dict[str, Any] = {}
+    missing: list[str] = []
     for split in eval_splits:
         base = baseline_eval.get(split)
         if not isinstance(base, dict):
+            missing.append(split)
             continue
+        for key in ("x_O2_r2", "x_CO2_r2", "x_N2_r2"):
+            if key not in base:
+                raise ValueError(
+                    f"baseline_e1d_sb_summary.eval[{split!r}] missing required key {key!r}"
+                )
         current = split_payload[split]["component_metrics"]
         out[split] = {
             "delta_o2_r2_vs_e1d_sb": current["x_O2"]["r2"] - float(base["x_O2_r2"]),
             "delta_co2_r2_vs_e1d_sb": current["x_CO2"]["r2"] - float(base["x_CO2_r2"]),
             "delta_n2_r2_vs_e1d_sb": current["x_N2"]["r2"] - float(base["x_N2_r2"]),
         }
+    if missing:
+        if require:
+            raise ValueError(
+                "baseline_e1d_sb_summary.eval missing required splits: "
+                + ", ".join(missing)
+            )
+        return out or None
     return out
+
+
+def _attachment_gate_identity_ok(gate: Mapping[str, Any] | None) -> tuple[bool, str]:
+    if gate is None:
+        return False, "Formal LS ablation requires attachment_verdict_path with attachment_passed."
+    if gate.get("status") != "attachment_passed":
+        return False, (
+            f"attachment verdict status={gate.get('status')!r}; "
+            "LS ablation remains blocked."
+        )
+    if gate.get("feature_builder") != E1DSB_FEATURE_BUILDER:
+        return False, (
+            "attachment gate feature_builder mismatch: "
+            f"expected {E1DSB_FEATURE_BUILDER!r}, got {gate.get('feature_builder')!r}."
+        )
+    if gate.get("e2_allowed") is not False:
+        return False, (
+            "attachment gate must record e2_allowed=false; "
+            f"got {gate.get('e2_allowed')!r}."
+        )
+    if gate.get("frame_fidelity_passed") is not True:
+        return False, (
+            "attachment gate requires frame_fidelity_passed=true; "
+            f"got {gate.get('frame_fidelity_passed')!r}."
+        )
+    if gate.get("sequence_parity_passed") is not True:
+        return False, (
+            "attachment gate requires sequence_parity_passed=true; "
+            f"got {gate.get('sequence_parity_passed')!r}."
+        )
+    return True, ""
 
 
 def _build_verdict(
@@ -354,6 +417,7 @@ def _build_verdict(
     compact: bool,
     diagnostic_feature_count: int,
 ) -> dict[str, Any]:
+    attach_ok, attach_reason = _attachment_gate_identity_ok(attachment_gate)
     if run_kind == "smoke":
         status = "smoke_only"
         reason = (
@@ -363,12 +427,9 @@ def _build_verdict(
     elif attachment_gate is None:
         status = "missing_attachment_gate"
         reason = "Formal LS ablation requires attachment_verdict_path with attachment_passed."
-    elif attachment_gate.get("status") != "attachment_passed":
+    elif not attach_ok:
         status = "attachment_gate_failed"
-        reason = (
-            f"attachment verdict status={attachment_gate.get('status')!r}; "
-            "LS ablation remains blocked."
-        )
+        reason = attach_reason
     elif not has_reference:
         status = "missing_b1_reference"
         reason = "Formal LS ablation requires frozen b1_reference_metrics."
@@ -401,6 +462,7 @@ def _build_verdict(
         "diagnostic_feature_count": diagnostic_feature_count,
         "parity_passed": parity_passed,
         "attachment_status": None if attachment_gate is None else attachment_gate.get("status"),
+        "attachment_identity_ok": attach_ok,
     }
 
 
@@ -424,6 +486,7 @@ def _load_attachment_gate(
         "sha256": _sha256(resolved),
         "status": payload.get("status"),
         "e2_allowed": payload.get("e2_allowed"),
+        "feature_builder": payload.get("feature_builder"),
         "frame_fidelity_passed": payload.get("frame_fidelity_passed"),
         "sequence_parity_passed": payload.get("sequence_parity_passed"),
     }
@@ -461,6 +524,8 @@ def _validate_config(config: Mapping[str, Any]) -> None:
         raise ValueError("formal E1d-SB LS requires b1_reference_metrics")
     if run_kind == "formal" and config.get("attachment_verdict_path") is None:
         raise ValueError("formal E1d-SB LS requires attachment_verdict_path")
+    if run_kind == "formal" and config.get("baseline_e1d_sb_summary") is None:
+        raise ValueError("formal E1d-SB LS requires baseline_e1d_sb_summary")
 
 
 def _read_json(path: Path) -> dict[str, Any]:

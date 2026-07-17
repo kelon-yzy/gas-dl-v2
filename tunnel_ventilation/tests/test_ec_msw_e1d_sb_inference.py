@@ -150,11 +150,69 @@ class TestDeployProbeGates:
         assert verdict["ls_promoted"] is False
         assert verdict["default_head_remains"] == "B7"
 
+    def test_verdict_blocks_wrong_feature_builder(self):
+        verdict = _build_verdict(
+            run_kind="formal",
+            e1d_sb_gate={
+                "status": "parity_passed",
+                "feature_builder": "wrong_builder",
+                "e2_allowed": False,
+            },
+            attachment_gate={
+                "status": "attachment_passed",
+                "feature_builder": E1DSB_FEATURE_BUILDER,
+                "e2_allowed": False,
+                "frame_fidelity_passed": True,
+                "sequence_parity_passed": True,
+            },
+            has_reference=True,
+            parity_passed=True,
+            waveform_align_passed=True,
+            compact=True,
+            diagnostic_feature_count=213,
+        )
+        assert verdict["status"] == "gate_blocked"
+        assert "feature_builder" in verdict["reason"]
+
+    def test_verdict_blocks_attachment_missing_frame_flag(self):
+        verdict = _build_verdict(
+            run_kind="formal",
+            e1d_sb_gate={
+                "status": "parity_passed",
+                "feature_builder": E1DSB_FEATURE_BUILDER,
+                "e2_allowed": False,
+            },
+            attachment_gate={
+                "status": "attachment_passed",
+                "feature_builder": E1DSB_FEATURE_BUILDER,
+                "e2_allowed": False,
+                "frame_fidelity_passed": False,
+                "sequence_parity_passed": True,
+            },
+            has_reference=True,
+            parity_passed=True,
+            waveform_align_passed=True,
+            compact=True,
+            diagnostic_feature_count=213,
+        )
+        assert verdict["status"] == "gate_blocked"
+        assert "frame_fidelity_passed" in verdict["reason"]
+
     def test_verdict_pass(self):
         verdict = _build_verdict(
             run_kind="formal",
-            e1d_sb_gate={"status": "parity_passed"},
-            attachment_gate={"status": "attachment_passed"},
+            e1d_sb_gate={
+                "status": "parity_passed",
+                "feature_builder": E1DSB_FEATURE_BUILDER,
+                "e2_allowed": False,
+            },
+            attachment_gate={
+                "status": "attachment_passed",
+                "feature_builder": E1DSB_FEATURE_BUILDER,
+                "e2_allowed": False,
+                "frame_fidelity_passed": True,
+                "sequence_parity_passed": True,
+            },
             has_reference=True,
             parity_passed=True,
             waveform_align_passed=True,
@@ -163,6 +221,8 @@ class TestDeployProbeGates:
         )
         assert verdict["status"] == "deploy_probe_passed"
         assert verdict["e2_allowed"] is False
+        assert verdict["e1d_sb_identity_ok"] is True
+        assert verdict["attachment_identity_ok"] is True
 
 
 class TestDeployProbeSmoke:
@@ -199,4 +259,11 @@ class TestDeployProbeSmoke:
         assert verdict["default_head_remains"] == "B7"
         manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["feature_alignment"]["passed"] is True
+        assert "train" in manifest["feature_alignment"]["splits"]
+        assert set(manifest["feature_alignment"]["align_splits"]) == {
+            "train",
+            "val",
+            "test",
+            "extrapolation",
+        }
         assert manifest["ls_promoted"] is False

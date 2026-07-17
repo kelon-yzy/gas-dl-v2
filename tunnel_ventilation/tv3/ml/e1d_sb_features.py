@@ -487,11 +487,13 @@ def _build_ls_from_cache(
         sequence_scalars[array_name] = values
 
     accepted_path = raw_dsp_dir / "ultrasonic_raw_dsp_accepted.npy"
-    accepted_all = None
-    if accepted_path.is_file():
-        accepted_all = np.asarray(
-            np.load(accepted_path, mmap_mode="r")[ctx["split_indices"]], dtype=bool
+    if not accepted_path.is_file():
+        raise FileNotFoundError(
+            f"missing RawDSP accepted array required for SNR-weighted LS: {accepted_path}"
         )
+    accepted_all = np.asarray(
+        np.load(accepted_path, mmap_mode="r")[ctx["split_indices"]], dtype=bool
+    )
 
     intercepts: list[float] = []
     speeds: list[float] = []
@@ -499,7 +501,7 @@ def _build_ls_from_cache(
         phases = ctx["phase_lookup"].get(sequence_id)
         if phases is None:
             raise ValueError(f"phase CSV missing sequence_id={sequence_id!r}")
-        accepted_row = None if accepted_all is None else accepted_all[row_index]
+        accepted_row = accepted_all[row_index]
         ls_scalars = _compute_snr_weighted_ls_scalars(
             tof_corrected=frame_arrays["ultrasonic_tof_corrected_raw_dsp_s"][row_index],
             path_lengths_m=_path_lengths_from_slow(slow[row_index], ctx["slow_names"]),

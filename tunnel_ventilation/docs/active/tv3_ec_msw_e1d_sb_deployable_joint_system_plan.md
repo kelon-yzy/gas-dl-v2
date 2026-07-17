@@ -62,10 +62,11 @@ int16 ultrasonic + scale + slow(7)
 **D1 验收**：
 
 1. smoke：链路写出 manifest / predictions / verdict=`smoke_only`。
-2. formal：`feature_source=waveform` 与 `raw_dsp_cache` 特征对齐（atol 登记，默认 `1e-5`）。
+2. formal：`feature_source=waveform` 与 `raw_dsp_cache` 在 **train + val/test/extrapolation** 特征对齐（atol 登记，默认 `1e-5`）。
 3. formal：train-only Ridge 在 val/test/extrapolation 相对 B1 非劣（O₂ ≥ −0.05，CO₂/N₂ ≥ −0.03）。
 4. `verdict.e2_allowed=false`；`ls_promoted=false`；`default_head_remains=B7`。
 5. provenance：dataset、RawDSP template digest、e1d_sb/attachment/LS 前置 SHA、B1 reference SHA。
+6. 前置门身份：e1d_sb 须 `parity_passed` + `feature_builder=e1d_sb_cal_plus_corr_psr_snr_v1` + `e2_allowed=false`；attachment 须 `attachment_passed` + 同 builder + `e2_allowed=false` + `frame_fidelity_passed` + `sequence_parity_passed`。
 
 ### D2 — 可选：artifact 打包（仅 D1 通过后）
 

@@ -138,8 +138,22 @@ class TestE1dSBLSAudit:
                 "run_kind": "formal",
                 "b1_reference_metrics": "outputs/b1.json",
                 "attachment_verdict_path": "outputs/attach/verdict.json",
+                "baseline_e1d_sb_summary": "outputs/e1d_sb/summary.json",
             }
         )
+        with pytest.raises(ValueError, match="baseline_e1d_sb_summary"):
+            _validate_config(
+                {
+                    "dataset_dir": "data/x",
+                    "output_dir": "outputs/e1d_sb_ls_s1",
+                    "ridge_alphas": [0.1],
+                    "feature_builder": E1DSB_LS_FEATURE_BUILDER,
+                    "include_snr_weighted_ls": True,
+                    "run_kind": "formal",
+                    "b1_reference_metrics": "outputs/b1.json",
+                    "attachment_verdict_path": "outputs/attach/verdict.json",
+                }
+            )
         with pytest.raises(ValueError, match="include_snr_weighted_ls"):
             _validate_config(
                 {
@@ -180,6 +194,93 @@ class TestE1dSBLSAudit:
         assert verdict["status"] == "attachment_gate_failed"
         assert verdict["e2_allowed"] is False
         assert verdict["snr_retained"] is True
+
+    def test_verdict_blocks_wrong_attachment_builder(self):
+        verdict = _build_verdict(
+            run_kind="formal",
+            attachment_gate={
+                "status": "attachment_passed",
+                "feature_builder": "wrong_builder",
+                "e2_allowed": False,
+                "frame_fidelity_passed": True,
+                "sequence_parity_passed": True,
+            },
+            has_reference=True,
+            parity_passed=True,
+            compact=True,
+            diagnostic_feature_count=215,
+        )
+        assert verdict["status"] == "attachment_gate_failed"
+        assert "feature_builder" in verdict["reason"]
+
+    def test_delta_vs_baseline_requires_complete_eval(self):
+        from tv3.dl.evaluation.ec_msw_e1d_sb_ls_audit import _delta_vs_baseline
+
+        split_payload = {
+            "val": {
+                "component_metrics": {
+                    "x_O2": {"r2": 0.4},
+                    "x_CO2": {"r2": 0.9},
+                    "x_N2": {"r2": 0.8},
+                }
+            },
+            "test": {
+                "component_metrics": {
+                    "x_O2": {"r2": 0.41},
+                    "x_CO2": {"r2": 0.91},
+                    "x_N2": {"r2": 0.81},
+                }
+            },
+            "extrapolation": {
+                "component_metrics": {
+                    "x_O2": {"r2": 0.39},
+                    "x_CO2": {"r2": 0.89},
+                    "x_N2": {"r2": 0.79},
+                }
+            },
+        }
+        with pytest.raises(ValueError, match="missing required splits"):
+            _delta_vs_baseline(
+                split_payload,
+                {"eval": {"val": {"x_O2_r2": 0.39, "x_CO2_r2": 0.9, "x_N2_r2": 0.8}}},
+                ("val", "test", "extrapolation"),
+                require=True,
+            )
+        delta = _delta_vs_baseline(
+            split_payload,
+            {
+                "eval": {
+                    "val": {"x_O2_r2": 0.39, "x_CO2_r2": 0.9, "x_N2_r2": 0.8},
+                    "test": {"x_O2_r2": 0.40, "x_CO2_r2": 0.90, "x_N2_r2": 0.80},
+                    "extrapolation": {"x_O2_r2": 0.38, "x_CO2_r2": 0.88, "x_N2_r2": 0.78},
+                }
+            },
+            ("val", "test", "extrapolation"),
+            require=True,
+        )
+        assert delta is not None
+        assert "val" in delta and "test" in delta and "extrapolation" in delta
+
+    def test_cache_builder_requires_accepted_array(self, e1d_sb_ls_dataset: Path, tmp_path: Path):
+        import shutil
+
+        from tv3.ml.e1d_sb_features import build_e1d_sb_ls_feature_matrix
+
+        dataset_copy = tmp_path / "dataset_no_accepted"
+        shutil.copytree(e1d_sb_ls_dataset, dataset_copy)
+        accepted = (
+            dataset_copy
+            / "features"
+            / "raw_dsp"
+            / "raw_dsp_frame_v1"
+            / "ultrasonic_raw_dsp_accepted.npy"
+        )
+        assert accepted.is_file()
+        accepted.unlink()
+        with pytest.raises(FileNotFoundError, match="accepted"):
+            build_e1d_sb_ls_feature_matrix(
+                dataset_copy, split="train", feature_source="raw_dsp_cache"
+            )
 
     def test_smoke_audit_writes_artifacts(self, e1d_sb_ls_dataset: Path, tmp_path: Path):
         config_path = tmp_path / "e1d_sb_ls_smoke.json"

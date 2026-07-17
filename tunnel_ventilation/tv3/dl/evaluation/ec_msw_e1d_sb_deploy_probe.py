@@ -131,10 +131,11 @@ def run_ec_msw_e1d_sb_deploy_probe(
     if any("snr_weighted_ls" in name for name in train.feature_names):
         raise ValueError("deploy probe must not include LS ablation features")
 
+    align_splits = ("train", *eval_splits)
     feature_alignment = _audit_feature_alignment(
         dataset_dir,
         feature_source=feature_source,
-        eval_splits=eval_splits,
+        align_splits=align_splits,
         atol=align_atol,
         primary_matrices=matrices,
     )
@@ -356,11 +357,11 @@ def _audit_feature_alignment(
     dataset_dir: Path,
     *,
     feature_source: str,
-    eval_splits: tuple[str, ...],
+    align_splits: tuple[str, ...],
     atol: float,
     primary_matrices: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Compare waveform vs raw_dsp_cache features on eval splits."""
+    """Compare waveform vs raw_dsp_cache features on train and eval splits."""
     if feature_source == "waveform":
         compare_source = "raw_dsp_cache"
         primary_label = "waveform"
@@ -370,7 +371,7 @@ def _audit_feature_alignment(
 
     split_rows: dict[str, Any] = {}
     all_passed = True
-    for split in eval_splits:
+    for split in align_splits:
         primary = primary_matrices[split]
         other = build_e1d_sb_feature_matrix(
             dataset_dir,
@@ -400,6 +401,7 @@ def _audit_feature_alignment(
         "primary_feature_source": feature_source,
         "compare_feature_source": compare_source,
         "atol": atol,
+        "align_splits": list(align_splits),
         "passed": all_passed,
         "splits": split_rows,
     }
@@ -438,6 +440,58 @@ def _metrics_row(
     }
 
 
+def _e1d_sb_gate_identity_ok(gate: Mapping[str, Any] | None) -> tuple[bool, str]:
+    if gate is None:
+        return False, "Formal deploy probe requires e1d_sb_verdict_path."
+    if gate.get("status") != "parity_passed":
+        return False, (
+            "Formal deploy probe requires e1d_sb verdict status=parity_passed; "
+            f"got {gate.get('status')!r}."
+        )
+    if gate.get("feature_builder") != E1DSB_FEATURE_BUILDER:
+        return False, (
+            "e1d_sb gate feature_builder mismatch: "
+            f"expected {E1DSB_FEATURE_BUILDER!r}, got {gate.get('feature_builder')!r}."
+        )
+    if gate.get("e2_allowed") is not False:
+        return False, (
+            "e1d_sb gate must record e2_allowed=false; "
+            f"got {gate.get('e2_allowed')!r}."
+        )
+    return True, ""
+
+
+def _attachment_gate_identity_ok(gate: Mapping[str, Any] | None) -> tuple[bool, str]:
+    if gate is None:
+        return False, "Formal deploy probe requires attachment_verdict_path."
+    if gate.get("status") != "attachment_passed":
+        return False, (
+            "Formal deploy probe requires attachment verdict status=attachment_passed; "
+            f"got {gate.get('status')!r}."
+        )
+    if gate.get("feature_builder") != E1DSB_FEATURE_BUILDER:
+        return False, (
+            "attachment gate feature_builder mismatch: "
+            f"expected {E1DSB_FEATURE_BUILDER!r}, got {gate.get('feature_builder')!r}."
+        )
+    if gate.get("e2_allowed") is not False:
+        return False, (
+            "attachment gate must record e2_allowed=false; "
+            f"got {gate.get('e2_allowed')!r}."
+        )
+    if gate.get("frame_fidelity_passed") is not True:
+        return False, (
+            "attachment gate requires frame_fidelity_passed=true; "
+            f"got {gate.get('frame_fidelity_passed')!r}."
+        )
+    if gate.get("sequence_parity_passed") is not True:
+        return False, (
+            "attachment gate requires sequence_parity_passed=true; "
+            f"got {gate.get('sequence_parity_passed')!r}."
+        )
+    return True, ""
+
+
 def _build_verdict(
     *,
     run_kind: str,
@@ -449,24 +503,20 @@ def _build_verdict(
     compact: bool,
     diagnostic_feature_count: int,
 ) -> dict[str, Any]:
+    e1d_ok, e1d_reason = _e1d_sb_gate_identity_ok(e1d_sb_gate)
+    attach_ok, attach_reason = _attachment_gate_identity_ok(attachment_gate)
     if run_kind == "smoke":
         status = "smoke_only"
         reason = (
             "Smoke run only verifies the e1d_sb deployable inference probe pipeline; "
             "it cannot authorize formal deploy_probe conclusions."
         )
-    elif e1d_sb_gate is None or e1d_sb_gate.get("status") != "parity_passed":
+    elif not e1d_ok:
         status = "gate_blocked"
-        reason = (
-            "Formal deploy probe requires e1d_sb_verdict_path with status=parity_passed; "
-            f"got {None if e1d_sb_gate is None else e1d_sb_gate.get('status')!r}."
-        )
-    elif attachment_gate is None or attachment_gate.get("status") != "attachment_passed":
+        reason = e1d_reason
+    elif not attach_ok:
         status = "gate_blocked"
-        reason = (
-            "Formal deploy probe requires attachment_verdict_path with status=attachment_passed; "
-            f"got {None if attachment_gate is None else attachment_gate.get('status')!r}."
-        )
+        reason = attach_reason
     elif not has_reference:
         status = "missing_b1_reference"
         reason = "Formal deploy probe requires frozen b1_reference_metrics."
@@ -479,7 +529,7 @@ def _build_verdict(
     elif not waveform_align_passed:
         status = "deploy_probe_failed"
         reason = (
-            "waveform vs raw_dsp_cache feature alignment failed; "
+            "waveform vs raw_dsp_cache feature alignment failed on train/eval splits; "
             "repair extract/builder before claiming deploy wiring."
         )
     elif parity_passed:
@@ -509,6 +559,8 @@ def _build_verdict(
         "waveform_align_passed": waveform_align_passed,
         "e1d_sb_status": None if e1d_sb_gate is None else e1d_sb_gate.get("status"),
         "attachment_status": None if attachment_gate is None else attachment_gate.get("status"),
+        "e1d_sb_identity_ok": e1d_ok,
+        "attachment_identity_ok": attach_ok,
     }
 
 
@@ -535,6 +587,10 @@ def _load_status_gate(
         "status": payload.get("status"),
         "e2_allowed": payload.get("e2_allowed"),
         "feature_builder": payload.get("feature_builder"),
+        "frame_fidelity_passed": payload.get("frame_fidelity_passed"),
+        "sequence_parity_passed": payload.get("sequence_parity_passed"),
+        "parity_passed": payload.get("parity_passed"),
+        "continue_e1r_attachment": payload.get("continue_e1r_attachment"),
     }
 
 
