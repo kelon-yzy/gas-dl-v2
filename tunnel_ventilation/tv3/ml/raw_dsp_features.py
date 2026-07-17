@@ -546,6 +546,68 @@ def fit_tof_vs_path_length(
     return float(intercept), float(1.0 / slowness)
 
 
+def fit_tof_vs_path_length_snr_weighted(
+    tof_s: np.ndarray,
+    path_lengths_m: np.ndarray,
+    snr_db: np.ndarray,
+    phase_ids: Sequence[str],
+    accepted: np.ndarray | None = None,
+    *,
+    weight_mode: str = "amplitude",
+) -> tuple[float, float]:
+    """SNR-weighted closed-form OLS: tof ≈ a + b·L_m on steady frames; return (a, 1/b).
+
+    ``weight_mode='amplitude'`` uses ``10**(snr_db/20)``; ``'power'`` uses ``10**(snr_db/10)``.
+    Does not replace frame-level SNR features; intended as an additive ablation scalar.
+    """
+    tof = np.asarray(tof_s, dtype=np.float64)
+    path_lengths = np.asarray(path_lengths_m, dtype=np.float64)
+    snr = np.asarray(snr_db, dtype=np.float64)
+    if tof.shape != path_lengths.shape or tof.shape != snr.shape:
+        raise ValueError("TOF, path length, and SNR arrays must have identical shapes")
+    if len(phase_ids) != tof.size:
+        raise ValueError(f"phase length mismatch: {len(phase_ids)} != {tof.size}")
+    if weight_mode not in {"amplitude", "power"}:
+        raise ValueError(f"unsupported weight_mode: {weight_mode!r}")
+
+    if accepted is None:
+        accepted_mask = np.ones(tof.shape, dtype=bool)
+    else:
+        accepted_mask = np.asarray(accepted, dtype=bool)
+        if accepted_mask.shape != tof.shape:
+            raise ValueError("accepted mask shape must match TOF")
+
+    steady = np.asarray([phase == "steady" for phase in phase_ids], dtype=bool) & accepted_mask
+    finite = np.isfinite(tof) & np.isfinite(path_lengths) & np.isfinite(snr)
+    mask = steady & finite
+    if int(np.sum(mask)) < 2 or np.unique(path_lengths[mask]).size < 2:
+        raise ValueError("SNR-weighted tof vs L_m fit requires at least two accepted steady path lengths")
+
+    divisor = 20.0 if weight_mode == "amplitude" else 10.0
+    weights = np.power(10.0, np.clip(snr[mask], -120.0, 120.0) / divisor)
+    if not np.isfinite(weights).all() or float(np.min(weights)) <= 0.0:
+        raise ValueError("SNR weights must be finite and positive")
+
+    x = path_lengths[mask]
+    y = tof[mask]
+    w = weights
+    sw = float(np.sum(w))
+    sx = float(np.sum(w * x))
+    sy = float(np.sum(w * y))
+    sxx = float(np.sum(w * x * x))
+    sxy = float(np.sum(w * x * y))
+    det = sw * sxx - sx * sx
+    if not math.isfinite(det) or abs(det) <= 0.0:
+        raise ValueError("SNR-weighted tof vs L_m normal equations are singular")
+    intercept = (sxx * sy - sx * sxy) / det
+    slowness = (sw * sxy - sx * sy) / det
+    if not math.isfinite(slowness) or slowness <= 0.0:
+        raise ValueError(f"SNR-weighted tof vs L_m fit produced invalid slowness {slowness}")
+    if not math.isfinite(intercept):
+        raise ValueError(f"SNR-weighted tof vs L_m fit produced invalid intercept {intercept}")
+    return float(intercept), float(1.0 / slowness)
+
+
 def _validate_template(template: np.ndarray) -> np.ndarray:
     values = np.asarray(template, dtype=np.float32)
     if values.ndim != 1 or values.size < 3:

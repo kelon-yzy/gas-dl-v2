@@ -16,6 +16,7 @@ from tv3.ml.raw_dsp_features import (
     exact_simulator_template,
     extract_raw_dsp_frame,
     fit_tof_vs_path_length,
+    fit_tof_vs_path_length_snr_weighted,
     parabolic_peak_offset,
     physical_peak_window_samples,
 )
@@ -207,6 +208,13 @@ def test_baseline_delay_calibration_and_tof_path_fit_are_label_free():
     assert calibrated == pytest.approx(delay_s, abs=1e-12)
     assert intercept == pytest.approx(delay_s, abs=1e-12)
     assert slope_speed == pytest.approx(fresh_speed, rel=1e-12)
+
+    snr = np.linspace(15.0, 35.0, path_lengths.size)
+    ls_intercept, ls_speed = fit_tof_vs_path_length_snr_weighted(
+        tof, path_lengths, snr, phase_ids, accepted, weight_mode="amplitude"
+    )
+    assert ls_intercept == pytest.approx(delay_s, abs=1e-12)
+    assert ls_speed == pytest.approx(fresh_speed, rel=1e-12)
 
 
 def test_local_512_frame_exact_template_fidelity_gate():

@@ -1,0 +1,18 @@
+{
+  "dataset_dir": "data/tv3-smoke",
+  "output_dir": "outputs/tv3_ec_msw/e1d_sb_ls_smoke_s20260704",
+  "run_kind": "smoke",
+  "feature_source": "raw_dsp_cache",
+  "feature_builder": "e1d_sb_cal_plus_corr_psr_snr_ls_v1",
+  "include_snr_weighted_ls": true,
+  "snr_ls_weight_mode": "amplitude",
+  "ridge_alphas": [0.1, 1.0, 10.0],
+  "eval_splits": ["val", "test", "extrapolation"],
+  "parity_gates": {
+    "o2_r2_drop_max": 0.05,
+    "co2_n2_r2_drop_max": 0.03
+  },
+  "notes": [
+    "Smoke-only LS ablation link check; not formal evidence"
+  ]
+}

@@ -33,7 +33,7 @@
   → 模块 C：物理分组失败，停止该分支
   → 可辨识性 v1：物理误差预算；P90=0.4 vol%、nuisance=50%、拒绝率=5% 均失败，flow 未表示 → information-source-upgrade
   → 当前 P0：先在经风速核验的静止空气中验证单向链路，不外推到通风现场
-  → 并行 P1-exp：EC-MSW E1d-SB 正式 `parity_passed`；下一步 E1r attachment 联合审计；E2 仍禁止
+  → 并行 P1-exp：EC-MSW attachment 过门；E2s-LS 消融代码已落地（正式待跑）；E2 仍禁止
 ```
 
 ---
@@ -284,7 +284,7 @@
 | **attentive statistics pooling** | 动态加权多个 frame/window，并输出加权均值与标准差。属于 E2，当前未启动。 |
 | **soft gate / MoE** | 样本级软路由多个尺度或机制专家。属于 E3 以后，当前未启动。 |
 | **smoke** | 最小链路运行检查，只证明数据、模型、训练器和产物写出可工作；不证明精度、parity 或 OOD 泛化。 |
-| **当前门** | E1d-SB 正式 `parity_passed`；下一步 E1r attachment（冻结 frame + e1d_sb 序列 Ridge）。`e2_allowed=false`，B7 继续作为默认头。 |
+| **当前门** | attachment 正式过门；下一步 E2s-LS 正式消融（additive，保留 SNR）。`e2_allowed=false`，B7 继续作为默认头。 |
 | **position fidelity probe** | 冻结 encoder 后，仅用 train frame embedding 拟合线性 peak-index probe，在 val/test/extrapolation 全帧评价；peak target 不进入模型或主损失。 |
 | **E1 parity probe** | 冻结 sequence embedding 后另训 train-only Ridge，与 B1 的三个 split R²做非劣比较；原神经网络输出头不参与 parity。 |
 | **E1 正式失败** | frame peak MAE 约 `71–72 samples`、P95 约 `155 samples`；冻结 embedding 的 O₂ R²在三个 split 均为负，说明 learned encoder 没有保留 RawDSP 已能恢复的峰位 / TOF 信息。 |
@@ -297,8 +297,8 @@
 | **E1d 正式结论** | 正对照通过；E1d-2 校准组未补回 O₂；E1d-3 加 SNR 后过门。compact=`cal_plus_corr_psr_snr`（首选）与 `cal_plus_quality_width`。 |
 | **compact parity set** | 扣除冻结 slow 后的诊断特征数 ≤ full B1 诊断块一半，且完整三 split 过 O₂/CO₂/N₂非劣门的最小可部署集合；只有它允许实现新 sequence builder。 |
 | **E1d-SB** | 可部署 builder `e1d_sb_cal_plus_corr_psr_snr_v1`；正式 `parity_passed`（O₂ `0.393 / 0.453 / 0.369`）；不是 E2。 |
-| **E1r attachment** | probe-only 联合审计：冻结 E1r frame fidelity + e1d_sb 序列 Ridge 替换 `last/mean/max`；入口 `scripts/audit_ec_msw_e1r_attachment.py`；正式产物 `e1r_attach_e1d_sb_s20260704/`。 |
-| **E2s / 结构化声速反演头** | 原方案把加权 LS 声速反演当唯一聚合层；前置门 E1d-2 **未过门**，不得单独启动。SNR 加权 LS 仅可作 builder 内可选消融。见 `active/tv3_ec_msw_structured_sequence_head_plan.md`。 |
+| **E1r attachment** | probe-only 联合审计已正式过门：`e1r_attach_e1d_sb_s20260704/` → `attachment_passed`；帧 MAE≈0.037，序列同 E1d-SB。 |
+| **E2s / 结构化声速反演头** | 纯 TOF-L LS **未过门**。获准的是 attachment 之后的 **additive** SNR 加权 LS 消融（`e1d_sb_*_ls_v1`），不得删 SNR。见 `active/tv3_ec_msw_structured_sequence_head_plan.md`。 |
 
 ---
 
@@ -477,9 +477,9 @@
 | [掘进通风项目记忆库.md](../掘进通风项目记忆库.md) | 当前事实与正式结论 |
 | [active/tv3_identifiability_implementation_plan.md](../active/tv3_identifiability_implementation_plan.md) | 可辨识性实施计划 |
 | [active/tv3_static_air_feasibility_implementation_plan.md](../active/tv3_static_air_feasibility_implementation_plan.md) | 当前 P0：静止空气的测量链校准与独立 holdout |
-| [active/tv3_ec_msw_gatednet_implementation_plan.md](../active/tv3_ec_msw_gatednet_implementation_plan.md) | EC-MSW P0 契约、E1/E1r 失败证据、E1d/E1d-SB 正式结论与 attachment 门 |
+| [active/tv3_ec_msw_gatednet_implementation_plan.md](../active/tv3_ec_msw_gatednet_implementation_plan.md) | EC-MSW P0 契约、E1/E1r 失败证据、E1d/E1d-SB/attachment 正式结论 |
 | [端到端波形动态门控组分反演框架与文献证据.md](../端到端波形动态门控组分反演框架与文献证据.md) | EC-MSW 算法框架与文献证据边界 |
-| [active/tv3_ec_msw_structured_sequence_head_plan.md](../active/tv3_ec_msw_structured_sequence_head_plan.md) | E1d-SB 正式过门；E1r attachment 代码已落地；纯 TOF-L LS 仍禁止 |
+| [active/tv3_ec_msw_structured_sequence_head_plan.md](../active/tv3_ec_msw_structured_sequence_head_plan.md) | E1d-SB 与 attachment 正式过门；可选 LS 消融；纯 TOF-L LS 仍禁止 |
 | [references/tv3_identifiability_business_threshold_evidence.md](../references/tv3_identifiability_business_threshold_evidence.md) | P90 与 nuisance 门限的证据和适用边界 |
 | [active/b7_repeated_split_ood_protocol_implementation_plan.md](../active/b7_repeated_split_ood_protocol_implementation_plan.md) | B7 协议 |
 | [active/d2b_raw_dsp_implementation_plan.md](../active/d2b_raw_dsp_implementation_plan.md) | D2b / RawDSP |

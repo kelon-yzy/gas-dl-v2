@@ -1,0 +1,44 @@
+{
+  "dataset_dir": "data/tv3-formal-6000",
+  "output_dir": "outputs/tv3_ec_msw/e1d_sb_ls_s20260704",
+  "run_kind": "formal",
+  "feature_source": "raw_dsp_cache",
+  "feature_builder": "e1d_sb_cal_plus_corr_psr_snr_ls_v1",
+  "include_snr_weighted_ls": true,
+  "snr_ls_weight_mode": "amplitude",
+  "attachment_verdict_path": "outputs/tv3_ec_msw/e1r_attach_e1d_sb_s20260704/verdict.json",
+  "baseline_e1d_sb_summary": "outputs/tv3_ec_msw/e1d_sb_s20260704/summary.json",
+  "b1_reference_metrics": "outputs/tv3_d2b/raw_dsp_ridge_provenance/metrics.json",
+  "ridge_alphas": [
+    0.0001,
+    0.0003,
+    0.001,
+    0.003,
+    0.01,
+    0.03,
+    0.1,
+    0.3,
+    1.0,
+    3.0,
+    10.0,
+    30.0,
+    100.0
+  ],
+  "eval_splits": ["val", "test", "extrapolation"],
+  "parity_gates": {
+    "o2_r2_drop_max": 0.05,
+    "co2_n2_r2_drop_max": 0.03
+  },
+  "narrow_o2_windows": [
+    {"id": "o2_18.0_18.8", "low_percent": 18.0, "high_percent": 18.8},
+    {"id": "o2_18.8_19.6", "low_percent": 18.8, "high_percent": 19.6},
+    {"id": "o2_19.6_20.4", "low_percent": 19.6, "high_percent": 20.4},
+    {"id": "o2_20.4_21.2", "low_percent": 20.4, "high_percent": 21.2}
+  ],
+  "notes": [
+    "Additive SNR-weighted closed-form LS on top of cal_plus_corr_psr_snr",
+    "Does not remove ultrasonic_snr_db; not a pure TOF-L LS head",
+    "Requires attachment_passed; e2_allowed remains false",
+    "Independent output dir; do not overwrite e1d_sb_* / e1r_* / attach_*"
+  ]
+}
