@@ -1,0 +1,21 @@
+{
+  "dataset_dir": "data/tv3-smoke",
+  "output_dir": "outputs/tv3_ec_msw/e1d_sb_deploy_probe_smoke_s20260704",
+  "run_kind": "smoke",
+  "feature_source": "waveform",
+  "feature_builder": "e1d_sb_cal_plus_corr_psr_snr_v1",
+  "ls_promoted": false,
+  "e2_allowed": false,
+  "feature_align_atol": 1e-5,
+  "ridge_alphas": [0.1, 1.0, 10.0],
+  "eval_splits": ["val", "test", "extrapolation"],
+  "parity_gates": {
+    "o2_r2_drop_max": 0.05,
+    "co2_n2_r2_drop_max": 0.03
+  },
+  "notes": [
+    "Smoke-only deployable inference probe; not formal evidence",
+    "Default feature_source=waveform; compares against raw_dsp_cache",
+    "Does not promote LS; does not replace B7"
+  ]
+}

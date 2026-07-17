@@ -7,7 +7,8 @@
 1. [掘进通风项目记忆库.md](掘进通风项目记忆库.md)：当前有效事实、正式结果、硬不变量和执行门。
 2. [methods/tv3_名词与实验顺序导读.md](methods/tv3_名词与实验顺序导读.md)：初学者名词说明，按实验顺序分级检索。
 3. [active/tv3_static_air_feasibility_implementation_plan.md](active/tv3_static_air_feasibility_implementation_plan.md)：当前 P0，静止空气范围、测量链校准与独立 holdout。
-4. [active/tv3_ec_msw_gatednet_implementation_plan.md](active/tv3_ec_msw_gatednet_implementation_plan.md)：P1 算法实验线；attachment 过门，E2s-LS 消融正式待跑，E2 仍禁止。
+4. [active/tv3_ec_msw_gatednet_implementation_plan.md](active/tv3_ec_msw_gatednet_implementation_plan.md)：P1 算法实验线；LS 正式不晋升；下一步见 deploy-joint 计划，E2 仍禁止。
+4b. [active/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md](active/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md)：e1d_sb（无 LS）可部署联合系统。
 5. [active/b7_repeated_split_ood_protocol_implementation_plan.md](active/b7_repeated_split_ood_protocol_implementation_plan.md)：B7 冻结后的重复 split、独立 OOD、审计和通过门。
 6. [active/README.md](active/README.md)：D2b、B6、B7、R5-T、R7、SPXY 等当前工作。
 7. [foundation/README.md](foundation/README.md)：场景、适配、采样和物理基础。

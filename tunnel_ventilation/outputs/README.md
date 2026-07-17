@@ -17,13 +17,13 @@
 | `tv3_module_c_grouped_bottleneck/` | 模块 C 分组 bottleneck C1 / C2 协议 | ❌ 24 条正式矩阵 `grouped_failed` |
 | `tv3_baseline_freeze/` | B1/B7 配置、结果、split、RawDSP 与环境 hash 冻结 | ✅ `frozen` |
 | `tv3_identifiability/` | 冻结 v1 单向 TOF 的敏感度、Fisher 与误差预算审计 | ✅ `audit=passed`；P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 均失败，flow 未表示，verdict=`information_source_upgrade_required` |
-| `tv3_ec_msw/` | EC-MSW-GatedNet 分阶段实验 | E1 fail；E1r frame pass / B1 parity fail；✅ E1d；✅ E1d-SB；✅ attachment `attachment_passed`；E2 禁止 |
+| `tv3_ec_msw/` | EC-MSW-GatedNet 分阶段实验 | ✅ E1d/E1d-SB/attachment；✅ LS 不晋升；下一步 deploy-joint；E2 禁止 |
 | `summary/` | 跨运行汇总产物 | 汇总索引 |
 | `archive/` | 调试、本地 600、历史 DL、已取代子运行 | 仅追溯 |
 
 新实验默认写入对应顶层目录；调试与 smoke 直接写入 `archive/debug/`。
 
-`tv3_ec_msw/e1_s20260704/` 是旧 E1 的 `frame_fidelity_failed` 证据。`e1r_s20260704/` 是 E1r clean 6000 正式证据：53 epochs 早停、最佳 epoch 41；frame fidelity 三 split 全部通过，但冻结 sequence embedding 相对 B1 的 O₂ ΔR²为 `-0.4118 / -0.4461 / -0.3689`，最终 verdict=`b1_parity_failed`、`e2_allowed=false`。`e1d_s20260704/` 是 E1d 正式诊断：正对照通过；E1d-2 校准组未补回 O₂；E1d-3 加 SNR 后 compact 集合 `cal_plus_corr_psr_snr` 过门，verdict=`minimal_deployable_set_found`。`e1d_sb_s20260704/` 是 E1d-SB 正式 `parity_passed`（O₂ `0.393 / 0.453 / 0.369`）。`e1r_attach_e1d_sb_s20260704/` 是 attachment 正式证据：`attachment_passed`（帧 MAE≈0.037，序列同 E1d-SB）。`e1d_smoke_s20260704/`、`e1_smoke_s20260704/`、`e1r_smoke_s20260704/` 与 `e1r_preflight_s20260704/` 只作链路追溯。
+`tv3_ec_msw/e1_s20260704/` 是旧 E1 的 `frame_fidelity_failed` 证据。`e1r_s20260704/` 是 E1r clean 6000 正式证据：53 epochs 早停、最佳 epoch 41；frame fidelity 三 split 全部通过，但冻结 sequence embedding 相对 B1 的 O₂ ΔR²为 `-0.4118 / -0.4461 / -0.3689`，最终 verdict=`b1_parity_failed`、`e2_allowed=false`。`e1d_s20260704/` 是 E1d 正式诊断：正对照通过；E1d-2 校准组未补回 O₂；E1d-3 加 SNR 后 compact 集合 `cal_plus_corr_psr_snr` 过门，verdict=`minimal_deployable_set_found`。`e1d_sb_s20260704/` 是 E1d-SB 正式 `parity_passed`（O₂ `0.393 / 0.453 / 0.369`）。`e1r_attach_e1d_sb_s20260704/` 是 attachment 正式 `attachment_passed`（帧 MAE≈0.037，序列同 E1d-SB）。`e1d_sb_ls_s20260704/` 是 E2s-LS 正式证据：`ls_ablation_passed`，相对 e1d_sb 的 O₂ ΔR² 仅约 `+0.0005～0.001`，不晋升。下一步为 e1d_sb（无 LS）可部署联合系统（计划文档，产物目录待 D1）。`e1d_smoke_s20260704/`、`e1_smoke_s20260704/`、`e1r_smoke_s20260704/` 与 `e1r_preflight_s20260704/` 只作链路追溯。
 
 ## 正式产物（configs 与记忆库引用）
 
@@ -68,6 +68,8 @@
 | `tv3_ec_msw/e1r_attach_e1d_sb_s20260704/verdict.json` | E1r↔E1d-SB attachment 正式 `attachment_passed` |
 | `tv3_ec_msw/e1r_attach_e1d_sb_s20260704/frame_fidelity.json` | 冻结 E1r 帧保真（MAE≈0.037） |
 | `tv3_ec_msw/e1r_attach_e1d_sb_s20260704/b1_parity.json` | e1d_sb 序列 Ridge 相对 B1 非劣 |
+| `tv3_ec_msw/e1d_sb_ls_s20260704/verdict.json` | E2s-LS 正式 `ls_ablation_passed`；不晋升 |
+| `tv3_ec_msw/e1d_sb_ls_s20260704/summary.json` | vs B1 与 vs e1d_sb ΔR² |
 
 ## archive 分类
 

@@ -1,8 +1,8 @@
 # tv3 EC-MSW-GatedNet 实施计划
 
-> 状态：**E1d-SB `parity_passed`；attachment `attachment_passed`；E2s-LS 消融代码已落地（正式待跑）。`e2_allowed=false`。**
+> 状态：**E1d-SB / attachment / E2s-LS 正式均完成（2026-07-17）。LS 不晋升。`e2_allowed=false`。**
 > 基线边界：B7 仍是冻结默认 RawDSP 头，identifiability v1 的 `information_source_upgrade_required` verdict 不变。
-> 下一步：`python scripts/run_ec_msw_e1d_sb_ls.py --config configs/tv3_ec_msw_e1d_sb_ls.json` → `outputs/tv3_ec_msw/e1d_sb_ls_s20260704/`。
+> 下一步：D1 推理探针代码已落地，正式 `e1d_sb_deploy_probe_s20260704` 待跑 — 见 `tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md`。
 
 ## 1. 范围与不变量
 
@@ -47,7 +47,8 @@ P2 及以后预留但在 E1 禁用的契约如下：
 | E1d | 冻结 E1r 与 B1，逐组诊断坐标、聚合、校准和质量特征 | ✅ 正式找到 compact 集合 `cal_plus_corr_psr_snr` | 找不到则停止 learned encoder 分支 |
 | E1d-SB | 可部署 builder 复现 compact 集合语义 | ✅ 正式 `parity_passed` | 不可部署复现则停，保留 B7 |
 | E1r-attach | 冻结 E1r frame + e1d_sb 序列 Ridge 联合审计 | ✅ 正式 `attachment_passed` | 帧失败修前端；parity 失败停 learned 扩展 |
-| E2s-LS | 可选：builder 内 SNR 加权闭式 LS 子算子 | ✅ 代码 / ▶️ 正式 | E1d-2 已证伪「仅 LS」充分性 |
+| E2s-LS | 可选：builder 内 SNR 加权闭式 LS 子算子 | ✅ 正式 `ls_ablation_passed`；Δ≈0 → 不晋升 | E1d-2 已证伪「仅 LS」充分性 |
+| Deploy-joint | e1d_sb（无 LS）推理探针 | 见独立计划 | 不得开 E2；不得替换 B7 |
 | E2a | E1 加环境 FiLM | ⛔ `e2_allowed=false` | 不进入 attention |
 | E2b | E2a 加 attentive statistics pooling | ⛔ | 保留固定聚合 |
 | E3 | 晚期共享 soft gate | ⛔ | 判为路由失败 |
@@ -122,7 +123,8 @@ python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
 | clean 6000 正式 E1d | ✅ | `outputs/tv3_ec_msw/e1d_s20260704/`；`minimal_deployable_set_found`；compact=`cal_plus_corr_psr_snr` |
 | E1d-SB compact builder | ✅ 正式 | `e1d_sb_s20260704/`；`parity_passed`；compact 213 维 |
 | E1r↔E1d-SB attachment | ✅ 正式 | `e1r_attach_e1d_sb_s20260704/`；`attachment_passed`；帧 MAE≈0.037；序列同 E1d-SB |
-| E2s-LS additive ablation | ✅ 代码 / ▶️ 正式 | `e1d_sb_cal_plus_corr_psr_snr_ls_v1`；`run_ec_msw_e1d_sb_ls.py` |
+| E2s-LS additive ablation | ✅ 正式 | `e1d_sb_ls_s20260704/`；`ls_ablation_passed`；vs e1d_sb ΔO₂≈`+0.0005～0.001` → 不晋升 |
+| e1d_sb deploy joint | ▶️ D1 代码 | 探针代码已落地；正式 `e1d_sb_deploy_probe_s20260704/` 待跑 |
 
 E1 与 E1r 正式结果分别位于 `outputs/tv3_ec_msw/e1_s20260704/` 和 `outputs/tv3_ec_msw/e1r_s20260704/`。E1r audit manifest 已固定训练配置、checkpoint、run config 与 B1 reference 的 SHA-256；模型输入排除了 peak/TOF 真值、真实声速、真实衰减与组分标签。
 
@@ -227,9 +229,13 @@ python scripts/run_ec_msw_e1d.py --config configs/tv3_ec_msw_e1d.json
 - 解读：峰位坐标够用；序列缺口由校准栈 + SNR builder 补回；不开 E2。B7 仍为默认头。
 - 可选下一步：builder 内 SNR 加权闭式 LS 消融（不得删 SNR）。细节见 `tv3_ec_msw_structured_sequence_head_plan.md`。
 
-### 8.4 E2s-LS 消融入口（2026-07-17）
+### 8.4 E2s-LS 消融正式结论（2026-07-17）
 
-- CLI：`python scripts/run_ec_msw_e1d_sb_ls.py --config configs/tv3_ec_msw_e1d_sb_ls.json`
-- 正式产物：`outputs/tv3_ec_msw/e1d_sb_ls_s20260704/`（additive；保留帧 SNR）
-- formal 前置：`e1r_attach_e1d_sb_s20260704/verdict.json` 为 `attachment_passed`
-- `e2_allowed` 仍恒 `false`；B7 仍为默认头
+- 正式：`outputs/tv3_ec_msw/e1d_sb_ls_s20260704/` → `ls_ablation_passed`；`snr_retained=true`；`e2_allowed=false`。
+- vs B1：O₂ `0.394 / 0.453 / 0.370`（非劣通过）。
+- vs e1d_sb：ΔO₂ `+0.00057 / +0.00051 / +0.00101` — 可忽略；**不晋升 LS**。
+- 默认序列表示仍用 `e1d_sb_cal_plus_corr_psr_snr_v1`。
+
+### 8.5 可部署联合系统（D1 代码已落地）
+
+见 `tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md`。入口：`scripts/probe_ec_msw_e1d_sb_inference.py`。正式产物目录 `e1d_sb_deploy_probe_s20260704/` 待跑；B7 仍为默认头。
