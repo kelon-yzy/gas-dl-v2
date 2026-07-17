@@ -1,0 +1,51 @@
+{
+  "dataset_dir": "data/tv3-formal-6000",
+  "training_run_dir": "outputs/tv3_ec_msw/e1r_s20260704",
+  "output_dir": "outputs/tv3_ec_msw/e1r_attach_e1d_sb_s20260704",
+  "run_kind": "formal",
+  "feature_source": "raw_dsp_cache",
+  "feature_builder": "e1d_sb_cal_plus_corr_psr_snr_v1",
+  "e1d_sb_verdict_path": "outputs/tv3_ec_msw/e1d_sb_s20260704/verdict.json",
+  "b1_reference_metrics": "outputs/tv3_d2b/raw_dsp_ridge_provenance/metrics.json",
+  "device": "cuda",
+  "batch_size": 16,
+  "num_workers": 4,
+  "ridge_alphas": [
+    0.0001,
+    0.0003,
+    0.001,
+    0.003,
+    0.01,
+    0.03,
+    0.1,
+    0.3,
+    1.0,
+    3.0,
+    10.0,
+    30.0,
+    100.0
+  ],
+  "max_train_probe_frames": 200000,
+  "probe_sample_seed": 20260704,
+  "eval_splits": ["val", "test", "extrapolation"],
+  "frame_fidelity_gates": {
+    "peak_mae_samples_max": 0.15,
+    "peak_p95_abs_error_samples_max": 0.25,
+    "peak_bias_abs_samples_max": 0.05
+  },
+  "parity_gates": {
+    "o2_r2_drop_max": 0.05,
+    "co2_n2_r2_drop_max": 0.03
+  },
+  "narrow_o2_windows": [
+    {"id": "o2_18.0_18.8", "low_percent": 18.0, "high_percent": 18.8},
+    {"id": "o2_18.8_19.6", "low_percent": 18.8, "high_percent": 19.6},
+    {"id": "o2_19.6_20.4", "low_percent": 19.6, "high_percent": 20.4},
+    {"id": "o2_20.4_21.2", "low_percent": 20.4, "high_percent": 21.2}
+  ],
+  "notes": [
+    "Probe-only attachment: frozen E1r frame fidelity + e1d_sb sequence Ridge",
+    "Does not retrain deep net; does not open E2",
+    "Independent output dir; do not overwrite e1r_* / e1d_* / e1d_sb_*"
+  ]
+}

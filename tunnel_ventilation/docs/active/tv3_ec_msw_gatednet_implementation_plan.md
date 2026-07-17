@@ -1,8 +1,8 @@
 # tv3 EC-MSW-GatedNet 实施计划
 
-> 状态：**E1d clean 6000 正式完成（2026-07-17）**：`verdict=minimal_deployable_set_found`，compact=`cal_plus_corr_psr_snr`；`continue_structured_builder=true`，`e2_allowed=false`。E1r 正式 frame pass / B1 parity fail 不变。
+> 状态：**E1d-SB 正式 `parity_passed`（2026-07-17）；E1r attachment 代码已落地，正式联合审计待服务器执行。`e2_allowed=false`。**
 > 基线边界：B7 仍是冻结默认 RawDSP 头，identifiability v1 的 `information_source_upgrade_required` verdict 不变。
-> 下一步：实现 `cal_plus_corr_psr_snr` 语义的可部署结构化 sequence builder（见 `tv3_ec_msw_structured_sequence_head_plan.md`）。纯 TOF-L LS 头因 E1d-2 失败不得单独启动；FiLM/attention/MoE 仍禁止。
+> 下一步：`python scripts/audit_ec_msw_e1r_attachment.py --config configs/tv3_ec_msw_e1r_attachment.json` → `outputs/tv3_ec_msw/e1r_attach_e1d_sb_s20260704/`。
 
 ## 1. 范围与不变量
 
@@ -45,7 +45,8 @@ P2 及以后预留但在 E1 禁用的契约如下：
 | E0 | 冻结 B1/B7 | 已完成 | 不改写基线 |
 | E1 | 位置敏感多尺度 encoder 加固定聚合 | frame fidelity 通过且固定头达到下列 B1 parity | 停止组分扩展，修前端 |
 | E1d | 冻结 E1r 与 B1，逐组诊断坐标、聚合、校准和质量特征 | ✅ 正式找到 compact 集合 `cal_plus_corr_psr_snr` | 找不到则停止 learned encoder 分支 |
-| E1d-SB | 可部署 builder 复现 compact 集合语义 | 三 split B1 parity + 窄窗口 | 不可部署复现则停，保留 B7 |
+| E1d-SB | 可部署 builder 复现 compact 集合语义 | ✅ 正式 `parity_passed` | 不可部署复现则停，保留 B7 |
+| E1r-attach | 冻结 E1r frame + e1d_sb 序列 Ridge 联合审计 | 帧保真 + B1 非劣 → `attachment_passed` | 帧失败修前端；parity 失败停 learned 扩展 |
 | E2s-LS | 可选：builder 内 SNR 加权闭式 LS 子算子 | 不得替代 SNR；仅作消融 | E1d-2 已证伪「仅 LS」充分性 |
 | E2a | E1 加环境 FiLM | ⛔ `e2_allowed=false` | 不进入 attention |
 | E2b | E2a 加 attentive statistics pooling | ⛔ | 保留固定聚合 |
@@ -119,7 +120,8 @@ python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
 | E1d 诊断管线（代码 / 配置 / 测试） | ✅ | `tv3/dl/evaluation/ec_msw_e1d_diagnosis.py`、`scripts/run_ec_msw_e1d.py`、`configs/tv3_ec_msw_e1d*.json`；`tests/test_ec_msw_e1d.py` 12 passed |
 | E1d smoke7 链路 | ✅ 链路 / ❌ 非正式 | `outputs/tv3_ec_msw/e1d_smoke_s20260704/`；n=16 不作 parity 结论 |
 | clean 6000 正式 E1d | ✅ | `outputs/tv3_ec_msw/e1d_s20260704/`；`minimal_deployable_set_found`；compact=`cal_plus_corr_psr_snr` |
-| E1d-SB compact builder | ✅ 代码 / ▶️ 正式审计 | `e1d_sb_cal_plus_corr_psr_snr_v1`；`tests/test_ec_msw_e1d_sb.py` 8 passed；正式见 `configs/tv3_ec_msw_e1d_sb.json` |
+| E1d-SB compact builder | ✅ 正式 | `e1d_sb_s20260704/`；`parity_passed`；compact 213 维 |
+| E1r↔E1d-SB attachment | ✅ 代码 / ▶️ 正式 | `audit_ec_msw_e1r_attachment.py`；`tests/test_ec_msw_e1r_attachment.py` 6 passed |
 
 E1 与 E1r 正式结果分别位于 `outputs/tv3_ec_msw/e1_s20260704/` 和 `outputs/tv3_ec_msw/e1r_s20260704/`。E1r audit manifest 已固定训练配置、checkpoint、run config 与 B1 reference 的 SHA-256；模型输入排除了 peak/TOF 真值、真实声速、真实衰减与组分标签。
 
@@ -214,4 +216,12 @@ python scripts/run_ec_msw_e1d.py --config configs/tv3_ec_msw_e1d.json
 | verdict | `minimal_deployable_set_found`；`continue_structured_builder=true`；`e2_allowed=false` |
 | compact | `cal_plus_corr_psr_snr`、`cal_plus_quality_width`（首选前者） |
 
-**下一步**：实现可部署 E1d-SB builder（校准栈 + corr/PSR/SNR），重过 parity；不得启动纯 TOF-L LS 头，不得启动 E2 FiLM/attention。细节见 `tv3_ec_msw_structured_sequence_head_plan.md`。
+**下一步（已完成）**：E1d-SB 可部署 builder 已正式过门；见 §8.3。
+
+### 8.3 E1d-SB 正式与 E1r attachment（2026-07-17）
+
+- E1d-SB 正式：`outputs/tv3_ec_msw/e1d_sb_s20260704/` → `parity_passed`，`continue_e1r_attachment=true`；O₂ R² `0.393 / 0.453 / 0.369`。
+- Attachment 入口：`python scripts/audit_ec_msw_e1r_attachment.py --config configs/tv3_ec_msw_e1r_attachment.json`
+- 正式产物目录：`outputs/tv3_ec_msw/e1r_attach_e1d_sb_s20260704/`（不得覆盖既有 E1/E1r/E1d/E1d-SB）。
+- 联合门：冻结 E1r frame fidelity + e1d_sb 序列 Ridge；通过则为 `attachment_passed`；`e2_allowed` 仍恒 `false`。
+- 测试：`tests/test_ec_msw_e1r_attachment.py` 6 passed。细节见 `tv3_ec_msw_structured_sequence_head_plan.md`。
