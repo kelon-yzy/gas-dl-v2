@@ -1,7 +1,8 @@
 # tv3 EC-MSW-GatedNet 实施计划
 
-> 状态：**E1d 诊断管线已落地并通过本地单元测试与 smoke7 链路；clean 6000 正式 E1d 待服务器完整 RawDSP cache 上执行。E1r 正式 frame pass / B1 parity fail 不变；E2 继续禁止。**
+> 状态：**E1d clean 6000 正式完成（2026-07-17）**：`verdict=minimal_deployable_set_found`，compact=`cal_plus_corr_psr_snr`；`continue_structured_builder=true`，`e2_allowed=false`。E1r 正式 frame pass / B1 parity fail 不变。
 > 基线边界：B7 仍是冻结默认 RawDSP 头，identifiability v1 的 `information_source_upgrade_required` verdict 不变。
+> 下一步：实现 `cal_plus_corr_psr_snr` 语义的可部署结构化 sequence builder（见 `tv3_ec_msw_structured_sequence_head_plan.md`）。纯 TOF-L LS 头因 E1d-2 失败不得单独启动；FiLM/attention/MoE 仍禁止。
 
 ## 1. 范围与不变量
 
@@ -43,12 +44,14 @@ P2 及以后预留但在 E1 禁用的契约如下：
 | --- | --- | --- | --- |
 | E0 | 冻结 B1/B7 | 已完成 | 不改写基线 |
 | E1 | 位置敏感多尺度 encoder 加固定聚合 | frame fidelity 通过且固定头达到下列 B1 parity | 停止组分扩展，修前端 |
-| E1d | 冻结 E1r 与 B1，逐组诊断坐标、聚合、校准和质量特征 | 找到明显小于完整 B1 且三个 split 均过 parity 的可部署集合 | 找不到则停止 learned encoder 分支 |
-| E2a | E1 加环境 FiLM | 固定 holdout 的 P90 和 MAE 改善 | 不进入 attention |
-| E2b | E2a 加 attentive statistics pooling | test、S-Y、S-L 同步改善 | 保留固定聚合 |
-| E3 | 晚期共享 soft gate | 优于等权和单专家且 gate 不塌缩 | 判为路由失败 |
-| E4 | component-specific multi-gate 消融 | 跨 seed 稳定优于共享 gate | 保留共享 gate |
-| E5 | 混合分支与纯端到端对照 | 纯端到端不劣且 provenance 完整 | 保留 RawDSP 锚点 |
+| E1d | 冻结 E1r 与 B1，逐组诊断坐标、聚合、校准和质量特征 | ✅ 正式找到 compact 集合 `cal_plus_corr_psr_snr` | 找不到则停止 learned encoder 分支 |
+| E1d-SB | 可部署 builder 复现 compact 集合语义 | 三 split B1 parity + 窄窗口 | 不可部署复现则停，保留 B7 |
+| E2s-LS | 可选：builder 内 SNR 加权闭式 LS 子算子 | 不得替代 SNR；仅作消融 | E1d-2 已证伪「仅 LS」充分性 |
+| E2a | E1 加环境 FiLM | ⛔ `e2_allowed=false` | 不进入 attention |
+| E2b | E2a 加 attentive statistics pooling | ⛔ | 保留固定聚合 |
+| E3 | 晚期共享 soft gate | ⛔ | 判为路由失败 |
+| E4 | component-specific multi-gate 消融 | ⛔ | 保留共享 gate |
+| E5 | 混合分支与纯端到端对照 | ⛔ | 保留 RawDSP 锚点 |
 
 ## 4. E1 实现与验收
 
@@ -115,7 +118,8 @@ python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
 | clean 6000 E1r verdict | ❌ | `b1_parity_failed`、`e2_allowed=false` |
 | E1d 诊断管线（代码 / 配置 / 测试） | ✅ | `tv3/dl/evaluation/ec_msw_e1d_diagnosis.py`、`scripts/run_ec_msw_e1d.py`、`configs/tv3_ec_msw_e1d*.json`；`tests/test_ec_msw_e1d.py` 12 passed |
 | E1d smoke7 链路 | ✅ 链路 / ❌ 非正式 | `outputs/tv3_ec_msw/e1d_smoke_s20260704/`；n=16 不作 parity 结论 |
-| clean 6000 正式 E1d | ▶️ | 需完整 `raw_dsp_frame_v1` 数组 + B1 reference；入口见 §8 |
+| clean 6000 正式 E1d | ✅ | `outputs/tv3_ec_msw/e1d_s20260704/`；`minimal_deployable_set_found`；compact=`cal_plus_corr_psr_snr` |
+| E1d-SB compact builder | ✅ 代码 / ▶️ 正式审计 | `e1d_sb_cal_plus_corr_psr_snr_v1`；`tests/test_ec_msw_e1d_sb.py` 8 passed；正式见 `configs/tv3_ec_msw_e1d_sb.json` |
 
 E1 与 E1r 正式结果分别位于 `outputs/tv3_ec_msw/e1_s20260704/` 和 `outputs/tv3_ec_msw/e1r_s20260704/`。E1r audit manifest 已固定训练配置、checkpoint、run config 与 B1 reference 的 SHA-256；模型输入排除了 peak/TOF 真值、真实声速、真实衰减与组分标签。
 
@@ -196,3 +200,18 @@ python scripts/run_ec_msw_e1d.py --config configs/tv3_ec_msw_e1d.json
 - 代码与配置已合入；`tests/test_ec_msw_e1d.py` 12 passed；真实 E1r smoke checkpoint 的 embedding/coordinate 提取集成通过。
 - smoke7 写出 `outputs/tv3_ec_msw/e1d_smoke_s20260704/`，链路完整；n=16 的 R²不可作正式判断。
 - 本机 `data/tv3-formal-6000` 仅有 RawDSP manifest、缺少数据集主体与特征数组，正式 E1d 必须在服务器完整数据上执行。
+
+### 8.2 clean 6000 正式 E1d 结论（2026-07-17）
+
+服务器完整 RawDSP cache + 冻结 E1r checkpoint 上执行 `configs/tv3_ec_msw_e1d.json`，产物 `outputs/tv3_ec_msw/e1d_s20260704/`。
+
+| 项 | 结果 |
+| --- | --- |
+| 正对照 | `full_b1` 三 split ΔR²=`0`（容差 `1e-6`）通过 |
+| E1d-1 | E1r embedding / peak 聚合全部失败；O₂ embedding `0.014 / 0.032 / 0.000` |
+| E1d-2 | 校准满栈（含 TOF-L / sound speed）仍失败；O₂ 停留在约 `0.13–0.21` |
+| E1d-3 | 加入 SNR 后过门：`cal_plus_corr_psr_snr` O₂ `0.393 / 0.453 / 0.369` |
+| verdict | `minimal_deployable_set_found`；`continue_structured_builder=true`；`e2_allowed=false` |
+| compact | `cal_plus_corr_psr_snr`、`cal_plus_quality_width`（首选前者） |
+
+**下一步**：实现可部署 E1d-SB builder（校准栈 + corr/PSR/SNR），重过 parity；不得启动纯 TOF-L LS 头，不得启动 E2 FiLM/attention。细节见 `tv3_ec_msw_structured_sequence_head_plan.md`。

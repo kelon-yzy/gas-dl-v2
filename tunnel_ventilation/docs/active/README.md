@@ -4,7 +4,8 @@
 
 | 优先级 | 文档 | 当前状态 |
 | --- | --- | --- |
-| P1 | [tv3_ec_msw_gatednet_implementation_plan.md](tv3_ec_msw_gatednet_implementation_plan.md) | E1r `b1_parity_failed`；E1d 管线已落地，正式 6000 待跑；`e2_allowed=false` |
+| P1 | [tv3_ec_msw_gatednet_implementation_plan.md](tv3_ec_msw_gatednet_implementation_plan.md) | E1d 正式通过；E1d-SB 代码落地，正式 6000 审计待跑；`e2_allowed=false` |
+| P1 | [tv3_ec_msw_structured_sequence_head_plan.md](tv3_ec_msw_structured_sequence_head_plan.md) | E1d-SB builder 已实现；纯 TOF-L LS 仍禁止 |
 | P0 | [tv3_static_air_feasibility_implementation_plan.md](tv3_static_air_feasibility_implementation_plan.md) | 新主线：先在经风速核验的静止空气中验证 O₂ 可测性；不外推为通风现场能力 |
 | ⏸ | [tv3_identifiability_implementation_plan.md](tv3_identifiability_implementation_plan.md) | v1 审计已完成、`information_source_upgrade_required`；双向声学 / flow holdout 暂停保留，现有 verdict 不改写 |
 | P0 | [b7_repeated_split_ood_protocol_implementation_plan.md](b7_repeated_split_ood_protocol_implementation_plan.md) | 完整 12-split × 3 training seed 矩阵已完成，判定 **protocol_pass** |

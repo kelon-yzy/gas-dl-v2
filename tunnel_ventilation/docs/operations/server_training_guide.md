@@ -220,7 +220,7 @@ python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1r_audit.json
 
 本次 E1r 正式审计只有 `frame_fidelity.json` 通过，`b1_parity.json` 未通过，因此不得改变 `e2_allowed=false`。不要通过修改门限、延长同结构训练或直接进入 E2 覆盖该 verdict。
 
-审计器冻结 encoder，仅在 train split 拟合 peak-index probe 和 sequence Ridge probe；val/test/extrapolation 全量评价。旧 E1 的 `e1_s20260704/audit/` 与 E1r 的 `e1r_s20260704/audit/` 都是正式失败证据。下一步 E1d 只做冻结分组诊断；在新的结构化表示重新通过同一 parity 门前，E2保持禁止。失败时保留原始 JSON/CSV，不修改门限重跑。
+审计器冻结 encoder，仅在 train split 拟合 peak-index probe 和 sequence Ridge probe；val/test/extrapolation 全量评价。旧 E1 的 `e1_s20260704/audit/` 与 E1r 的 `e1r_s20260704/audit/` 都是正式失败证据。E1d 正式诊断已完成（`e1d_s20260704/`，`minimal_deployable_set_found`）；下一步实现 `cal_plus_corr_psr_snr` 语义的可部署 sequence builder 并重过同一 parity 门，E2 仍禁止。失败时保留原始 JSON/CSV，不修改门限重跑。
 
 > E1 / E1r 正式配置已含 `waveform_preprocess: "gpu"`（见 §4.5）。审计脚本读取 `run_config.json` 中的同名字段，保证训练与审计组装路径一致。
 
