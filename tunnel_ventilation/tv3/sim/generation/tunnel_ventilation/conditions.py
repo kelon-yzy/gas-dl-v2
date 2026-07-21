@@ -26,6 +26,14 @@ from scipy.stats.qmc import LatinHypercube
 
 from tv3.sim.core.ids import make_mixture_id, make_sequence_id
 from tv3.sim.core.tunnel_ventilation_schema import COMPONENT_FIELDS
+from tv3.sim.generation.tunnel_ventilation.flow_physics import (
+    DEFAULT_DELAY_ASYMMETRY_S,
+    DEFAULT_JITTER_CORRELATION,
+    DEFAULT_PAIR_INTERVAL_S,
+    V_PATH_RANGE_M_PER_S,
+    ZERO_ANCHOR_FRACTION_MIN,
+    attach_flow_fields_to_conditions,
+)
 
 
 # 组分区间（单位 %），见 tunnel_ventilation/docs/foundation/sampling_design.md §1.1
@@ -90,6 +98,36 @@ def generate_tunnel_ventilation_condition_rows(
             }
         )
     return rows
+
+
+def generate_tunnel_ventilation_bidir_condition_rows(
+    sequence_count: int,
+    *,
+    seed: int,
+    sampling_strategy: str = "lhs",
+    ranges: TunnelVentilationRanges = TUNNEL_VENTILATION_RANGES,
+    pair_interval_s: float = DEFAULT_PAIR_INTERVAL_S,
+    delay_asymmetry_s: float = DEFAULT_DELAY_ASYMMETRY_S,
+    jitter_correlation: str = DEFAULT_JITTER_CORRELATION,
+    v_path_range: tuple[float, float] = V_PATH_RANGE_M_PER_S,
+    zero_anchor_fraction_min: float = ZERO_ANCHOR_FRACTION_MIN,
+) -> list[dict[str, str]]:
+    """Generate base TV3 conditions then attach F-line flow fields."""
+    base = generate_tunnel_ventilation_condition_rows(
+        sequence_count,
+        seed=seed,
+        sampling_strategy=sampling_strategy,
+        ranges=ranges,
+    )
+    return attach_flow_fields_to_conditions(
+        base,
+        seed=seed + 17,
+        pair_interval_s=pair_interval_s,
+        delay_asymmetry_s=delay_asymmetry_s,
+        jitter_correlation=jitter_correlation,
+        v_path_range=v_path_range,
+        zero_anchor_fraction_min=zero_anchor_fraction_min,
+    )
 
 
 def build_tunnel_ventilation_label_rows(

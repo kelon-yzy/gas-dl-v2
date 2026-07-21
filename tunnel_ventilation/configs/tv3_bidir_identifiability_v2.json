@@ -1,0 +1,130 @@
+{
+  "schema_version": "tv3-identifiability-bidir-2",
+  "output_dir": "outputs/tv3_bidir/identifiability_v2",
+  "f0_registry": {
+    "path": "configs/tv3_bidir/parameter_registry.json",
+    "expected_sha256": "dc61d9e7ccc421e1bab7d18eaa91b4cca3ea1e0d6896aa496c16a2844ac32b99"
+  },
+  "f3_prerequisite": {
+    "verdict_path": "outputs/tv3_bidir/dsp_fidelity/f3_verdict.json",
+    "expected_verdict": "f3_dsp_passed",
+    "feature_builder": "raw_dsp_bidirectional_v1"
+  },
+  "parameter_bounds": {
+    "co2_percent": [0.03, 5.0],
+    "o2_percent": [18.0, 21.2],
+    "t_c": [15.0, 35.0],
+    "path_length_m": [0.2, 0.3],
+    "v_path_m_per_s": [-4.0, 4.0]
+  },
+  "global_grid": {
+    "co2_percent": [0.03, 2.515, 5.0],
+    "o2_percent": [18.0, 19.6, 21.2],
+    "t_c": [15.0, 25.0, 35.0],
+    "path_length_m": [0.2, 0.25, 0.3],
+    "v_path_m_per_s": [0.0, 1.0, 4.0]
+  },
+  "narrow_windows": [
+    {"id": "o2_18_4", "center_percent": 18.4, "width_percent": 0.8},
+    {"id": "o2_19_2", "center_percent": 19.2, "width_percent": 0.8},
+    {"id": "o2_20_0", "center_percent": 20.0, "width_percent": 0.8},
+    {"id": "o2_20_8", "center_percent": 20.8, "width_percent": 0.8}
+  ],
+  "narrow_context_grid": {
+    "co2_percent": [0.03, 2.515, 5.0],
+    "t_c": [15.0, 25.0, 35.0],
+    "path_length_m": [0.2, 0.25, 0.3],
+    "v_path_m_per_s": [0.0, 1.0, 4.0]
+  },
+  "finite_difference": {
+    "steps": {
+      "o2_percent": 0.01,
+      "co2_percent": 0.01,
+      "t_c": 0.1,
+      "path_length_m": 0.001,
+      "v_path_m_per_s": 0.01
+    },
+    "max_relative_step_disagreement": 0.01
+  },
+  "observation": {
+    "fixed_delay_s": 0.000082,
+    "source": "WaveformSpec.system_delay_s + cable_delay_s; F3 session τ̂ digest separately frozen",
+    "jitter_correlation": "independent",
+    "temperature_std_c_for_fisher": 1.0,
+    "sequence_frames_for_prior_crosscheck": 64
+  },
+  "jitter_scenarios": [
+    {
+      "id": "conservative_v1",
+      "std_s": 3.0e-6,
+      "source": "engineering_scenario",
+      "ref": "F0 configs/tv3_bidir/parameter_registry.json trigger_jitter_scenarios"
+    },
+    {
+      "id": "nominal_daq_half_sample",
+      "std_s": 5.0e-7,
+      "source": "literature_bound",
+      "ref": "F0 NI USB-6453 half-sample bound; docs/references/tv3_bidir_trigger_jitter_scenarios.md"
+    }
+  ],
+  "shared_uncertainty_scenarios": [
+    {
+      "id": "temperature_1K_scenario",
+      "parameter": "t_c",
+      "std": 1.0,
+      "source": "v1 / 统一研究与实施路线 §4.2 的 1 K 温度误差情景（F4 对照锚点）"
+    }
+  ],
+  "uncertainty_model": {
+    "type": "diagonal",
+    "source": "双向 mid-pair TOF 对独立方向 jitter：σ_mid=σ/√2；T 与 jitter 对角联合；NDIR/TCS 登记在 representation_audit，不进入本轮声学 Fisher（无已登记 ∂V/∂x 灵敏度模型）"
+  },
+  "representation_audit": [
+    {"name": "x_O2", "unit": "percent", "representation": "sound_speed", "source": "hidden_sound_speed_v2", "distribution": "target_grid", "correlation_group": "composition", "deployable_observable": false, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "x_CO2", "unit": "percent", "representation": "sound_speed_and_ndir", "source": "hidden_sound_speed_v2 + V_NDIR_CO2", "distribution": "target_grid", "correlation_group": "composition", "deployable_observable": true, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "x_N2", "unit": "percent", "representation": "derived_closure", "source": "condition sampling", "distribution": "derived_from_CO2_O2", "correlation_group": "composition", "deployable_observable": false, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "T_C", "unit": "C", "representation": "sound_speed_and_external", "source": "slow channel + Fisher T row", "distribution": "uniform_15_35C", "correlation_group": "environment", "deployable_observable": true, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "P_MPa", "unit": "MPa", "representation": "attenuation_only", "source": "hidden_attenuation_v2", "distribution": "uniform_0.10_0.709MPa", "correlation_group": "environment", "deployable_observable": true, "v1_representation": "represented_outside_tof", "blocks_go_verdict": false},
+    {"name": "H_RH", "unit": "percent", "representation": "attenuation_only", "source": "hidden_attenuation_v2", "distribution": "uniform_20_80percent", "correlation_group": "environment", "deployable_observable": true, "v1_representation": "represented_outside_tof", "blocks_go_verdict": false},
+    {"name": "L_m", "unit": "m", "representation": "tof_geometry", "source": "WaveformSpec propagation", "distribution": "uniform_0.2_0.3m", "correlation_group": "geometry", "deployable_observable": true, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "system_delay", "unit": "s", "representation": "session_calibrated", "source": "raw_dsp_bidirectional_v1 train-only τ̂", "distribution": "fixed_82us_plus_mf", "correlation_group": "instrument", "deployable_observable": false, "v1_representation": "represented_fixed", "blocks_go_verdict": false},
+    {"name": "trigger_jitter", "unit": "s", "representation": "stochastic_observation_noise", "source": "F0 dual scenarios", "distribution": "conservative_3us_and_nominal_0.5us", "correlation_group": "instrument", "deployable_observable": false, "v1_representation": "represented", "blocks_go_verdict": false},
+    {"name": "V_NDIR_CO2", "unit": "V", "representation": "slow_optical", "source": "tunnel_ventilation slow empirical", "distribution": "registered_slow_channel", "correlation_group": "optical", "deployable_observable": true, "v1_representation": "represented_outside_tof", "blocks_go_verdict": false},
+    {"name": "V_TCS", "unit": "V", "representation": "slow_thermal", "source": "tunnel_ventilation slow WMS", "distribution": "registered_slow_channel", "correlation_group": "thermal", "deployable_observable": true, "v1_representation": "represented_outside_tof", "blocks_go_verdict": false},
+    {"name": "flow_projection", "unit": "m/s", "representation": "implemented_physics", "source": "uniform_axial_flow_transit_time_v1 + reciprocal-sum v̂", "distribution": "v_path_m_per_s_[-4,4]_with_zero_anchor", "correlation_group": "flow", "deployable_observable": true, "v1_representation": "not_represented", "blocks_go_verdict": false},
+    {"name": "flow_turbulence_temporal", "unit": "m/s", "representation": "not_represented", "source": "F0 registry", "distribution": "not_available", "correlation_group": "flow", "deployable_observable": false, "v1_representation": "not_represented", "blocks_go_verdict": false}
+  ],
+  "business_thresholds": {
+    "target_p90_o2_error_percent": 0.4,
+    "max_nuisance_fraction_of_signal": 0.5,
+    "max_rejection_rate": 0.05
+  },
+  "rejection_policy": {
+    "id": "f4_blocking_nuisance_reject_all",
+    "source": "same vocabulary as v1; flow no longer blocks",
+    "reject_if_unrepresented_blocking_nuisance": true
+  },
+  "prior_crosscheck": {
+    "reference_point": {
+      "co2_percent": 1.0,
+      "o2_percent": 20.0,
+      "t_c": 20.0,
+      "path_length_m": 0.25,
+      "v_path_m_per_s": 0.0
+    },
+    "expected_single_frame_o2_vol_percent": {
+      "jitter_3us": 5.8,
+      "jitter_0p5us": 0.97,
+      "temperature_1K": 2.4
+    },
+    "relative_tolerance": 0.35,
+    "notes": "与计划 §Context.2 先验表交叉核对；超量级偏离须解释"
+  },
+  "f5_amplitude_gate_preregistration": {
+    "notes": "F5 判据 a 的幅度门在 F4 后预注册，防止事后选择。A3 相对 A1 的 S-Flow OOD O₂ MAE 改善先验 ≥0.5 vol%。",
+    "a3_minus_a1_o2_mae_min_vol_percent": 0.5,
+    "a3_minus_a2_o2_mae_max_vol_percent": 0.25,
+    "v_path_zero_anchor_delta_mae_max_vol_percent": 0.05,
+    "selector_r2_noninferior_delta": -0.01
+  }
+}

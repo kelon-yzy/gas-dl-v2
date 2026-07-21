@@ -11,6 +11,11 @@ import numpy as np
 from tv3.sim.generation.acoustic_physics import hidden_attenuation_v2, hidden_sound_speed_v2
 
 
+# Align with F0 registry topology.pair_interval_s / flow_physics.MAX_PAIR_INTERVAL_S
+_DEFAULT_PAIR_INTERVAL_S = 0.0025
+_MAX_PAIR_INTERVAL_S = 0.0025
+
+
 # 物理后端注入：syngas 场景需要 6 参数声速/衰减（多 x_co）。默认使用
 # hydrogen_ng 5 参数实现，保持向后兼容。
 SoundSpeedFn = Callable[..., float]
@@ -232,6 +237,9 @@ def simulate_waveform_measurement(
     sound_speed_fn: SoundSpeedFn | None = None,
     attenuation_fn: AttenuationFn | None = None,
     extra_gas_kwargs: dict[str, float] | None = None,
+    path_velocity_m_per_s: float = 0.0,
+    fixed_delay_offset_s: float = 0.0,
+    trigger_jitter_override_s: float | None = None,
 ) -> dict[str, object]:
     """Ultrasonic waveform simulation.
 
@@ -239,6 +247,12 @@ def simulate_waveform_measurement(
     may inject ``sound_speed_fn`` / ``attenuation_fn`` plus ``extra_gas_kwargs``
     that are forwarded to those functions. When omitted, the hydrogen_ng
     backend (5-component without x_co) is used.
+
+    Optional flow / delay knobs (defaults preserve the unidirectional contract):
+    - ``path_velocity_m_per_s``: signed path projection; ``tof_true = L / (c + v)``.
+      Attenuation still uses medium ``c`` (not ``c+v``).
+    - ``fixed_delay_offset_s``: added to observed TOF (direction asymmetry).
+    - ``trigger_jitter_override_s``: when set, skip RNG jitter draw (shared-trigger pairs).
     """
     if l_m <= 0.0:
         raise ValueError("l_m must be > 0")
@@ -251,9 +265,23 @@ def simulate_waveform_measurement(
         extra_gas_kwargs=extra_gas_kwargs,
     )
     alpha_true_npm = float(attenuation["alpha_true_v2"])
-    tof_true_s = float(l_m) / c_sound
-    trigger_jitter_s = rng.gauss(0.0, spec.trigger_jitter_std_s)
-    tof_observed_s = tof_true_s + spec.system_delay_s + spec.cable_delay_s + trigger_jitter_s
+    c_eff = float(c_sound) + float(path_velocity_m_per_s)
+    if c_eff <= 0.0:
+        raise ValueError(
+            f"effective path speed must be > 0, got c={c_sound}, v_path={path_velocity_m_per_s}"
+        )
+    tof_true_s = float(l_m) / c_eff
+    if trigger_jitter_override_s is None:
+        trigger_jitter_s = rng.gauss(0.0, spec.trigger_jitter_std_s)
+    else:
+        trigger_jitter_s = float(trigger_jitter_override_s)
+    tof_observed_s = (
+        tof_true_s
+        + spec.system_delay_s
+        + spec.cable_delay_s
+        + float(fixed_delay_offset_s)
+        + trigger_jitter_s
+    )
     # 1 MS/s 下生成脉冲，用 Lagrange 分数延迟实现亚样本 TOF 定位
     pulse = transducer_response_pulse(spec)
     clean_waveform = np.zeros(spec.waveform_samples, dtype=np.float32)
@@ -283,6 +311,103 @@ def simulate_waveform_measurement(
         "alpha_true_npm": alpha_true_npm,
         "sound_speed_m_per_s": float(c_sound),
         "sound_speed_estimated_m_per_s": sound_speed_estimated,
+        "path_velocity_m_per_s": float(path_velocity_m_per_s),
+        "fixed_delay_offset_s": float(fixed_delay_offset_s),
+    }
+
+
+def simulate_bidirectional_waveform_measurement(
+    *,
+    x_h2: float,
+    x_ch4: float,
+    x_co2: float,
+    x_n2: float,
+    t_c: float,
+    p_mpa: float,
+    h_rh: float,
+    l_m: float,
+    seed: int,
+    spec: WaveformSpec,
+    v_path_m_per_s: float,
+    sound_speed_fn: SoundSpeedFn | None = None,
+    attenuation_fn: AttenuationFn | None = None,
+    extra_gas_kwargs: dict[str, float] | None = None,
+    delay_asymmetry_s: float = 0.0,
+    jitter_correlation: str = "independent",
+    pair_interval_s: float = _DEFAULT_PAIR_INTERVAL_S,
+) -> dict[str, object]:
+    """Compose AB/BA shots via two calls to ``simulate_waveform_measurement``.
+
+    AB uses ``+v_path``, BA uses ``−v_path``. Fixed-delay asymmetry is split
+    symmetrically about zero. Attenuation is identical (medium ``c``) in both
+    directions. Does not alter the unidirectional function semantics.
+    """
+    if jitter_correlation not in {"independent", "shared_trigger"}:
+        raise ValueError(
+            f"jitter_correlation must be 'independent' or 'shared_trigger', got {jitter_correlation!r}"
+        )
+    if pair_interval_s <= 0.0 or pair_interval_s > _MAX_PAIR_INTERVAL_S:
+        raise ValueError(f"pair_interval_s must be in (0, {_MAX_PAIR_INTERVAL_S}]")
+    rng = random.Random(seed)
+    seed_ab = rng.randrange(0, 2**32)
+    seed_ba = rng.randrange(0, 2**32)
+    shared_jitter: float | None = None
+    if jitter_correlation == "shared_trigger":
+        shared_jitter = rng.gauss(0.0, spec.trigger_jitter_std_s)
+
+    half_asym = 0.5 * float(delay_asymmetry_s)
+    common = dict(
+        x_h2=x_h2,
+        x_ch4=x_ch4,
+        x_co2=x_co2,
+        x_n2=x_n2,
+        t_c=t_c,
+        p_mpa=p_mpa,
+        h_rh=h_rh,
+        l_m=l_m,
+        spec=spec,
+        sound_speed_fn=sound_speed_fn,
+        attenuation_fn=attenuation_fn,
+        extra_gas_kwargs=extra_gas_kwargs,
+    )
+    ab = simulate_waveform_measurement(
+        **common,
+        seed=seed_ab,
+        path_velocity_m_per_s=float(v_path_m_per_s),
+        fixed_delay_offset_s=half_asym,
+        trigger_jitter_override_s=shared_jitter,
+    )
+    ba = simulate_waveform_measurement(
+        **common,
+        seed=seed_ba,
+        path_velocity_m_per_s=-float(v_path_m_per_s),
+        fixed_delay_offset_s=-half_asym,
+        trigger_jitter_override_s=shared_jitter,
+    )
+
+    c_medium = float(ab["sound_speed_m_per_s"])
+    t_ab = float(ab["tof_true_s"])
+    t_ba = float(ba["tof_true_s"])
+    c_hat = 0.5 * float(l_m) * (1.0 / t_ab + 1.0 / t_ba)
+    v_hat = 0.5 * float(l_m) * (1.0 / t_ab - 1.0 / t_ba)
+
+    return {
+        "ab": ab,
+        "ba": ba,
+        "v_path_m_per_s": float(v_path_m_per_s),
+        "delay_asymmetry_s": float(delay_asymmetry_s),
+        "jitter_correlation": jitter_correlation,
+        "pair_interval_s": float(pair_interval_s),
+        "sound_speed_m_per_s": c_medium,
+        "tof_true_ab_s": t_ab,
+        "tof_true_ba_s": t_ba,
+        "tof_observed_ab_s": float(ab["tof_observed_s"]),
+        "tof_observed_ba_s": float(ba["tof_observed_s"]),
+        "trigger_jitter_ab_s": float(ab["trigger_jitter_s"]),
+        "trigger_jitter_ba_s": float(ba["trigger_jitter_s"]),
+        "reciprocal_sum_sound_speed_m_per_s": c_hat,
+        "reciprocal_sum_path_velocity_m_per_s": v_hat,
+        "alpha_true_npm": float(ab["alpha_true_npm"]),
     }
 
 

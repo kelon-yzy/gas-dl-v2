@@ -3,7 +3,7 @@
 > 状态：**P0 已完成，完整正式矩阵 `protocol_pass`**
 > 日期：2026-07-12
 > 前置证据：B7 在 clean `tv3-formal-6000` 的当前 random split 上取得 `residual_pass`；三训练 seed 的 O₂ R²均值为 val/test/extrap `0.6964 / 0.7001 / 0.6157`。
-> 本文责任：冻结 B7 后的泛化验证协议、数据派生、运行矩阵、审计与判定。B7 的模型实现与既有 random-split 复核记录保留在 `b7_oof_ridge_residual_mlp_implementation_plan.md`；通用 SPXY 算法细节保留在 `spxy_split_implementation_plan.md`。
+> 本文责任：冻结 B7 后的泛化验证协议、数据派生、运行矩阵、审计与判定。B7 的模型实现与既有 random-split 复核记录保留在 `archive/completed/b7_oof_ridge_residual_mlp_implementation_plan.md`；通用 SPXY 算法细节保留在 `spxy_split_implementation_plan.md`。
 
 ## Context
 

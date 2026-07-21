@@ -1,0 +1,34 @@
+{
+  "dataset_dir": "data/tv3-bidir-f3",
+  "output_dir": "outputs/tv3_bidir/dsp_fidelity",
+  "allow_overwrite": false,
+  "jitter_scenario": "f3_zero_jitter_physics_gate",
+  "notes": "F3 absolute τ/ĉ/v̂/reciprocity gates require identifiable (zero) trigger jitter. Physics recovery aggregates steady+accepted frames only (multi-L grid); full-sequence ĉ_seq mixes phase compositions and is not the gate target. F0 nominal 0.5 μs and conservative 3 μs remain F4 dual-scenario stress. Peak P95 still validates matched-filter DSP.",
+  "template": {
+    "source_split": "train",
+    "max_frames": 512,
+    "pre_samples": 25,
+    "post_samples": 33,
+    "min_snr_db": 20.0,
+    "reference_peak_polarity": -1
+  },
+  "raw_dsp": {
+    "sound_speed_min_m_per_s": 250.0,
+    "sound_speed_max_m_per_s": 400.0,
+    "delay_min_s": 0.00004,
+    "delay_max_s": 0.00013,
+    "min_corr_peak": 0.5,
+    "min_peak_to_sidelobe_ratio": 1.1,
+    "min_snr_db": 10.0,
+    "max_peak_width_samples": 12.0,
+    "sidelobe_exclusion_samples": 8,
+    "calibration_min_frames": 4
+  },
+  "thresholds": {
+    "peak_p95_abs_samples": 0.25,
+    "tau_abs_error_s": 1.0e-7,
+    "sound_speed_bias_m_per_s": 0.05,
+    "v_path_bias_m_per_s": 0.05,
+    "reciprocity_residual_p95_s": 1.0e-7
+  }
+}

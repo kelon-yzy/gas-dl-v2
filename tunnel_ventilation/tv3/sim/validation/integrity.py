@@ -110,6 +110,9 @@ def _validate_array_shapes(
         raise ValueError("slow channel axis must match slow channel schema")
     if labels.shape != (sequence_count, len(component_fields)):
         raise ValueError("label array shape must match condition rows and labels")
+    if arrays.get("bidirectional"):
+        _validate_bidir_array_shapes(arrays, sequence_count=sequence_count, slow=slow)
+        return
     for name in ("ultrasonic", "ultrasonic_scale"):
         if arrays[name].shape[0] != sequence_count:
             raise ValueError(f"{name} sequence axis must match condition rows")
@@ -128,3 +131,42 @@ def _validate_array_shapes(
     ):
         if arrays[name].shape != slow.shape[:2]:
             raise ValueError(f"{name} shape must match slow sequence and timestep axes")
+
+
+def _validate_bidir_array_shapes(
+    arrays: dict[str, object],
+    *,
+    sequence_count: int,
+    slow: np.ndarray,
+) -> None:
+    for name in ("ultrasonic_ab", "ultrasonic_ba", "ultrasonic_ab_scale", "ultrasonic_ba_scale"):
+        if name not in arrays:
+            raise ValueError(f"bidirectional arrays missing {name}")
+        if arrays[name].shape[0] != sequence_count:
+            raise ValueError(f"{name} sequence axis must match condition rows")
+    for name in ("fiber_mic", "fiber_mic_scale"):
+        if name in arrays and arrays[name].shape[0] != sequence_count:
+            raise ValueError(f"{name} sequence axis must match condition rows")
+    for name in (
+        "ultrasonic_tof_true_ab_s",
+        "ultrasonic_tof_true_ba_s",
+        "ultrasonic_tof_observed_ab_s",
+        "ultrasonic_tof_observed_ba_s",
+        "ultrasonic_peak_index_ab",
+        "ultrasonic_peak_index_ba",
+        "ultrasonic_tof_quality_ab",
+        "ultrasonic_tof_quality_ba",
+        "ultrasonic_tof_accepted_ab",
+        "ultrasonic_tof_accepted_ba",
+        "ultrasonic_v_path_true_m_per_s",
+        "ultrasonic_sound_speed_m_per_s",
+        "ultrasonic_alpha_true_npm",
+    ):
+        if name not in arrays:
+            raise ValueError(f"bidirectional arrays missing {name}")
+        if arrays[name].shape != slow.shape[:2]:
+            raise ValueError(f"{name} shape must match slow sequence and timestep axes")
+    forbidden_uni = ("ultrasonic", "ultrasonic_tof_s", "ultrasonic_tof_observed_s")
+    present_uni = [name for name in forbidden_uni if name in arrays]
+    if present_uni:
+        raise ValueError(f"bidirectional arrays must not include unidirectional keys: {present_uni}")

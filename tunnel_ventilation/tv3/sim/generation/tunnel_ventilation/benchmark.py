@@ -39,6 +39,7 @@ from tv3.sim.core.tunnel_ventilation_schema import (
     SLOW_SEQUENCE_FIELDS,
     SPLIT_FIELDS,
 )
+from tv3.sim.core import tunnel_ventilation_bidir_schema as bidir_schema
 from tv3.sim.generation.optical_backend import (
     EMPIRICAL_ABSORPTION_BACKEND,
     VALID_OPTICAL_ABSORPTION_BACKENDS,
@@ -47,8 +48,10 @@ from tv3.sim.generation.phases import PHASE_SCHEDULES, PhaseSchedule, resolve_ph
 from tv3.sim.generation.tunnel_ventilation.conditions import (
     L_M_BASE_RANGE,
     build_tunnel_ventilation_label_rows as build_label_rows,
+    generate_tunnel_ventilation_bidir_condition_rows,
     generate_tunnel_ventilation_condition_rows as generate_condition_rows,
 )
+from tv3.sim.generation.tunnel_ventilation.flow_physics import bidir_sim_revision
 from tv3.sim.generation.tunnel_ventilation.slow import build_sequence_arrays
 from tv3.sim.generation.waveforms import FiberMicSpec, WaveformSpec
 from tv3.sim.packaging.arrays import write_arrays
@@ -64,21 +67,45 @@ DEFAULT_WAVEFORM_PATH_LMS = (0.18, 0.20, 0.22, 0.25, 0.28)  # 200kHz 声程上�
 DEFAULT_MAX_WORKERS = 24
 # tv3 阶段 1 仅支持 empirical 后端
 _TV3_VALID_BACKENDS = (EMPIRICAL_ABSORPTION_BACKEND,)
-def _array_keys(skip_fiber_mic: bool) -> tuple[str, ...]:
+
+
+def _array_keys(skip_fiber_mic: bool, *, bidirectional: bool = False) -> tuple[str, ...]:
     """数据集数组 key 列表；skip_fiber_mic=True 时排除 fiber_mic 相关 key。"""
-    keys = (
-        "slow",
-        "ultrasonic",
-        "ultrasonic_scale",
-        "ultrasonic_tof_s",
-        "ultrasonic_tof_observed_s",
-        "ultrasonic_peak_index",
-        "ultrasonic_sound_speed_m_per_s",
-        "ultrasonic_sound_speed_estimated_m_per_s",
-        "ultrasonic_alpha_true_npm",
-        "ultrasonic_tof_quality",
-        "ultrasonic_tof_accepted",
-    )
+    if bidirectional:
+        keys = (
+            "slow",
+            "ultrasonic_ab",
+            "ultrasonic_ba",
+            "ultrasonic_ab_scale",
+            "ultrasonic_ba_scale",
+            "ultrasonic_tof_true_ab_s",
+            "ultrasonic_tof_true_ba_s",
+            "ultrasonic_tof_observed_ab_s",
+            "ultrasonic_tof_observed_ba_s",
+            "ultrasonic_peak_index_ab",
+            "ultrasonic_peak_index_ba",
+            "ultrasonic_tof_quality_ab",
+            "ultrasonic_tof_quality_ba",
+            "ultrasonic_tof_accepted_ab",
+            "ultrasonic_tof_accepted_ba",
+            "ultrasonic_v_path_true_m_per_s",
+            "ultrasonic_sound_speed_m_per_s",
+            "ultrasonic_alpha_true_npm",
+        )
+    else:
+        keys = (
+            "slow",
+            "ultrasonic",
+            "ultrasonic_scale",
+            "ultrasonic_tof_s",
+            "ultrasonic_tof_observed_s",
+            "ultrasonic_peak_index",
+            "ultrasonic_sound_speed_m_per_s",
+            "ultrasonic_sound_speed_estimated_m_per_s",
+            "ultrasonic_alpha_true_npm",
+            "ultrasonic_tof_quality",
+            "ultrasonic_tof_accepted",
+        )
     if not skip_fiber_mic:
         keys += ("fiber_mic", "fiber_mic_scale")
     return keys
@@ -107,6 +134,9 @@ class TunnelVentilationBenchmarkGenerationSpec:
     temp_dir: str | None = None
     keep_chunks: bool = False
     skip_fiber_mic: bool = False
+    bidirectional: bool = False
+    # None → WaveformSpec default (3 μs conservative). F3 nominal uses 0.5 μs.
+    trigger_jitter_std_s: float | None = None
     # 数据集划分策略（tunnel_ventilation/docs/active/spxy_split_implementation_plan.md）
     # random: 现有 mixture_id shuffle 划分（build_default_split_rows）
     # spxy_v1: ID pool 内 SPXY 选 train + 独立 OOD selector 选 extrapolation + Y 分箱分层 val/test
@@ -135,22 +165,43 @@ def generate_tunnel_ventilation_benchmark_dataset(
 
     try:
         _log(f"generating {spec.sequence_count} condition rows ...")
-        conditions = generate_condition_rows(
-            spec.sequence_count,
-            seed=spec.seed,
-            sampling_strategy=spec.sampling_strategy,
-        )
+        if spec.bidirectional:
+            conditions = generate_tunnel_ventilation_bidir_condition_rows(
+                spec.sequence_count,
+                seed=spec.seed,
+                sampling_strategy=spec.sampling_strategy,
+            )
+            condition_grid_fields = bidir_schema.CONDITION_GRID_FIELDS
+            schema_version = bidir_schema.SCHEMA_VERSION
+            composition_scheme = bidir_schema.COMPOSITION_SCHEME
+        else:
+            conditions = generate_condition_rows(
+                spec.sequence_count,
+                seed=spec.seed,
+                sampling_strategy=spec.sampling_strategy,
+            )
+            condition_grid_fields = CONDITION_GRID_FIELDS
+            schema_version = SCHEMA_VERSION
+            composition_scheme = COMPOSITION_SCHEME
         optical_metadata = _optical_absorption_metadata(spec)
         labels = _label_array(conditions)
         # tv3 采用 int16 + per-timestep 自适应 scale 存储波形（方案 B）
         # 物理 ADC 仍为 20-bit（daq_bits=20），存储时按每 timestep 峰值定标压缩为 int16
         # 实测峰值占满量程 ~22%，per-timestep scale 比固定 scale 量化步长小 ~4.6×
-        ultrasonic_spec = WaveformSpec(per_timestep_scale=True, waveform_dtype="int16")
+        ultrasonic_kwargs: dict[str, object] = {
+            "per_timestep_scale": True,
+            "waveform_dtype": "int16",
+        }
+        if spec.trigger_jitter_std_s is not None:
+            if float(spec.trigger_jitter_std_s) < 0.0:
+                raise ValueError("trigger_jitter_std_s must be >= 0")
+            ultrasonic_kwargs["trigger_jitter_std_s"] = float(spec.trigger_jitter_std_s)
+        ultrasonic_spec = WaveformSpec(**ultrasonic_kwargs)
         fiber_mic_spec = FiberMicSpec(per_timestep_scale=True, waveform_dtype="int16") if not spec.skip_fiber_mic else None
         acoustic_metadata = _acoustic_model_metadata(ultrasonic_spec, fiber_mic_spec)
         _log(f"conditions done ({len(conditions)} rows), building waveforms (workers={spec.workers}) ...")
         t_wave = _time.perf_counter()
-        array_keys = _array_keys(spec.skip_fiber_mic)
+        array_keys = _array_keys(spec.skip_fiber_mic, bidirectional=spec.bidirectional)
         arrays = _build_sequence_arrays_for_spec(
             conditions=conditions,
             spec=spec,
@@ -161,6 +212,10 @@ def generate_tunnel_ventilation_benchmark_dataset(
             array_keys=array_keys,
         )
         # split 必须在 arrays 生成之后：spxy_v1 需要 arrays["slow"]/ultrasonic_* 构建 X 特征
+        if spec.bidirectional and spec.split_strategy == "spxy_v1":
+            raise ValueError(
+                "bidirectional + split_strategy='spxy_v1' is not supported in F2; use random or lhs_stratified_split_v1"
+            )
         split_rows, split_summary_extra = _build_split_rows_for_spec(spec, conditions, arrays, labels)
         _log(f"waveforms done ({_time.perf_counter() - t_wave:.1f}s), validating ...")
         # tv3: 3 列预测目标 sum=100%（严格闭包），BACKGROUND_FIELDS 为空
@@ -178,18 +233,31 @@ def generate_tunnel_ventilation_benchmark_dataset(
         _log("validation passed, writing arrays ...")
         fiber_dtype = fiber_mic_spec.waveform_dtype if fiber_mic_spec is not None else "int16"
         shapes = write_arrays(staging_dir, arrays, labels, sequence_ids, SLOW_CHANNELS, COMPONENT_FIELDS, spec.storage, ultrasonic_dtype=ultrasonic_spec.waveform_dtype, fiber_dtype=fiber_dtype)
-        sim_revision = {
-            "ultrasonic_center_frequency_hz": float(ultrasonic_spec.center_frequency_hz),
-            "sample_rate_hz": int(ultrasonic_spec.sample_rate_hz),
-            "daq_bits": int(ultrasonic_spec.daq_bits),
-            "waveform_dtype": str(ultrasonic_spec.waveform_dtype),
-            # l_m_range：多光程扫描离散档位 path_lms 的 min/max
-            # l_m_base_range：每条序列基准光程 L_m_base 的采样范围（非扫描阶段使用）
-            "l_m_range": [float(min(spec.path_lms)), float(max(spec.path_lms))],
-            "l_m_base_range": [float(L_M_BASE_RANGE[0]), float(L_M_BASE_RANGE[1])],
-            "physics_backend": "ideal_gas_wms_fracdelay",
-            "tag": "v6-phys-strict",
-        }
+        if spec.bidirectional:
+            sim_revision = {
+                **bidir_sim_revision(),
+                "ultrasonic_center_frequency_hz": float(ultrasonic_spec.center_frequency_hz),
+                "sample_rate_hz": int(ultrasonic_spec.sample_rate_hz),
+                "daq_bits": int(ultrasonic_spec.daq_bits),
+                "waveform_dtype": str(ultrasonic_spec.waveform_dtype),
+                "l_m_range": [float(min(spec.path_lms)), float(max(spec.path_lms))],
+                "l_m_base_range": [float(L_M_BASE_RANGE[0]), float(L_M_BASE_RANGE[1])],
+                "bidirectional": True,
+                "skip_fiber_mic": bool(spec.skip_fiber_mic),
+            }
+        else:
+            sim_revision = {
+                "ultrasonic_center_frequency_hz": float(ultrasonic_spec.center_frequency_hz),
+                "sample_rate_hz": int(ultrasonic_spec.sample_rate_hz),
+                "daq_bits": int(ultrasonic_spec.daq_bits),
+                "waveform_dtype": str(ultrasonic_spec.waveform_dtype),
+                # l_m_range：多光程扫描离散档位 path_lms 的 min/max
+                # l_m_base_range：每条序列基准光程 L_m_base 的采样范围（非扫描阶段使用）
+                "l_m_range": [float(min(spec.path_lms)), float(max(spec.path_lms))],
+                "l_m_base_range": [float(L_M_BASE_RANGE[0]), float(L_M_BASE_RANGE[1])],
+                "physics_backend": "ideal_gas_wms_fracdelay",
+                "tag": "v6-phys-strict",
+            }
         manifest = build_manifest(
             dataset_slug=str(dataset_id),
             sequence_count=spec.sequence_count,
@@ -210,12 +278,12 @@ def generate_tunnel_ventilation_benchmark_dataset(
             optical_absorption_metadata=optical_metadata,
             acoustic_model_metadata=acoustic_metadata,
             sim_revision=sim_revision,
-            schema_version=SCHEMA_VERSION,
-            composition_scheme=COMPOSITION_SCHEME,
+            schema_version=schema_version,
+            composition_scheme=composition_scheme,
             background_fields=BACKGROUND_FIELDS,
         )
 
-        write_csv(staging_dir / "condition_grid_sequence.csv", CONDITION_GRID_FIELDS, conditions)
+        write_csv(staging_dir / "condition_grid_sequence.csv", condition_grid_fields, conditions)
         write_csv(
             staging_dir / "sequence_index.csv",
             SEQUENCE_INDEX_FIELDS,
@@ -250,7 +318,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
                 "slow_channels": list(SLOW_CHANNELS),
                 "labels": list(COMPONENT_FIELDS),
                 "background_fields": list(BACKGROUND_FIELDS),
-                "composition_scheme": COMPOSITION_SCHEME,
+                "composition_scheme": composition_scheme,
                 "timesteps": spec.timesteps,
                 "dt_s": spec.dt_s,
                 "stage_profile": spec.stage_profile,
@@ -258,6 +326,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
                 "phase_schedule": phase_schedule_metadata,
                 "path_lms": [float(path_l_m) for path_l_m in spec.path_lms],
                 "optical_absorption_backend": spec.optical_absorption_backend,
+                "bidirectional": bool(spec.bidirectional),
                 **acoustic_metadata,
                 **optical_metadata,
             },
@@ -283,7 +352,9 @@ def generate_tunnel_ventilation_benchmark_dataset(
 
     return {
         "dataset_slug": str(dataset_id),
-        "composition_scheme": COMPOSITION_SCHEME,
+        "composition_scheme": composition_scheme,
+        "schema_version": schema_version,
+        "bidirectional": bool(spec.bidirectional),
         "sequence_count": len(conditions),
         "output_dir": str(output_dir),
         "optical_absorption_backend": spec.optical_absorption_backend,
@@ -480,10 +551,11 @@ def _build_sequence_arrays_for_spec(
             optical_absorption_backend=spec.optical_absorption_backend,
             hitran_cache_root=spec.hitran_cache_root,
             temp_dir=waveform_temp,
+            bidirectional=spec.bidirectional,
         )
     from tv3.sim.generation.tunnel_ventilation._parallel import build_arrays_parallel
 
-    return build_arrays_parallel(
+    arrays = build_arrays_parallel(
         conditions=conditions,
         spec=spec,
         phase_schedule=phase_schedule,
@@ -492,6 +564,9 @@ def _build_sequence_arrays_for_spec(
         staging_dir=staging_dir,
         array_keys=array_keys,
     )
+    if spec.bidirectional:
+        arrays["bidirectional"] = True
+    return arrays
 
 
 def _publish_staging_dir(staging_dir: Path, output_dir: Path) -> None:
@@ -524,7 +599,7 @@ def _close_waveform_memmap(arrays: dict[str, object]) -> None:
     在 write_arrays 将数据拷贝到最终输出目录后调用，
     确保 Windows 下可以安全删除临时 memmap 文件。
     """
-    for key in ("ultrasonic", "fiber_mic"):
+    for key in ("ultrasonic", "ultrasonic_ab", "ultrasonic_ba", "fiber_mic"):
         arr = arrays.get(key)
         if arr is not None:
             mmap = getattr(arr, "_mmap", None)

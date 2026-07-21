@@ -2,11 +2,11 @@
 
 > 状态：**E1d-SB / attachment / E2s-LS 正式均完成（2026-07-17）。LS 不晋升。`e2_allowed=false`。**
 > 基线边界：B7 仍是冻结默认 RawDSP 头，identifiability v1 的 `information_source_upgrade_required` verdict 不变。
-> 下一步：D1 推理探针代码已落地，正式 `e1d_sb_deploy_probe_s20260704` 待跑 — 见 `tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md`。
+> 下一步：D1 正式 `deploy_probe_passed`；可选 D2 artifact 打包 — 见 `tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md`。
 
 ## 1. 范围与不变量
 
-本计划把 `端到端波形动态门控组分反演框架与文献证据.md` 转为独立实验线，不改写 B7、D2b 和 identifiability v1 产物。所有阶段保持以下不变量：
+本计划把 `references/端到端波形动态门控组分反演框架与文献证据.md` 转为独立实验线，不改写 B7、D2b 和 identifiability v1 产物。所有阶段保持以下不变量：
 
 - 输出为 `raw3`，`out_dim=3`；N₂ 不由闭包回填，`sum_abs_error` 只监控。
 - split 沿用 benchmark 的 mixture 级正式划分；不得按 frame 重拆。
@@ -15,13 +15,13 @@
 
 ## 2. P0 数据契约
 
-| 名称 | E1 形状 | 来源与约束 |
-| --- | --- | --- |
-| `waveform` | `(B,T,5000)` | `ultrasonic` 解量化后逐帧归一化；绝对幅度由下列统计保留 |
-| `slow` | `(B,T,9)` | 7 个可部署慢通道加 `log_std`、`log_max_abs`；使用 train scaler |
-| `label` | `(B,3)` | `x_CO2`、`x_O2`、`x_N2`，只作为 loss target |
-| `frame_embedding` | `(B,T,64)` | 共享多尺度波形 encoder 输出 |
-| `prediction` | `(B,3)` | 独立 raw3 线性输出 |
+| 名称                | E1 形状        | 来源与约束                                              |
+| ----------------- | ------------ | -------------------------------------------------- |
+| `waveform`        | `(B,T,5000)` | `ultrasonic` 解量化后逐帧归一化；绝对幅度由下列统计保留                 |
+| `slow`            | `(B,T,9)`    | 7 个可部署慢通道加 `log_std`、`log_max_abs`；使用 train scaler |
+| `label`           | `(B,3)`      | `x_CO2`、`x_O2`、`x_N2`，只作为 loss target              |
+| `frame_embedding` | `(B,T,64)`   | 共享多尺度波形 encoder 输出                                 |
+| `prediction`      | `(B,3)`      | 独立 raw3 线性输出                                       |
 
 数据通路（工程，非算法门）：正式 E1/E1r 配置默认 `waveform_preprocess: "gpu"`——DataLoader 只搬运 int16 与 scale，在训练设备上完成 dequant、归一化前 stats 与 z-score，再组装为上表 NTC 输入。数值语义与 `cpu` 路径对齐；审计读 `run_config.waveform_preprocess`。细节见 [server_training_guide.md §4.5](../operations/server_training_guide.md#45-波形数据通路-waveform_preprocessp1-吞吐)。
 
@@ -29,31 +29,31 @@ E1 不读取 `aux_target_arrays`。真实 TOF 与 peak index 仅允许由离线�
 
 P2 及以后预留但在 E1 禁用的契约如下：
 
-| 名称 | 形状 | 允许来源 |
-| --- | --- | --- |
-| `environment_token` | `(B,T,5)` | `T_C`、`P_MPa`、`H_RH`、`L_m`、`piston_position_m` |
-| `quality_token` | `(B,T,2)` | 直接由当前帧 raw waveform 计算的 `log_std`、`log_max_abs` |
-| `phase_token` | `(B,T,4)` | benchmark 的 baseline、exposure、steady、recovery phase 标识 |
-| `window_embedding` | `(B,W,D)` | 同一 encoder 对预注册 phase/window 视图的输出；`W` 由配置固定 |
+| 名称                  | 形状        | 允许来源                                                   |
+| ------------------- | --------- | ------------------------------------------------------ |
+| `environment_token` | `(B,T,5)` | `T_C`、`P_MPa`、`H_RH`、`L_m`、`piston_position_m`         |
+| `quality_token`     | `(B,T,2)` | 直接由当前帧 raw waveform 计算的 `log_std`、`log_max_abs`        |
+| `phase_token`       | `(B,T,4)` | benchmark 的 baseline、exposure、steady、recovery phase 标识 |
+| `window_embedding`  | `(B,W,D)` | 同一 encoder 对预注册 phase/window 视图的输出；`W` 由配置固定           |
 
 若后续需要 SNR、TOF quality 或 accepted ratio，必须先实现并审计 raw waveform 到该量的可部署提取器；当前 simulator 同步数组不能直接接入 P2。
 
 ## 3. 预注册实验矩阵
 
-| 实验 | 唯一变化 | 进入下一阶段的门 | 失败动作 |
-| --- | --- | --- | --- |
-| E0 | 冻结 B1/B7 | 已完成 | 不改写基线 |
-| E1 | 位置敏感多尺度 encoder 加固定聚合 | frame fidelity 通过且固定头达到下列 B1 parity | 停止组分扩展，修前端 |
-| E1d | 冻结 E1r 与 B1，逐组诊断坐标、聚合、校准和质量特征 | ✅ 正式找到 compact 集合 `cal_plus_corr_psr_snr` | 找不到则停止 learned encoder 分支 |
-| E1d-SB | 可部署 builder 复现 compact 集合语义 | ✅ 正式 `parity_passed` | 不可部署复现则停，保留 B7 |
-| E1r-attach | 冻结 E1r frame + e1d_sb 序列 Ridge 联合审计 | ✅ 正式 `attachment_passed` | 帧失败修前端；parity 失败停 learned 扩展 |
-| E2s-LS | 可选：builder 内 SNR 加权闭式 LS 子算子 | ✅ 正式 `ls_ablation_passed`；Δ≈0 → 不晋升 | E1d-2 已证伪「仅 LS」充分性 |
-| Deploy-joint | e1d_sb（无 LS）推理探针 | 见独立计划 | 不得开 E2；不得替换 B7 |
-| E2a | E1 加环境 FiLM | ⛔ `e2_allowed=false` | 不进入 attention |
-| E2b | E2a 加 attentive statistics pooling | ⛔ | 保留固定聚合 |
-| E3 | 晚期共享 soft gate | ⛔ | 判为路由失败 |
-| E4 | component-specific multi-gate 消融 | ⛔ | 保留共享 gate |
-| E5 | 混合分支与纯端到端对照 | ⛔ | 保留 RawDSP 锚点 |
+| 实验           | 唯一变化                                | 进入下一阶段的门                                  | 失败动作                         |
+| ------------ | ----------------------------------- | ----------------------------------------- | ---------------------------- |
+| E0           | 冻结 B1/B7                            | 已完成                                       | 不改写基线                        |
+| E1           | 位置敏感多尺度 encoder 加固定聚合               | frame fidelity 通过且固定头达到下列 B1 parity       | 停止组分扩展，修前端                   |
+| E1d          | 冻结 E1r 与 B1，逐组诊断坐标、聚合、校准和质量特征       | ✅ 正式找到 compact 集合 `cal_plus_corr_psr_snr` | 找不到则停止 learned encoder 分支    |
+| E1d-SB       | 可部署 builder 复现 compact 集合语义         | ✅ 正式 `parity_passed`                      | 不可部署复现则停，保留 B7               |
+| E1r-attach   | 冻结 E1r frame + e1d_sb 序列 Ridge 联合审计 | ✅ 正式 `attachment_passed`                  | 帧失败修前端；parity 失败停 learned 扩展 |
+| E2s-LS       | 可选：builder 内 SNR 加权闭式 LS 子算子        | ✅ 正式 `ls_ablation_passed`；Δ≈0 → 不晋升       | E1d-2 已证伪「仅 LS」充分性           |
+| Deploy-joint | e1d_sb（无 LS）推理探针                    | 见独立计划                                     | 不得开 E2；不得替换 B7               |
+| E2a          | E1 加环境 FiLM                         | ⛔ `e2_allowed=false`                      | 不进入 attention                |
+| E2b          | E2a 加 attentive statistics pooling  | ⛔                                         | 保留固定聚合                       |
+| E3           | 晚期共享 soft gate                      | ⛔                                         | 判为路由失败                       |
+| E4           | component-specific multi-gate 消融    | ⛔                                         | 保留共享 gate                    |
+| E5           | 混合分支与纯端到端对照                         | ⛔                                         | 保留 RawDSP 锚点                 |
 
 ## 4. E1 实现与验收
 
@@ -94,37 +94,37 @@ python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1_audit.json
 
 ## 5. 当前完成记录
 
-| 项目 | 状态 | 证据 |
-| --- | --- | --- |
-| P0 数据与部署输入契约 | ✅ | 本文 §2；E1 明确禁用 simulator 同步辅助数组 |
-| E0–E5 门与停止条件 | ✅ | 本文 §3；B1 parity 阈值沿用冻结协议 |
-| E1/E1r 位置敏感多尺度 encoder | ✅ | `tv3/dl/models/ec_msw_e1.py`；E1r 新增冻结模板坐标锚点 |
-| 模型注册与 CLI 集成 | ✅ | `tv3/dl/models/registry.py`、`tv3/dl/cli.py` |
-| E1/E1r 正式、smoke 与 preflight 配置 | ✅ | `configs/tv3_ec_msw_e1*.json`、`configs/tv3_ec_msw_e1r*.json`；正式配置含 `waveform_preprocess: "gpu"` |
-| 波形设备侧预处理（P1 吞吐） | ✅ | `tv3/dl/data/waveform_preprocess.py`；Dataset/CLI/Trainer/E1 审计联通 |
-| 新增及相关回归测试 | ✅ | 含 `test_waveform_device_preprocess.py`；E1/D2/归一化相关套件通过 |
-| 1 epoch 本地 smoke | ✅ | checkpoint、run config、val/test metrics 已生成；不作性能证据 |
-| 独立 fidelity/parity 审计器 | ✅ | train-only probes、固定窄窗、verdict 与 provenance 已实现 |
-| 本地 smoke 审计 | ✅ 链路 / ❌ 正式门 | `frame_fidelity_failed`，峰位 P95 约 90–141 samples；`e2_allowed=false`，不作正式性能结论 |
-| clean 6000 正式训练 | ✅ | 80 epochs；最佳 epoch 72，val loss `0.7272`；约 `1.57 h` |
-| clean 6000 frame fidelity | ❌ | val/test/extrap peak MAE `71.19 / 71.87 / 72.33 samples`，P95 `154.96 / 154.97 / 154.83 samples` |
-| clean 6000 B1 parity | ❌ | O₂ ΔR² `-0.4697 / -0.5052 / -0.4590`；N₂亦未通过，只有 CO₂通过 |
-| 固定 O₂ 窄窗口 | ❌ | 边缘 MAE `1.16–1.21 vol.%`，局部斜率 `-0.168–0.088`，输出向均值收缩 |
-| 正式 provenance | ✅ | config、checkpoint、run config、B1 reference 的 SHA-256 与 manifest 完全一致 |
-| E2 FiLM/attention | ⛔ | `e2_allowed=false`；不得启动 |
-| E1r 前端修复 | ✅ | train-only baseline median 模板匹配滤波；绝对峰位坐标绕过 learned projection |
-| E1r smoke frame fidelity | ✅ | val/test/extrap MAE `0.00526 / 0.00573 / 0.00455`，P95 `0.01045 / 0.00819 / 0.01042 sample` |
-| clean 6000 E1r 训练 | ✅ | 53/80 epochs 早停；最佳 epoch 41，val loss `0.79995`，约 `1.05 h` |
-| clean 6000 E1r frame fidelity | ✅ | MAE `0.03717 / 0.03746 / 0.03774 sample`，P95 `0.08643 / 0.08643 / 0.08716 sample` |
-| clean 6000 E1r B1 parity | ❌ | O₂ ΔR² `-0.4118 / -0.4461 / -0.3689`；CO₂、N₂亦未通过 |
-| clean 6000 E1r verdict | ❌ | `b1_parity_failed`、`e2_allowed=false` |
-| E1d 诊断管线（代码 / 配置 / 测试） | ✅ | `tv3/dl/evaluation/ec_msw_e1d_diagnosis.py`、`scripts/run_ec_msw_e1d.py`、`configs/tv3_ec_msw_e1d*.json`；`tests/test_ec_msw_e1d.py` 12 passed |
-| E1d smoke7 链路 | ✅ 链路 / ❌ 非正式 | `outputs/tv3_ec_msw/e1d_smoke_s20260704/`；n=16 不作 parity 结论 |
-| clean 6000 正式 E1d | ✅ | `outputs/tv3_ec_msw/e1d_s20260704/`；`minimal_deployable_set_found`；compact=`cal_plus_corr_psr_snr` |
-| E1d-SB compact builder | ✅ 正式 | `e1d_sb_s20260704/`；`parity_passed`；compact 213 维 |
-| E1r↔E1d-SB attachment | ✅ 正式 | `e1r_attach_e1d_sb_s20260704/`；`attachment_passed`；帧 MAE≈0.037；序列同 E1d-SB |
-| E2s-LS additive ablation | ✅ 正式 | `e1d_sb_ls_s20260704/`；`ls_ablation_passed`；vs e1d_sb ΔO₂≈`+0.0005～0.001` → 不晋升 |
-| e1d_sb deploy joint | ▶️ D1 代码 | 探针代码已落地；正式 `e1d_sb_deploy_probe_s20260704/` 待跑 |
+| 项目                             | 状态           | 证据                                                                                                                                          |
+| ------------------------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 数据与部署输入契约                   | ✅            | 本文 §2；E1 明确禁用 simulator 同步辅助数组                                                                                                              |
+| E0–E5 门与停止条件                   | ✅            | 本文 §3；B1 parity 阈值沿用冻结协议                                                                                                                    |
+| E1/E1r 位置敏感多尺度 encoder         | ✅            | `tv3/dl/models/ec_msw_e1.py`；E1r 新增冻结模板坐标锚点                                                                                                 |
+| 模型注册与 CLI 集成                   | ✅            | `tv3/dl/models/registry.py`、`tv3/dl/cli.py`                                                                                                 |
+| E1/E1r 正式、smoke 与 preflight 配置 | ✅            | `configs/tv3_ec_msw_e1*.json`、`configs/tv3_ec_msw_e1r*.json`；正式配置含 `waveform_preprocess: "gpu"`                                             |
+| 波形设备侧预处理（P1 吞吐）                | ✅            | `tv3/dl/data/waveform_preprocess.py`；Dataset/CLI/Trainer/E1 审计联通                                                                            |
+| 新增及相关回归测试                      | ✅            | 含 `test_waveform_device_preprocess.py`；E1/D2/归一化相关套件通过                                                                                      |
+| 1 epoch 本地 smoke               | ✅            | checkpoint、run config、val/test metrics 已生成；不作性能证据                                                                                           |
+| 独立 fidelity/parity 审计器         | ✅            | train-only probes、固定窄窗、verdict 与 provenance 已实现                                                                                             |
+| 本地 smoke 审计                    | ✅ 链路 / ❌ 正式门 | `frame_fidelity_failed`，峰位 P95 约 90–141 samples；`e2_allowed=false`，不作正式性能结论                                                                 |
+| clean 6000 正式训练                | ✅            | 80 epochs；最佳 epoch 72，val loss `0.7272`；约 `1.57 h`                                                                                          |
+| clean 6000 frame fidelity      | ❌            | val/test/extrap peak MAE `71.19 / 71.87 / 72.33 samples`，P95 `154.96 / 154.97 / 154.83 samples`                                             |
+| clean 6000 B1 parity           | ❌            | O₂ ΔR² `-0.4697 / -0.5052 / -0.4590`；N₂亦未通过，只有 CO₂通过                                                                                        |
+| 固定 O₂ 窄窗口                      | ❌            | 边缘 MAE `1.16–1.21 vol.%`，局部斜率 `-0.168–0.088`，输出向均值收缩                                                                                        |
+| 正式 provenance                  | ✅            | config、checkpoint、run config、B1 reference 的 SHA-256 与 manifest 完全一致                                                                         |
+| E2 FiLM/attention              | ⛔            | `e2_allowed=false`；不得启动                                                                                                                     |
+| E1r 前端修复                       | ✅            | train-only baseline median 模板匹配滤波；绝对峰位坐标绕过 learned projection                                                                               |
+| E1r smoke frame fidelity       | ✅            | val/test/extrap MAE `0.00526 / 0.00573 / 0.00455`，P95 `0.01045 / 0.00819 / 0.01042 sample`                                                  |
+| clean 6000 E1r 训练              | ✅            | 53/80 epochs 早停；最佳 epoch 41，val loss `0.79995`，约 `1.05 h`                                                                                   |
+| clean 6000 E1r frame fidelity  | ✅            | MAE `0.03717 / 0.03746 / 0.03774 sample`，P95 `0.08643 / 0.08643 / 0.08716 sample`                                                           |
+| clean 6000 E1r B1 parity       | ❌            | O₂ ΔR² `-0.4118 / -0.4461 / -0.3689`；CO₂、N₂亦未通过                                                                                             |
+| clean 6000 E1r verdict         | ❌            | `b1_parity_failed`、`e2_allowed=false`                                                                                                       |
+| E1d 诊断管线（代码 / 配置 / 测试）         | ✅            | `tv3/dl/evaluation/ec_msw_e1d_diagnosis.py`、`scripts/run_ec_msw_e1d.py`、`configs/tv3_ec_msw_e1d*.json`；`tests/test_ec_msw_e1d.py` 12 passed |
+| E1d smoke7 链路                  | ✅ 链路 / ❌ 非正式 | `outputs/tv3_ec_msw/e1d_smoke_s20260704/`；n=16 不作 parity 结论                                                                                 |
+| clean 6000 正式 E1d              | ✅            | `outputs/tv3_ec_msw/e1d_s20260704/`；`minimal_deployable_set_found`；compact=`cal_plus_corr_psr_snr`                                          |
+| E1d-SB compact builder         | ✅ 正式         | `e1d_sb_s20260704/`；`parity_passed`；compact 213 维                                                                                           |
+| E1r↔E1d-SB attachment          | ✅ 正式         | `e1r_attach_e1d_sb_s20260704/`；`attachment_passed`；帧 MAE≈0.037；序列同 E1d-SB                                                                   |
+| E2s-LS additive ablation       | ✅ 正式         | `e1d_sb_ls_s20260704/`；`ls_ablation_passed`；vs e1d_sb ΔO₂≈`+0.0005～0.001` → 不晋升                                                             |
+| e1d_sb deploy joint            | ✅ D1 正式      | `e1d_sb_deploy_probe_s20260704/` → `deploy_probe_passed`；可选 D2；不替换 B7                                                                       |
 
 E1 与 E1r 正式结果分别位于 `outputs/tv3_ec_msw/e1_s20260704/` 和 `outputs/tv3_ec_msw/e1r_s20260704/`。E1r audit manifest 已固定训练配置、checkpoint、run config 与 B1 reference 的 SHA-256；模型输入排除了 peak/TOF 真值、真实声速、真实衰减与组分标签。
 
@@ -166,12 +166,12 @@ clean 6000 E1r 已按上述顺序完成。正式 frame fidelity 通过，但冻�
 
 E1d 的目标是定位 E1r 与 B1 之间的信息缺口，不是构造第二套 RawDSP 或提前实现 E2。所有实验使用冻结 split、train-only `StandardScaler + RidgeCV` 和现有 parity 门。慢通道固定为完整 B1 窗口契约，仅消融超声 / RawDSP 导出量，避免把 slow 变化误判为波形表示收益。
 
-| 阶段 | 输入对照 | 要回答的问题 | 产物 |
-| --- | --- | --- | --- |
-| E1d-0 | 完整 B1 RawDSP | reference、feature names、split 和指标能否原样复现 | 冻结 manifest 与正对照指标 |
-| E1d-1 | 冻结 E1r sequence embedding 与实际 matched peak；再对照 RawDSP peak 的 `last/mean/max`、七统计与四 phase 分窗 | learned embedding、固定聚合或 peak 语义在哪一层丢失信息 | 逐 split 指标和 ΔR² |
-| E1d-2 | 在 phase 峰位集合上逐组加 delay calibration、corrected TOF、TOF-L intercept/slope、sound speed | B1 的 O₂能力是否来自序列内校准与声程解耦 | 组增量消融表 |
-| E1d-3 | 再逐组加 corr peak、PSR、SNR、peak width、quality/accepted | 质量筛选是否是缺失信息源 | 组增量消融表 |
+| 阶段    | 输入对照                                                                                        | 要回答的问题                                  | 产物                 |
+| ----- | ------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------ |
+| E1d-0 | 完整 B1 RawDSP                                                                                | reference、feature names、split 和指标能否原样复现 | 冻结 manifest 与正对照指标 |
+| E1d-1 | 冻结 E1r sequence embedding 与实际 matched peak；再对照 RawDSP peak 的 `last/mean/max`、七统计与四 phase 分窗 | learned embedding、固定聚合或 peak 语义在哪一层丢失信息 | 逐 split 指标和 ΔR²    |
+| E1d-2 | 在 phase 峰位集合上逐组加 delay calibration、corrected TOF、TOF-L intercept/slope、sound speed          | B1 的 O₂能力是否来自序列内校准与声程解耦                 | 组增量消融表             |
+| E1d-3 | 再逐组加 corr peak、PSR、SNR、peak width、quality/accepted                                          | 质量筛选是否是缺失信息源                            | 组增量消融表             |
 
 预注册 feature set 名称见 `default_e1d_specs()`：真实 E1r 对照 `e1r_sequence_embedding`、`e1r_peak_lmm`、`e1r_peak_b1_windows`；RawDSP 对照 `full_b1`、`peak_lmm`、`peak_stats7`、`peak_stats7_phase`、`peak_b1_windows`；校准组 `peak_phase_plus_*`、质量组 `cal_plus_*`。
 
@@ -210,14 +210,14 @@ python scripts/run_ec_msw_e1d.py --config configs/tv3_ec_msw_e1d.json
 
 服务器完整 RawDSP cache + 冻结 E1r checkpoint 上执行 `configs/tv3_ec_msw_e1d.json`，产物 `outputs/tv3_ec_msw/e1d_s20260704/`。
 
-| 项 | 结果 |
-| --- | --- |
-| 正对照 | `full_b1` 三 split ΔR²=`0`（容差 `1e-6`）通过 |
-| E1d-1 | E1r embedding / peak 聚合全部失败；O₂ embedding `0.014 / 0.032 / 0.000` |
-| E1d-2 | 校准满栈（含 TOF-L / sound speed）仍失败；O₂ 停留在约 `0.13–0.21` |
-| E1d-3 | 加入 SNR 后过门：`cal_plus_corr_psr_snr` O₂ `0.393 / 0.453 / 0.369` |
+| 项       | 结果                                                                                   |
+| ------- | ------------------------------------------------------------------------------------ |
+| 正对照     | `full_b1` 三 split ΔR²=`0`（容差 `1e-6`）通过                                               |
+| E1d-1   | E1r embedding / peak 聚合全部失败；O₂ embedding `0.014 / 0.032 / 0.000`                     |
+| E1d-2   | 校准满栈（含 TOF-L / sound speed）仍失败；O₂ 停留在约 `0.13–0.21`                                   |
+| E1d-3   | 加入 SNR 后过门：`cal_plus_corr_psr_snr` O₂ `0.393 / 0.453 / 0.369`                        |
 | verdict | `minimal_deployable_set_found`；`continue_structured_builder=true`；`e2_allowed=false` |
-| compact | `cal_plus_corr_psr_snr`、`cal_plus_quality_width`（首选前者） |
+| compact | `cal_plus_corr_psr_snr`、`cal_plus_quality_width`（首选前者）                               |
 
 **下一步（已完成）**：E1d-SB 可部署 builder 已正式过门；见 §8.3。
 
@@ -236,6 +236,6 @@ python scripts/run_ec_msw_e1d.py --config configs/tv3_ec_msw_e1d.json
 - vs e1d_sb：ΔO₂ `+0.00057 / +0.00051 / +0.00101` — 可忽略；**不晋升 LS**。
 - 默认序列表示仍用 `e1d_sb_cal_plus_corr_psr_snr_v1`。
 
-### 8.5 可部署联合系统（D1 代码已落地）
+### 8.5 可部署联合系统（D1 正式通过）
 
-见 `tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md`。入口：`scripts/probe_ec_msw_e1d_sb_inference.py`。正式产物目录 `e1d_sb_deploy_probe_s20260704/` 待跑；B7 仍为默认头。
+`e1d_sb_deploy_probe_s20260704/` → `deploy_probe_passed`。waveform 路径与 cache 对齐（含 train）；Ridge 与 e1d_sb 数值一致；B7 仍为默认头。可选进入 D2 打包。

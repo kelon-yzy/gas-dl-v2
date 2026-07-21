@@ -38,6 +38,7 @@ from tv3.sim.generation.tunnel_ventilation.acoustic_physics import (
 from tv3.sim.generation.waveforms import (
     FiberMicSpec,
     WaveformSpec,
+    simulate_bidirectional_waveform_measurement,
     simulate_fiber_mic_measurement,
     simulate_waveform_measurement,
 )
@@ -86,6 +87,7 @@ def build_sequence_arrays(
     hitran_cache_root: str = "data/hitran_cache_tv3",  # noqa: ARG001 保留参数为兼容接口签名
     start_sequence_index: int = 0,
     temp_dir: Path | None = None,  # 大波形数组 memmap 落盘目录；None 时沿用 np.zeros
+    bidirectional: bool = False,
 ) -> dict[str, object]:
     if optical_absorption_backend not in VALID_OPTICAL_ABSORPTION_BACKENDS:
         raise ValueError(
@@ -97,6 +99,8 @@ def build_sequence_arrays(
             f"tunnel_ventilation 阶段 1 仅支持 empirical_v1 后端，"
             f"got {optical_absorption_backend!r}（HITRAN 后端待后续阶段实现）"
         )
+    if bidirectional:
+        _require_bidir_condition_fields(conditions)
 
     sequence_count = len(conditions)
     use_memmap = temp_dir is not None
@@ -104,27 +108,66 @@ def build_sequence_arrays(
         temp_dir.mkdir(parents=True, exist_ok=True)
 
     slow = np.zeros((sequence_count, timesteps, len(SLOW_CHANNELS)), dtype=np.float32)
-    # 大波形数组：6000×512×5000 int16 ≈ 28.6 GiB，必须 memmap 落盘避免 OOM
-    if use_memmap:
-        ultrasonic = np.lib.format.open_memmap(
-            str(temp_dir / "ultrasonic.npy"), mode="w+",
-            dtype=np.dtype(ultrasonic_spec.waveform_dtype),
-            shape=(sequence_count, timesteps, ultrasonic_spec.waveform_samples),
-        )
+    wave_shape = (sequence_count, timesteps, ultrasonic_spec.waveform_samples)
+    wave_dtype = np.dtype(ultrasonic_spec.waveform_dtype)
+
+    def _alloc_wave(name: str):
+        if use_memmap:
+            return np.lib.format.open_memmap(
+                str(temp_dir / f"{name}.npy"),
+                mode="w+",
+                dtype=wave_dtype,
+                shape=wave_shape,
+            )
+        return np.zeros(wave_shape, dtype=wave_dtype)
+
+    def _alloc_f32():
+        return np.zeros((sequence_count, timesteps), dtype=np.float32)
+
+    def _alloc_i32():
+        return np.zeros((sequence_count, timesteps), dtype=np.int32)
+
+    def _alloc_i8():
+        return np.zeros((sequence_count, timesteps), dtype=np.int8)
+
+    if bidirectional:
+        ultrasonic_ab = _alloc_wave("ultrasonic_ab")
+        ultrasonic_ba = _alloc_wave("ultrasonic_ba")
+        ultrasonic_ab_scale = _alloc_f32()
+        ultrasonic_ba_scale = _alloc_f32()
+        ultrasonic_tof_true_ab_s = _alloc_f32()
+        ultrasonic_tof_true_ba_s = _alloc_f32()
+        ultrasonic_tof_observed_ab_s = _alloc_f32()
+        ultrasonic_tof_observed_ba_s = _alloc_f32()
+        ultrasonic_peak_index_ab = _alloc_i32()
+        ultrasonic_peak_index_ba = _alloc_i32()
+        ultrasonic_tof_quality_ab = _alloc_f32()
+        ultrasonic_tof_quality_ba = _alloc_f32()
+        ultrasonic_tof_accepted_ab = _alloc_i8()
+        ultrasonic_tof_accepted_ba = _alloc_i8()
+        ultrasonic_v_path_true = _alloc_f32()
+        ultrasonic_sound_speed = _alloc_f32()
+        ultrasonic_alpha = _alloc_f32()
+        ultrasonic = None
+        ultrasonic_scale = None
+        ultrasonic_tof_s = None
+        ultrasonic_tof_observed_s = None
+        ultrasonic_peak_index = None
+        ultrasonic_sound_speed_estimated = None
+        ultrasonic_tof_quality = None
+        ultrasonic_tof_accepted = None
     else:
-        ultrasonic = np.zeros(
-            (sequence_count, timesteps, ultrasonic_spec.waveform_samples),
-            dtype=np.dtype(ultrasonic_spec.waveform_dtype),
-        )
-    ultrasonic_scale = np.zeros((sequence_count, timesteps), dtype=np.float32)
-    ultrasonic_tof_s = np.zeros((sequence_count, timesteps), dtype=np.float32)
-    ultrasonic_tof_observed_s = np.zeros((sequence_count, timesteps), dtype=np.float32)
-    ultrasonic_peak_index = np.zeros((sequence_count, timesteps), dtype=np.int32)
-    ultrasonic_sound_speed = np.zeros((sequence_count, timesteps), dtype=np.float32)
-    ultrasonic_sound_speed_estimated = np.zeros((sequence_count, timesteps), dtype=np.float32)
-    ultrasonic_alpha = np.zeros((sequence_count, timesteps), dtype=np.float32)
-    ultrasonic_tof_quality = np.zeros((sequence_count, timesteps), dtype=np.float32)
-    ultrasonic_tof_accepted = np.zeros((sequence_count, timesteps), dtype=np.int8)
+        # 大波形数组：6000×512×5000 int16 ≈ 28.6 GiB，必须 memmap 落盘避免 OOM
+        ultrasonic = _alloc_wave("ultrasonic")
+        ultrasonic_scale = _alloc_f32()
+        ultrasonic_tof_s = _alloc_f32()
+        ultrasonic_tof_observed_s = _alloc_f32()
+        ultrasonic_peak_index = _alloc_i32()
+        ultrasonic_sound_speed = _alloc_f32()
+        ultrasonic_sound_speed_estimated = _alloc_f32()
+        ultrasonic_alpha = _alloc_f32()
+        ultrasonic_tof_quality = _alloc_f32()
+        ultrasonic_tof_accepted = _alloc_i8()
     if fiber_mic_spec is not None:
         if use_memmap:
             fiber_mic = np.lib.format.open_memmap(
@@ -170,6 +213,10 @@ def build_sequence_arrays(
         phase_intervals = _phase_intervals(schedule, timesteps)
         phase_ids, blends = schedule.resolve_timeline(timesteps)
         slow_state: dict[str, float] = {}
+        v_path = float(condition["v_path_m_per_s"]) if bidirectional else 0.0
+        delay_asymmetry_s = float(condition.get("delay_asymmetry_s", 0.0)) if bidirectional else 0.0
+        jitter_correlation = condition.get("jitter_correlation", "independent") if bidirectional else "independent"
+        pair_interval_s = float(condition.get("pair_interval_s", 0.0025)) if bidirectional else 0.0025
         for timestep in range(timesteps):
             phase_id = phase_ids[timestep]
             blend = blends[timestep]
@@ -202,21 +249,73 @@ def build_sequence_arrays(
             # 波形仿真：注入 tv3 物理。extra_gas_kwargs 透传 x_o2；
             # composition dict 含 x_co2/x_o2/x_n2。x_h2/x_ch4 始终为 0。
             extra_gas = {"x_o2": composition["x_o2"]}
-            ultrasonic_result = simulate_waveform_measurement(
-                x_h2=0.0,
-                x_ch4=0.0,
-                x_co2=composition["x_co2"],
-                x_n2=composition["x_n2"],
-                t_c=float(current["T_C"]),
-                p_mpa=float(current["P_MPa"]),
-                h_rh=float(current["H_RH"]),
-                l_m=float(current["L_m"]),
-                seed=sequence_rng.randrange(0, 2**32),
-                spec=ultrasonic_spec,
-                sound_speed_fn=hidden_sound_speed_v2,
-                attenuation_fn=hidden_attenuation_v2,
-                extra_gas_kwargs=extra_gas,
-            )
+            if bidirectional:
+                pair = simulate_bidirectional_waveform_measurement(
+                    x_h2=0.0,
+                    x_ch4=0.0,
+                    x_co2=composition["x_co2"],
+                    x_n2=composition["x_n2"],
+                    t_c=float(current["T_C"]),
+                    p_mpa=float(current["P_MPa"]),
+                    h_rh=float(current["H_RH"]),
+                    l_m=float(current["L_m"]),
+                    seed=sequence_rng.randrange(0, 2**32),
+                    spec=ultrasonic_spec,
+                    v_path_m_per_s=v_path,
+                    sound_speed_fn=hidden_sound_speed_v2,
+                    attenuation_fn=hidden_attenuation_v2,
+                    extra_gas_kwargs=extra_gas,
+                    delay_asymmetry_s=delay_asymmetry_s,
+                    jitter_correlation=jitter_correlation,
+                    pair_interval_s=pair_interval_s,
+                )
+                ab = pair["ab"]
+                ba = pair["ba"]
+                ultrasonic_ab[seq_index, timestep, :] = ab["waveform_int"]
+                ultrasonic_ba[seq_index, timestep, :] = ba["waveform_int"]
+                ultrasonic_ab_scale[seq_index, timestep] = ab["scale_factor"]
+                ultrasonic_ba_scale[seq_index, timestep] = ba["scale_factor"]
+                ultrasonic_tof_true_ab_s[seq_index, timestep] = float(pair["tof_true_ab_s"])
+                ultrasonic_tof_true_ba_s[seq_index, timestep] = float(pair["tof_true_ba_s"])
+                ultrasonic_tof_observed_ab_s[seq_index, timestep] = float(pair["tof_observed_ab_s"])
+                ultrasonic_tof_observed_ba_s[seq_index, timestep] = float(pair["tof_observed_ba_s"])
+                ultrasonic_peak_index_ab[seq_index, timestep] = int(ab["peak_index"])
+                ultrasonic_peak_index_ba[seq_index, timestep] = int(ba["peak_index"])
+                ultrasonic_tof_quality_ab[seq_index, timestep] = float(ab["tof_quality"])
+                ultrasonic_tof_quality_ba[seq_index, timestep] = float(ba["tof_quality"])
+                ultrasonic_tof_accepted_ab[seq_index, timestep] = int(ab["tof_accepted"])
+                ultrasonic_tof_accepted_ba[seq_index, timestep] = int(ba["tof_accepted"])
+                ultrasonic_v_path_true[seq_index, timestep] = float(pair["v_path_m_per_s"])
+                ultrasonic_sound_speed[seq_index, timestep] = float(pair["sound_speed_m_per_s"])
+                ultrasonic_alpha[seq_index, timestep] = float(pair["alpha_true_npm"])
+            else:
+                ultrasonic_result = simulate_waveform_measurement(
+                    x_h2=0.0,
+                    x_ch4=0.0,
+                    x_co2=composition["x_co2"],
+                    x_n2=composition["x_n2"],
+                    t_c=float(current["T_C"]),
+                    p_mpa=float(current["P_MPa"]),
+                    h_rh=float(current["H_RH"]),
+                    l_m=float(current["L_m"]),
+                    seed=sequence_rng.randrange(0, 2**32),
+                    spec=ultrasonic_spec,
+                    sound_speed_fn=hidden_sound_speed_v2,
+                    attenuation_fn=hidden_attenuation_v2,
+                    extra_gas_kwargs=extra_gas,
+                )
+                ultrasonic[seq_index, timestep, :] = ultrasonic_result["waveform_int"]
+                ultrasonic_scale[seq_index, timestep] = ultrasonic_result["scale_factor"]
+                ultrasonic_tof_s[seq_index, timestep] = float(ultrasonic_result["tof_s"])
+                ultrasonic_tof_observed_s[seq_index, timestep] = float(ultrasonic_result["tof_observed_s"])
+                ultrasonic_peak_index[seq_index, timestep] = int(ultrasonic_result["peak_index"])
+                ultrasonic_sound_speed[seq_index, timestep] = float(ultrasonic_result["sound_speed_m_per_s"])
+                ultrasonic_sound_speed_estimated[seq_index, timestep] = float(
+                    ultrasonic_result["sound_speed_estimated_m_per_s"]
+                )
+                ultrasonic_alpha[seq_index, timestep] = float(ultrasonic_result["alpha_true_npm"])
+                ultrasonic_tof_quality[seq_index, timestep] = float(ultrasonic_result["tof_quality"])
+                ultrasonic_tof_accepted[seq_index, timestep] = int(ultrasonic_result["tof_accepted"])
             if fiber_mic_spec is not None:
                 fiber_result = simulate_fiber_mic_measurement(
                     x_h2=0.0,
@@ -233,39 +332,70 @@ def build_sequence_arrays(
                     attenuation_fn=hidden_attenuation_v2,
                     extra_gas_kwargs=extra_gas,
                 )
-            ultrasonic[seq_index, timestep, :] = ultrasonic_result["waveform_int"]
-            ultrasonic_scale[seq_index, timestep] = ultrasonic_result["scale_factor"]
-            ultrasonic_tof_s[seq_index, timestep] = float(ultrasonic_result["tof_s"])
-            ultrasonic_tof_observed_s[seq_index, timestep] = float(ultrasonic_result["tof_observed_s"])
-            ultrasonic_peak_index[seq_index, timestep] = int(ultrasonic_result["peak_index"])
-            ultrasonic_sound_speed[seq_index, timestep] = float(ultrasonic_result["sound_speed_m_per_s"])
-            ultrasonic_sound_speed_estimated[seq_index, timestep] = float(ultrasonic_result["sound_speed_estimated_m_per_s"])
-            ultrasonic_alpha[seq_index, timestep] = float(ultrasonic_result["alpha_true_npm"])
-            ultrasonic_tof_quality[seq_index, timestep] = float(ultrasonic_result["tof_quality"])
-            ultrasonic_tof_accepted[seq_index, timestep] = int(ultrasonic_result["tof_accepted"])
-            if fiber_mic_spec is not None:
                 fiber_mic[seq_index, timestep, :] = fiber_result["waveform_int"]
                 fiber_mic_scale[seq_index, timestep] = fiber_result["scale_factor"]
             slow_rows.append(_slow_row(condition["sequence_id"], timestep, dt_s, phase_id, current))
 
-    result = {
-        "slow": slow,
-        "ultrasonic": ultrasonic,
-        "ultrasonic_scale": ultrasonic_scale,
-        "ultrasonic_tof_s": ultrasonic_tof_s,
-        "ultrasonic_tof_observed_s": ultrasonic_tof_observed_s,
-        "ultrasonic_peak_index": ultrasonic_peak_index,
-        "ultrasonic_sound_speed_m_per_s": ultrasonic_sound_speed,
-        "ultrasonic_sound_speed_estimated_m_per_s": ultrasonic_sound_speed_estimated,
-        "ultrasonic_alpha_true_npm": ultrasonic_alpha,
-        "ultrasonic_tof_quality": ultrasonic_tof_quality,
-        "ultrasonic_tof_accepted": ultrasonic_tof_accepted,
-        "slow_rows": slow_rows,
-    }
+    if bidirectional:
+        result = {
+            "slow": slow,
+            "ultrasonic_ab": ultrasonic_ab,
+            "ultrasonic_ba": ultrasonic_ba,
+            "ultrasonic_ab_scale": ultrasonic_ab_scale,
+            "ultrasonic_ba_scale": ultrasonic_ba_scale,
+            "ultrasonic_tof_true_ab_s": ultrasonic_tof_true_ab_s,
+            "ultrasonic_tof_true_ba_s": ultrasonic_tof_true_ba_s,
+            "ultrasonic_tof_observed_ab_s": ultrasonic_tof_observed_ab_s,
+            "ultrasonic_tof_observed_ba_s": ultrasonic_tof_observed_ba_s,
+            "ultrasonic_peak_index_ab": ultrasonic_peak_index_ab,
+            "ultrasonic_peak_index_ba": ultrasonic_peak_index_ba,
+            "ultrasonic_tof_quality_ab": ultrasonic_tof_quality_ab,
+            "ultrasonic_tof_quality_ba": ultrasonic_tof_quality_ba,
+            "ultrasonic_tof_accepted_ab": ultrasonic_tof_accepted_ab,
+            "ultrasonic_tof_accepted_ba": ultrasonic_tof_accepted_ba,
+            "ultrasonic_v_path_true_m_per_s": ultrasonic_v_path_true,
+            "ultrasonic_sound_speed_m_per_s": ultrasonic_sound_speed,
+            "ultrasonic_alpha_true_npm": ultrasonic_alpha,
+            "slow_rows": slow_rows,
+            "bidirectional": True,
+        }
+    else:
+        result = {
+            "slow": slow,
+            "ultrasonic": ultrasonic,
+            "ultrasonic_scale": ultrasonic_scale,
+            "ultrasonic_tof_s": ultrasonic_tof_s,
+            "ultrasonic_tof_observed_s": ultrasonic_tof_observed_s,
+            "ultrasonic_peak_index": ultrasonic_peak_index,
+            "ultrasonic_sound_speed_m_per_s": ultrasonic_sound_speed,
+            "ultrasonic_sound_speed_estimated_m_per_s": ultrasonic_sound_speed_estimated,
+            "ultrasonic_alpha_true_npm": ultrasonic_alpha,
+            "ultrasonic_tof_quality": ultrasonic_tof_quality,
+            "ultrasonic_tof_accepted": ultrasonic_tof_accepted,
+            "slow_rows": slow_rows,
+            "bidirectional": False,
+        }
     if fiber_mic_spec is not None:
         result["fiber_mic"] = fiber_mic
         result["fiber_mic_scale"] = fiber_mic_scale
     return result
+
+
+def _require_bidir_condition_fields(conditions: list[dict[str, str]]) -> None:
+    required = (
+        "v_path_m_per_s",
+        "flow_scenario",
+        "pair_interval_s",
+        "delay_asymmetry_s",
+        "jitter_correlation",
+    )
+    for index, row in enumerate(conditions):
+        missing = [name for name in required if name not in row]
+        if missing:
+            raise ValueError(
+                f"bidirectional conditions[{index}] missing fields {missing}; "
+                "use generate_tunnel_ventilation_bidir_condition_rows / attach_flow_fields_to_conditions"
+            )
 
 
 def _main_feature_condition(

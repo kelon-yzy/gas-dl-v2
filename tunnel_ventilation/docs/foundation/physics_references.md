@@ -35,15 +35,36 @@ O₂ 与 N₂ 的声速差 ≈ 22.7 m/s（约 6.4%），是超声通道区分两
 
 ### 2.2 混合气声速
 
-与主线完全相同的公式（`acoustic_physics.py:48`）：
+与主线完全相同的公式（tv3：`tunnel_ventilation/acoustic_physics.py` → `hidden_sound_speed_v2`）：
 
 ```python
-# 理想气混合（与 hg/sg 代码一致）
+# 理想气混合（与 hg/sg 代码一致；tv3 仅 CO2/O2/N2）
 # M_mix = Σ(x_i · M_i)
 # cp_mix = Σ(x_i · cp_i)
 # γ_mix = cp_mix / (cp_mix - R)
 # c_mix = sqrt(γ_mix · R · T_K / M_mix)
 ```
+
+**当前缺口（编码层）**：声速**不含** H₂O；衰减经 `h2o_mole_percent_from_rh` 含水汽——干/湿不一致。详评见 [references/tv3_acoustic_simulation_fidelity_review.md](../references/tv3_acoustic_simulation_fidelity_review.md)。
+
+#### 2.2.1 CoolProp 交叉验证（2026-07-20，CoolProp 8.0.0）
+
+可选验收工具，**非正式训练默认 backend**。混合物性用 `HEOS`（非独立 backend 名 `GERG2008`）。四元路径已通：
+
+```python
+# PropsSI 或 AbstractState("HEOS", "CarbonDioxide&Oxygen&Nitrogen&Water")
+# 单位：P[Pa], T[K], 摩尔分数 0–1；输出 speed_sound [m/s]
+```
+
+| 对照点（T=35°C） | 理想气 c | CoolProp HEOS c | 相对差 |
+|------------------|---------:|----------------:|-------:|
+| 干气 CO₂1%/O₂20.9%/N₂78.1%，P=0.1 MPa | 351.29 | 351.36 | 0.02% |
+| 同上，P=0.709 MPa | 351.29 | 352.16 | 0.25% |
+| 干气 + H₂O 5 mol%，P=0.1 MPa | 354.15（理想气加水） | 354.18 | <0.02% |
+
+湿度灵敏度（L=0.2 m，CoolProp）：H₂O 0→5 mol% → Δc≈+2.83 m/s → ΔTOF≈−4.54 μs；O₂ 18→21.2% → ΔTOF≈+1.30 μs。`HAPropsSI("speed_of_sound", …)` 仅适用于标准湿空气（干空气成分固定），不能扫 tv3 的 O₂/CO₂ 网格。
+
+接入建议：离线对照表或「理想气 + H₂O」修缺口时用 CoolProp 验收；正式集默认仍用三组分理想气，直至实验矩阵明确启用。API 与落法见保真度审查 §5.1。
 
 ### 2.3 比热容
 

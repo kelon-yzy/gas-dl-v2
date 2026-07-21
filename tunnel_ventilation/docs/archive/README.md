@@ -12,6 +12,11 @@
 | [completed/r5_tabpfn_implementation_plan.md](completed/r5_tabpfn_implementation_plan.md) | 正式 6000 完成，作为非部署上限探针 |
 | [completed/waveform_normalization_plan.md](completed/waveform_normalization_plan.md) | 三层归一化已实施并完成结论回填 |
 | [completed/rocket_hydra_regression_implementation_plan.md](completed/rocket_hydra_regression_implementation_plan.md) | R0/R1/R5 历史路线已完成或被专项计划取代 |
+| [completed/module_c_grouped_bottleneck_implementation_plan.md](completed/module_c_grouped_bottleneck_implementation_plan.md) | 模块 C P0 完整 24 条矩阵判定 `grouped_failed`，分支停止 |
+| [completed/d2b_raw_dsp_mlp_implementation_plan.md](completed/d2b_raw_dsp_mlp_implementation_plan.md) | B6 单 seed + 三新增 seed 均通过；已被 B7 residual 超越，保留为 flat-MLP 对照锚点 |
+| [completed/b7_oof_ridge_residual_mlp_implementation_plan.md](completed/b7_oof_ridge_residual_mlp_implementation_plan.md) | B7 residual_pass 的实现与 random-split 正式记录；后续协议由 b7_repeated_split 计划承接 |
+| [completed/r5t_b6_multiseed_replication_plan.md](completed/r5t_b6_multiseed_replication_plan.md) | R5-T / B6 六次冻结复核完成，均 stable_pass |
+| [completed/r7_extratrees_implementation_plan.md](completed/r7_extratrees_implementation_plan.md) | R7 正式 6000 未通过（显著训练-验证落差），失败证据保留 |
 
 ## legacy
 

@@ -20,7 +20,7 @@ from tv3.sim.generation.tunnel_ventilation.slow import build_sequence_arrays
 ArrayKeys = tuple[str, ...]
 
 # 大波形数组 key 列表 —— 这些数组通过 memmap 直接落盘，不走 npz
-_WAVEFORM_ARRAY_KEYS = ("ultrasonic", "fiber_mic")
+_WAVEFORM_ARRAY_KEYS = ("ultrasonic", "ultrasonic_ab", "ultrasonic_ba", "fiber_mic")
 
 
 def build_arrays_parallel(
@@ -130,6 +130,7 @@ def _generate_chunk_file(
         hitran_cache_root=spec.hitran_cache_root,  # type: ignore[attr-defined]
         start_sequence_index=start_sequence_index,
         temp_dir=chunk_dir,
+        bidirectional=bool(getattr(spec, "bidirectional", False)),
     )
     # 小数组（非波形）仍在 RAM 中，与 slow_rows 一起序列化到 .npz
     small_keys = [k for k in array_keys if k not in _WAVEFORM_ARRAY_KEYS]

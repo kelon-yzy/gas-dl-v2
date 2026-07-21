@@ -8,3 +8,7 @@ outputs/*
 data/*
 !data/.gitkeep
 .ace-tool/
+
+# COMSOL 本地模型与 Python 绑定（大文件/许可相关，不进主仓）
+COMSOL/
+tv3/sim/comsol/

@@ -21,6 +21,8 @@ CO₂ 和 N₂ 的 γ 和 M 已在 `acoustic_physics.py` 的 `hidden_sound_speed
 
 O₂ cp = 29.38 J/(mol·K) @ 298.15 K 来自 NIST WebBook Shomate 方程，与主线 N₂ 的 29.12 接近（双原子理想气理论值约 29.1 J/mol·K），符合预期。置信度：高（已验证）。
 
+**CoolProp 交叉验证（2026-07-20）**：近常压干气混合声速与 CoolProp `HEOS` 偏差约 0.02%；H₂O 0→5 mol% 使 c 约 +2.83 m/s（当前代码声速通道未含水汽）。详见 [tv3_acoustic_simulation_fidelity_review.md](tv3_acoustic_simulation_fidelity_review.md) §4 / §5.1 与 [physics_references.md](../foundation/physics_references.md) §2.2.1。
+
 **Shomate 方程手算验证**：NIST WebBook O₂ 参数（100–700K：A=31.32234, B=-20.23531, C=57.86644, D=-36.50624, E=-0.007374），t=T/1000=0.29815 代入 Cp = A + B·t + C·t² + D·t³ + E/t² = 31.32234 − 6.0322 + 5.1444 − 0.9676 − 0.0830 = 29.384 ≈ 29.38 ✓
 
 ### 1.2 弛豫参数
@@ -170,3 +172,4 @@ N₂ 同样为同核双原子分子，无红外活性。NDIR 和 HITRAN 方法�
 | [10] | Engineering ToolBox, "Oxygen - Thermophysical properties" (engineeringtoolbox.com/oxygen-d_1422.html) | O₂ 物性速查（M、λ、cp、γ、声速） | 高（与 NIST 一致）|
 | [11] | Umicore 4.26µm CO2 NBP datasheet (eom.umicore.com) | CO₂ NDIR 滤光片 CWL/HBW | 高（厂商 datasheet）|
 | [12] | MicroHybrid MTS4SENS44-3C-1/3C-2 datasheet (shop.microhybrid.com) | CO₂ NDIR 多通道热电堆探测器滤光片规格 | 高（厂商 datasheet）|
+| [13] | CoolProp 8.0.0（coolprop.org；HEOS 混合，GERG/Lemmon 系） | 干/湿 CO₂–O₂–N₂–H₂O 声速交叉验证；非正式编码默认 | 高（2026-07-20 本机实跑）|

@@ -16,7 +16,7 @@
 | E1d-3 / E1d-SB | 校准栈 + SNR → compact 过门 |
 | E1r-attach | 冻结 frame + e1d_sb 序列 → `attachment_passed` |
 | E2s-LS | additive LS 过 B1 门，但对 e1d_sb 几乎无增益 → 不晋升 |
-| Deploy-joint | 下一步：e1d_sb（无 LS）接入推理探针 |
+| Deploy-joint | D1 已 `deploy_probe_passed`；D2 artifact 打包可选 |
 
 ## 2. P0 / P0b（已完成正式）
 

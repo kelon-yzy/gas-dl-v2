@@ -1,0 +1,50 @@
+{
+  "schema_version": "tunnel-ventilation-bidir-1",
+  "notes": "阶段进度与 F0 parameter_registry.json 分离；本文件不参与 F0 sha256 冻结。registry 变更后必须重跑 F0 审计并回填 registry_sha256。",
+  "registry_file": "parameter_registry.json",
+  "allowed_next_stage": "F5_formal_model_protocol",
+  "f0": {
+    "verdict": "f0_registry_frozen",
+    "registry_sha256": "dc61d9e7ccc421e1bab7d18eaa91b4cca3ea1e0d6896aa496c16a2844ac32b99",
+    "verdict_path": "outputs/tv3_bidir/f0_registry/f0_verdict.json",
+    "passed_at": "2026-07-21"
+  },
+  "f1": {
+    "verdict": "f1_physics_passed",
+    "passed_at": "2026-07-21",
+    "tests": "tests/test_tunnel_ventilation_bidir_physics.py",
+    "verdict_path": "outputs/tv3_bidir/f1_physics/f1_verdict.json"
+  },
+  "f2": {
+    "verdict": "f2_smoke_passed",
+    "passed_at": "2026-07-21",
+    "dataset": "data/tv3-bidir-smoke",
+    "verdict_path": "outputs/tv3_bidir/benchmark_audit/f2_verdict.json",
+    "tests": "tests/test_tunnel_ventilation_bidir_smoke.py",
+    "registry_sha256_matched": true
+  },
+  "f3": {
+    "verdict": "f3_dsp_passed",
+    "passed_at": "2026-07-21",
+    "dataset": "data/tv3-bidir-f3",
+    "feature_builder": "raw_dsp_bidirectional_v1",
+    "verdict_path": "outputs/tv3_bidir/dsp_fidelity/f3_verdict.json",
+    "metrics_path": "outputs/tv3_bidir/dsp_fidelity/metrics.json",
+    "tests": "tests/test_tunnel_ventilation_bidir_dsp.py",
+    "physics_aggregation": "snr_weighted_steady_accepted_vs_median_oracle_steady"
+  },
+  "f4": {
+    "verdict": "coarse_monitoring_only",
+    "stage_passed": true,
+    "passed_at": "2026-07-21",
+    "verdict_path": "outputs/tv3_bidir/identifiability_v2/f4_verdict.json",
+    "metrics_path": "outputs/tv3_bidir/identifiability_v2/metrics.json",
+    "tests": "tests/test_tunnel_ventilation_bidir_identifiability_v2.py",
+    "flow_representation": "implemented_physics",
+    "rejection_rate": 0.0,
+    "narrow_p90_max_nominal": 4.370519814203675,
+    "narrow_p90_max_conservative": 9.584050675955895,
+    "f5_amplitude_gate_preregistered": true,
+    "v1_directory_untouched": true
+  }
+}

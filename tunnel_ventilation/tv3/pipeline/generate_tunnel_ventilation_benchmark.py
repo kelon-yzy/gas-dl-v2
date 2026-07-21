@@ -1,6 +1,7 @@
 """掘进通风场景 benchmark 生成 CLI。
 
 阶段 1 只支持 empirical_v1 光学吸收后端。
+F 线：``--bidirectional`` / ``--preset bidir-smoke`` 生成 ``tv3-bidir-*``。
 """
 from __future__ import annotations
 
@@ -27,6 +28,38 @@ DEFAULT_DATASET = "tv3-smoke"
 DEFAULT_SEED = 20260704
 DEFAULT_TIMESTEPS = 32
 DEFAULT_DT_S = 0.5
+
+BIDIR_SMOKE_PRESET = {
+    "dataset": "tv3-bidir-smoke",
+    "sequences": 16,
+    "seed": 20260721,
+    "timesteps": 32,
+    "dt_s": 0.5,
+    "storage": "memmap",
+    "multi_path_phase": "steady",
+    "stage_profile": "standard_exposure",
+    "stage_jitter": 0.0,
+    "sampling_strategy": "lhs",
+    "path_lms": DEFAULT_WAVEFORM_PATH_LMS,
+    "optical_absorption_backend": EMPIRICAL_ABSORPTION_BACKEND,
+    "skip_fiber_mic": True,
+    "bidirectional": True,
+    "split_strategy": "random",
+    "extrapolation_strategy": "none",
+    "workers": 1,
+}
+
+# F3 fidelity dataset: zero trigger jitter so absolute τ/ĉ/v̂ gates are identifiable.
+# F0 nominal/conservative jitter stress is deferred to F4 dual-scenario audit.
+# Peak matched-filter fidelity remains the DSP quality gate on this set.
+BIDIR_F3_PRESET = {
+    **BIDIR_SMOKE_PRESET,
+    "dataset": "tv3-bidir-f3",
+    "sequences": 32,
+    "seed": 20260721,
+    "trigger_jitter_std_s": 0.0,
+    "workers": 2,
+}
 
 
 def parse_path_lms(value: str) -> tuple[float, ...]:
@@ -68,6 +101,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip fiber microphone waveform generation.",
     )
     parser.add_argument(
+        "--bidirectional",
+        action="store_true",
+        help="Generate tunnel-ventilation-bidir-1 AB/BA ultrasonic arrays (F line).",
+    )
+    parser.add_argument(
+        "--trigger-jitter-std-s",
+        type=float,
+        default=None,
+        help="Override WaveformSpec.trigger_jitter_std_s (F3 nominal=5e-7).",
+    )
+    parser.add_argument(
+        "--preset",
+        choices=("bidir-smoke", "bidir-f3"),
+        default=None,
+        help="Named generation preset. bidir-smoke enables --bidirectional with fixed smoke knobs; "
+        "bidir-f3 uses zero trigger jitter for absolute DSP physics gates (F4 covers jitter stress).",
+    )
+    parser.add_argument(
         "--split-strategy",
         choices=("random", "spxy_v1", "lhs_stratified_split_v1"),
         default="random",
@@ -81,13 +132,31 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _apply_preset(args: argparse.Namespace) -> argparse.Namespace:
+    if args.preset is None:
+        return args
+    if args.preset == "bidir-smoke":
+        for key, value in BIDIR_SMOKE_PRESET.items():
+            setattr(args, key, value)
+        return args
+    if args.preset == "bidir-f3":
+        for key, value in BIDIR_F3_PRESET.items():
+            setattr(args, key, value)
+        return args
+    raise ValueError(f"unknown preset: {args.preset!r}")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    args = _apply_preset(args)
     workers = args.workers if args.workers is not None else default_worker_count(args.sequences)
+    trigger_jitter_std_s = getattr(args, "trigger_jitter_std_s", None)
 
     print(
         f"[tv3-gen] dataset={args.dataset} sequences={args.sequences} "
-        f"timesteps={args.timesteps} workers={workers} skip_fiber_mic={args.skip_fiber_mic}",
+        f"timesteps={args.timesteps} workers={workers} "
+        f"skip_fiber_mic={args.skip_fiber_mic} bidirectional={args.bidirectional} "
+        f"trigger_jitter_std_s={trigger_jitter_std_s}",
         flush=True,
     )
     started_at = time.perf_counter()
@@ -110,6 +179,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         temp_dir=args.temp_dir,
         keep_chunks=args.keep_chunks,
         skip_fiber_mic=args.skip_fiber_mic,
+        bidirectional=args.bidirectional,
+        trigger_jitter_std_s=trigger_jitter_std_s,
         split_strategy=args.split_strategy,
         spxy_alpha=args.spxy_alpha,
         extrapolation_strategy=args.extrapolation_strategy,
