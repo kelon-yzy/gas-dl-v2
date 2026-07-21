@@ -25,6 +25,15 @@ def test_bidir_smoke_preset_enables_bidirectional():
     assert BIDIR_SMOKE_PRESET["skip_fiber_mic"] is True
 
 
+def test_bidir_formal_6000_preset_shape():
+    from tv3.pipeline.generate_tunnel_ventilation_benchmark import BIDIR_FORMAL_6000_PRESET
+
+    assert BIDIR_FORMAL_6000_PRESET["dataset"] == "tv3-bidir-6000"
+    assert BIDIR_FORMAL_6000_PRESET["sequences"] == 6000
+    assert BIDIR_FORMAL_6000_PRESET["bidirectional"] is True
+    assert BIDIR_FORMAL_6000_PRESET["timesteps"] == 512
+
+
 def test_generate_tiny_bidir_benchmark(tmp_path: Path):
     spec = TunnelVentilationBenchmarkGenerationSpec(
         dataset_slug="tv3-bidir-unit",

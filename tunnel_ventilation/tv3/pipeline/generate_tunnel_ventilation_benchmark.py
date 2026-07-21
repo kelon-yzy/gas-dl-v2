@@ -61,6 +61,17 @@ BIDIR_F3_PRESET = {
     "workers": 2,
 }
 
+# F5 formal set: same physics/storage knobs as unidirectional formal-6000, plus bidirectional.
+# Generation-time split stays random; S-Flow / S-Y / S-L are derived afterward.
+BIDIR_FORMAL_6000_PRESET = {
+    **BIDIR_SMOKE_PRESET,
+    "dataset": "tv3-bidir-6000",
+    "sequences": 6000,
+    "seed": 20260721,
+    "timesteps": 512,
+    "workers": 4,
+}
+
 
 def parse_path_lms(value: str) -> tuple[float, ...]:
     path_lms = tuple(float(item.strip()) for item in value.split(",") if item.strip())
@@ -113,10 +124,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--preset",
-        choices=("bidir-smoke", "bidir-f3"),
+        choices=("bidir-smoke", "bidir-f3", "bidir-formal-6000"),
         default=None,
         help="Named generation preset. bidir-smoke enables --bidirectional with fixed smoke knobs; "
-        "bidir-f3 uses zero trigger jitter for absolute DSP physics gates (F4 covers jitter stress).",
+        "bidir-f3 uses zero trigger jitter for absolute DSP physics gates (F4 covers jitter stress); "
+        "bidir-formal-6000 is the F5 formal 6000-sequence set (S-Flow derived after generation).",
     )
     parser.add_argument(
         "--split-strategy",
@@ -135,15 +147,17 @@ def build_parser() -> argparse.ArgumentParser:
 def _apply_preset(args: argparse.Namespace) -> argparse.Namespace:
     if args.preset is None:
         return args
-    if args.preset == "bidir-smoke":
-        for key, value in BIDIR_SMOKE_PRESET.items():
-            setattr(args, key, value)
-        return args
-    if args.preset == "bidir-f3":
-        for key, value in BIDIR_F3_PRESET.items():
-            setattr(args, key, value)
-        return args
-    raise ValueError(f"unknown preset: {args.preset!r}")
+    presets = {
+        "bidir-smoke": BIDIR_SMOKE_PRESET,
+        "bidir-f3": BIDIR_F3_PRESET,
+        "bidir-formal-6000": BIDIR_FORMAL_6000_PRESET,
+    }
+    preset = presets.get(args.preset)
+    if preset is None:
+        raise ValueError(f"unknown preset: {args.preset!r}")
+    for key, value in preset.items():
+        setattr(args, key, value)
+    return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:

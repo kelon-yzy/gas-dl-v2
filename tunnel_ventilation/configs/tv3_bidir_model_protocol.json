@@ -1,0 +1,34 @@
+{
+  "schema_version": "tv3-bidir-model-protocol-1",
+  "source_dataset_dir": "data/tv3-bidir-6000",
+  "splits_root": "data/tv3-bidir-6000-splits",
+  "output_dir": "outputs/tv3_bidir/model_protocol",
+  "overwrite": false,
+  "device": "cuda",
+  "seed": 20260704,
+  "s_flow_seed": 20260721,
+  "train_abs_v_max": 2.5,
+  "ood_abs_v_max": 4.0,
+  "template_max_frames": 512,
+  "arms": ["A1", "A2", "A3", "A4", "A5"],
+  "heads": ["b1_ridge", "b7_residual"],
+  "derive_secondary_selectors": false,
+  "f4_prerequisite": {
+    "verdict_path": "outputs/tv3_bidir/identifiability_v2/f4_verdict.json",
+    "expected_stage_passed": true,
+    "note": "F5 amplitude gates were preregistered at F4; do not retune after seeing F5 scores"
+  },
+  "f5_amplitude_gates": {
+    "a3_minus_a1_o2_mae_min_vol_percent": 0.5,
+    "a3_minus_a2_o2_mae_max_vol_percent": 0.25,
+    "v_path_zero_anchor_delta_mae_max_vol_percent": 0.05,
+    "selector_r2_noninferior_delta": -0.01,
+    "reciprocity_p95_max_s": 1.0e-7
+  },
+  "notes": [
+    "Frozen B1 RidgeCV alpha grid and B7 OOF residual MLP hyperparams; do not retune for bidir.",
+    "Primary selector is S-Flow (|v|≤2.5 train / (2.5,4] OOD by mixture median).",
+    "A2 is audit-only (oracle v_path). Deploy conclusions use A3.",
+    "Formal 6000 generation and training run on the server; local code path is verified on smoke-scale fixtures."
+  ]
+}

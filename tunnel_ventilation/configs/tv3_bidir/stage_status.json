@@ -46,5 +46,18 @@
     "narrow_p90_max_conservative": 9.584050675955895,
     "f5_amplitude_gate_preregistered": true,
     "v1_directory_untouched": true
+  },
+  "f5": {
+    "status": "code_ready_awaiting_server_formal_6000",
+    "dataset": "data/tv3-bidir-6000",
+    "preset": "bidir-formal-6000",
+    "protocol_config": "configs/tv3_bidir_model_protocol.json",
+    "protocol_script": "scripts/run_tv3_bidir_model_protocol.py",
+    "output_dir": "outputs/tv3_bidir/model_protocol",
+    "tests": "tests/test_tunnel_ventilation_bidir_model_protocol.py",
+    "primary_selector": "S-Flow (mixture median |v_path|≤2.5 train; (2.5,4] OOD)",
+    "arms": ["A1", "A2", "A3", "A4", "A5"],
+    "heads": ["b1_ridge", "b7_residual"],
+    "note": "Formal training must run on server; local path verified by unit tests only."
   }
 }

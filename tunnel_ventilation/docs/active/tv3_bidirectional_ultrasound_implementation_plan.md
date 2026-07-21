@@ -1,6 +1,6 @@
 # tv3 双向超声（F 线）实施规划
 
-> 状态：**F4 已通过（2026-07-21，业务 verdict=`coarse_monitoring_only`；声学 Fisher rank≥2，flow 解阻断）。允许进入 F5。F5–F6 未执行。**
+> 状态：**F5 代码已就绪（2026-07-21）：`bidir-formal-6000` preset + S-Flow + 五臂特征/协议入口；正式 `tv3-bidir-6000` 训练须在服务器执行。F6 未执行。**
 >
 > 责任：给出恢复双向声学路线的完整实施契约：物理与观测模型、数据 schema、部署级估计器、F0–F6 阶段门与 verdict 分流。本计划立项**不**改写 v1 `information_source_upgrade_required`、**不**撤销静止空气 P0、**不**替换 B7 默认头；执行启动以本文前置条件为准。
 >
@@ -222,6 +222,10 @@ python scripts/check_slow_channels.py data/tv3-bidir-smoke
 python scripts/run_tv3_bidir_dsp_fidelity.py --config configs/tv3_bidir_dsp_fidelity.json
 # F4
 python scripts/run_tv3_identifiability_v2.py --config configs/tv3_bidir_identifiability_v2.json
+# F5 (server; formal 6000)
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark --output-root data --preset bidir-formal-6000
+python scripts/run_tv3_bidir_model_protocol.py --config configs/tv3_bidir_model_protocol.json --stage all --device cuda
+python -m pytest -q tests/test_tunnel_ventilation_bidir_model_protocol.py
 ```
 
 测试至少证明：reciprocal-sum 对均匀流精确、`−Var(v)/c` 二阶残余符号与量级正确、零流退化一致、延迟不对称只进 v̂、独立/共模 jitter 两种相关性统计行为区分、oracle 字段不可进入部署输入路径（校验拒绝）。
@@ -257,6 +261,7 @@ python scripts/run_tv3_identifiability_v2.py --config configs/tv3_bidir_identifi
 | 2026-07-21 | pre-F3 | provenance 修复 | registry 去可变状态；`sample_v_path` 改为 1D LHS；alpha 落盘；`MAX_PAIR_INTERVAL_S`；workers=2 小规模验证通过 |
 | 2026-07-21 | F3 | `f3_dsp_passed` | `raw_dsp_bidirectional_v1`；`data/tv3-bidir-f3`（零 jitter）；`outputs/tv3_bidir/dsp_fidelity/`；peak P95 AB/BA 0.087/0.046；τ̂ 误差 45 ns；steady 网格 ĉ 偏置 0.004 m/s、v̂ 偏置 −0.011 m/s；reciprocity P95 91 ns；测试 `tests/test_tunnel_ventilation_bidir_dsp.py` |
 | 2026-07-21 | F4 | `coarse_monitoring_only`（stage pass） | `outputs/tv3_bidir/identifiability_v2/`；flow=`implemented_physics`，拒绝率 0；joint rank≥2（+T 时 3）；窄窗 P90 max：nominal 4.37 / conservative 9.58 vol% O₂；主导项：nominal=T(1K)，conservative=jitter(3μs)；先验交叉核对通过；F5 幅度门已预注册；v1 目录未改写 |
+| 2026-07-21 | F5 code | `code_ready_awaiting_server_formal_6000` | preset `bidir-formal-6000`；`tv3/ml/bidir_s_flow.py`；`build_tv3_bidir_features.py`；`bidir_arm_features.py`（A1–A5）；`scripts/run_tv3_bidir_model_protocol.py`；`configs/tv3_bidir_model_protocol.json`；测试 `tests/test_tunnel_ventilation_bidir_model_protocol.py`；正式 6000 训练待服务器 |
 
 F0 要点：
 
@@ -301,3 +306,11 @@ F4 要点：
 - 主导项：名义臂为温度 1 K；保守臂为单帧 jitter。与 §Context.2 先验交叉核对通过（bidir mid-pair 使 jitter 等效约为单向表的 1/√2）。
 - 业务 verdict=`coarse_monitoring_only`（flow 解耦成功，连续回归门未达）；阶段门通过，允许 F5。
 - F5 幅度门已预注册：A3−A1 O₂ MAE ≥0.5 vol%；A3−A2 ≤0.25；零锚点 Δ≤0.05；selector ΔR²≥−0.01。
+
+F5 要点（代码就绪，正式训练待服务器）：
+
+- 数据：`--preset bidir-formal-6000` → `data/tv3-bidir-6000`（6000×512，int16，skip-fiber-mic）。
+- S-Flow：mixture 中位 `|v_path|≤2.5` 入域随机划分；`(2.5,4]` 进 extrapolation OOD；保持 mixture_id 分组。
+- 特征：train-calibrated `raw_dsp_bidirectional_v1` 帧缓存 + 五臂 rocket 矩阵（A2 为 oracle-v 审计臂）。
+- 头：冻结 B1 RidgeCV alpha 网格与 B7 OOF residual MLP 超参；产物写入 `outputs/tv3_bidir/model_protocol/`，不覆盖 `outputs/tv3_d2b/`。
+- 入口：`python scripts/run_tv3_bidir_model_protocol.py --config configs/tv3_bidir_model_protocol.json --stage all`。
