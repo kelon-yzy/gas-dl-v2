@@ -337,7 +337,24 @@ python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
 > 6000 序列 int16 + 跳过 fiber_mic 后 memmap ~29 GB（原始 int32 + 含 fiber_mic 为 172 GB，减 83%）。`build_sequence_arrays` 在内存中预分配 chunk 数组，workers=4 chunk=750 每 worker ~3.8 GB（int16）。若内存不足，降低 `--workers`。
 > 若需完整三模态 6000 序列（int32 + fiber_mic），需改回 `WaveformSpec()`（去掉 per_timestep_scale + waveform_dtype="int16"）并去掉 `--skip-fiber-mic`，磁盘需 ≥350 GB、内存 ≥90 GB。
 
-### 6.2 阶段 Ⅱ ablation
+### 6.2 双向 F 线正式集（`tv3-bidir-6000`）
+
+F0–F4 已完成；F5 正式训练在服务器执行。工作目录：`tunnel_ventilation/`。
+
+```bash
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
+    --output-root data --preset bidir-formal-6000
+
+python scripts/check_slow_channels.py data/tv3-bidir-6000
+
+python scripts/run_tv3_bidir_model_protocol.py \
+    --config configs/tv3_bidir_model_protocol.json \
+    --stage all --device cuda
+```
+
+产物：`outputs/tv3_bidir/model_protocol/`（含 `f5_verdict.json`）。不覆盖 `outputs/tv3_d2b/` 或 `outputs/tv3_identifiability/`。说明见 `docs/active/tv3_bidirectional_ultrasound_implementation_plan.md`。
+
+### 6.3 阶段 Ⅱ ablation
 
 见 [experiment_roadmap.md](../archive/legacy/experiment_roadmap.md) 阶段 Ⅱ：
 
@@ -345,7 +362,7 @@ python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
 - O₂ 可辨识性消融（`--modalities` 参数切换模态组合）
 - Loss 消融（`--loss` 参数切换 loss）
 
-### 6.3 长时间训练后台运行
+### 6.4 长时间训练后台运行
 
 ```bash
 # nohup 后台运行，日志写文件

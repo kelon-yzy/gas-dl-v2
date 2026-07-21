@@ -1,6 +1,6 @@
 # tv3 运行产物索引
 
-> 整理日期：2026-07-20。正式结论以 clean `tv3-formal-6000` 为准；路径与 [掘进通风项目记忆库](../docs/掘进通风项目记忆库.md) §七 对齐。
+> 整理日期：2026-07-21。正式组分结论以 clean `tv3-formal-6000` 为准；双向 F 线正式训练待 `tv3-bidir-6000`。路径与 [掘进通风项目记忆库](../docs/掘进通风项目记忆库.md) §七 对齐。
 
 ## 顶层结构
 
@@ -16,7 +16,8 @@
 | `tv3_b7_protocol/` | B7 repeated split + 双 OOD selector 协议 | ✅ `protocol_pass` |
 | `tv3_module_c_grouped_bottleneck/` | 模块 C 分组 bottleneck C1 / C2 协议 | ❌ 24 条正式矩阵 `grouped_failed` |
 | `tv3_baseline_freeze/` | B1/B7 配置、结果、split、RawDSP 与环境 hash 冻结 | ✅ `frozen` |
-| `tv3_identifiability/` | 冻结 v1 单向 TOF 的敏感度、Fisher 与误差预算审计 | ✅ `audit=passed`；P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 均失败，flow 未表示，verdict=`information_source_upgrade_required` |
+| `tv3_identifiability/` | 冻结 v1 单向 TOF 的敏感度、Fisher 与误差预算审计 | ✅ `audit=passed`；P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 均失败，flow 未表示，verdict=`information_source_upgrade_required`（永不改写） |
+| `tv3_bidir/` | 双向 F 线：F0 registry、F2 audit、F3 dsp_fidelity、F4 identifiability_v2；F5 `model_protocol/` | ✅ F0–F4；F4=`coarse_monitoring_only`；F5 正式 6000 待服务器 |
 | `tv3_ec_msw/` | EC-MSW-GatedNet 分阶段实验 | ✅ E1d/E1d-SB/attachment/D1；✅ LS 不晋升；D2 打包可选；E2 禁止 |
 | `runs/tv3_comsol_multiphysics/` | 隧道 COMSOL 多物理场 G0–G7 阶段产物 | ✅ G0 registry；✅ G1 `g1_cfd_smoke_passed`；下一步 G2；smoke 不进正式训练 |
 | `summary/` | 跨运行汇总产物 | 汇总索引 |

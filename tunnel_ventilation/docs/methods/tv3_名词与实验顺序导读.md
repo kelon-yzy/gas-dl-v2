@@ -122,7 +122,7 @@
 | **nuisance（干扰量）**                  | 不是最终目标、但会改观测的量：T、RH、L、jitter、flow、SNR… 核心问题是 O₂ 信号是否大于 nuisance。                                                        |
 | **flow / 流速 / flow projection**    | 气流改变有效传播时间。v1 未建模 → 标 `not_represented`，并触发 189/189 点阻断拒绝。                                                              |
 | **v_path / 沿路流速投影**               | 流速在声路上的投影分量 `v·cos(α)`；单向 TOF 中与声速线性混叠 `t = L/(c ± v_path)`。                                                             |
-| **双向超声 / bidirectional / F 线**     | AB/BA 对射各测一次 TOF，`ĉ=(L/2)(1/t'_ab+1/t'_ba)` 与 `v̂=(L/2)(1/t'_ab−1/t'_ba)` 解耦声速与流速。F4 业务 verdict=`coarse_monitoring_only`；下一步 F5 五臂对照，见相关文档表。            |
+| **双向超声 / bidirectional / F 线**     | AB/BA 对射各测一次 TOF，`ĉ=(L/2)(1/t'_ab+1/t'_ba)` 与 `v̂=(L/2)(1/t'_ab−1/t'_ba)` 解耦声速与流速。F4 业务 verdict=`coarse_monitoring_only`；F5 代码就绪（`bidir-formal-6000` + S-Flow + 五臂），正式训练待服务器。            |
 | **reciprocity error / 互易残差**       | AB 与 BA 通道物理一致性的残差指标（帧对声速差、多 L 拟合残差）；用于链路健康与质量标记，目标 ≤0.10 μs。                                                           |
 | **静止空气仿真 / static-air simulation** | 在配置和 manifest 中显式固定 `flow=0` 的数字孪生情景。它不等于经风速核验的真实静止空气；当前 P0 只验证登记仿真分布内的单向 O₂ 可辨识性。                                      |
 | **参数来源类型**                         | `implemented_physics` 表示代码已实现物理，`literature_bound` 表示文献或规格边界，`engineering_scenario` 仅作敏感性扫描，`not_represented` 继续阻断能力结论。 |
@@ -135,7 +135,7 @@
 | --------- | ------------------------------------------------ |
 | **TDLAS** | 可调谐二极管激光吸收光谱；可做 O₂ 专用光学通道。声学信息不足时的硬件升级选项，不是当前默认。 |
 | **多频超声**  | 用多个载波频率增加独立观测维度。                                 |
-| **双向超声 F 线 / `raw_dsp_bidirectional_v1`** | 成本最低的信息源升级：同一对换能器互为收发（ping-pong 交替对射），解除 v1 flow 阻断并输出流速副产品。数据契约 `tunnel-ventilation-bidir-1`，benchmark `tv3-bidir-*`；解耦后主导误差预期转为温度与 trigger jitter，是否达 0.4 vol% 门由 F4 审计（identifiability v2）定量回答。 |
+| **双向超声 F 线 / `raw_dsp_bidirectional_v1`** | 同一对换能器 ping-pong 对射：解除 v1 flow 阻断并输出流速副产品。契约 `tunnel-ventilation-bidir-1`，benchmark `tv3-bidir-*`。F4 identifiability v2 已确认声学 Fisher 非秩亏且 flow=`implemented_physics`；窄窗 P90 仍超门 → `coarse_monitoring_only`。F5 五臂×冻结 B1/B7 + S-Flow 代码就绪。 |
 
 ---
 
@@ -431,7 +431,7 @@
 | 6   | B 系列            | RawDSP 默认头             | B1、B6、B7、OOF、residual、protocol_pass                   |
 | 7   | 模块 C            | 物理早期分组是否有用             | grouped bottleneck、grouped_failed                     |
 | 8   | Identifiability | 物理上限与分流                | 灵敏度、Fisher、CRLB、误差预算、verdict                          |
-| 9   | 当前并行线           | 静止空气仿真、COMSOL 隧道输运、EC-MSW 是否值得继续、双向 F 线何时启动 | static-air、G0/G1 COMSOL、EC-MSW、E1d、D1、F 线立项 |
+| 9   | 当前并行线           | 静止空气仿真、COMSOL 隧道输运、双向 F5 正式 6000、EC-MSW 是否继续 | static-air、G0/G1 COMSOL、F5 server、EC-MSW |
 
 ---
 
@@ -508,7 +508,7 @@
 | [掘进通风项目记忆库.md](../掘进通风项目记忆库.md)                                                                                                   | 当前事实与正式结论                            |
 | [active/tv3_identifiability_implementation_plan.md](../active/tv3_identifiability_implementation_plan.md)                         | 可辨识性实施计划                             |
 | [active/tv3_static_air_feasibility_implementation_plan.md](../active/tv3_static_air_feasibility_implementation_plan.md)           | 当前仿真 P0：静止空气扰动、可辨识性与独立参数 holdout     |
-| [active/tv3_bidirectional_ultrasound_implementation_plan.md](../active/tv3_bidirectional_ultrasound_implementation_plan.md)       | 双向超声 F 线：F4 `coarse_monitoring_only`；契约与 F0–F6 门 |
+| [active/tv3_bidirectional_ultrasound_implementation_plan.md](../active/tv3_bidirectional_ultrasound_implementation_plan.md)       | 双向超声 F 线：F0–F4 完成；F5 代码就绪；F4=`coarse_monitoring_only` |
 | [active/tv3_comsol_multiphysics_dl_implementation_plan.md](../active/tv3_comsol_multiphysics_dl_implementation_plan.md)           | 隧道多物理场 → 传感器投影 → DL；G1 已通过，下一步 G2      |
 | [../../COMSOL/tunnel_transport/README.md](../../COMSOL/tunnel_transport/README.md)                                                 | 隧道输运 COMSOL A 构建与 verdict 入口             |
 | [active/tv3_ec_msw_gatednet_implementation_plan.md](../active/tv3_ec_msw_gatednet_implementation_plan.md)                         | EC-MSW P0 契约与 E1d/attachment/LS 正式结论 |
