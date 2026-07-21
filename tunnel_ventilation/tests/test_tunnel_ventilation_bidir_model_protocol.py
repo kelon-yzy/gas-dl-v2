@@ -118,10 +118,25 @@ def test_derive_s_flow_split(tmp_path: Path):
     assert info["splits"]["train"] > 0
     summary = json.loads((out / "splits" / "split_summary.json").read_text(encoding="utf-8"))
     assert summary["split_policy"] == "s_flow_abs_v_path_mixture_median_v1"
+    assert "pure OOD" in summary["extrapolation_note"]
     assert (out / "condition_grid_sequence.csv").is_file()
-    zeros = zero_anchor_sequence_ids(
-        list(csv.DictReader((source / "condition_grid_sequence.csv").open(encoding="utf-8")))
-    )
+    # Extrapolation must contain only OOD mixtures (median |v| > 2.5).
+    conditions = list(csv.DictReader((source / "condition_grid_sequence.csv").open(encoding="utf-8")))
+    median_abs_v = mixture_median_abs_v_path(conditions)
+    with (out / "splits" / "extrapolation.csv").open(encoding="utf-8", newline="") as handle:
+        extrap_rows = list(csv.DictReader(handle))
+    assert extrap_rows
+    for row in extrap_rows:
+        assert median_abs_v[row["mixture_id"]] > 2.5
+    id_ids = set()
+    for split_name in ("train", "val", "test"):
+        with (out / "splits" / f"{split_name}.csv").open(encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                id_ids.add(row["mixture_id"])
+                assert median_abs_v[row["mixture_id"]] <= 2.5
+    extrap_ids = {row["mixture_id"] for row in extrap_rows}
+    assert id_ids.isdisjoint(extrap_ids)
+    zeros = zero_anchor_sequence_ids(conditions)
     assert isinstance(zeros, tuple)
 
 
@@ -190,9 +205,9 @@ def test_f5_gates_preregistered_logic():
                 "test": {"o2_mae": test_zero_mae, "n": 10},
             },
             "sound_speed_audit": {
-                "pair_sound_speed_bias_m_per_s": 0.01,
-                "ab_sound_speed_bias_m_per_s": 0.5,
-                "reciprocity_residual_p95_median_s": 5e-8,
+                "pair_sound_speed_mean_abs_seq_bias_m_per_s": 0.01,
+                "ab_sound_speed_mean_abs_seq_bias_m_per_s": 0.5,
+                "reciprocity_residual_p95_of_seq_p95_s": 5e-8,
             },
         }
 
@@ -205,10 +220,58 @@ def test_f5_gates_preregistered_logic():
         "a3_minus_a1_o2_mae_min_vol_percent": 0.5,
         "a3_minus_a2_o2_mae_max_vol_percent": 0.25,
         "v_path_zero_anchor_delta_mae_max_vol_percent": 0.05,
+        "s_line_b1_reference_o2_mae": 0.40,
         "reciprocity_p95_max_s": 1.0e-7,
     }
     result = evaluate_f5_gates(arm_metrics, gates=gates, head="b1_ridge")
     assert result["checks"]["a_a3_beats_a1_ood"]["passed"] is True  # 1.2-0.5=0.7 ≥ 0.5
     assert result["checks"]["b_a3_near_a2_ood"]["passed"] is True  # 0.50-0.45=0.05 ≤ 0.25
-    assert result["checks"]["c_zero_anchor_noninferior"]["passed"] is True  # 0.02 ≤ 0.05
+    # c: A3 zero 0.42 vs S-line B1 0.40 → Δ=0.02 ≤ 0.05
+    assert result["checks"]["c_zero_anchor_noninferior_vs_s_line_b1"]["passed"] is True
+    assert result["checks"]["e_sound_speed_bias_and_reciprocity"]["passed"] is True
     assert result["core_gates_passed"] is True
+
+
+def test_f5_gates_require_s_line_reference():
+    arm_metrics = {
+        "A1:b1_ridge": {
+            "evaluations": {
+                "extrapolation": {"component_metrics": {"x_O2": {"mae": 1.0, "r2": 0.1}}},
+                "test": {"component_metrics": {"x_O2": {"mae": 1.0, "r2": 0.1}}},
+            },
+            "zero_anchor_metrics": {"test": {"o2_mae": 0.4, "n": 1}},
+            "sound_speed_audit": {},
+        },
+        "A2:b1_ridge": {
+            "evaluations": {
+                "extrapolation": {"component_metrics": {"x_O2": {"mae": 0.5, "r2": 0.1}}},
+                "test": {"component_metrics": {"x_O2": {"mae": 0.5, "r2": 0.1}}},
+            },
+            "zero_anchor_metrics": {"test": {"o2_mae": 0.4, "n": 1}},
+            "sound_speed_audit": {},
+        },
+        "A3:b1_ridge": {
+            "evaluations": {
+                "extrapolation": {"component_metrics": {"x_O2": {"mae": 0.4, "r2": 0.1}}},
+                "test": {"component_metrics": {"x_O2": {"mae": 0.4, "r2": 0.1}}},
+            },
+            "zero_anchor_metrics": {"test": {"o2_mae": 0.4, "n": 1}},
+            "sound_speed_audit": {
+                "pair_sound_speed_mean_abs_seq_bias_m_per_s": 0.01,
+                "ab_sound_speed_mean_abs_seq_bias_m_per_s": 0.5,
+                "reciprocity_residual_p95_of_seq_p95_s": 5e-8,
+            },
+        },
+    }
+    with pytest.raises(ValueError, match="s_line_b1_reference_o2_mae"):
+        evaluate_f5_gates(
+            arm_metrics,
+            gates={
+                "a3_minus_a1_o2_mae_min_vol_percent": 0.5,
+                "a3_minus_a2_o2_mae_max_vol_percent": 0.25,
+                "v_path_zero_anchor_delta_mae_max_vol_percent": 0.05,
+                "s_line_b1_reference_o2_mae": None,
+                "reciprocity_p95_max_s": 1.0e-7,
+            },
+            head="b1_ridge",
+        )

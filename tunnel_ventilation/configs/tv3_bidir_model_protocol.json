@@ -22,13 +22,16 @@
     "a3_minus_a1_o2_mae_min_vol_percent": 0.5,
     "a3_minus_a2_o2_mae_max_vol_percent": 0.25,
     "v_path_zero_anchor_delta_mae_max_vol_percent": 0.05,
+    "s_line_b1_reference_o2_mae": null,
     "selector_r2_noninferior_delta": -0.01,
     "reciprocity_p95_max_s": 1.0e-7
   },
   "notes": [
     "Frozen B1 RidgeCV alpha grid and B7 OOF residual MLP hyperparams; do not retune for bidir.",
-    "Primary selector is S-Flow (|v|≤2.5 train / (2.5,4] OOD by mixture median).",
+    "Primary selector is S-Flow (|v|≤2.5 train / (2.5,4] pure OOD by mixture median).",
     "A2 is audit-only (oracle v_path). Deploy conclusions use A3.",
+    "Set f5_amplitude_gates.s_line_b1_reference_o2_mae from locked S-line / frozen B1 before formal train.",
+    "Criterion d (S-Y/S-L) must pass before f5_model_protocol_passed and F6; pending ⇒ incomplete.",
     "Formal 6000 generation and training run on the server; local code path is verified on smoke-scale fixtures."
   ]
 }

@@ -241,7 +241,10 @@ def _point_rows(
                 audit_errors.append(f"{point_id} {parameter} finite-difference stability failed")
         sensitivity_rows.append(row)
         fisher = fisher_information_bidir(
-            derivatives, tof_std_s=tof_std_s, temperature_std_c=t_std
+            derivatives,
+            tof_std_s=tof_std_s,
+            temperature_std_c=t_std,
+            parameter_steps=config["finite_difference"]["steps"],
         )
         fisher_rows.append(
             {"point_id": point_id, "scope": scope, "window_id": window_id, **fisher}
@@ -432,6 +435,7 @@ def _choose_verdict(
     assessment: dict[str, Any],
     *,
     acoustic_full_rank: bool,
+    nuisance_marginalized: bool,
 ) -> dict[str, Any]:
     if not acoustic_full_rank:
         return {
@@ -449,7 +453,18 @@ def _choose_verdict(
             "reason": "Unrepresented nuisance mechanisms block a continuous-regression claim.",
             "business_gate_assessment": assessment,
         }
-    if all(gate["status"] == "passed" for gate in assessment.values()):
+    gates_passed = all(gate["status"] == "passed" for gate in assessment.values())
+    if gates_passed and not nuisance_marginalized:
+        return {
+            "status": "coarse_monitoring_only",
+            "reason": (
+                "conditional_o2_only_nuisance_not_marginalized: business gates pass, "
+                "but joint Fisher cannot marginalize CO2/L/(other) nuisances under the "
+                "registered AB/BA(+T) observation model."
+            ),
+            "business_gate_assessment": assessment,
+        }
+    if gates_passed and nuisance_marginalized:
         return {
             "status": "continuous_regression_supported",
             "scope": "bidir_registered_simulation",
@@ -591,6 +606,9 @@ def run_identifiability_v2(
         acoustic_full_rank = all(
             bool(row["acoustic_subsystem_full_rank"]) for row in all_fisher
         )
+        nuisance_marginalized = all(
+            row["nuisance_marginalized_status"] == "available" for row in all_fisher
+        )
         min_rank = int(min(int(row["joint_rank"]) for row in all_fisher))
         all_acoustic_full_rank = all_acoustic_full_rank and acoustic_full_rank
         scenario_dir = output_dir / jitter_id
@@ -608,6 +626,7 @@ def run_identifiability_v2(
             "evaluated_point_count": point_offset,
             "min_joint_rank": min_rank,
             "acoustic_subsystem_full_rank": acoustic_full_rank,
+            "nuisance_marginalized": nuisance_marginalized,
             "business_gate_assessment": assessment,
             "narrow_window_summaries": [
                 row for row in summaries if row["scope"] == "narrow_window"
@@ -629,17 +648,22 @@ def run_identifiability_v2(
             config,
             payload["business_gate_assessment"],
             acoustic_full_rank=bool(payload["acoustic_subsystem_full_rank"]),
+            nuisance_marginalized=bool(payload["nuisance_marginalized"]),
         )
         for sid, payload in scenario_payloads.items()
     }
-    # Stage-level business status: continuous only if nominal passes all gates;
-    # otherwise coarse_monitoring_only if flow unblocked and Fisher rank ok.
+    # Stage-level business status: continuous only if nominal passes all gates
+    # with nuisance marginalization available; otherwise coarse_monitoring_only
+    # if flow unblocked and Fisher acoustic rank ok.
     if not all_acoustic_full_rank:
         stage_status = "audit_failed"
         stage_reason = "Acoustic Fisher subsystem rank < 2 under at least one jitter scenario."
     elif verdict_by_scenario[nominal_id]["status"] == "continuous_regression_supported":
         stage_status = "continuous_regression_supported"
-        stage_reason = "Nominal jitter scenario passes all three business gates with flow implemented."
+        stage_reason = (
+            "Nominal jitter scenario passes all three business gates with flow implemented "
+            "and nuisance parameters marginalized."
+        )
     elif any(
         v["status"] == "information_source_upgrade_required" for v in verdict_by_scenario.values()
     ):
@@ -696,7 +720,10 @@ def run_identifiability_v2(
         "allowed_next_stage_on_pass": "F5_formal_model_protocol",
         "note": (
             "F4 stage pass means the audit completed with acoustic Fisher rank>=2 and "
-            "flow unblocked; continuous_regression_supported is a stronger business claim."
+            "flow unblocked; continuous_regression_supported additionally requires "
+            "nuisance_marginalized_status=available (full joint rank). Current AB/BA(+T) "
+            "observation model cannot marginalize five parameters, so continuous is unreachable "
+            "until NDIR/TCS (or other) observables enter the Fisher."
         ),
     }
 

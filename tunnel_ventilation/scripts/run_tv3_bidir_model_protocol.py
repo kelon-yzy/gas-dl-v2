@@ -241,21 +241,53 @@ def _sound_speed_bias_audit(dataset_dir: Path) -> dict[str, Any] | None:
     c_ab = np.load(ab_path, mmap_mode="r").astype(np.float64)
     c_true = np.load(true_path, mmap_mode="r").astype(np.float64)
 
-    def _seq_bias(est: np.ndarray) -> float:
-        biases = []
+    def _mean_abs_seq_bias(est: np.ndarray) -> float:
+        # Per-sequence signed mean bias, then mean of absolute values so +v/−v
+        # errors do not cancel across a symmetric flow distribution.
+        abs_biases = []
         for i in range(est.shape[0]):
             mask = np.isfinite(est[i]) & np.isfinite(c_true[i])
             if not np.any(mask):
                 continue
-            biases.append(float(np.mean(est[i][mask] - c_true[i][mask])))
-        return float(np.mean(biases)) if biases else float("nan")
+            abs_biases.append(abs(float(np.mean(est[i][mask] - c_true[i][mask]))))
+        return float(np.mean(abs_biases)) if abs_biases else float("nan")
 
     rec_path = frame_dir / "reciprocity_residual_p95_s.npy"
-    rec_p95 = float(np.nanmedian(np.load(rec_path))) if rec_path.is_file() else float("nan")
+    if rec_path.is_file():
+        seq_p95 = np.load(rec_path).astype(np.float64)
+        rec_p95 = float(np.nanpercentile(seq_p95, 95))
+    else:
+        rec_p95 = float("nan")
     return {
-        "pair_sound_speed_bias_m_per_s": _seq_bias(c_pair),
-        "ab_sound_speed_bias_m_per_s": _seq_bias(c_ab),
-        "reciprocity_residual_p95_median_s": rec_p95,
+        "pair_sound_speed_mean_abs_seq_bias_m_per_s": _mean_abs_seq_bias(c_pair),
+        "ab_sound_speed_mean_abs_seq_bias_m_per_s": _mean_abs_seq_bias(c_ab),
+        "reciprocity_residual_p95_of_seq_p95_s": rec_p95,
+    }
+
+
+def _verify_f4_prerequisite(config: dict[str, Any], *, project_root: Path = _TV3_ROOT) -> dict[str, Any]:
+    """Require a passed F4 verdict before F5 training."""
+    prereq = config.get("f4_prerequisite")
+    if not isinstance(prereq, dict):
+        raise ValueError("config.f4_prerequisite is required before F5 train")
+    verdict_path = Path(prereq["verdict_path"])
+    if not verdict_path.is_absolute():
+        verdict_path = (project_root / verdict_path).resolve()
+    if not verdict_path.is_file():
+        raise FileNotFoundError(f"F4 prerequisite verdict missing: {verdict_path}")
+    payload = _read_json(verdict_path)
+    expected_passed = bool(prereq.get("expected_stage_passed", True))
+    observed_passed = bool(payload.get("passed", payload.get("stage_passed", False)))
+    if observed_passed != expected_passed:
+        raise RuntimeError(
+            f"F4 prerequisite failed: {verdict_path} passed={observed_passed}, "
+            f"expected_stage_passed={expected_passed}"
+        )
+    return {
+        "verdict_path": str(verdict_path),
+        "passed": observed_passed,
+        "verdict": payload.get("verdict"),
+        "sha256": _file_sha256(verdict_path),
     }
 
 
@@ -310,6 +342,7 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
         _write_json(output_root / "feature_build_summary.json", summary)
 
     if stage in ("train", "all"):
+        summary["f4_prerequisite"] = _verify_f4_prerequisite(config)
         arm_metrics: dict[str, dict[str, Any]] = {}
         for arm_id in arms:
             for head in heads:
@@ -340,21 +373,38 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
         summary["gates"] = gate_results
         primary_head = "b1_ridge" if "b1_ridge" in gate_results else next(iter(gate_results), None)
         core_pass = bool(primary_head and gate_results[primary_head]["core_gates_passed"])
-        verdict = "f5_model_protocol_passed" if core_pass else "f5_model_protocol_failed"
-        # Selector ΔR² gate (d) deferred until L/S-Y derived; record placeholder.
-        summary["selector_gate_d"] = {
+        # Selector ΔR² gate (d): required for formal F5 pass; pending until S-Y/S-L exist.
+        selector_gate_d = {
             "status": "pending_optional_selectors",
-            "note": "Derive L / S-Y after S-Flow primary; noninferior ΔR² ≥ -0.01",
+            "passed": False,
+            "note": (
+                "Criterion d (S-Y/S-L noninferior ΔR²) is not evaluated until secondary "
+                "selectors are derived; formal F5 pass and F6 are blocked while pending."
+            ),
             "threshold": gates["selector_r2_noninferior_delta"],
         }
+        summary["selector_gate_d"] = selector_gate_d
+        gate_d_pass = bool(selector_gate_d["passed"])
+        stage_passed = bool(core_pass and gate_d_pass)
+        if stage_passed:
+            verdict = "f5_model_protocol_passed"
+            allowed_next = "F6_verdict_backfill"
+        elif core_pass and not gate_d_pass:
+            verdict = "f5_model_protocol_incomplete"
+            allowed_next = None
+        else:
+            verdict = "f5_model_protocol_failed"
+            allowed_next = None
         verdict_payload = {
             "schema_version": "tv3-bidir-f5-verdict-1",
             "verdict": verdict,
-            "stage_passed": core_pass,
+            "stage_passed": stage_passed,
+            "core_gates_passed": core_pass,
+            "selector_gate_d": selector_gate_d,
             "primary_head": primary_head,
             "gates": gate_results,
             "f5_amplitude_gates": gates,
-            "allowed_next_stage_on_pass": "F6_verdict_backfill",
+            "allowed_next_stage_on_pass": allowed_next,
             "created_at_utc": datetime.now(timezone.utc).isoformat(),
             "source_manifest_sha256": _file_sha256(source_dir / "manifest.json"),
         }
@@ -366,7 +416,8 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
             "status": "skipped_in_code_path",
             "note": (
                 "Optional L / S-Y: use scripts/recompute_tv3_split.py on the source bidir "
-                "dataset after adapting SPXY X arrays (AB TOF proxy). Primary F5 gates use S-Flow."
+                "dataset after adapting SPXY X arrays (AB TOF proxy). Primary F5 gates use S-Flow. "
+                "Until criterion d is evaluated, f5_verdict remains incomplete and F6 is blocked."
             ),
         }
 

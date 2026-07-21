@@ -237,38 +237,85 @@ def local_bidir_tof_sensitivity(
     return results
 
 
+DEFAULT_RANK_RELATIVE_TOL = 1e-6
+
+
+def _relative_svd_rank(
+    scaled_jacobian: np.ndarray,
+    *,
+    relative_tol: float = DEFAULT_RANK_RELATIVE_TOL,
+) -> int:
+    """Rank of a scale-normalized observation Jacobian via relative singular values."""
+    if not math.isfinite(relative_tol) or relative_tol <= 0.0:
+        raise ValueError("relative_tol must be finite and > 0")
+    if scaled_jacobian.size == 0:
+        return 0
+    singular = np.linalg.svd(scaled_jacobian, compute_uv=False)
+    if singular.size == 0 or not math.isfinite(float(singular[0])) or float(singular[0]) <= 0.0:
+        return 0
+    return int(np.sum(singular > relative_tol * singular[0]))
+
+
 def fisher_information_bidir(
     derivatives: Mapping[str, Mapping[str, float | str | bool]],
     *,
     tof_std_s: float,
     temperature_std_c: float | None = None,
+    parameter_steps: Mapping[str, float] | None = None,
+    rank_relative_tol: float = DEFAULT_RANK_RELATIVE_TOL,
 ) -> dict[str, Any]:
     """Multi-observation Fisher for y=[t_ab, t_ba] (+ optional T).
 
     Independent trigger jitter ⇒ Σ_tof = σ² I_2. Optional T row uses σ_T on the
     measured temperature channel (∂T/∂t_c=1, else 0).
+
+    Joint rank uses relative SVD on the observation-and-parameter scale-normalized
+    Jacobian (not absolute tolerance on JᵀΣ⁻¹J). With AB/BA/(+T) the rank is at
+    most 2 (or 3), so nuisance marginalization of five parameters is unavailable
+    until additional observables enter the Fisher.
     """
     if not math.isfinite(tof_std_s) or tof_std_s <= 0.0:
         raise ValueError("tof_std_s must be finite and > 0")
     n_param = len(DERIVATIVE_PARAMETERS)
-    jacobian = np.zeros((2, n_param), dtype=np.float64)
+    n_obs = 2 if temperature_std_c is None else 3
+    jacobian = np.zeros((n_obs, n_param), dtype=np.float64)
     for idx, parameter in enumerate(DERIVATIVE_PARAMETERS):
         jacobian[0, idx] = float(derivatives[parameter]["derivative_tof_ab_s_per_unit"])
         jacobian[1, idx] = float(derivatives[parameter]["derivative_tof_ba_s_per_unit"])
-    if not np.isfinite(jacobian).all():
-        raise ValueError("TOF derivatives must be finite before Fisher calculation")
-    cov_inv = np.eye(2, dtype=np.float64) / (tof_std_s**2)
-    joint = jacobian.T @ cov_inv @ jacobian
     observability = "tof_ab_tof_ba"
     if temperature_std_c is not None:
         if not math.isfinite(temperature_std_c) or temperature_std_c <= 0.0:
             raise ValueError("temperature_std_c must be finite and > 0 when provided")
-        t_row = np.zeros((1, n_param), dtype=np.float64)
-        t_row[0, DERIVATIVE_PARAMETERS.index("t_c")] = 1.0
-        joint = joint + (t_row.T @ t_row) / (temperature_std_c**2)
+        jacobian[2, DERIVATIVE_PARAMETERS.index("t_c")] = 1.0
         observability = "tof_ab_tof_ba_plus_T"
+    if not np.isfinite(jacobian).all():
+        raise ValueError("TOF derivatives must be finite before Fisher calculation")
 
-    rank = int(np.linalg.matrix_rank(joint, tol=1e-12))
+    # Physical Fisher (original units) for CRLB-style reporting when full-rank.
+    row_scales = np.asarray(
+        [tof_std_s, tof_std_s]
+        + ([temperature_std_c] if temperature_std_c is not None else []),
+        dtype=np.float64,
+    )
+    cov_inv = np.diag(1.0 / (row_scales**2))
+    joint = jacobian.T @ cov_inv @ jacobian
+
+    # Rank from scale-normalized observation Jacobian (row / σ, column × FD step).
+    scaled = jacobian / row_scales[:, None]
+    if parameter_steps is not None:
+        for idx, parameter in enumerate(DERIVATIVE_PARAMETERS):
+            step = float(parameter_steps[parameter])
+            if not math.isfinite(step) or step <= 0.0:
+                raise ValueError(f"parameter_steps[{parameter!r}] must be finite and > 0")
+            scaled[:, idx] *= step
+    rank = _relative_svd_rank(scaled, relative_tol=rank_relative_tol)
+    max_obs_rank = n_obs
+    if rank > max_obs_rank:
+        raise RuntimeError(
+            f"joint_rank={rank} exceeds observation count {max_obs_rank}; "
+            "relative SVD ranking is inconsistent"
+        )
+
     # Conditional O2 info from mid-pair TOF (common-mode channel after reciprocal-sum).
     d_mid_o2 = float(derivatives["o2_percent"]["derivative_tof_mid_s_per_unit"])
     # Mid-pair of two independent TOFs: Var((t_ab+t_ba)/2) = σ²/2.
@@ -287,6 +334,7 @@ def fisher_information_bidir(
         "joint_rank": rank,
         "joint_parameter_count": n_param,
         "joint_observation_model": observability,
+        "joint_observation_count": n_obs,
         "acoustic_subsystem_full_rank": acoustic_full_rank,
         "nuisance_marginalized_status": (
             "available" if rank >= n_param else "unavailable_rank_deficient"
@@ -304,6 +352,7 @@ def midpair_tof_std_s(tof_std_s: float) -> float:
 
 __all__ = [
     "BidirAcousticPoint",
+    "DEFAULT_RANK_RELATIVE_TOL",
     "DERIVATIVE_PARAMETERS",
     "build_bidir_points",
     "fisher_information_bidir",

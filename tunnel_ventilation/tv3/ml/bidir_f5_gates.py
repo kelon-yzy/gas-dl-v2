@@ -1,6 +1,7 @@
 """F5 preregistered amplitude gates (frozen at F4; do not retune after seeing scores)."""
 from __future__ import annotations
 
+import math
 from typing import Any
 
 
@@ -11,12 +12,27 @@ def evaluate_f5_gates(
     primary_split: str = "extrapolation",
     head: str = "b1_ridge",
 ) -> dict[str, Any]:
-    """Apply preregistered F5 amplitude gates on one head."""
+    """Apply preregistered F5 amplitude gates on one head.
+
+    Criterion c compares A3 zero-anchor O₂ MAE to the registered S-line / frozen B1
+    reference MAE (not to A1). Criterion d is evaluated separately by the protocol
+    runner once S-Y/S-L selectors exist.
+    """
     required = ("A1", "A2", "A3")
     for arm_id in required:
         key = f"{arm_id}:{head}"
         if key not in arm_metrics:
             raise KeyError(f"missing arm metrics for gate evaluation: {key}")
+    if "s_line_b1_reference_o2_mae" not in gates:
+        raise KeyError("gates must include s_line_b1_reference_o2_mae for criterion c")
+    s_line_ref_raw = gates["s_line_b1_reference_o2_mae"]
+    if s_line_ref_raw is None:
+        raise ValueError(
+            "s_line_b1_reference_o2_mae must be set to a finite float from S-line / frozen B1"
+        )
+    s_line_ref = float(s_line_ref_raw)
+    if not math.isfinite(s_line_ref):
+        raise ValueError("s_line_b1_reference_o2_mae must be finite")
 
     def o2_mae(arm_id: str, split: str) -> float:
         payload = arm_metrics[f"{arm_id}:{head}"]
@@ -32,23 +48,29 @@ def evaluate_f5_gates(
     a3_minus_a1 = a1_ood - a3_ood  # positive => A3 better
     a3_minus_a2 = a3_ood - a2_ood  # should be ≤ residual gate
 
-    zero_a1 = arm_metrics[f"A1:{head}"]["zero_anchor_metrics"].get("test")
     zero_a3 = arm_metrics[f"A3:{head}"]["zero_anchor_metrics"].get("test")
-    if zero_a1 is None or zero_a3 is None:
+    if zero_a3 is None:
         zero_delta = float("nan")
         zero_pass = False
     else:
-        zero_delta = float(zero_a3["o2_mae"] - zero_a1["o2_mae"])
+        zero_delta = float(zero_a3["o2_mae"] - s_line_ref)
         zero_pass = bool(zero_delta <= gates["v_path_zero_anchor_delta_mae_max_vol_percent"])
 
     ss = arm_metrics[f"A3:{head}"].get("sound_speed_audit") or {}
-    pair_bias = ss.get("pair_sound_speed_bias_m_per_s")
-    ab_bias = ss.get("ab_sound_speed_bias_m_per_s")
-    rec_p95 = ss.get("reciprocity_residual_p95_median_s")
+    pair_bias = ss.get("pair_sound_speed_mean_abs_seq_bias_m_per_s")
+    ab_bias = ss.get("ab_sound_speed_mean_abs_seq_bias_m_per_s")
+    # Backward-compatible keys from older metrics payloads.
+    if pair_bias is None:
+        pair_bias = ss.get("pair_sound_speed_bias_m_per_s")
+    if ab_bias is None:
+        ab_bias = ss.get("ab_sound_speed_bias_m_per_s")
+    rec_p95 = ss.get("reciprocity_residual_p95_of_seq_p95_s")
+    if rec_p95 is None:
+        rec_p95 = ss.get("reciprocity_residual_p95_median_s")
     e_pass = (
         pair_bias is not None
         and ab_bias is not None
-        and abs(float(pair_bias)) < abs(float(ab_bias))
+        and float(pair_bias) < float(ab_bias)
         and rec_p95 is not None
         and float(rec_p95) <= gates.get("reciprocity_p95_max_s", 1.0e-7)
     )
@@ -66,18 +88,21 @@ def evaluate_f5_gates(
             "passed": bool(a3_minus_a2 <= gates["a3_minus_a2_o2_mae_max_vol_percent"]),
             "detail": {"a2_o2_mae": a2_ood, "a3_o2_mae": a3_ood, "split": primary_split},
         },
-        "c_zero_anchor_noninferior": {
+        "c_zero_anchor_noninferior_vs_s_line_b1": {
             "value": zero_delta,
             "threshold_max": gates["v_path_zero_anchor_delta_mae_max_vol_percent"],
             "passed": zero_pass,
-            "detail": {"zero_a1": zero_a1, "zero_a3": zero_a3},
+            "detail": {
+                "zero_a3": zero_a3,
+                "s_line_b1_reference_o2_mae": s_line_ref,
+            },
         },
         "e_sound_speed_bias_and_reciprocity": {
             "passed": bool(e_pass),
             "detail": {
-                "pair_bias": pair_bias,
-                "ab_bias": ab_bias,
-                "reciprocity_p95": rec_p95,
+                "pair_mean_abs_seq_bias": pair_bias,
+                "ab_mean_abs_seq_bias": ab_bias,
+                "reciprocity_p95_of_seq_p95": rec_p95,
             },
         },
     }

@@ -67,10 +67,64 @@ def test_bidir_tof_depends_on_signed_flow():
 
 def test_bidir_fisher_acoustic_subsystem_full_rank():
     derivatives = _derivatives(BidirAcousticPoint(1.0, 20.0, 25.0, 0.25, 1.0))
-    result = fisher_information_bidir(derivatives, tof_std_s=3e-6, temperature_std_c=1.0)
+    result = fisher_information_bidir(
+        derivatives,
+        tof_std_s=3e-6,
+        temperature_std_c=1.0,
+        parameter_steps=STEPS,
+    )
     assert result["joint_rank"] >= 2
+    assert result["joint_rank"] <= 3
+    assert result["joint_observation_count"] == 3
     assert result["acoustic_subsystem_full_rank"] is True
     assert result["conditional_o2_information"] > 0.0
+    assert result["nuisance_marginalized_status"] == "unavailable_rank_deficient"
+
+
+def test_bidir_fisher_rank_bounded_by_observation_count():
+    derivatives = _derivatives(BidirAcousticPoint(1.0, 20.0, 25.0, 0.25, 1.0))
+    with_t = fisher_information_bidir(
+        derivatives,
+        tof_std_s=5e-7,
+        temperature_std_c=1.0,
+        parameter_steps=STEPS,
+    )
+    without_t = fisher_information_bidir(
+        derivatives,
+        tof_std_s=5e-7,
+        temperature_std_c=None,
+        parameter_steps=STEPS,
+    )
+    assert with_t["joint_rank"] in {2, 3}
+    assert with_t["joint_rank"] <= with_t["joint_observation_count"]
+    assert without_t["joint_rank"] in {1, 2}
+    assert without_t["joint_rank"] <= without_t["joint_observation_count"]
+    assert without_t["joint_observation_count"] == 2
+
+
+def test_choose_verdict_blocks_continuous_without_nuisance_marginalization():
+    runner = _load_runner()
+    assessment = {
+        "target_p90_o2_error_percent": {"status": "passed"},
+        "max_nuisance_fraction_of_signal": {"status": "passed"},
+        "max_rejection_rate": {"status": "passed"},
+    }
+    config = {"representation_audit": []}
+    verdict = runner._choose_verdict(
+        config,
+        assessment,
+        acoustic_full_rank=True,
+        nuisance_marginalized=False,
+    )
+    assert verdict["status"] == "coarse_monitoring_only"
+    assert "nuisance_not_marginalized" in verdict["reason"]
+    continuous = runner._choose_verdict(
+        config,
+        assessment,
+        acoustic_full_rank=True,
+        nuisance_marginalized=True,
+    )
+    assert continuous["status"] == "continuous_regression_supported"
 
 
 def test_v_path_sensitivity_is_differential_mode():

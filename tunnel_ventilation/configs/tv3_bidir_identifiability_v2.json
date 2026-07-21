@@ -121,7 +121,7 @@
     "notes": "与计划 §Context.2 先验表交叉核对；超量级偏离须解释"
   },
   "f5_amplitude_gate_preregistration": {
-    "notes": "F5 判据 a 的幅度门在 F4 后预注册，防止事后选择。A3 相对 A1 的 S-Flow OOD O₂ MAE 改善先验 ≥0.5 vol%。",
+    "notes": "F5 判据 a 的幅度门在 F4 后预注册，防止事后选择。A3 相对 A1 的 S-Flow OOD O₂ MAE 改善先验 ≥0.5 vol%。判据 c 的 s_line_b1_reference_o2_mae 在 F5 config 登记，不在此预填。",
     "a3_minus_a1_o2_mae_min_vol_percent": 0.5,
     "a3_minus_a2_o2_mae_max_vol_percent": 0.25,
     "v_path_zero_anchor_delta_mae_max_vol_percent": 0.05,

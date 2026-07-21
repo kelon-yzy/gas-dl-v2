@@ -1,7 +1,7 @@
 """S-Flow selector for F5: mixture-level |v_path| holdout.
 
 Train/val/test are drawn only from mixtures whose median |v_path| ≤ train_max.
-Mixtures with median |v_path| in (train_max, ood_max] become the extrapolation OOD set.
+Mixtures with median |v_path| in (train_max, ood_max] become the pure extrapolation OOD set.
 Preserves mixture_id grouping (no sequence-level leakage across splits).
 """
 from __future__ import annotations
@@ -10,12 +10,13 @@ import csv
 import hashlib
 import json
 import os
+import random
 from pathlib import Path
 from typing import Any
 
 from tv3.sim.core.tunnel_ventilation_bidir_schema import SPLIT_FIELDS, SPLIT_NAMES
 from tv3.sim.packaging.io import write_csv, write_json
-from tv3.sim.packaging.splits import build_default_split_rows
+from tv3.sim.packaging.splits import build_split_rows_from_group_sets
 from tv3.sim.packaging.spxy_split import hash_sequence_id_set
 
 DEFAULT_TRAIN_ABS_V_MAX = 2.5
@@ -80,6 +81,45 @@ def zero_anchor_sequence_ids(conditions: list[dict[str, str]], *, atol: float = 
     )
 
 
+def _split_in_domain_train_val_test(
+    conditions: list[dict[str, str]],
+    *,
+    seed: int,
+    train_ratio: float = 0.70,
+    val_ratio: float = 0.15,
+    test_ratio: float = 0.15,
+) -> dict[str, list[dict[str, str]]]:
+    """Assign every in-domain mixture to train/val/test (ratios sum to 1; no remainder)."""
+    if abs((train_ratio + val_ratio + test_ratio) - 1.0) > 1e-12:
+        raise ValueError("train_ratio + val_ratio + test_ratio must equal 1.0")
+    group_ids = sorted({str(row["mixture_id"]) for row in conditions})
+    rng = random.Random(seed)
+    rng.shuffle(group_ids)
+    n_groups = len(group_ids)
+    if n_groups < 1:
+        raise ValueError("in-domain mixture set is empty")
+    n_train = max(1, int(round(n_groups * train_ratio)))
+    n_val = max(0, int(round(n_groups * val_ratio)))
+    if n_groups >= 3:
+        n_val = max(1, n_val)
+    n_test = n_groups - n_train - n_val
+    if n_groups >= 3 and n_test < 1:
+        # Rebalance so each of train/val/test gets at least one mixture when possible.
+        n_train = max(1, n_groups - 2)
+        n_val = 1
+        n_test = n_groups - n_train - n_val
+    if n_train + n_val + n_test != n_groups:
+        raise RuntimeError("in-domain split counts do not cover all mixtures")
+    train_end = n_train
+    val_end = train_end + n_val
+    split_groups = {
+        "train": set(group_ids[:train_end]),
+        "val": set(group_ids[train_end:val_end]),
+        "test": set(group_ids[val_end:]),
+    }
+    return build_split_rows_from_group_sets(conditions, split_groups)
+
+
 def _link_tree(src: Path, dst: Path, *, skip: frozenset[str]) -> None:
     dst.mkdir(parents=True, exist_ok=True)
     for item in src.iterdir():
@@ -132,17 +172,21 @@ def derive_s_flow_split(
     if not ood:
         raise ValueError("S-Flow OOD mixture set is empty")
 
-    # Random mixture split among in-domain only; OOD fills extrapolation.
-    id_rows = build_default_split_rows(in_domain, seed=seed)
+    # Random mixture split among in-domain only; extrapolation is pure OOD.
+    id_rows = _split_in_domain_train_val_test(in_domain, seed=seed)
     rows: dict[str, list[dict[str, str]]] = {
         "train": id_rows["train"],
         "val": id_rows["val"],
         "test": id_rows["test"],
-        # Include leftover in-domain extrapolation remainder plus all OOD mixtures.
-        "extrapolation": list(id_rows["extrapolation"]) + [
+        "extrapolation": [
             {"sequence_id": row["sequence_id"], "mixture_id": row["mixture_id"]} for row in ood
         ],
     }
+    for row in rows["extrapolation"]:
+        if median_abs_v[str(row["mixture_id"])] <= train_abs_v_max:
+            raise ValueError(
+                f"S-Flow extrapolation contaminated by in-domain mixture {row['mixture_id']}"
+            )
     all_ids = [r["sequence_id"] for name in SPLIT_NAMES for r in rows[name]]
     expected_ids = {str(row["sequence_id"]) for row in in_domain} | {
         str(row["sequence_id"]) for row in ood
@@ -182,8 +226,8 @@ def derive_s_flow_split(
         "zero_anchor_sequence_ids_hash": hash_sequence_id_set(zero_ids),
         "zero_anchor_sequence_count": len(zero_ids),
         "extrapolation_note": (
-            "in-domain random remainder + mixtures with median |v_path| in "
-            f"({train_abs_v_max}, {ood_abs_v_max}]"
+            f"pure OOD: mixtures with median |v_path| in ({train_abs_v_max}, {ood_abs_v_max}]; "
+            "in-domain mixtures are assigned only to train/val/test"
         ),
     }
 
