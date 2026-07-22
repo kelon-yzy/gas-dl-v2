@@ -1,0 +1,43 @@
+{
+  "schema_version": "tv3-bidir-model-protocol-1",
+  "composition_domain": "narrow",
+  "source_dataset_dir": "data/tv3-bidir-smoke",
+  "splits_root": "data/tv3-bidir-smoke-splits",
+  "output_dir": "outputs/tv3_bidir/model_protocol_smoke",
+  "overwrite": true,
+  "device": "cpu",
+  "seed": 20260704,
+  "s_flow_seed": 20260721,
+  "train_abs_v_max": 2.5,
+  "ood_abs_v_max": 4.0,
+  "template_max_frames": 512,
+  "arms": ["A1", "A2", "A3", "A4", "A5"],
+  "heads": ["b1_ridge", "b7_residual"],
+  "derive_secondary_selectors": true,
+  "f5s": {
+    "x_profile": "bidir_spxy_observed_ab_v1",
+    "spxy_alpha": 0.5,
+    "split_seeds": [20260704, 20260712, 20260720],
+    "selectors": ["s_y", "s_l"],
+    "note": "Smoke E2E only: independent splits_root; does not touch tv3-bidir-6000*."
+  },
+  "f4_prerequisite": {
+    "verdict_path": "outputs/tv3_bidir/identifiability_v2/f4_verdict.json",
+    "expected_stage_passed": true,
+    "expected_composition_domain": "narrow",
+    "note": "Smoke wiring check; formal amplitude gates still apply for exit semantics."
+  },
+  "f5_amplitude_gates": {
+    "a3_minus_a1_o2_mae_min_vol_percent": 0.5,
+    "a3_minus_a2_o2_mae_max_vol_percent": 0.25,
+    "v_path_zero_anchor_delta_mae_max_vol_percent": 0.05,
+    "s_line_b1_reference_o2_mae": 0.40,
+    "selector_r2_noninferior_delta": -0.01,
+    "reciprocity_p95_max_s": 1.0e-7
+  },
+  "notes": [
+    "Local smoke end-to-end for F5-S path: bootstrap → S-Y/S-L derive → rebuild cache → train → gates.",
+    "s_line_b1_reference_o2_mae=0.40 is a smoke-only placeholder so criterion-c evaluates; formal narrow must lock from S-line / frozen B1.",
+    "Pass/fail of amplitude gates on 16×32 is not a formal F5 verdict."
+  ]
+}

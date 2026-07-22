@@ -185,6 +185,109 @@ def test_dataset_slug_wide_suffix():
     assert apply_composition_domain_dataset_slug("tv3-bidir-smoke-wide", "wide") == "tv3-bidir-smoke-wide"
 
 
+def test_validate_spec_write_once_slug_isolation():
+    from tv3.sim.generation.tunnel_ventilation.benchmark import (
+        TunnelVentilationBenchmarkGenerationSpec,
+        _validate_spec,
+    )
+
+    with pytest.raises(ValueError, match="-wide"):
+        _validate_spec(
+            TunnelVentilationBenchmarkGenerationSpec(
+                dataset_slug="tv3-bidir-6000",
+                sequence_count=8,
+                seed=1,
+                timesteps=4,
+                dt_s=0.5,
+                bidirectional=True,
+                composition_domain="wide",
+            )
+        )
+    with pytest.raises(ValueError, match="composition_domain='narrow'"):
+        _validate_spec(
+            TunnelVentilationBenchmarkGenerationSpec(
+                dataset_slug="tv3-bidir-6000-wide",
+                sequence_count=8,
+                seed=1,
+                timesteps=4,
+                dt_s=0.5,
+                bidirectional=True,
+                composition_domain="narrow",
+            )
+        )
+
+
+def test_f2_registry_check_requires_f0_passed(tmp_path: Path):
+    import importlib.util
+
+    from tv3.sim.generation.tunnel_ventilation.bidir_registry import (
+        default_config_dir,
+        sha256_file,
+    )
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "run_tv3_bidir_f2_benchmark_audit.py"
+    spec = importlib.util.spec_from_file_location("tv3_bidir_f2", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+
+    registry = default_config_dir() / "parameter_registry_wide.json"
+    actual = sha256_file(registry)
+    f0 = tmp_path / "f0_verdict.json"
+    f0.write_text(
+        json.dumps(
+            {
+                "audit": {
+                    "passed": False,
+                    "verdict": "inconclusive_parameter_bounds",
+                    "registry_sha256": actual,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    matched, info = mod._check_registry_sha256_matches_f0(f0, composition_domain="wide")
+    assert matched is False
+    assert info["hash_matched"] is True
+    assert info["f0_passed"] is False
+
+
+def test_f2_registry_check_requires_f0_passed(tmp_path: Path):
+    import importlib.util
+    import hashlib
+
+    from tv3.sim.generation.tunnel_ventilation.bidir_registry import (
+        default_config_dir,
+        sha256_file,
+    )
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "run_tv3_bidir_f2_benchmark_audit.py"
+    spec = importlib.util.spec_from_file_location("tv3_bidir_f2_audit", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+
+    registry_path = default_config_dir() / "parameter_registry_wide.json"
+    actual = sha256_file(registry_path)
+    f0 = tmp_path / "f0_verdict.json"
+    f0.write_text(
+        json.dumps(
+            {
+                "audit": {
+                    "passed": False,
+                    "verdict": "inconclusive_parameter_bounds",
+                    "registry_sha256": actual,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    matched, info = mod._check_registry_sha256_matches_f0(f0, composition_domain="wide")
+    assert matched is False
+    assert info["hash_matched"] is True
+    assert info["f0_passed"] is False
+
+
 def test_f0_narrow_registry_untouched_and_wide_gate_passes():
     narrow = load_f0_registry()
     wide = load_f0_registry_wide()

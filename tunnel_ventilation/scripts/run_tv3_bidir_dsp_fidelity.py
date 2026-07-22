@@ -213,6 +213,24 @@ def _peak_metrics(err: np.ndarray) -> dict[str, float]:
     }
 
 
+def _wide_stress_peak_gate_passed(
+    *,
+    max_ab: float,
+    max_ba: float,
+    n_stress: int,
+    limit: float,
+) -> bool:
+    """Wide stress peak gate: non-finite errors fail (no vacuous pass)."""
+    if n_stress <= 0:
+        return True
+    return bool(
+        np.isfinite(max_ab)
+        and np.isfinite(max_ba)
+        and float(max_ab) <= limit
+        and float(max_ba) <= limit
+    )
+
+
 def _wide_stress_peak_report(
     *,
     peak_err_ab: np.ndarray,
@@ -637,12 +655,12 @@ def run_f3_dsp_fidelity(
         stress_ok = n_stress > 0 or not require_frames
         max_ab = wide_stress_report["ab"]["max_abs_samples"]
         max_ba = wide_stress_report["ba"]["max_abs_samples"]
-        peak_ok = (
-            n_stress == 0
-            or (
-                (not np.isfinite(max_ab) or max_ab <= thresholds.peak_p95_abs_samples)
-                and (not np.isfinite(max_ba) or max_ba <= thresholds.peak_p95_abs_samples)
-            )
+        # Non-finite peak errors are failures (NaN/Inf must not vacuously pass).
+        peak_ok = _wide_stress_peak_gate_passed(
+            max_ab=float(max_ab) if max_ab is not None else float("nan"),
+            max_ba=float(max_ba) if max_ba is not None else float("nan"),
+            n_stress=n_stress,
+            limit=float(thresholds.peak_p95_abs_samples),
         )
         gates["wide_stress_frames_present"] = {
             "value": float(n_stress),

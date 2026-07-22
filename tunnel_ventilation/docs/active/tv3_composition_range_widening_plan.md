@@ -1,6 +1,6 @@
 # tv3 组分区间拓宽实施规划（CO₂ 0.03–10%，O₂ 15–25%）
 
-> 状态：**F5-wide code_ready（2026-07-22）**：`configs/tv3_bidir_model_protocol_wide.json` 已就绪；判据 (c) 重锚 `in_domain_a1_v_path_zero`（`tv3/ml/bidir_f5_gates.py`）；`stage_status.f5_wide`。窄域 F5/`model_protocol` 未改写。**下一步：服务器生成 `tv3-bidir-6000-wide` 并跑五臂协议**（见下方命令与 `docs/operations/server_training_guide.md` §6.2.1）。
+> 状态：**F5-S 代码已落地（2026-07-22）**：`bidir_spxy_observed_ab_v1`（50 维 AB-only）+ recompute 适配 + 协议 12 格判据 (d)。`stage_status.f5*_wide=f5s_code_ready_awaiting_formal_matrix`。**下一步：smoke-wide 端到端审计 → 再服务器 6000-wide**；incomplete 仍 exit 2。
 > 
 > 责任边界：本规划**不**覆盖任何已冻结产物（v1 单向审计、F4 窄域 verdict、F3 窄域保真、B1/B7/E1d-SB、S 线、tv3-formal-6000），**不**改写 F 线物理/流速契约，**不**声称推翻 `coarse_monitoring_only`。新域按独立注册域处理。
 
@@ -247,27 +247,30 @@ python scripts/run_tv3_identifiability_v2.py --config configs/tv3_bidir_identifi
 
 ### F5-wide —— 正式数据与五臂对照（服务器）
 
-- **本地已就绪（2026-07-22）**：`configs/tv3_bidir_model_protocol_wide.json`；判据 (c)=`in_domain_a1_v_path_zero`（`s_line_b1_reference_o2_mae` 可 null）；F4-wide 前置；单元测试覆盖域内重锚。**不在本机生成/训练 6000。**
+- **F5-S 已落地（2026-07-22）**：`bidir_spxy_observed_ab_v1`；`recompute_tv3_split --spxy-x-profile bidir_spxy_observed_ab_v1`；协议 `derive_secondary_selectors=true` 跑 S-Y/S-L×3 seeds 全矩阵并评 12 格判据 (d)。
+- **仍建议先 smoke 再 6000**：本地用 `tv3-bidir-smoke-wide` 跑通 bootstrap→派生→重建 cache→门逻辑后，再服务器正式集。
 
-工作目录：`tunnel_ventilation/`。同步含 F5-wide 的代码后：
+工作目录 `tunnel_ventilation/`：
 
 ```bash
-# 1) 正式 6000-wide（~2× 单向存储量级；勿覆盖 data/tv3-bidir-6000）
+# 1) 正式 6000-wide（勿覆盖 data/tv3-bidir-6000）
 python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
   --output-root data --preset bidir-formal-6000 --composition-domain wide
 
 python scripts/check_slow_channels.py data/tv3-bidir-6000-wide
 
-# 2) 五臂协议（写 outputs/tv3_bidir/model_protocol_wide/）
+# 2) 五臂 + F5-S（写 outputs/tv3_bidir/model_protocol_wide/）
+# incomplete → exit 2；矩阵完整但 (d) 失败 → exit 1；全过 → exit 0
 python scripts/run_tv3_bidir_model_protocol.py \
   --config configs/tv3_bidir_model_protocol_wide.json --stage all --device cuda
 
-# 3) 门逻辑自检（可选）
-python -m pytest -q tests/test_tunnel_ventilation_bidir_model_protocol.py
+# 3) 门逻辑自检
+python -m pytest -q tests/test_tunnel_ventilation_bidir_secondary_selectors.py \
+  tests/test_tunnel_ventilation_bidir_model_protocol.py
 ```
 
-- 判据（域内）：(a) A3−A1 S-Flow OOD O₂ MAE ≥0.5 vol%；(b) A3−A2 ≤0.25；(c) A3 零流锚点 vs **域内 A1 零流**（Δ≤0.05）；(d) S-Y/S-L ΔR²≥−0.01；(e) reciprocity 可稳定标定。任一增益仅在 val 不同步到 OOD/test → 未通过。
-- 验收：`outputs/tv3_bidir/model_protocol_wide/f5_verdict.json`；`stage_status.f5_wide` 回填 server verdict 后进 F6-wide。
+- 判据（域内）：(a)–(e) 同前；(d) 为 **2×3×2=12 格** A3−A1 O₂ ΔR²，禁止均值掩盖。
+- 验收：`f5_verdict.json` 且 `verdict=f5_model_protocol_passed`（exit 0）后进 F6-wide。
 
 ### F6-wide —— verdict 与回填
 
@@ -292,4 +295,4 @@ python -m pytest -q tests/test_tunnel_ventilation_bidir_model_protocol.py
 4. ~~窄窗铺法~~ → **危害锚定 6 窗（F4-wide 已用）**
 5. ~~F3-wide CO₂ 高端是否降 L_m~~ → **F3-wide 已过门，无需降 L_m**
 
-> Decision Gate 全部关闭；F5-wide 仅差服务器正式跑数。
+> Decision Gate 全部关闭；F5-S 代码已落地；F5-wide 仅差 smoke 端到端 → 服务器正式跑数。

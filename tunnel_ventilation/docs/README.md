@@ -7,7 +7,8 @@
 1. [掘进通风项目记忆库.md](掘进通风项目记忆库.md)：当前有效事实、正式结果、硬不变量和执行门。
 2. [methods/tv3_名词与实验顺序导读.md](methods/tv3_名词与实验顺序导读.md)：初学者名词说明，按实验顺序分级检索。
 3. [active/tv3_static_air_feasibility_implementation_plan.md](active/tv3_static_air_feasibility_implementation_plan.md)：当前仿真 P0，`flow=0` 静止空气扰动、可辨识性与独立参数 holdout。
-3b. [active/tv3_bidirectional_ultrasound_implementation_plan.md](active/tv3_bidirectional_ultrasound_implementation_plan.md)：双向超声 F 线（F0–F4 完成，F5 代码就绪）：`coarse_monitoring_only`；正式 `tv3-bidir-6000` 训练待服务器。
+3b. [active/tv3_bidirectional_ultrasound_implementation_plan.md](active/tv3_bidirectional_ultrasound_implementation_plan.md)：双向超声 F 线（F0–F4 完成，F5-S 代码已落地）：`coarse_monitoring_only`；正式 `tv3-bidir-6000`（及 `-wide`）矩阵待 smoke → 服务器。
+3c. [active/tv3_composition_range_widening_plan.md](active/tv3_composition_range_widening_plan.md)：组分宽域独立注册（`-wide`）：F0'–F4-wide 通过；F5-S 共用；正式 6000-wide 待服务器。
 4. [active/tv3_comsol_multiphysics_dl_implementation_plan.md](active/tv3_comsol_multiphysics_dl_implementation_plan.md)：P1 并行线：隧道 CFD / 输运 / 局部声学与 DL；G1 smoke 已通过，下一步 G2；正式 DOE 仍阻断。
 5. [active/tv3_ec_msw_gatednet_implementation_plan.md](active/tv3_ec_msw_gatednet_implementation_plan.md)：算法实验线；LS 正式不晋升；下一步见 deploy-joint 计划，E2 仍禁止。
 5b. [active/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md](active/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md)：e1d_sb（无 LS）可部署联合系统。

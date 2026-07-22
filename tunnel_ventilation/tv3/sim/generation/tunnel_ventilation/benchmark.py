@@ -451,6 +451,19 @@ def _validate_spec(spec: TunnelVentilationBenchmarkGenerationSpec) -> None:
         raise ValueError(
             "composition_domain='wide' requires bidirectional=True (A1: F-line only)"
         )
+    # Write-once isolation: wide must not publish into a narrow slug (and vice versa).
+    slug = str(spec.dataset_slug)
+    ends_wide = slug.endswith("-wide")
+    if spec.composition_domain == COMPOSITION_DOMAIN_WIDE and not ends_wide:
+        raise ValueError(
+            "composition_domain='wide' requires dataset_slug ending with '-wide' "
+            "(write-once isolation; refuse overwriting frozen narrow datasets)"
+        )
+    if spec.composition_domain == COMPOSITION_DOMAIN_NARROW and ends_wide:
+        raise ValueError(
+            "dataset_slug ends with '-wide' but composition_domain='narrow'; "
+            "use composition_domain='wide' or rename the slug"
+        )
 
 
 def _optical_absorption_metadata(spec: TunnelVentilationBenchmarkGenerationSpec) -> dict[str, object]:

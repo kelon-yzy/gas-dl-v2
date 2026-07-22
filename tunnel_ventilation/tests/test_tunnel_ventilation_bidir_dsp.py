@@ -200,3 +200,32 @@ def test_freeze_session_delay_digest_stable():
     )
     assert a.digest == b.digest
     assert len(a.digest) == 64
+
+
+def test_wide_stress_peak_gate_rejects_nonfinite():
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    import numpy as np
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "run_tv3_bidir_dsp_fidelity.py"
+    spec = importlib.util.spec_from_file_location("tv3_bidir_dsp_fidelity", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    assert mod._wide_stress_peak_gate_passed(max_ab=0.1, max_ba=0.1, n_stress=2, limit=0.25) is True
+    assert (
+        mod._wide_stress_peak_gate_passed(
+            max_ab=float("nan"), max_ba=0.1, n_stress=2, limit=0.25
+        )
+        is False
+    )
+    assert (
+        mod._wide_stress_peak_gate_passed(
+            max_ab=float("nan"), max_ba=float("nan"), n_stress=2, limit=0.25
+        )
+        is False
+    )
+    assert mod._wide_stress_peak_gate_passed(max_ab=np.nan, max_ba=np.nan, n_stress=0, limit=0.25) is True

@@ -339,9 +339,21 @@ python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
 
 ### 6.2 双向 F 线正式集（`tv3-bidir-6000`）
 
-F0–F4 已完成；F5 正式训练在服务器执行。工作目录：`tunnel_ventilation/`。
+F0–F4 已完成；F5-S（S-Y/S-L 次级 selector + 判据 d）代码已落地。正式 6000 矩阵在服务器执行。工作目录：`tunnel_ventilation/`。
+
+协议 `derive_secondary_selectors=true`：除 S-Flow 五臂外，还会派生 S-Y/S-L×3 seeds、各 split 重建 bidir cache、跑完整五臂双头，并评 12 格判据 (d)。incomplete → exit 2；矩阵完整但 (d) 失败 → exit 1；a–e 全过 → exit 0。
+
+建议先用 smoke 端到端验证，再跑正式 6000：
 
 ```bash
+# smoke 抽检（可选）
+python scripts/run_tv3_bidir_model_protocol.py \
+    --config configs/tv3_bidir_model_protocol.json \
+    --source-dataset-dir data/tv3-bidir-smoke \
+    --output-dir outputs/tv3_bidir/model_protocol_smoke \
+    --stage report_selectors --device cpu
+
+# 正式 6000
 python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
     --output-root data --preset bidir-formal-6000
 
@@ -352,13 +364,22 @@ python scripts/run_tv3_bidir_model_protocol.py \
     --stage all --device cuda
 ```
 
-产物：`outputs/tv3_bidir/model_protocol/`（含 `f5_verdict.json`）。不覆盖 `outputs/tv3_d2b/` 或 `outputs/tv3_identifiability/`。说明见 `docs/active/tv3_bidirectional_ultrasound_implementation_plan.md`。
+产物：`outputs/tv3_bidir/model_protocol/`（含 `f5_verdict.json`、`f5s_matrix_index.json`）。不覆盖 `outputs/tv3_d2b/` 或 `outputs/tv3_identifiability/`。说明见 `docs/active/tv3_bidirectional_ultrasound_implementation_plan.md` §F5-S。
 
 #### 6.2.1 双向 F 线宽域正式集（`tv3-bidir-6000-wide`）
 
-独立注册域（CO₂ 0.03–10% / O₂ 15–25%）。**不覆盖**窄域 `tv3-bidir-6000` / `model_protocol/`。F0–F4-wide 已通过；F5-wide 在服务器执行。前置：`outputs/tv3_bidir/identifiability_v2_wide/f4_verdict.json`；判据 (c) 锚到域内 A1 零流（非窄域 B1）。
+独立注册域（CO₂ 0.03–10% / O₂ 15–25%）。**不覆盖**窄域 `tv3-bidir-6000` / `model_protocol/`。
+
+F5-S 与窄域共用实现；`splits_root` / 输出目录保持 `-wide` 命名空间。判据 (c) 锚到域内 A1 零流；源 manifest 必须为 `wide_hazard_v1`。建议先 `tv3-bidir-smoke-wide` 跑通，再正式 6000-wide。
 
 ```bash
+# smoke-wide（推荐先跑）
+python scripts/run_tv3_bidir_model_protocol.py \
+    --config configs/tv3_bidir_model_protocol_wide.json \
+    --source-dataset-dir data/tv3-bidir-smoke-wide \
+    --output-dir outputs/tv3_bidir/model_protocol_wide_smoke \
+    --stage report_selectors --device cpu
+
 python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
     --output-root data --preset bidir-formal-6000 --composition-domain wide
 
@@ -367,6 +388,7 @@ python scripts/check_slow_channels.py data/tv3-bidir-6000-wide
 python scripts/run_tv3_bidir_model_protocol.py \
     --config configs/tv3_bidir_model_protocol_wide.json \
     --stage all --device cuda
+# expect exit 0 only when f5_model_protocol_passed; incomplete → 2; (d) fail → 1
 ```
 
 产物：`data/tv3-bidir-6000-wide`、`data/tv3-bidir-6000-wide-splits/`、`outputs/tv3_bidir/model_protocol_wide/`（含 `f5_verdict.json`）。说明见 `docs/active/tv3_composition_range_widening_plan.md`。

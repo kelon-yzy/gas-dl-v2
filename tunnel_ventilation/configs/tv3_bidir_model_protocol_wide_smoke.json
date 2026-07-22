@@ -1,11 +1,11 @@
 {
   "schema_version": "tv3-bidir-model-protocol-1",
   "composition_domain": "wide",
-  "source_dataset_dir": "data/tv3-bidir-6000-wide",
-  "splits_root": "data/tv3-bidir-6000-wide-splits",
-  "output_dir": "outputs/tv3_bidir/model_protocol_wide",
-  "overwrite": false,
-  "device": "cuda",
+  "source_dataset_dir": "data/tv3-bidir-smoke-wide",
+  "splits_root": "data/tv3-bidir-smoke-wide-splits",
+  "output_dir": "outputs/tv3_bidir/model_protocol_wide_smoke",
+  "overwrite": true,
+  "device": "cpu",
   "seed": 20260704,
   "s_flow_seed": 20260721,
   "train_abs_v_max": 2.5,
@@ -19,14 +19,14 @@
     "spxy_alpha": 0.5,
     "split_seeds": [20260704, 20260712, 20260720],
     "selectors": ["s_y", "s_l"],
-    "note": "F5-S wide namespace: independent splits_root *-wide; no shared cache with narrow."
+    "note": "Smoke-wide E2E: independent *-wide-smoke namespaces."
   },
   "f4_prerequisite": {
     "verdict_path": "outputs/tv3_bidir/identifiability_v2_wide/f4_verdict.json",
     "expected_stage_passed": true,
     "expected_composition_domain": "wide",
     "expected_criterion_c_anchor": "in_domain_a1_v_path_zero",
-    "note": "F5-wide amplitude gates were preregistered at F4-wide; do not retune after seeing F5 scores. Narrow F4 / model_protocol untouched. Provenance refuses narrow F4 verdicts."
+    "note": "Smoke-wide wiring check against F4-wide verdict."
   },
   "f5_amplitude_gates": {
     "criterion_c_anchor": "in_domain_a1_v_path_zero",
@@ -38,12 +38,7 @@
     "reciprocity_p95_max_s": 1.0e-7
   },
   "notes": [
-    "Wide hazard domain (CO2 0.03-10 / O2 15-25). Independent of narrow tv3-bidir-6000.",
-    "Frozen B1 RidgeCV alpha grid and B7 OOF residual MLP hyperparams; do not retune for bidir-wide.",
-    "Primary selector is S-Flow (|v|≤2.5 train / (2.5,4] pure OOD by mixture median).",
-    "A2 is audit-only (oracle v_path). Deploy conclusions use A3.",
-    "Criterion c is re-anchored to in-domain A1 v_path=0 (not narrow S-line B1).",
-    "F5-S criterion d: bidir_spxy_observed_ab_v1 → S-Y/S-L × 3 seeds × test/extrap; ΔR² ≥ −0.01.",
-    "Do not start formal server training until smoke F5-S path is green; provenance gates enforced."
+    "Local smoke-wide end-to-end before formal tv3-bidir-6000-wide.",
+    "Does not write into data/tv3-bidir-6000-wide* or model_protocol_wide/."
   ]
 }

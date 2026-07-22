@@ -3,7 +3,7 @@
 > 面向初学者的名词说明。按**实验推进顺序**分级，便于对照记忆库与专项计划阅读。  
 > 正式指标与当前状态以 [掘进通风项目记忆库.md](../掘进通风项目记忆库.md) 为准；本文件只解释概念，不重复承担全局结论源责任。  
 > **维护义务**（记忆库 §1.4 / §8.3）：新增或实质变更正式实验、代码模块、算法/builder/头、协议门禁或 verdict 语义时，必须在同一变更批次更新本导读的名词定义、分级位置与索引；未联更不得视为文档齐全。  
-> 编写日期：2026-07-13；2026-07-14 增补 `waveform_preprocess` 工程名词；2026-07-20 增补 COMSOL 隧道多物理场 G0/G1 名词。
+> 编写日期：2026-07-13；2026-07-14 增补 `waveform_preprocess` 工程名词；2026-07-20 增补 COMSOL 隧道多物理场 G0/G1 名词；2026-07-22 增补 F5-S / `bidir_spxy_observed_ab_v1` 与双域（narrow/wide）说明。
 
 ---
 
@@ -122,7 +122,7 @@
 | **nuisance（干扰量）**                  | 不是最终目标、但会改观测的量：T、RH、L、jitter、flow、SNR… 核心问题是 O₂ 信号是否大于 nuisance。                                                        |
 | **flow / 流速 / flow projection**    | 气流改变有效传播时间。v1 未建模 → 标 `not_represented`，并触发 189/189 点阻断拒绝。                                                              |
 | **v_path / 沿路流速投影**               | 流速在声路上的投影分量 `v·cos(α)`；单向 TOF 中与声速线性混叠 `t = L/(c ± v_path)`。                                                             |
-| **双向超声 / bidirectional / F 线**     | AB/BA 对射各测一次 TOF，`ĉ=(L/2)(1/t'_ab+1/t'_ba)` 与 `v̂=(L/2)(1/t'_ab−1/t'_ba)` 解耦声速与流速。F4 业务 verdict=`coarse_monitoring_only`；F5 代码就绪（`bidir-formal-6000` + S-Flow + 五臂），正式训练待服务器。            |
+| **双向超声 / bidirectional / F 线**     | AB/BA 对射各测一次 TOF，`ĉ=(L/2)(1/t'_ab+1/t'_ba)` 与 `v̂=(L/2)(1/t'_ab−1/t'_ba)` 解耦声速与流速。F4 业务 verdict=`coarse_monitoring_only`；F5-S 代码已落地（`bidir_spxy_observed_ab_v1` + S-Y/S-L 十二格判据 d）；正式 `tv3-bidir-6000`（及 `-wide`）矩阵待服务器。 |
 | **reciprocity error / 互易残差**       | AB 与 BA 通道物理一致性的残差指标（帧对声速差、多 L 拟合残差）；用于链路健康与质量标记，目标 ≤0.10 μs。                                                           |
 | **静止空气仿真 / static-air simulation** | 在配置和 manifest 中显式固定 `flow=0` 的数字孪生情景。它不等于经风速核验的真实静止空气；当前 P0 只验证登记仿真分布内的单向 O₂ 可辨识性。                                      |
 | **参数来源类型**                         | `implemented_physics` 表示代码已实现物理，`literature_bound` 表示文献或规格边界，`engineering_scenario` 仅作敏感性扫描，`not_represented` 继续阻断能力结论。 |
@@ -135,7 +135,7 @@
 | --------- | ------------------------------------------------ |
 | **TDLAS** | 可调谐二极管激光吸收光谱；可做 O₂ 专用光学通道。声学信息不足时的硬件升级选项，不是当前默认。 |
 | **多频超声**  | 用多个载波频率增加独立观测维度。                                 |
-| **双向超声 F 线 / `raw_dsp_bidirectional_v1`** | 同一对换能器 ping-pong 对射：解除 v1 flow 阻断并输出流速副产品。契约 `tunnel-ventilation-bidir-1`，benchmark `tv3-bidir-*`。F4 identifiability v2 已确认声学 Fisher 非秩亏且 flow=`implemented_physics`；窄窗 P90 仍超门 → `coarse_monitoring_only`。F5 五臂×冻结 B1/B7 + S-Flow 代码就绪。 |
+| **双向超声 F 线 / `raw_dsp_bidirectional_v1`** | 同一对换能器 ping-pong 对射：解除 v1 flow 阻断并输出流速副产品。契约 `tunnel-ventilation-bidir-1`，benchmark `tv3-bidir-*`。F4 identifiability v2 已确认声学 Fisher 非秩亏且 flow=`implemented_physics`；窄窗 P90 仍超门 → `coarse_monitoring_only`。F5-S：五臂×冻结 B1/B7 + S-Flow + AB-only SPXY 派生 S-Y/S-L；正式矩阵待服务器。 |
 
 ---
 
@@ -149,7 +149,7 @@
 | **MAE**               | 平均绝对误差。                                     |
 | **P90 误差**            | 误差的第 90 百分位：90% 样本不差于该值。误差预算更常看 P90。        |
 | **0.8% O₂ bin / 窄窗口** | O₂ 仅在约 0.8 个百分点宽的小区间内评价。全域可粗辨识时，窄窗仍可能全负 R²。 |
-| **全域**                | 在较大 O₂ 范围（如约 18–21%）上评价。                    |
+| **全域**                | 在当前注册组分域的较大 O₂ 范围上评价：narrow 约 18–21.2%；wide（仅 F 线）约 15–25%。宽域会抬高 R² 分母，不改变窄窗 P90 精度墙。 |
 
 ### 3.2 数据划分
 
@@ -158,11 +158,12 @@
 | **split**                  | train / val / test 等划分。正式以 `mixture_id` 为主键。  |
 | **extrapolation / extrap** | 相对更难的外推划分；仍不等于完整物理 OOD。                       |
 | **OOD**                    | 分布外样本（如组分落在训练边界外）。随机 test ≠ 真 OOD。            |
-| **S-Y**                    | 按标签/目标边界的 OOD 选择器（y_margin 一类）。               |
-| **S-L**                    | 按 LHS 采样边界的 OOD 选择器。与 S-Y **分列报告**。           |
+| **S-Y**                    | 按标签/目标边界的 OOD 选择器（y_margin 一类）。F5 判据 (d) 在 bidir 上用 `bidir_spxy_observed_ab_v1` 派生，与 S-L 分列、禁止均值掩盖。 |
+| **S-L**                    | 按 LHS 采样边界的 OOD 选择器。与 S-Y **分列报告**。F5-S 与 S-Y 共用 AB-only SPXY profile。 |
 | **R / L**                  | 协议中的 ID 稳定性对照划分，不作“全部 OOD=某单一 R²”的混写依据。       |
 | **LHS**                    | 拉丁超立方采样，用于覆盖组分/条件空间。                          |
-| **SPXY**                   | 基于样本距离的划分方法；B7 正式 OOD 使用 observed 统计 profile。 |
+| **SPXY**                   | 基于样本距离的划分方法；B7 用 observed 统计 profile；双向 F5-S 用 `bidir_spxy_observed_ab_v1`（50 维 AB-only，拒 BA/pair/oracle）。 |
+| **F5-S**                   | 双向次级 selector 实施：派生 S-Y/S-L×3 seeds，12 格 A3−A1 O₂ ΔR²≥−0.01 评判据 (d)；未完整则 `f5_model_protocol_incomplete`。 |
 
 ### 3.3 门禁与冻结
 
@@ -431,7 +432,7 @@
 | 6   | B 系列            | RawDSP 默认头             | B1、B6、B7、OOF、residual、protocol_pass                   |
 | 7   | 模块 C            | 物理早期分组是否有用             | grouped bottleneck、grouped_failed                     |
 | 8   | Identifiability | 物理上限与分流                | 灵敏度、Fisher、CRLB、误差预算、verdict                          |
-| 9   | 当前并行线           | 静止空气仿真、COMSOL 隧道输运、双向 F5 正式 6000、EC-MSW 是否继续 | static-air、G0/G1 COMSOL、F5 server、EC-MSW |
+| 9   | 当前并行线           | 静止空气仿真、COMSOL 隧道输运、双向 F5-S→正式 6000（含 wide）、EC-MSW 是否继续 | static-air、G0/G1 COMSOL、F5-S server、EC-MSW |
 
 ---
 
@@ -444,6 +445,7 @@
 | B1 / B6 / B7                                                     | [§7.1](#71-头版本)                         |
 | baseline freeze                                                  | [§3.3](#33-门禁与冻结)                       |
 | bidirectional / 双向 / F 线 / F0–F6                                  | [§2.2](#22-环境与流动干扰) / [§2.3](#23-信息源升级选项) |
+| F5-S / bidir_spxy_observed_ab_v1                                   | [§3.2](#32-数据划分) / [§2.3](#23-信息源升级选项) |
 | builder                                                          | [§5.2](#52-d2b--rawdsp成功路线)             |
 | business threshold                                               | [§8.5](#85-业务门限与-verdict)               |
 | clean / tv3-formal-6000                                          | [§1.4](#14-数据标识与基准集)                    |
@@ -508,7 +510,8 @@
 | [掘进通风项目记忆库.md](../掘进通风项目记忆库.md)                                                                                                   | 当前事实与正式结论                            |
 | [active/tv3_identifiability_implementation_plan.md](../active/tv3_identifiability_implementation_plan.md)                         | 可辨识性实施计划                             |
 | [active/tv3_static_air_feasibility_implementation_plan.md](../active/tv3_static_air_feasibility_implementation_plan.md)           | 当前仿真 P0：静止空气扰动、可辨识性与独立参数 holdout     |
-| [active/tv3_bidirectional_ultrasound_implementation_plan.md](../active/tv3_bidirectional_ultrasound_implementation_plan.md)       | 双向超声 F 线：F0–F4 完成；F5 代码就绪；F4=`coarse_monitoring_only` |
+| [active/tv3_bidirectional_ultrasound_implementation_plan.md](../active/tv3_bidirectional_ultrasound_implementation_plan.md)       | 双向超声 F 线：F0–F4 完成；F5-S 代码已落地；F4=`coarse_monitoring_only` |
+| [active/tv3_composition_range_widening_plan.md](../active/tv3_composition_range_widening_plan.md)                               | 组分宽域 `-wide`：F0'–F4-wide 通过；F5-S 共用；正式 6000-wide 待服务器 |
 | [active/tv3_comsol_multiphysics_dl_implementation_plan.md](../active/tv3_comsol_multiphysics_dl_implementation_plan.md)           | 隧道多物理场 → 传感器投影 → DL；G1 已通过，下一步 G2      |
 | [../../COMSOL/tunnel_transport/README.md](../../COMSOL/tunnel_transport/README.md)                                                 | 隧道输运 COMSOL A 构建与 verdict 入口             |
 | [active/tv3_ec_msw_gatednet_implementation_plan.md](../active/tv3_ec_msw_gatednet_implementation_plan.md)                         | EC-MSW P0 契约与 E1d/attachment/LS 正式结论 |

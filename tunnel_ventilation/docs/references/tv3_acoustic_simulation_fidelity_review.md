@@ -33,7 +33,10 @@
 
 模型命名已诚实标注性质：`semi_empirical_multigas_relaxation_proxy_v2`、`tof_observed_transducer_proxy_v1`、`second_order_resonant_bandpass_proxy_v1`——衰减和换能器是工程 proxy，不是标定过的物理。`[已验证：代码常量]`
 
-采样范围：`x_CO2 ∈ [0.03, 5.00]%`、`x_O2 ∈ [18.00, 21.20]%`、`x_N2` 残差闭包；`T ∈ [15,35]°C`、`P ∈ [0.10, 0.709] MPa`、`H_RH ∈ [20,80]%`、`L ∈ [0.20, 0.30] m`。`[已验证：conditions.py]`
+采样范围（双域）：
+- **narrow（默认）**：`x_CO2 ∈ [0.03, 5.00]%`、`x_O2 ∈ [18.00, 21.20]%`、`x_N2` 残差闭包。
+- **wide（仅 F 线）**：`x_CO2 ∈ [0.03, 10.00]%`、`x_O2 ∈ [15.00, 25.00]%`、`x_N2` 残差闭包；独立 registry / 数据集，不改写窄域冻结结论。
+共用环境：`T ∈ [15,35]°C`、`P ∈ [0.10, 0.709] MPa`、`H_RH ∈ [20,80]%`、`L ∈ [0.20, 0.30] m`。`[已验证：conditions.py]`
 
 ---
 

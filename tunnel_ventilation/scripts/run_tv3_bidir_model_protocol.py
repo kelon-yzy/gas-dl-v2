@@ -266,7 +266,12 @@ def _sound_speed_bias_audit(dataset_dir: Path) -> dict[str, Any] | None:
 
 
 def _verify_f4_prerequisite(config: dict[str, Any], *, project_root: Path = _TV3_ROOT) -> dict[str, Any]:
-    """Require a passed F4 verdict before F5 training."""
+    """Require a domain-matched, passed F4 verdict before F5 training.
+
+    Checks ``passed`` plus optional ``expected_composition_domain`` /
+    ``expected_criterion_c_anchor`` so a wide config cannot silently accept a
+    narrow F4 verdict (cross-distribution comparison forbidden by the widening plan).
+    """
     prereq = config.get("f4_prerequisite")
     if not isinstance(prereq, dict):
         raise ValueError("config.f4_prerequisite is required before F5 train")
@@ -283,12 +288,310 @@ def _verify_f4_prerequisite(config: dict[str, Any], *, project_root: Path = _TV3
             f"F4 prerequisite failed: {verdict_path} passed={observed_passed}, "
             f"expected_stage_passed={expected_passed}"
         )
+
+    expected_domain = prereq.get("expected_composition_domain")
+    if expected_domain is None:
+        expected_domain = config.get("composition_domain")
+    # Legacy narrow F4 verdicts omit composition_domain → treat as narrow.
+    observed_domain = payload.get("composition_domain")
+    if observed_domain is None:
+        observed_domain = "narrow"
+    if expected_domain is not None and str(observed_domain) != str(expected_domain):
+        raise RuntimeError(
+            f"F4 composition_domain mismatch: verdict={observed_domain!r}, "
+            f"expected={expected_domain!r} ({verdict_path})"
+        )
+
+    # Only enforce criterion-c provenance when the config explicitly registers it
+    # on f4_prerequisite (wide). Do not infer from gates alone — legacy narrow
+    # F4 preregistration omits criterion_c_anchor.
+    expected_c = prereq.get("expected_criterion_c_anchor")
+    prereg = payload.get("f5_amplitude_gate_preregistration") or {}
+    observed_c = prereg.get("criterion_c_anchor")
+    if expected_c is not None and observed_c != expected_c:
+        raise RuntimeError(
+            f"F4 criterion_c_anchor mismatch: verdict prereg={observed_c!r}, "
+            f"expected={expected_c!r} ({verdict_path})"
+        )
+
     return {
         "verdict_path": str(verdict_path),
         "passed": observed_passed,
         "verdict": payload.get("verdict"),
+        "composition_domain": observed_domain,
+        "criterion_c_anchor": observed_c,
         "sha256": _file_sha256(verdict_path),
     }
+
+
+def _verify_source_composition_domain(
+    source_dir: Path,
+    *,
+    expected_domain: str | None,
+) -> dict[str, Any]:
+    """Refuse training when the source manifest domain disagrees with the config."""
+    if expected_domain is None:
+        return {"checked": False, "reason": "no expected composition_domain in config"}
+    manifest_path = source_dir / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"source manifest missing: {manifest_path}")
+    manifest = _read_json(manifest_path)
+    rev = manifest.get("sim_revision") or {}
+    observed = rev.get("composition_domain") or manifest.get("composition_domain") or "narrow"
+    tag = rev.get("composition_domain_tag")
+    info = {
+        "checked": True,
+        "expected_domain": expected_domain,
+        "observed_domain": observed,
+        "composition_domain_tag": tag,
+        "manifest_sha256": _file_sha256(manifest_path),
+    }
+    if expected_domain == "wide":
+        if observed != "wide" or tag != "wide_hazard_v1":
+            raise RuntimeError(
+                "source dataset is not wide_hazard_v1: "
+                f"composition_domain={observed!r}, composition_domain_tag={tag!r} "
+                f"({manifest_path})"
+            )
+    elif expected_domain == "narrow":
+        if observed == "wide" or tag == "wide_hazard_v1":
+            raise RuntimeError(
+                "source dataset is wide but config expects narrow: "
+                f"composition_domain={observed!r}, composition_domain_tag={tag!r} "
+                f"({manifest_path})"
+            )
+    else:
+        raise ValueError(f"unsupported composition_domain={expected_domain!r}")
+    return info
+
+
+def _default_bootstrap_cache_dir(source_dir: Path) -> Path:
+    from tv3.ml.bidir_arm_features import default_frame_cache_dir
+
+    return default_frame_cache_dir(source_dir)
+
+
+def _ensure_source_bootstrap_cache(
+    source_dir: Path,
+    *,
+    overwrite: bool,
+    template_max_frames: int,
+    bootstrap_cache_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Build source-base-train bidir RawDSP cache used only for SPXY X."""
+    cache_dir = bootstrap_cache_dir or _default_bootstrap_cache_dir(source_dir)
+    manifest_path = cache_dir / "manifest.json"
+    if manifest_path.is_file() and not overwrite:
+        payload = _read_json(manifest_path)
+        payload["role"] = "split_selection_bootstrap_only"
+        payload["cache_dir"] = str(cache_dir.resolve())
+        return payload
+    # Source benchmark must already have a train split for template calibration.
+    if not (source_dir / "splits" / "train.csv").is_file():
+        raise FileNotFoundError(
+            f"F5-S bootstrap requires source splits/train.csv under {source_dir}"
+        )
+    payload = build_tv3_bidir_feature_cache(
+        source_dir,
+        overwrite=overwrite,
+        template_max_frames=template_max_frames,
+        template_source_split="train",
+    )
+    payload["role"] = "split_selection_bootstrap_only"
+    return payload
+
+
+def _run_f5s_secondary_matrix(
+    config: dict[str, Any],
+    *,
+    source_dir: Path,
+    splits_root: Path,
+    output_root: Path,
+    overwrite: bool,
+    device: str,
+    seed: int,
+    arms: tuple[str, ...],
+    heads: tuple[str, ...],
+) -> dict[str, Any]:
+    """Derive S-Y/S-L splits, rebuild caches, train matrix, return cell metrics."""
+    import importlib.util
+    _re_path = _TV3_ROOT / "scripts" / "recompute_tv3_split.py"
+    _re_spec = importlib.util.spec_from_file_location("tv3_recompute_tv3_split", _re_path)
+    _re_mod = importlib.util.module_from_spec(_re_spec)
+    assert _re_spec.loader is not None
+    import sys as _sys
+    _sys.modules[_re_spec.name] = _re_mod
+    _re_spec.loader.exec_module(_re_mod)
+    recompute_split = _re_mod.recompute_split
+    from tv3.ml.bidir_f5_secondary import (
+        F5S_SPLIT_SEEDS,
+        F5S_SPXY_ALPHA,
+        F5S_X_PROFILE,
+        SELECTOR_SPECS,
+        audit_derived_split_summary,
+        expected_x_feature_digest,
+        f5s_split_relpath,
+    )
+
+    f5s_cfg = dict(config.get("f5s") or {})
+    seeds = tuple(int(s) for s in f5s_cfg.get("split_seeds", F5S_SPLIT_SEEDS))
+    template_max_frames = int(config.get("template_max_frames", 512))
+    bootstrap_dir = f5s_cfg.get("bootstrap_cache_dir")
+    bootstrap_path = Path(bootstrap_dir) if bootstrap_dir else None
+    if bootstrap_path is not None and not bootstrap_path.is_absolute():
+        bootstrap_path = (_TV3_ROOT / bootstrap_path).resolve()
+
+    bootstrap = _ensure_source_bootstrap_cache(
+        source_dir,
+        overwrite=overwrite,
+        template_max_frames=template_max_frames,
+        bootstrap_cache_dir=bootstrap_path,
+    )
+    x_contract = expected_x_feature_digest()
+
+    derived: list[dict[str, Any]] = []
+    cell_metrics: dict[str, dict[str, Any]] = {}
+    issues: list[str] = []
+
+    for spec in SELECTOR_SPECS:
+        selector_id = spec["selector_id"]
+        for split_seed in seeds:
+            rel = f5s_split_relpath(selector_id=selector_id, seed=split_seed)
+            out_dir = splits_root / rel
+            info = recompute_split(
+                source_dir,
+                out_dir,
+                split_strategy="spxy_v1",
+                spxy_alpha=float(f5s_cfg.get("spxy_alpha", F5S_SPXY_ALPHA)),
+                extrapolation_strategy=spec["extrapolation_strategy"],
+                seed=int(split_seed),
+                spxy_x_profile=str(f5s_cfg.get("x_profile", F5S_X_PROFILE)),
+                raw_dsp_cache_dir=Path(bootstrap["cache_dir"]),
+            )
+            summary_path = out_dir / "splits" / "split_summary.json"
+            split_summary = _read_json(summary_path)
+            audit_issues = audit_derived_split_summary(split_summary)
+            entry = {
+                "selector_id": selector_id,
+                "seed": int(split_seed),
+                "dataset_dir": str(out_dir.resolve()),
+                "recompute": info,
+                "audit_issues": audit_issues,
+            }
+            if audit_issues:
+                issues.extend([f"{selector_id}:{split_seed}: {msg}" for msg in audit_issues])
+                derived.append(entry)
+                continue
+
+            # Train-only rebuild on the derived split (never reuse bootstrap cache).
+            frame_manifest = build_tv3_bidir_feature_cache(
+                out_dir,
+                overwrite=overwrite,
+                template_max_frames=template_max_frames,
+                template_source_split="train",
+            )
+            arm_manifests = {
+                arm_id: build_arm_feature_cache(out_dir, arm_id) for arm_id in arms
+            }
+            entry["frame_cache"] = {
+                "cache_dir": frame_manifest["cache_dir"],
+                "build_signature": frame_manifest["build_signature"],
+            }
+            entry["arm_caches"] = arm_manifests
+
+            run_root = output_root / "runs_f5s" / selector_id / f"s{split_seed}"
+            for arm_id in arms:
+                for head in heads:
+                    payload = train_arm_head(
+                        out_dir,
+                        arm_id=arm_id,
+                        head=head,
+                        output_dir=run_root / f"{arm_id}_{head}",
+                        device=device,
+                        seed=seed,
+                        overwrite=overwrite,
+                    )
+                    cell_metrics[f"{selector_id}:{split_seed}:{arm_id}:{head}"] = payload
+            derived.append(entry)
+
+    return {
+        "schema_version": "tv3-bidir-f5s-1",
+        "x_contract": x_contract,
+        "bootstrap": {
+            "role": bootstrap.get("role"),
+            "cache_dir": bootstrap.get("cache_dir"),
+            "build_signature": bootstrap.get("build_signature"),
+        },
+        "derived_splits": derived,
+        "cell_metrics_keys": sorted(cell_metrics.keys()),
+        "cell_metrics": cell_metrics,
+        "issues": issues,
+    }
+
+
+def _build_selector_gate_d(
+    config: dict[str, Any],
+    gates: dict[str, Any],
+    *,
+    f5s_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Criterion (d): 12-cell A3−A1 O₂ ΔR² on S-Y/S-L × seeds × test/extrapolation."""
+    from tv3.ml.bidir_f5_secondary import evaluate_criterion_d
+
+    derive = bool(config.get("derive_secondary_selectors", False))
+    threshold = float(gates["selector_r2_noninferior_delta"])
+    if not derive:
+        return {
+            "status": "blocked_unimplemented",
+            "passed": False,
+            "derive_secondary_selectors": False,
+            "threshold": threshold,
+            "note": (
+                "Set derive_secondary_selectors=true to run F5-S "
+                "(bidir_spxy_observed_ab_v1 → S-Y/S-L matrix)."
+            ),
+        }
+    if f5s_payload is None:
+        return {
+            "status": "incomplete",
+            "passed": False,
+            "derive_secondary_selectors": True,
+            "threshold": threshold,
+            "note": "F5-S matrix was not produced in this stage.",
+        }
+    if f5s_payload.get("issues"):
+        return {
+            "status": "incomplete",
+            "passed": False,
+            "derive_secondary_selectors": True,
+            "threshold": threshold,
+            "issues": f5s_payload["issues"],
+            "note": "F5-S derived-split audit failed; training matrix not fully trusted.",
+        }
+    result = evaluate_criterion_d(
+        f5s_payload.get("cell_metrics") or {},
+        threshold=threshold,
+    )
+    result["derive_secondary_selectors"] = True
+    result["threshold"] = threshold
+    return result
+
+
+def protocol_exit_code(summary: dict[str, Any]) -> int:
+    """Map F5 verdict to process exit code.
+
+    0 = formal pass; 2 = incomplete (core ok / d blocked); 1 = failed.
+    Stages without a train verdict (derive/features only) return 0.
+    """
+    verdict_payload = summary.get("verdict")
+    if not isinstance(verdict_payload, dict):
+        return 0
+    verdict = verdict_payload.get("verdict")
+    if verdict == "f5_model_protocol_passed":
+        return 0
+    if verdict == "f5_model_protocol_incomplete":
+        return 2
+    return 1
 
 
 def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
@@ -302,15 +605,22 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
     heads = tuple(config.get("heads", ["b1_ridge", "b7_residual"]))
     arms = tuple(config.get("arms", list(ARM_IDS)))
     gates = dict(config["f5_amplitude_gates"])
+    expected_domain = config.get("composition_domain")
 
     s_flow_dir = splits_root / "s_flow"
     summary: dict[str, Any] = {
         "schema_version": "tv3-bidir-model-protocol-1",
         "composition_scheme": COMPOSITION_SCHEME,
+        "composition_domain": expected_domain,
         "feature_builder": FORMAL_FEATURE_BUILDER,
         "source_dataset_dir": str(source_dir.resolve()),
         "stage": stage,
     }
+
+    if stage in ("derive", "features", "train", "all"):
+        summary["source_domain"] = _verify_source_composition_domain(
+            source_dir, expected_domain=expected_domain
+        )
 
     if stage in ("derive", "all"):
         info = derive_s_flow_split(
@@ -373,16 +683,8 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
         summary["gates"] = gate_results
         primary_head = "b1_ridge" if "b1_ridge" in gate_results else next(iter(gate_results), None)
         core_pass = bool(primary_head and gate_results[primary_head]["core_gates_passed"])
-        # Selector ΔR² gate (d): required for formal F5 pass; pending until S-Y/S-L exist.
-        selector_gate_d = {
-            "status": "pending_optional_selectors",
-            "passed": False,
-            "note": (
-                "Criterion d (S-Y/S-L noninferior ΔR²) is not evaluated until secondary "
-                "selectors are derived; formal F5 pass and F6 are blocked while pending."
-            ),
-            "threshold": gates["selector_r2_noninferior_delta"],
-        }
+        f5s_payload = summary.get("f5s")
+        selector_gate_d = _build_selector_gate_d(config, gates, f5s_payload=f5s_payload)
         summary["selector_gate_d"] = selector_gate_d
         gate_d_pass = bool(selector_gate_d["passed"])
         stage_passed = bool(core_pass and gate_d_pass)
@@ -404,22 +706,76 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
             "primary_head": primary_head,
             "gates": gate_results,
             "f5_amplitude_gates": gates,
+            "composition_domain": expected_domain,
             "allowed_next_stage_on_pass": allowed_next,
             "created_at_utc": datetime.now(timezone.utc).isoformat(),
             "source_manifest_sha256": _file_sha256(source_dir / "manifest.json"),
+            "exit_code_policy": {"passed": 0, "incomplete": 2, "failed": 1},
         }
         _write_json(output_root / "f5_verdict.json", verdict_payload)
         summary["verdict"] = verdict_payload
 
     if stage in ("report_selectors", "all") and bool(config.get("derive_secondary_selectors", False)):
-        summary["secondary_selectors"] = {
-            "status": "skipped_in_code_path",
-            "note": (
-                "Optional L / S-Y: use scripts/recompute_tv3_split.py on the source bidir "
-                "dataset after adapting SPXY X arrays (AB TOF proxy). Primary F5 gates use S-Flow. "
-                "Until criterion d is evaluated, f5_verdict remains incomplete and F6 is blocked."
-            ),
+        f5s_payload = _run_f5s_secondary_matrix(
+            config,
+            source_dir=source_dir,
+            splits_root=splits_root,
+            output_root=output_root,
+            overwrite=overwrite,
+            device=device,
+            seed=seed,
+            arms=arms,
+            heads=heads,
+        )
+        # Persist without dumping full metrics blobs twice.
+        index = {
+            "schema_version": f5s_payload["schema_version"],
+            "x_contract": f5s_payload["x_contract"],
+            "bootstrap": f5s_payload["bootstrap"],
+            "derived_splits": [
+                {k: v for k, v in item.items() if k != "arm_caches"}
+                for item in f5s_payload["derived_splits"]
+            ],
+            "cell_metrics_keys": f5s_payload["cell_metrics_keys"],
+            "issues": f5s_payload["issues"],
         }
+        _write_json(output_root / "f5s_matrix_index.json", index)
+        summary["f5s"] = f5s_payload
+        summary["secondary_selectors"] = {
+            "status": "built" if not f5s_payload["issues"] else "audit_failed",
+            "n_cells": len(f5s_payload["cell_metrics_keys"]),
+            "issues": f5s_payload["issues"],
+        }
+        # Re-evaluate criterion d if train already computed core gates in same "all" run.
+        if "gates" in summary:
+            selector_gate_d = _build_selector_gate_d(config, gates, f5s_payload=f5s_payload)
+            summary["selector_gate_d"] = selector_gate_d
+            if "verdict" in summary:
+                core_pass = bool(summary["verdict"].get("core_gates_passed"))
+                gate_d_pass = bool(selector_gate_d["passed"])
+                stage_passed = bool(core_pass and gate_d_pass)
+                if stage_passed:
+                    verdict = "f5_model_protocol_passed"
+                    allowed_next = "F6_verdict_backfill"
+                elif core_pass and not gate_d_pass:
+                    verdict = (
+                        "f5_model_protocol_failed"
+                        if selector_gate_d.get("status") == "failed"
+                        else "f5_model_protocol_incomplete"
+                    )
+                    allowed_next = None
+                else:
+                    verdict = "f5_model_protocol_failed"
+                    allowed_next = None
+                summary["verdict"].update(
+                    {
+                        "verdict": verdict,
+                        "stage_passed": stage_passed,
+                        "selector_gate_d": selector_gate_d,
+                        "allowed_next_stage_on_pass": allowed_next,
+                    }
+                )
+                _write_json(output_root / "f5_verdict.json", summary["verdict"])
 
     _write_json(output_root / "protocol_summary.json", summary)
     return summary
@@ -461,8 +817,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not path.is_absolute():
             config[key] = str((_TV3_ROOT / path).resolve())
     summary = run_protocol(config, stage=args.stage)
-    print(json.dumps({"stage": args.stage, "verdict": summary.get("verdict", {}).get("verdict")}, indent=2))
-    return 0
+    code = protocol_exit_code(summary)
+    print(
+        json.dumps(
+            {
+                "stage": args.stage,
+                "verdict": summary.get("verdict", {}).get("verdict"),
+                "exit_code": code,
+            },
+            indent=2,
+        )
+    )
+    return code
 
 
 if __name__ == "__main__":  # pragma: no cover

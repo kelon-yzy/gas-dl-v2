@@ -41,6 +41,7 @@ from tv3.sim.core.tunnel_ventilation_schema import SPLIT_FIELDS, SPLIT_NAMES
 from tv3.sim.packaging.io import write_csv, write_json
 from tv3.sim.packaging.splits import build_default_split_rows
 from tv3.sim.packaging.spxy_split import (
+    SPXY_X_PROFILE_BIDIR_OBSERVED_AB_V1,
     SPXY_X_PROFILE_OBSERVED_V1,
     SPXY_X_PROFILE_ORACLE_V1,
     VALID_SPXY_X_PROFILES,
@@ -70,6 +71,17 @@ _OBSERVED_RAW_DSP_KEYS = (
     "ultrasonic_snr_db",
     "ultrasonic_raw_dsp_quality",
     "ultrasonic_raw_dsp_accepted",
+)
+
+# F5-S bidir AB-only bootstrap keys（与 spxy_split._BIDIR_OBSERVED_AB_* 对齐）
+_BIDIR_OBSERVED_AB_RAW_DSP_KEYS = (
+    "ultrasonic_tof_corrected_ab_raw_dsp_s",
+    "ultrasonic_peak_index_ab_raw_dsp",
+    "ultrasonic_sound_speed_ab_raw_dsp_m_per_s",
+    "ultrasonic_snr_db_ab",
+    "ultrasonic_psr_ab",
+    "ultrasonic_quality_ab_raw_dsp",
+    "ultrasonic_accepted_ab_raw_dsp",
 )
 
 # 派生目录默认跳过：split 依赖的 RawDSP cache 必须重建，不得硬链接
@@ -104,6 +116,36 @@ def _load_observed_spxy_arrays(
                 "请传入 --raw-dsp-cache-dir，或先构建 source 的 RawDSP cache 仅作 SPXY bootstrap"
             )
         arrays[key] = np.load(path, mmap_mode="r")
+    return arrays
+
+
+def _load_bidir_observed_ab_spxy_arrays(
+    sequences_dir: Path,
+    raw_dsp_cache_dir: Path,
+) -> dict[str, np.ndarray]:
+    """F5-S：仅加载 AB RawDSP + slow；拒绝 BA/pair 文件混入 contract。"""
+    arrays: dict[str, np.ndarray] = {
+        "slow": np.load(sequences_dir / "slow.npy", mmap_mode="r"),
+    }
+    for key in _BIDIR_OBSERVED_AB_RAW_DSP_KEYS:
+        path = raw_dsp_cache_dir / f"{key}.npy"
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"bidir_spxy_observed_ab_v1 需要 AB RawDSP 数组: {path}；"
+                "请先在 source base train 上构建 raw_dsp_bidirectional_v1 bootstrap cache"
+            )
+        arrays[key] = np.load(path, mmap_mode="r")
+    # Guard: BA/pair artifacts must not be silently used even if present beside cache.
+    forbidden = (
+        "ultrasonic_tof_corrected_ba_raw_dsp_s",
+        "ultrasonic_sound_speed_ba_raw_dsp_m_per_s",
+        "ultrasonic_sound_speed_pair_raw_dsp_m_per_s",
+        "ultrasonic_v_path_hat_raw_dsp_m_per_s",
+        "ultrasonic_reciprocity_residual_s",
+    )
+    for key in forbidden:
+        if key in arrays:
+            raise ValueError(f"bidir AB SPXY loader 不得包含 {key}")
     return arrays
 
 
@@ -257,6 +299,33 @@ def recompute_split(
                     "模型特征必须使用派生 split 重建的 train-calibrated cache"
                 ),
             }
+        elif spxy_x_profile == SPXY_X_PROFILE_BIDIR_OBSERVED_AB_V1:
+            if raw_dsp_cache_dir is None:
+                raise ValueError(
+                    "spxy_x_profile=bidir_spxy_observed_ab_v1 要求 --raw-dsp-cache-dir；"
+                    "bootstrap 仅提供 AB X，派生目录禁止硬链接 features/"
+                )
+            raw_dsp_cache_dir = raw_dsp_cache_dir.resolve()
+            arrays = _load_bidir_observed_ab_spxy_arrays(source_dir / "sequences", raw_dsp_cache_dir)
+            manifest_path = raw_dsp_cache_dir / "manifest.json"
+            source_manifest = source_dir / "manifest.json"
+            composition_domain = None
+            if source_manifest.is_file():
+                src_payload = json.loads(source_manifest.read_text(encoding="utf-8"))
+                rev = src_payload.get("sim_revision") or {}
+                composition_domain = rev.get("composition_domain") or src_payload.get("composition_domain")
+            raw_dsp_bootstrap_meta = {
+                "role": "split_selection_bootstrap_only",
+                "profile": SPXY_X_PROFILE_BIDIR_OBSERVED_AB_V1,
+                "cache_dir": str(raw_dsp_cache_dir),
+                "manifest_sha256": _file_sha256(manifest_path) if manifest_path.is_file() else None,
+                "composition_domain": composition_domain,
+                "ab_keys": list(_BIDIR_OBSERVED_AB_RAW_DSP_KEYS),
+                "note": (
+                    "bidir AB RawDSP 仅参与 SPXY X；派生 split 必须用自身 train.csv "
+                    "重建 raw_dsp_bidirectional_v1 与 arm caches"
+                ),
+            }
         else:
             arrays = _load_oracle_spxy_arrays(source_dir / "sequences")
         rows, summary = build_spxy_split_with_summary(
@@ -347,7 +416,7 @@ def main() -> int:
         choices=VALID_SPXY_X_PROFILES,
         default=SPXY_X_PROFILE_ORACLE_V1,
         help=(
-            "SPXY X 特征 profile。B7 协议必须用 observed_v1；"
+            "SPXY X 特征 profile。B7 用 observed_v1；F5-S 用 bidir_spxy_observed_ab_v1；"
             "oracle_v1 仅作 oracle_split_sensitivity。"
         ),
     )
@@ -355,7 +424,7 @@ def main() -> int:
         "--raw-dsp-cache-dir",
         type=Path,
         default=None,
-        help="observed_v1 所需 RawDSP cache 目录（仅用于 SPXY X，不硬链接到派生目录）。",
+        help="observed_v1 / bidir_spxy_observed_ab_v1 所需 RawDSP cache（仅 SPXY X，不硬链接）。",
     )
     parser.add_argument(
         "--also-link-features",

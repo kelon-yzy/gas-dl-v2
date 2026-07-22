@@ -151,18 +151,29 @@ def _check_registry_sha256_matches_f0(
         return False, {**info, "error": "f0_verdict.json missing"}
     payload = json.loads(f0_verdict_path.read_text(encoding="utf-8"))
     audit = payload.get("audit") or {}
+    f0_passed = bool(audit.get("passed", payload.get("passed", False)))
     expected = audit.get("registry_sha256")
     registry_path = default_config_dir() / registry_name
     actual = sha256_file(registry_path)
+    hash_ok = bool(expected) and expected == actual
+    matched = bool(hash_ok and f0_passed)
     info.update(
         {
             "expected_sha256": expected,
             "actual_sha256": actual,
             "registry_path": str(registry_path),
-            "matched": bool(expected) and expected == actual,
+            "f0_passed": f0_passed,
+            "f0_verdict": audit.get("verdict", payload.get("verdict")),
+            "hash_matched": hash_ok,
+            "matched": matched,
         }
     )
-    return bool(info["matched"]), info
+    if not f0_passed:
+        info["error"] = (
+            f"F0 verdict not passed (verdict={info.get('f0_verdict')!r}); "
+            "F2 requires a frozen F0 gate, not only a matching registry hash"
+        )
+    return matched, info
 
 
 def _composition_coverage(rows: list[dict[str, str]], composition_domain: str) -> dict[str, object]:
@@ -223,11 +234,14 @@ def audit_dataset(
         f0_verdict_path, composition_domain=composition_domain
     )
     if not matched:
-        issues.append(
-            "registry sha256 != F0 verdict registry_sha256 "
-            f"(expected={registry_check.get('expected_sha256')}, "
-            f"actual={registry_check.get('actual_sha256')})"
-        )
+        if registry_check.get("error"):
+            issues.append(str(registry_check["error"]))
+        else:
+            issues.append(
+                "registry sha256 != F0 verdict registry_sha256 "
+                f"(expected={registry_check.get('expected_sha256')}, "
+                f"actual={registry_check.get('actual_sha256')})"
+            )
 
     for rel in REQUIRED_FILES:
         if not (dataset_dir / rel).is_file():

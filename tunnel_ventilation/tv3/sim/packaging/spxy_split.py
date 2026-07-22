@@ -43,7 +43,12 @@ class SpxySplitError(RuntimeError):
 # CLI / API profile 名 → summary 中的正式 x_feature_profile 名
 SPXY_X_PROFILE_ORACLE_V1 = "oracle_v1"
 SPXY_X_PROFILE_OBSERVED_V1 = "observed_v1"
-VALID_SPXY_X_PROFILES = (SPXY_X_PROFILE_OBSERVED_V1, SPXY_X_PROFILE_ORACLE_V1)
+SPXY_X_PROFILE_BIDIR_OBSERVED_AB_V1 = "bidir_spxy_observed_ab_v1"
+VALID_SPXY_X_PROFILES = (
+    SPXY_X_PROFILE_OBSERVED_V1,
+    SPXY_X_PROFILE_ORACLE_V1,
+    SPXY_X_PROFILE_BIDIR_OBSERVED_AB_V1,
+)
 
 # 旧含 oracle 物理量的 profile：仅登记为 oracle_split_sensitivity，不得作 B7 正式 OOD 依据
 _ORACLE_ULTRASONIC_FEATURE_KEYS: tuple[tuple[str, bool], ...] = (
@@ -63,6 +68,17 @@ _OBSERVED_ULTRASONIC_FEATURE_KEYS: tuple[tuple[str, bool], ...] = (
     ("ultrasonic_raw_dsp_accepted", False),
 )
 
+# F5-S：双向 SPXY X 仅用 AB 单向 RawDSP（对 A1/A3 中立）；TOF 含 trend → 总 50 维
+_BIDIR_OBSERVED_AB_ULTRASONIC_FEATURE_KEYS: tuple[tuple[str, bool], ...] = (
+    ("ultrasonic_tof_corrected_ab_raw_dsp_s", True),  # mean/std/trend = 3
+    ("ultrasonic_peak_index_ab_raw_dsp", False),  # 2
+    ("ultrasonic_sound_speed_ab_raw_dsp_m_per_s", False),  # 2
+    ("ultrasonic_snr_db_ab", False),  # 2
+    ("ultrasonic_psr_ab", False),  # 2
+    ("ultrasonic_quality_ab_raw_dsp", False),  # 2
+    ("ultrasonic_accepted_ab_raw_dsp", False),  # 2
+)
+
 _ORACLE_EXCLUDED_FROM_OBSERVED = frozenset(
     {
         "ultrasonic_tof_s",
@@ -73,6 +89,19 @@ _ORACLE_EXCLUDED_FROM_OBSERVED = frozenset(
         "ultrasonic_alpha_true_npm",
     }
 )
+
+# Bidir AB profile 额外禁止：BA / pair 解耦 / flow oracle
+_BIDIR_AB_FORBIDDEN_KEY_MARKERS = (
+    "_ba_",
+    "pair_raw_dsp",
+    "v_path_hat",
+    "reciprocity",
+    "alpha_true",
+    "tof_true",
+    "oracle",
+)
+
+BIDIR_SPXY_OBSERVED_AB_EXPECTED_DIM = 50
 
 _SLOW_STAT_NAMES = ("mean", "std", "min", "max", "trend")
 _SERIES_STAT_NAMES_WITH_TREND = ("mean", "std", "trend")
@@ -88,6 +117,12 @@ _SPXY_X_PROFILE_META: dict[str, dict[str, object]] = {
         "x_feature_profile": "spxy_observed_stats_v1",
         "role": "protocol_default",
         "ultrasonic_keys": _OBSERVED_ULTRASONIC_FEATURE_KEYS,
+    },
+    SPXY_X_PROFILE_BIDIR_OBSERVED_AB_V1: {
+        "x_feature_profile": "bidir_spxy_observed_ab_stats_v1",
+        "role": "f5s_bidir_secondary_selector",
+        "ultrasonic_keys": _BIDIR_OBSERVED_AB_ULTRASONIC_FEATURE_KEYS,
+        "expected_dim": BIDIR_SPXY_OBSERVED_AB_EXPECTED_DIM,
     },
 }
 
@@ -166,16 +201,30 @@ def _build_spxy_features(
 
     oracle_v1：慢通道 35 维 + true tof/speed/alpha 统计 = 42 维（旧行为）。
     observed_v1：慢通道 35 维 + 7 个 RawDSP observed 序列统计 = 50 维。
+    bidir_spxy_observed_ab_v1：慢通道 35 维 + AB-only RawDSP 统计 = 50 维（F5-S）。
     聚合特征量级跨数量级，必须经 StandardScaler。
     """
     del conditions  # 保留签名兼容；X 仅来自 arrays
     meta = resolve_spxy_x_profile(x_profile)
     ultrasonic_keys = meta["ultrasonic_keys"]
     assert isinstance(ultrasonic_keys, tuple)
-    if x_profile == SPXY_X_PROFILE_OBSERVED_V1:
+    if x_profile in (SPXY_X_PROFILE_OBSERVED_V1, SPXY_X_PROFILE_BIDIR_OBSERVED_AB_V1):
         leaked = sorted(key for key, _ in ultrasonic_keys if key in _ORACLE_EXCLUDED_FROM_OBSERVED)
         if leaked:
-            raise ValueError(f"observed_v1 不得包含 oracle 物理量: {leaked}")
+            raise ValueError(f"{x_profile} 不得包含 oracle 物理量: {leaked}")
+    if x_profile == SPXY_X_PROFILE_BIDIR_OBSERVED_AB_V1:
+        for key, _ in ultrasonic_keys:
+            lowered = key.lower()
+            if any(marker in lowered for marker in _BIDIR_AB_FORBIDDEN_KEY_MARKERS):
+                raise ValueError(
+                    f"bidir_spxy_observed_ab_v1 禁止 BA/pair/oracle 键进入 X: {key!r}"
+                )
+            if not key.endswith("_ab") and "_ab_" not in key and not key.endswith("_ab_raw_dsp"):
+                # Accept keys like ultrasonic_snr_db_ab / ultrasonic_tof_corrected_ab_raw_dsp_s
+                if "_ab" not in key:
+                    raise ValueError(
+                        f"bidir_spxy_observed_ab_v1 仅允许 AB 数组，got {key!r}"
+                    )
 
     slow = np.asarray(arrays["slow"], dtype=np.float64)  # (N, T, C)
     n = slow.shape[0]
@@ -190,13 +239,15 @@ def _build_spxy_features(
         if key not in arrays:
             raise KeyError(
                 f"spxy_x_profile={x_profile!r} 需要 arrays[{key!r}]；"
-                "observed_v1 必须提供 train-calibrated 或显式 bootstrap 的 RawDSP 输出"
+                "observed profiles 必须提供 train-calibrated 或显式 bootstrap 的 RawDSP 输出"
             )
         arr = np.asarray(arrays[key], dtype=np.float64)  # (N, T) 或 (N,)
         if arr.ndim == 1:
             arr = arr.reshape(n, -1)
         if arr.shape[0] != n:
             raise ValueError(f"arrays[{key!r}] 首维 {arr.shape[0]} 与 slow 的 N={n} 不一致")
+        if not np.all(np.isfinite(arr)):
+            raise ValueError(f"arrays[{key!r}] 含非有限值；F5-S SPXY X 不允许 NaN/Inf")
         feats.append(arr.mean(axis=1, keepdims=True))
         feats.append(arr.std(axis=1, keepdims=True))
         if with_trend:
@@ -206,6 +257,11 @@ def _build_spxy_features(
     if X_raw.shape[1] != len(names):
         raise RuntimeError(
             f"X 特征维数与列名不一致: shape={X_raw.shape[1]} names={len(names)} profile={x_profile}"
+        )
+    expected_dim = meta.get("expected_dim")
+    if expected_dim is not None and int(X_raw.shape[1]) != int(expected_dim):
+        raise RuntimeError(
+            f"{x_profile} 期望维数 {expected_dim}，实际 {X_raw.shape[1]}"
         )
     return X_raw, names
 

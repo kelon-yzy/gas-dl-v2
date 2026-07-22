@@ -1,6 +1,6 @@
 # tv3 双向超声（F 线）实施规划
 
-> 状态：**F5 代码已就绪（2026-07-21）：`bidir-formal-6000` preset + S-Flow + 五臂特征/协议入口；正式 `tv3-bidir-6000` 训练须在服务器执行。F6 未执行。**
+> 状态：**F5-S 代码已落地（2026-07-22）**：`bidir_spxy_observed_ab_v1` + S-Y/S-L×3 seeds 十二格判据 (d) 已接线；`stage_status.f5*=f5s_code_ready_awaiting_formal_matrix`。F0–F4 / F*-wide 已通过。**下一步：smoke 端到端 → 服务器正式 `tv3-bidir-6000`（及 `-wide`）矩阵**；F6 未执行。
 >
 > 责任：给出恢复双向声学路线的完整实施契约：物理与观测模型、数据 schema、部署级估计器、F0–F6 阶段门与 verdict 分流。本计划立项**不**改写 v1 `information_source_upgrade_required`、**不**撤销静止空气 P0、**不**替换 B7 默认头；执行启动以本文前置条件为准。
 >
@@ -164,6 +164,70 @@ sequences/ultrasonic_sound_speed_m_per_s.npy                 # oracle（介质 c
 
 F5 预注册判据：a) A3 在 S-Flow OOD 上的 O₂ MAE 显著优于 A1（幅度门在 F4 后依误差预算预注册，先验预期 ≥0.5 vol% 级）；b) A3 与 A2 差距 ≤ 预注册残余（解耦充分性）；c) A3 的 `v_path=0` 锚点子集相对 S 线/现有 B1 非劣（Δ ≤0.05）；d) S-Y/S-L 非劣（ΔR² ≥ −0.01）；e) corrected sound speed bias 相对 A1 下降且 reciprocity 可稳定标定（沿用统一路线 0.10 μs 初始目标）。任一增益仅出现在 val 不同步到 test/OOD → 判未通过。
 
+#### F5-S：bidir secondary selectors（判据 d 实施契约）
+
+**目标**：为 F5 判据 (d) 生成与双向数据契约相容的 S-Y/S-L 派生集，并在相同派生 split 内比较 A3 与 A1。F5-S 只改变数据划分与重建顺序，不改五臂特征、B1/B7 超参或 F4 已冻结阈值。窄域与 wide 域复用同一实现，但 source、bootstrap、派生目录和结果必须按 `composition_domain` 隔离；F5-S 未通过前，F5 verdict 只能是 `f5_model_protocol_incomplete`。
+
+**1. SPXY observed X 冻结**
+
+正式 profile 命名为 `bidir_spxy_observed_ab_v1`，summary 写 `x_feature_profile=bidir_spxy_observed_ab_stats_v1`。X 只使用部署可得的 7 slow 通道和 **AB 单向 RawDSP**，保持 selector 对 A1/A3 中立，不能预先利用只有双向臂才有的解耦信息。
+
+| X 块 | 数组 | 统计 | 维数 |
+| --- | --- | --- | ---: |
+| slow | 7 个 `SLOW_CHANNELS` | mean/std/min/max/trend | 35 |
+| AB corrected TOF | `ultrasonic_tof_corrected_ab_raw_dsp_s` | mean/std/trend | 3 |
+| AB peak | `ultrasonic_peak_index_ab_raw_dsp` | mean/std | 2 |
+| AB sound speed proxy | `ultrasonic_sound_speed_ab_raw_dsp_m_per_s` | mean/std | 2 |
+| AB SNR | `ultrasonic_snr_db_ab` | mean/std | 2 |
+| AB PSR | `ultrasonic_psr_ab` | mean/std | 2 |
+| AB quality | `ultrasonic_quality_ab_raw_dsp` | mean/std | 2 |
+| AB accepted | `ultrasonic_accepted_ab_raw_dsp` | mean/std | 2 |
+
+总维数固定为 **50**，逐列 `StandardScaler` 后进入 SPXY 距离。以下字段禁止进入 X：任何 BA 数组、pair ĉ、v̂、reciprocity、`v_path_m_per_s`、true/oracle TOF、true sound speed、true alpha、组分标签及 simulator 内部量。标签只允许作为 SPXY 的标准化 Y 和 `y_margin_ood` selector 输入，不得拼入 X。缺列、非有限值、维数/feature-name digest 漂移直接失败，不回退到 `oracle_v1` 或旧单向 `observed_v1`。
+
+**2. bootstrap 与 train-only 重建纪律**
+
+1. 先在 source benchmark 的冻结 base train split 上构建一次 `raw_dsp_bidirectional_v1` cache，角色登记为 `split_selection_bootstrap_only`；它只为 SPXY X 提供 AB 数组。
+2. 用 bootstrap X 派生 S-Y/S-L 后，派生目录只链接物理数组、slow、labels、metadata 与 condition grid；禁止链接 source 的 `features/`。
+3. 每个派生 split 必须以其自身 `train.csv` 重新标定 AB/BA template 与 session delay，再重建 bidir frame cache 和 A1–A5 arm cache。模型训练只能读取这份 split-specific cache。
+4. bootstrap manifest、source manifest、split hash 或 template source sequence-id digest 任一不匹配即停止；不得复用 random/S-Flow train 标定结果伪装为 selector-specific cache。
+
+**3. selector 与正式矩阵**
+
+| ID | SPXY | 独立 OOD selector | 作用 |
+| --- | --- | --- | --- |
+| S-Y | `alpha=0.5` + `bidir_spxy_observed_ab_v1` | `y_margin_ood` | 组分边界 OOD |
+| S-L | `alpha=0.5` + `bidir_spxy_observed_ab_v1` | `lhs_boundary` | LHS 几何边界 OOD |
+
+- split seeds 冻结为 `20260704 / 20260712 / 20260720`；保持 `mixture_id` 分组与 train/val/test/extrapolation=`70/15/10/5`。
+- 正式矩阵为 `2 selectors × 3 split seeds × 5 arms × 2 heads`。每个派生 split 都训练冻结 B1 Ridge 与 B7 residual；不得只跑表现较好的 selector、seed 或臂。
+- 建议目录：`${splits_root}/s_y/spxy_ab_a05_ymargin_s<seed>/` 与 `${splits_root}/s_l/spxy_ab_a05_lhsboundary_s<seed>/`；wide 由独立 `${splits_root}` 保持 `-wide` 命名空间，不与窄域共享 cache。
+- 每个 split summary 必须写 source/condition/label/bootstrap hash、`x_feature_names` 与 digest、X matrix hash、split hash、`ood_set_hash`、集合互斥/总数守恒、各 split 组分与环境范围；selector 退化或不同 seed OOD 集相同必须显式报告，不能静默换 selector。
+
+**4. 判据 (d) 的唯一口径**
+
+主门只用冻结主头 `b1_ridge`，B7 结果完整报告但不新增通过条件。对每个 selector、split seed 和 `test/extrapolation` 分别计算：
+
+```text
+delta_r2_o2 = R2_O2(A3, same selector/seed/split) - R2_O2(A1, same selector/seed/split)
+```
+
+`selector_gate_d.passed=true` 当且仅当：矩阵与 provenance 审计完整，且所有 12 个配对值（2 selectors × 3 seeds × 2 splits）均满足 `delta_r2_o2 >= -0.01`。禁止把不同 selector、不同 seed 或 S-Flow 的绝对 R²互减；禁止用均值掩盖单个失败格。缺结果/审计失败 → `f5_model_protocol_incomplete`（CLI exit 2）；矩阵完整但任一格低于门 → `f5_model_protocol_failed`（CLI exit 1）；判据 a–e 全通过才允许 `f5_model_protocol_passed`（CLI exit 0）并进入 F6。
+
+**5. 实现落点与验证**
+
+| 文件 | 动作 |
+| --- | --- |
+| `tv3/sim/packaging/spxy_split.py` | 注册 `bidir_spxy_observed_ab_v1` 及 50 维字段契约；复用标准化 SPXY 与现有 OOD selector，不复制算法 |
+| `scripts/recompute_tv3_split.py` | 支持 bidir AB bootstrap adapter、`-wide` provenance 和派生目录不链接 feature cache |
+| `scripts/run_tv3_bidir_model_protocol.py` | 新增 F5-S derive/audit/rebuild/train/report 编排；以真实 12 格配对结果替换 `blocked_unimplemented` |
+| `configs/tv3_bidir_model_protocol*.json` | 冻结 profile、selectors、split seeds、目录和 `selector_r2_noninferior_delta=-0.01` |
+| `tests/test_tunnel_ventilation_bidir_secondary_selectors.py` | 覆盖 50 维字段、oracle/BA/pair 拒绝、分组互斥、hash 绑定、split-specific cache 重建、12 格门与退出码 |
+
+最小执行顺序：smoke 上完成 profile 与两 selector 派生审计 → 生成正式 6000 benchmark → 构建 source bootstrap → 派生 6 个正式 split → 各 split 重建 bidir cache → 跑完整五臂双头矩阵 → 汇总判据 (d)。任何派生 split 未通过审计时禁止开始该 split 的模型训练。
+
+**实施状态（2026-07-22）**：上表代码路径已落地（profile / recompute / 协议编排 / 配置 / 单元测试）。`derive_secondary_selectors=true`。正式数值矩阵仍须先 smoke 端到端，再服务器 6000；incomplete → CLI exit 2，矩阵完整但任一格失败 → exit 1。
+
 ### 6. 实施范围
 
 | 文件 | 动作 | 约束 |
@@ -267,7 +331,8 @@ python -m pytest -q tests/test_tunnel_ventilation_bidir_model_protocol.py
 | 2026-07-22 | F0'-wide / F1-wide | `f0_wide_registry_frozen` + `f1_wide_physics_passed` | `WIDE_COMPOSITION_RANGES`；spec/`--composition-domain` 线穿；`parameter_registry_wide.json`（独立 sha256，窄域 dc61d9e7… 未动）；`tests/test_tunnel_ventilation_wide_composition.py` |
 | 2026-07-22 | F2-wide | `f2_wide_smoke_passed` | `data/tv3-bidir-smoke-wide`（16×32）；`outputs/tv3_bidir/f0_registry_wide/` + `benchmark_audit_wide/`；int16 自洽；零锚点 12.5%；CO₂ max≈9.87 / O₂∈[15.47,24.86]；窄域 `stage_status.f2`/`allowed_next_stage` 未改写 |
 | 2026-07-22 | F3-wide | `f3_wide_dsp_passed` | `data/tv3-bidir-f3-wide`（32×32，零 jitter）；`outputs/tv3_bidir/dsp_fidelity_wide/`；peak P95 AB/BA≈0.087/0.046；stress(CO₂≥8%,L≥0.28) 30 帧 max≈0.090/0.047；τ≈53 ns；ĉ bias 0.008、v̂ bias −0.010；reciprocity P95 97 ns；窄域 `dsp_fidelity/` 未改写 |
-| 2026-07-22 | F4-wide | `coarse_monitoring_only`（stage pass） | `outputs/tv3_bidir/identifiability_v2_wide/`；六窗危害锚定；拒绝率 0；窄窗 P90 max 名义≈4.50 / 保守≈9.74 vol% O₂；先验交叉核对通过；F5-wide 幅度门已预注册（判据 c=`in_domain_a1_v_path_zero`）；窄域 F4/`identifiability_v2/` 与 v1 未改写；待 F5-wide |
+| 2026-07-22 | F4-wide | `coarse_monitoring_only`（stage pass） | `outputs/tv3_bidir/identifiability_v2_wide/`；六窗危害锚定；拒绝率 0；窄窗 P90 max 名义≈4.50 / 保守≈9.74 vol% O₂；先验交叉核对通过；F5-wide 幅度门已预注册（判据 c=`in_domain_a1_v_path_zero`）；窄域 F4/`identifiability_v2/` 与 v1 未改写 |
+| 2026-07-22 | F5-S code | `f5s_code_ready_awaiting_formal_matrix` | `bidir_spxy_observed_ab_v1`（50 维 AB-only）；`recompute_tv3_split` bidir adapter；`tv3/ml/bidir_f5_secondary.py`；协议 `derive_secondary_selectors=true` + 12 格判据 (d)；窄/宽 `configs/tv3_bidir_model_protocol*.json`；测试 `tests/test_tunnel_ventilation_bidir_secondary_selectors.py`；下一步 smoke 端到端 → 服务器 6000 矩阵 |
 
 F0 要点：
 
@@ -313,10 +378,11 @@ F4 要点：
 - 业务 verdict=`coarse_monitoring_only`（flow 解耦成功，连续回归门未达）；阶段门通过，允许 F5。
 - F5 幅度门已预注册：A3−A1 O₂ MAE ≥0.5 vol%；A3−A2 ≤0.25；零锚点 Δ≤0.05；selector ΔR²≥−0.01。
 
-F5 要点（代码就绪，正式训练待服务器）：
+F5 要点（F5-S 代码已落地，正式矩阵待 smoke → 服务器）：
 
 - 数据：`--preset bidir-formal-6000` → `data/tv3-bidir-6000`（6000×512，int16，skip-fiber-mic）。
 - S-Flow：mixture 中位 `|v_path|≤2.5` 入域随机划分；`(2.5,4]` 进 extrapolation OOD；保持 mixture_id 分组。
-- 特征：train-calibrated `raw_dsp_bidirectional_v1` 帧缓存 + 五臂 rocket 矩阵（A2 为 oracle-v 审计臂）。
+- F5-S：`bidir_spxy_observed_ab_v1`（50 维 AB-only）派生 S-Y/S-L×3 seeds；12 格判据 (d) 配对 A3−A1 O₂ ΔR²≥−0.01；`derive_secondary_selectors=true`。
+- 特征：train-calibrated `raw_dsp_bidirectional_v1` 帧缓存 + 五臂 rocket 矩阵（A2 为 oracle-v 审计臂）；各派生 split 独立重建 cache。
 - 头：冻结 B1 RidgeCV alpha 网格与 B7 OOF residual MLP 超参；产物写入 `outputs/tv3_bidir/model_protocol/`，不覆盖 `outputs/tv3_d2b/`。
-- 入口：`python scripts/run_tv3_bidir_model_protocol.py --config configs/tv3_bidir_model_protocol.json --stage all`。
+- 入口：`python scripts/run_tv3_bidir_model_protocol.py --config configs/tv3_bidir_model_protocol.json --stage all`；incomplete→exit 2，(d) 失败→exit 1。

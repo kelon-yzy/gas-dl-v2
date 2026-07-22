@@ -322,5 +322,75 @@ def test_wide_model_protocol_config_paths():
     assert cfg["source_dataset_dir"] == "data/tv3-bidir-6000-wide"
     assert cfg["output_dir"] == "outputs/tv3_bidir/model_protocol_wide"
     assert cfg["f5_amplitude_gates"]["criterion_c_anchor"] == "in_domain_a1_v_path_zero"
+    assert cfg["f4_prerequisite"]["expected_composition_domain"] == "wide"
+    assert cfg["f4_prerequisite"]["expected_criterion_c_anchor"] == "in_domain_a1_v_path_zero"
     assert cfg["f4_prerequisite"]["verdict_path"].endswith("identifiability_v2_wide/f4_verdict.json")
     assert "tv3-bidir-6000-wide" in cfg["source_dataset_dir"]
+
+
+def test_f5_protocol_exit_code_incomplete_is_nonzero():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "run_tv3_bidir_model_protocol.py"
+    spec = importlib.util.spec_from_file_location("tv3_bidir_model_protocol", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    assert mod.protocol_exit_code({}) == 0
+    assert mod.protocol_exit_code({"verdict": {"verdict": "f5_model_protocol_passed"}}) == 0
+    assert mod.protocol_exit_code({"verdict": {"verdict": "f5_model_protocol_incomplete"}}) == 2
+    assert mod.protocol_exit_code({"verdict": {"verdict": "f5_model_protocol_failed"}}) == 1
+
+
+def test_f4_prerequisite_rejects_narrow_for_wide_config(tmp_path: Path):
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "run_tv3_bidir_model_protocol.py"
+    spec = importlib.util.spec_from_file_location("tv3_bidir_model_protocol", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+
+    verdict = tmp_path / "f4_verdict.json"
+    verdict.write_text(
+        json.dumps(
+            {
+                "passed": True,
+                "composition_domain": "narrow",
+                "f5_amplitude_gate_preregistration": {
+                    "criterion_c_anchor": "s_line_b1",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = {
+        "composition_domain": "wide",
+        "f4_prerequisite": {
+            "verdict_path": str(verdict),
+            "expected_stage_passed": True,
+            "expected_composition_domain": "wide",
+            "expected_criterion_c_anchor": "in_domain_a1_v_path_zero",
+        },
+        "f5_amplitude_gates": {"criterion_c_anchor": "in_domain_a1_v_path_zero"},
+    }
+    with pytest.raises(RuntimeError, match="composition_domain mismatch"):
+        mod._verify_f4_prerequisite(config, project_root=tmp_path)
+
+
+def test_source_manifest_rejects_narrow_for_wide(tmp_path: Path):
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "run_tv3_bidir_model_protocol.py"
+    spec = importlib.util.spec_from_file_location("tv3_bidir_model_protocol", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"sim_revision": {"composition_domain": "narrow"}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(RuntimeError, match="wide_hazard_v1"):
+        mod._verify_source_composition_domain(tmp_path, expected_domain="wide")

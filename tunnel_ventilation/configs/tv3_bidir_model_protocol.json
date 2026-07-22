@@ -1,5 +1,6 @@
 {
   "schema_version": "tv3-bidir-model-protocol-1",
+  "composition_domain": "narrow",
   "source_dataset_dir": "data/tv3-bidir-6000",
   "splits_root": "data/tv3-bidir-6000-splits",
   "output_dir": "outputs/tv3_bidir/model_protocol",
@@ -12,11 +13,19 @@
   "template_max_frames": 512,
   "arms": ["A1", "A2", "A3", "A4", "A5"],
   "heads": ["b1_ridge", "b7_residual"],
-  "derive_secondary_selectors": false,
+  "derive_secondary_selectors": true,
+  "f5s": {
+    "x_profile": "bidir_spxy_observed_ab_v1",
+    "spxy_alpha": 0.5,
+    "split_seeds": [20260704, 20260712, 20260720],
+    "selectors": ["s_y", "s_l"],
+    "note": "F5-S: AB-only SPXY X; each derived split rebuilds train-calibrated bidir cache."
+  },
   "f4_prerequisite": {
     "verdict_path": "outputs/tv3_bidir/identifiability_v2/f4_verdict.json",
     "expected_stage_passed": true,
-    "note": "F5 amplitude gates were preregistered at F4; do not retune after seeing F5 scores"
+    "expected_composition_domain": "narrow",
+    "note": "F5 amplitude gates were preregistered at F4; do not retune after seeing F5 scores. Legacy narrow F4 may omit composition_domain (treated as narrow)."
   },
   "f5_amplitude_gates": {
     "a3_minus_a1_o2_mae_min_vol_percent": 0.5,
@@ -31,7 +40,7 @@
     "Primary selector is S-Flow (|v|≤2.5 train / (2.5,4] pure OOD by mixture median).",
     "A2 is audit-only (oracle v_path). Deploy conclusions use A3.",
     "Set f5_amplitude_gates.s_line_b1_reference_o2_mae from locked S-line / frozen B1 before formal train.",
-    "Criterion d (S-Y/S-L) must pass before f5_model_protocol_passed and F6; pending ⇒ incomplete.",
-    "Formal 6000 generation and training run on the server; local code path is verified on smoke-scale fixtures."
+    "F5-S criterion d: 2 selectors × 3 seeds × test/extrapolation A3−A1 O₂ ΔR² ≥ −0.01 on b1_ridge.",
+    "incomplete → exit 2; matrix complete but gate fail → exit 1; a–e all pass → exit 0."
   ]
 }

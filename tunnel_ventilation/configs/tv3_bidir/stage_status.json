@@ -48,14 +48,15 @@
     "v1_directory_untouched": true
   },
   "f5": {
-    "status": "code_ready_awaiting_server_formal_6000",
+    "status": "f5s_code_ready_awaiting_formal_matrix",
     "dataset": "data/tv3-bidir-6000",
     "preset": "bidir-formal-6000",
     "protocol_config": "configs/tv3_bidir_model_protocol.json",
     "protocol_script": "scripts/run_tv3_bidir_model_protocol.py",
     "output_dir": "outputs/tv3_bidir/model_protocol",
-    "tests": "tests/test_tunnel_ventilation_bidir_model_protocol.py",
+    "tests": "tests/test_tunnel_ventilation_bidir_model_protocol.py + tests/test_tunnel_ventilation_bidir_secondary_selectors.py",
     "primary_selector": "S-Flow (mixture median |v_path|≤2.5 train; (2.5,4] OOD)",
+    "secondary_selectors": "F5-S bidir_spxy_observed_ab_v1 → S-Y/S-L × 3 seeds",
     "arms": [
       "A1",
       "A2",
@@ -67,7 +68,7 @@
       "b1_ridge",
       "b7_residual"
     ],
-    "note": "Formal training must run on server; local path verified by unit tests only."
+    "note": "F5-S code path landed: AB-only SPXY profile, recompute adapter, 12-cell criterion d. Formal 6000 matrix still on server after smoke audit."
   },
   "f0_wide": {
     "verdict": "f0_registry_frozen",
@@ -115,20 +116,29 @@
     "v1_directory_untouched": true
   },
   "f5_wide": {
-    "status": "code_ready_awaiting_server_formal_6000",
+    "status": "f5s_code_ready_awaiting_formal_matrix",
     "composition_domain": "wide",
     "dataset": "data/tv3-bidir-6000-wide",
     "preset": "bidir-formal-6000",
     "protocol_config": "configs/tv3_bidir_model_protocol_wide.json",
     "protocol_script": "scripts/run_tv3_bidir_model_protocol.py",
     "output_dir": "outputs/tv3_bidir/model_protocol_wide",
-    "tests": "tests/test_tunnel_ventilation_bidir_model_protocol.py",
+    "tests": "tests/test_tunnel_ventilation_bidir_secondary_selectors.py",
     "f4_prerequisite": "outputs/tv3_bidir/identifiability_v2_wide/f4_verdict.json",
     "criterion_c_anchor": "in_domain_a1_v_path_zero",
     "primary_selector": "S-Flow (mixture median |v_path|≤2.5 train; (2.5,4] OOD)",
+    "secondary_selectors": "F5-S bidir_spxy_observed_ab_v1 → S-Y/S-L × 3 seeds",
     "arms": ["A1", "A2", "A3", "A4", "A5"],
     "heads": ["b1_ridge", "b7_residual"],
-    "allowed_next_stage_after_server": "F6_wide_verdict_backfill",
-    "note": "Formal 6000-wide + five-arm protocol on server; local path = config + criterion-c re-anchor + unit tests. Narrow f5/model_protocol untouched."
+    "provenance_gates": [
+      "f4_expected_composition_domain=wide",
+      "f4_expected_criterion_c_anchor=in_domain_a1_v_path_zero",
+      "source_manifest_wide_hazard_v1",
+      "write_once_dataset_slug_-wide",
+      "incomplete_exit_code_2",
+      "f5s_12_cell_criterion_d"
+    ],
+    "allowed_next_stage_after_smoke": "F5_wide_server_formal_6000",
+    "note": "F5-S implemented (AB SPXY + S-Y/S-L matrix + criterion d). Next: smoke-wide end-to-end then server 6000-wide. Do not treat incomplete CLI as success."
   }
 }
