@@ -7,11 +7,18 @@
 
 ### 1.1 目标组分范围
 
-| 变量      | 最小值 (%) | 最大值 (%) | 说明                    |
-| ------- | -------:| -------:| --------------------- |
-| `x_CO2` | 0.03    | 5.00    | 新鲜空气 (~0.04%) 到局部积聚上限 |
-| `x_O2`  | 18.00   | 21.20   | 正常空气 (~20.9%) 到低氧下限   |
-| `x_N2`  | 73.80   | 81.97   | 由 CO₂ 和 O₂ 的范围间接决定    |
+双域并存（2026-07-22）：单向默认 **narrow**；F 线可选 **wide**（`--composition-domain wide`）。
+
+| 域 | 变量 | 最小值 (%) | 最大值 (%) | 说明 |
+| --- | --- | ---: | ---: | --- |
+| narrow（默认） | `x_CO2` | 0.03 | 5.00 | 新鲜空气 (~0.04%) 到局部积聚上限 |
+| narrow（默认） | `x_O2` | 18.00 | 21.20 | 正常空气 (~20.9%) 到低氧扰动 |
+| narrow（默认） | `x_N2` | 73.80 | 81.97 | 由 CO₂ 和 O₂ 的范围间接决定 |
+| **wide**（F 线） | `x_CO2` | 0.03 | **10.00** | 覆盖超 IDLH(4%) 严重积聚 |
+| **wide**（F 线） | `x_O2` | **15.00** | **25.00** | OSHA 缺氧线 <19.5% 与富氧火险线 >23.5% |
+| **wide**（F 线） | `x_N2` | **65.00** | **84.97** | min=100−10−25；max=100−0.03−15 |
+
+常量：`TUNNEL_VENTILATION_RANGES`（narrow）、`WIDE_COMPOSITION_RANGES`（wide）。契约见 `docs/active/tv3_composition_range_widening_plan.md`。
 
 ### 1.2 联合约束
 
@@ -23,9 +30,9 @@ x_CO2 + x_O2 + x_N2 = 100.0%
 
 N₂ 的有效范围验证：
 
-- 最小 N₂ = 100 - 5.00 - 21.20 = 73.80%
-- 最大 N₂ = 100 - 0.03 - 18.00 = 81.97%
-
+- narrow：最小 N₂ = 100 - 5.00 - 21.20 = 73.80%；最大 = 100 - 0.03 - 18.00 = 81.97%
+- wide：最小 N₂ = 100 - 10.00 - 25.00 = 65.00%；最大 = 100 - 0.03 - 15.00 = 84.97%
+- 两域均满足 `max(CO2+O2) < 100`，无需联合约束修正
 ### 1.3 环境变量范围
 
 | 变量      | 范围          | 说明                           |
@@ -43,7 +50,7 @@ N₂ 的有效范围验证：
 
 1. 在 `(x_CO2, x_O2)` 二维空间做 LHS 采样
 2. 计算 `x_N2 = 100 - x_CO2 - x_O2`
-3. 校验 `x_N2` 落在有效范围 [73.80, 81.97] 内
+3. 校验 `x_N2` 落在当前域有效范围内（narrow [73.80, 81.97]；wide [65.00, 84.97]）
 4. 环境变量 `(T_C, P_MPa, H_RH, L_m)` 独立做 LHS，与组分拼接
 
 ### 2.2 伪代码
@@ -52,7 +59,7 @@ N₂ 的有效范围验证：
 import numpy as np
 from scipy.stats.qmc import LatinHypercube
 
-def sample_tunnel_ventilation(n_samples: int, seed: int) -> np.ndarray:
+def sample_tunnel_ventilation(n_samples: int, seed: int, *, wide: bool = False) -> np.ndarray:
     """生成 CO₂/O₂/N₂ 三组分采样点。
 
     Returns:
@@ -61,18 +68,18 @@ def sample_tunnel_ventilation(n_samples: int, seed: int) -> np.ndarray:
     rng = np.random.default_rng(seed)
     sampler = LatinHypercube(d=2, seed=rng)
 
-    # 在 (CO2, O2) 空间 LHS 采样
     unit_samples = sampler.random(n=n_samples)
-    x_co2 = 0.03 + unit_samples[:, 0] * (5.00 - 0.03)
-    x_o2 = 18.00 + unit_samples[:, 1] * (21.20 - 18.00)
+    if wide:
+        x_co2 = 0.03 + unit_samples[:, 0] * (10.00 - 0.03)
+        x_o2 = 15.00 + unit_samples[:, 1] * (25.00 - 15.00)
+        n2_lo, n2_hi = 65.00, 84.97
+    else:
+        x_co2 = 0.03 + unit_samples[:, 0] * (5.00 - 0.03)
+        x_o2 = 18.00 + unit_samples[:, 1] * (21.20 - 18.00)
+        n2_lo, n2_hi = 73.80, 81.97
 
-    # 计算 N₂
     x_n2 = 100.0 - x_co2 - x_o2
-
-    # 校验
-    assert np.all(x_n2 >= 73.80 - 1e-6), "N₂ 低于预期下限"
-    assert np.all(x_n2 <= 81.97 + 1e-6), "N₂ 超过预期上限"
-
+    assert np.all(x_n2 >= n2_lo - 1e-6) and np.all(x_n2 <= n2_hi + 1e-6)
     return np.column_stack([x_co2, x_o2, x_n2])
 ```
 

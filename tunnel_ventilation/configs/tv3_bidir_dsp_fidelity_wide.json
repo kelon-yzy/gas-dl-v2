@@ -1,0 +1,41 @@
+{
+  "composition_domain": "wide",
+  "dataset_dir": "data/tv3-bidir-f3-wide",
+  "output_dir": "outputs/tv3_bidir/dsp_fidelity_wide",
+  "allow_overwrite": false,
+  "jitter_scenario": "f3_zero_jitter_physics_gate",
+  "notes": "F3-wide: same absolute τ/ĉ/v̂/reciprocity gates as narrow F3, on wide composition domain (CO2 0.03-10 / O2 15-25). Zero trigger jitter. Physics recovery aggregates steady+accepted frames only. Stress report requires high-CO2 (≥8%) + long-L (≥0.28 m, path_lms max) frames inside the peak P95 gate. Narrow outputs/tv3_bidir/dsp_fidelity/ untouched.",
+  "template": {
+    "source_split": "train",
+    "max_frames": 512,
+    "pre_samples": 25,
+    "post_samples": 33,
+    "min_snr_db": 20.0,
+    "reference_peak_polarity": -1
+  },
+  "raw_dsp": {
+    "sound_speed_min_m_per_s": 250.0,
+    "sound_speed_max_m_per_s": 400.0,
+    "delay_min_s": 0.00004,
+    "delay_max_s": 0.00013,
+    "min_corr_peak": 0.5,
+    "min_peak_to_sidelobe_ratio": 1.1,
+    "min_snr_db": 10.0,
+    "max_peak_width_samples": 12.0,
+    "sidelobe_exclusion_samples": 8,
+    "calibration_min_frames": 4
+  },
+  "thresholds": {
+    "peak_p95_abs_samples": 0.25,
+    "tau_abs_error_s": 1.0e-7,
+    "sound_speed_bias_m_per_s": 0.05,
+    "v_path_bias_m_per_s": 0.05,
+    "reciprocity_residual_p95_s": 1.0e-7
+  },
+  "wide_stress": {
+    "co2_min_vol_pct": 8.0,
+    "l_m_min": 0.28,
+    "require_frames": true,
+    "notes": "Proxy for plan CO2=10%/L=0.3 worst case; path_lms max is 0.28 m under 200 kHz L≤0.3 constraint."
+  }
+}

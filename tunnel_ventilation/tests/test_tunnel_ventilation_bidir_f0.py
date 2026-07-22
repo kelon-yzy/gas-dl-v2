@@ -24,8 +24,10 @@ from tv3.sim.core.tunnel_ventilation_schema import (
 )
 from tv3.sim.generation.tunnel_ventilation.bidir_registry import (
     audit_f0_gate,
+    audit_f0_gate_wide,
     default_config_dir,
     load_f0_registry,
+    load_f0_registry_wide,
 )
 
 
@@ -116,3 +118,14 @@ def test_f0_gate_fails_if_flow_enters_slow(tmp_path: Path):
     audit = audit_f0_gate(tmp_path)
     assert audit["passed"] is False
     assert any("flow_in_slow_channels" in item for item in audit["issues"])
+
+
+def test_f0_wide_registry_loads_and_passes_independently():
+    narrow = load_f0_registry()
+    wide = load_f0_registry_wide()
+    assert narrow["sha256"] != wide["sha256"]
+    assert wide["registry"]["composition_domain"] == "wide_hazard_v1"
+    audit = audit_f0_gate_wide()
+    assert audit["passed"] is True
+    assert audit["issues"] == []
+    assert audit["composition_domain"] == "wide_hazard_v1"

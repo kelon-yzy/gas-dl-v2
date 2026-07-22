@@ -38,6 +38,13 @@ from tv3.sim.core.tunnel_ventilation_bidir_schema import (  # noqa: E402
     COMPOSITION_SCHEME,
     SCHEMA_VERSION,
 )
+from tv3.sim.generation.tunnel_ventilation.bidir_registry import (  # noqa: E402
+    default_config_dir,
+)
+from tv3.sim.generation.tunnel_ventilation.conditions import (  # noqa: E402
+    COMPOSITION_DOMAIN_NARROW,
+    COMPOSITION_DOMAIN_WIDE,
+)
 
 
 AUDIT_SCHEMA_VERSION = "tv3-bidir-dsp-fidelity-1"
@@ -187,6 +194,54 @@ def _direction_tof_for_calibration(
     return tof, path_lengths, np.asarray(accepted, dtype=bool)
 
 
+def _peak_metrics(err: np.ndarray) -> dict[str, float]:
+    finite = err[np.isfinite(err)]
+    if finite.size == 0:
+        return {
+            "n_frames": 0.0,
+            "mae_samples": float("nan"),
+            "p95_abs_samples": float("nan"),
+            "bias_samples": float("nan"),
+            "max_abs_samples": float("nan"),
+        }
+    return {
+        "n_frames": float(finite.size),
+        "mae_samples": float(np.mean(np.abs(finite))),
+        "p95_abs_samples": float(np.percentile(np.abs(finite), 95)),
+        "bias_samples": float(np.mean(finite)),
+        "max_abs_samples": float(np.max(np.abs(finite))),
+    }
+
+
+def _wide_stress_peak_report(
+    *,
+    peak_err_ab: np.ndarray,
+    peak_err_ba: np.ndarray,
+    labels: np.ndarray,
+    slow: np.ndarray,
+    path_index: int,
+    co2_min_vol_pct: float,
+    l_m_min: float,
+) -> dict[str, Any]:
+    """Peak errors on high-CO2 + long-L frames (wide-domain physical risk set)."""
+    n_seq, n_t = peak_err_ab.shape
+    co2 = np.asarray(labels[:, 0], dtype=np.float64)  # x_CO2
+    mask = np.zeros((n_seq, n_t), dtype=bool)
+    for si in range(n_seq):
+        if co2[si] < co2_min_vol_pct:
+            continue
+        l_row = np.asarray(slow[si, :, path_index], dtype=np.float64)
+        mask[si] = l_row >= l_m_min
+    return {
+        "co2_min_vol_pct": co2_min_vol_pct,
+        "l_m_min": l_m_min,
+        "n_sequences_high_co2": int(np.sum(co2 >= co2_min_vol_pct)),
+        "n_frames": int(np.sum(mask)),
+        "ab": _peak_metrics(np.where(mask, peak_err_ab, np.nan)),
+        "ba": _peak_metrics(np.where(mask, peak_err_ba, np.nan)),
+    }
+
+
 def run_f3_dsp_fidelity(
     *,
     dataset_dir: Path,
@@ -197,6 +252,7 @@ def run_f3_dsp_fidelity(
     thresholds = F3Thresholds(**config.get("thresholds", {}))
     template_cfg = config.get("template", {})
     raw_dsp_overrides = dict(config.get("raw_dsp", {}))
+    composition_domain = str(config.get("composition_domain", COMPOSITION_DOMAIN_NARROW))
 
     dataset_dir = Path(dataset_dir)
     output_dir = Path(output_dir)
@@ -211,6 +267,14 @@ def run_f3_dsp_fidelity(
     if manifest.get("schema_version") != SCHEMA_VERSION:
         raise ValueError(
             f"expected schema_version={SCHEMA_VERSION!r}, got {manifest.get('schema_version')!r}"
+        )
+    man_domain = (manifest.get("sim_revision") or {}).get(
+        "composition_domain", COMPOSITION_DOMAIN_NARROW
+    )
+    if man_domain != composition_domain:
+        raise ValueError(
+            f"config composition_domain={composition_domain!r} != "
+            f"manifest sim_revision.composition_domain={man_domain!r}"
         )
 
     waveform_spec = _read_json(dataset_dir / "metadata" / "waveform_spec.json")["ultrasonic"]
@@ -247,6 +311,7 @@ def run_f3_dsp_fidelity(
     tof_obs_ba = np.load(dataset_dir / "sequences" / "ultrasonic_tof_observed_ba_s.npy")
     c_true = np.load(dataset_dir / "sequences" / "ultrasonic_sound_speed_m_per_s.npy")
     v_true = np.load(dataset_dir / "sequences" / "ultrasonic_v_path_true_m_per_s.npy")
+    labels = np.load(dataset_dir / "labels" / "y.npy")
 
     # Deploy path must not accept oracle names as feature inputs.
     assert_no_oracle_inputs(
@@ -478,17 +543,11 @@ def run_f3_dsp_fidelity(
         elif finite_rec.size:
             seq_mean_reciprocity.append(float(np.mean(finite_rec)))
 
-    def _peak_metrics(err: np.ndarray) -> dict[str, float]:
-        finite = err[np.isfinite(err)]
-        return {
-            "n_frames": float(finite.size),
-            "mae_samples": float(np.mean(np.abs(finite))),
-            "p95_abs_samples": float(np.percentile(np.abs(finite), 95)),
-            "bias_samples": float(np.mean(finite)),
-        }
+    def _peak_metrics_local(err: np.ndarray) -> dict[str, float]:
+        return _peak_metrics(err)
 
-    peak_ab_metrics = _peak_metrics(peak_err_ab)
-    peak_ba_metrics = _peak_metrics(peak_err_ba)
+    peak_ab_metrics = _peak_metrics_local(peak_err_ab)
+    peak_ba_metrics = _peak_metrics_local(peak_err_ba)
 
     # τ̂ vs true fixed delay (asymmetry from first train row is representative; smoke default 0)
     train_asym = float(asymmetry_by_sid.get(sequence_ids[train_indices[0]], 0.0))
@@ -558,13 +617,64 @@ def run_f3_dsp_fidelity(
             "passed": reciprocity_p95 <= thresholds.reciprocity_residual_p95_s,
         },
     }
+
+    wide_stress_report: dict[str, Any] | None = None
+    if composition_domain == COMPOSITION_DOMAIN_WIDE:
+        stress_cfg = dict(config.get("wide_stress") or {})
+        co2_min = float(stress_cfg.get("co2_min_vol_pct", 8.0))
+        l_min = float(stress_cfg.get("l_m_min", 0.28))
+        require_frames = bool(stress_cfg.get("require_frames", True))
+        wide_stress_report = _wide_stress_peak_report(
+            peak_err_ab=peak_err_ab,
+            peak_err_ba=peak_err_ba,
+            labels=labels,
+            slow=slow,
+            path_index=path_index,
+            co2_min_vol_pct=co2_min,
+            l_m_min=l_min,
+        )
+        n_stress = int(wide_stress_report["n_frames"])
+        stress_ok = n_stress > 0 or not require_frames
+        max_ab = wide_stress_report["ab"]["max_abs_samples"]
+        max_ba = wide_stress_report["ba"]["max_abs_samples"]
+        peak_ok = (
+            n_stress == 0
+            or (
+                (not np.isfinite(max_ab) or max_ab <= thresholds.peak_p95_abs_samples)
+                and (not np.isfinite(max_ba) or max_ba <= thresholds.peak_p95_abs_samples)
+            )
+        )
+        gates["wide_stress_frames_present"] = {
+            "value": float(n_stress),
+            "limit": 1.0 if require_frames else 0.0,
+            "passed": stress_ok,
+            "co2_min_vol_pct": co2_min,
+            "l_m_min": l_min,
+        }
+        gates["wide_stress_peak_max_ab"] = {
+            "value": max_ab,
+            "limit": thresholds.peak_p95_abs_samples,
+            "passed": peak_ok if n_stress > 0 else True,
+        }
+        gates["wide_stress_peak_max_ba"] = {
+            "value": max_ba,
+            "limit": thresholds.peak_p95_abs_samples,
+            "passed": peak_ok if n_stress > 0 else True,
+        }
+
     passed = all(item["passed"] for item in gates.values())
-    verdict = "f3_dsp_passed" if passed else "estimator_failed"
+    if composition_domain == COMPOSITION_DOMAIN_WIDE:
+        verdict = "f3_wide_dsp_passed" if passed else "estimator_failed"
+        next_stage = "F4_wide_identifiability_v2"
+    else:
+        verdict = "f3_dsp_passed" if passed else "estimator_failed"
+        next_stage = "F4_identifiability_v2"
 
     result = {
         "schema_version": AUDIT_SCHEMA_VERSION,
         "feature_builder": FEATURE_BUILDER,
         "bidir_raw_dsp_schema": BIDIR_RAW_DSP_SCHEMA_VERSION,
+        "composition_domain": composition_domain,
         "status": "passed" if passed else "failed",
         "verdict": verdict,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -572,6 +682,7 @@ def run_f3_dsp_fidelity(
         "thresholds": asdict(thresholds),
         "gates": gates,
         "peak_metrics": {"ab": peak_ab_metrics, "ba": peak_ba_metrics},
+        "wide_stress": wide_stress_report,
         "delay_calibration": session_calibration_as_dict(calibration),
         "tau_true_s": {"ab": tau_true_ab, "ba": tau_true_ba},
         "tau_abs_error_s": {"ab": tau_err_ab, "ba": tau_err_ba},
@@ -593,7 +704,7 @@ def run_f3_dsp_fidelity(
             "n_baseline_frames_ab": int(ab_frames.shape[0]),
             "n_baseline_frames_ba": int(ba_frames.shape[0]),
         },
-        "allowed_next_stage_on_pass": "F4_identifiability_v2",
+        "allowed_next_stage_on_pass": next_stage,
     }
 
     (output_dir / "metrics.json").write_text(
@@ -606,9 +717,10 @@ def run_f3_dsp_fidelity(
         encoding="utf-8",
     )
     f3_verdict = {
-        "stage": "F3",
+        "stage": "F3_wide" if composition_domain == COMPOSITION_DOMAIN_WIDE else "F3",
         "verdict": verdict,
         "passed": passed,
+        "composition_domain": composition_domain,
         "created_at": result["created_at"],
         "metrics_path": str(output_dir / "metrics.json"),
         "feature_builder": FEATURE_BUILDER,
@@ -616,12 +728,35 @@ def run_f3_dsp_fidelity(
         "template_ba_digest": template_digest(template_ba),
         "delay_calibration_digest": calibration.digest,
         "gates": gates,
-        "allowed_next_stage_on_pass": "F4_identifiability_v2",
+        "wide_stress": wide_stress_report,
+        "allowed_next_stage_on_pass": next_stage,
     }
     (output_dir / "f3_verdict.json").write_text(
         json.dumps(f3_verdict, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     return result
+
+
+def _update_stage_status_f3_wide(*, output_dir: Path, result: dict[str, Any]) -> None:
+    """Write f3_wide only — never rewrite narrow f3 / allowed_next_stage."""
+    if result.get("composition_domain") != COMPOSITION_DOMAIN_WIDE or result.get("status") != "passed":
+        return
+    stage_path = default_config_dir() / "stage_status.json"
+    if not stage_path.is_file():
+        return
+    stage = json.loads(stage_path.read_text(encoding="utf-8"))
+    stage["f3_wide"] = {
+        "verdict": result["verdict"],
+        "passed_at": datetime.now(timezone.utc).date().isoformat(),
+        "dataset": "data/tv3-bidir-f3-wide",
+        "feature_builder": FEATURE_BUILDER,
+        "verdict_path": "outputs/tv3_bidir/dsp_fidelity_wide/f3_verdict.json",
+        "metrics_path": "outputs/tv3_bidir/dsp_fidelity_wide/metrics.json",
+        "allowed_next_stage": result["allowed_next_stage_on_pass"],
+        "physics_aggregation": "snr_weighted_steady_accepted_vs_median_oracle_steady",
+        "wide_stress_n_frames": (result.get("wide_stress") or {}).get("n_frames"),
+    }
+    stage_path.write_text(json.dumps(stage, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -639,12 +774,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         config=cfg,
         allow_overwrite=bool(args.allow_overwrite or cfg.get("allow_overwrite", False)),
     )
+    _update_stage_status_f3_wide(output_dir=output_dir, result=result)
     print(
         json.dumps(
             {
                 "status": result["status"],
                 "verdict": result["verdict"],
+                "composition_domain": result.get("composition_domain"),
                 "gates": {k: v["passed"] for k, v in result["gates"].items()},
+                "wide_stress": result.get("wide_stress"),
                 "output_dir": str(output_dir),
             },
             ensure_ascii=False,

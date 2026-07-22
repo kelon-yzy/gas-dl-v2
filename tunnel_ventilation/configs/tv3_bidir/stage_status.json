@@ -56,8 +56,79 @@
     "output_dir": "outputs/tv3_bidir/model_protocol",
     "tests": "tests/test_tunnel_ventilation_bidir_model_protocol.py",
     "primary_selector": "S-Flow (mixture median |v_path|≤2.5 train; (2.5,4] OOD)",
+    "arms": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5"
+    ],
+    "heads": [
+      "b1_ridge",
+      "b7_residual"
+    ],
+    "note": "Formal training must run on server; local path verified by unit tests only."
+  },
+  "f0_wide": {
+    "verdict": "f0_registry_frozen",
+    "registry_file": "parameter_registry_wide.json",
+    "registry_sha256": "c7137f542390e7976519e53a66350772adc0edec032d5b88a7a985391db34d61",
+    "verdict_path": "outputs/tv3_bidir/f0_registry_wide/f0_verdict.json",
+    "passed_at": "2026-07-22",
+    "composition_domain": "wide_hazard_v1"
+  },
+  "f2_wide": {
+    "verdict": "f2_wide_smoke_passed",
+    "passed_at": "2026-07-22",
+    "dataset": "data/tv3-bidir-smoke-wide",
+    "verdict_path": "outputs/tv3_bidir/benchmark_audit_wide/f2_verdict.json",
+    "tests": "tests/test_tunnel_ventilation_wide_composition.py",
+    "registry_sha256_matched": true,
+    "allowed_next_stage": "F3_wide_dsp_fidelity"
+  },
+  "f3_wide": {
+    "verdict": "f3_wide_dsp_passed",
+    "passed_at": "2026-07-22",
+    "dataset": "data/tv3-bidir-f3-wide",
+    "feature_builder": "raw_dsp_bidirectional_v1",
+    "verdict_path": "outputs/tv3_bidir/dsp_fidelity_wide/f3_verdict.json",
+    "metrics_path": "outputs/tv3_bidir/dsp_fidelity_wide/metrics.json",
+    "allowed_next_stage": "F4_wide_identifiability_v2",
+    "physics_aggregation": "snr_weighted_steady_accepted_vs_median_oracle_steady",
+    "wide_stress_n_frames": 30
+  },
+  "f4_wide": {
+    "verdict": "coarse_monitoring_only",
+    "stage_passed": true,
+    "passed_at": "2026-07-22",
+    "verdict_path": "outputs/tv3_bidir/identifiability_v2_wide/f4_verdict.json",
+    "metrics_path": "outputs/tv3_bidir/identifiability_v2_wide/metrics.json",
+    "composition_domain": "wide",
+    "flow_representation": "implemented_physics",
+    "prior_crosscheck_passed": true,
+    "f5_amplitude_gate_preregistered": true,
+    "criterion_c_anchor": "in_domain_a1_v_path_zero",
+    "narrow_p90_max_nominal": 4.5018730949358545,
+    "narrow_p90_max_conservative": 9.740072585231735,
+    "allowed_next_stage": "F5_wide_formal_model_protocol",
+    "narrow_f4_directory_untouched": true,
+    "v1_directory_untouched": true
+  },
+  "f5_wide": {
+    "status": "code_ready_awaiting_server_formal_6000",
+    "composition_domain": "wide",
+    "dataset": "data/tv3-bidir-6000-wide",
+    "preset": "bidir-formal-6000",
+    "protocol_config": "configs/tv3_bidir_model_protocol_wide.json",
+    "protocol_script": "scripts/run_tv3_bidir_model_protocol.py",
+    "output_dir": "outputs/tv3_bidir/model_protocol_wide",
+    "tests": "tests/test_tunnel_ventilation_bidir_model_protocol.py",
+    "f4_prerequisite": "outputs/tv3_bidir/identifiability_v2_wide/f4_verdict.json",
+    "criterion_c_anchor": "in_domain_a1_v_path_zero",
+    "primary_selector": "S-Flow (mixture median |v_path|≤2.5 train; (2.5,4] OOD)",
     "arms": ["A1", "A2", "A3", "A4", "A5"],
     "heads": ["b1_ridge", "b7_residual"],
-    "note": "Formal training must run on server; local path verified by unit tests only."
+    "allowed_next_stage_after_server": "F6_wide_verdict_backfill",
+    "note": "Formal 6000-wide + five-arm protocol on server; local path = config + criterion-c re-anchor + unit tests. Narrow f5/model_protocol untouched."
   }
 }

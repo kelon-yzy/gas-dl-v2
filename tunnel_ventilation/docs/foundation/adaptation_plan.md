@@ -81,8 +81,8 @@ SLOW_CHANNELS = (
 
 #### A2. 创建 `tv3/sim/generation/tunnel_ventilation/conditions.py`
 
-- 组分范围：CO₂ 0.03–5.00%，O₂ 18.00–21.20%，N₂ = 100 - CO₂ - O₂
-- LHS 采样在 (CO₂, O₂) 二维空间进行
+- 组分范围（narrow 默认）：CO₂ 0.03–5.00%，O₂ 18.00–21.20%，N₂ = 100 - CO₂ - O₂
+- 组分范围（wide，仅 F 线）：CO₂ 0.03–10.00%，O₂ 15.00–25.00%，N₂ ∈ [65.00, 84.97]；见 `docs/active/tv3_composition_range_widening_plan.md`- LHS 采样在 (CO₂, O₂) 二维空间进行
 - 环境变量沿用 v6 链路范围
 
 详见 [sampling_design.md](sampling_design.md)。

@@ -275,3 +275,52 @@ def test_f5_gates_require_s_line_reference():
             },
             head="b1_ridge",
         )
+
+
+def test_f5_gates_wide_criterion_c_uses_in_domain_a1():
+    def _fake(ood_mae: float, test_zero_mae: float) -> dict:
+        return {
+            "evaluations": {
+                "extrapolation": {"component_metrics": {"x_O2": {"mae": ood_mae, "r2": 0.5}}},
+                "test": {"component_metrics": {"x_O2": {"mae": ood_mae, "r2": 0.5}}},
+            },
+            "zero_anchor_metrics": {"test": {"o2_mae": test_zero_mae, "n": 10}},
+            "sound_speed_audit": {
+                "pair_sound_speed_mean_abs_seq_bias_m_per_s": 0.01,
+                "ab_sound_speed_mean_abs_seq_bias_m_per_s": 0.5,
+                "reciprocity_residual_p95_of_seq_p95_s": 5e-8,
+            },
+        }
+
+    arm_metrics = {
+        "A1:b1_ridge": _fake(1.2, 0.40),
+        "A2:b1_ridge": _fake(0.45, 0.40),
+        "A3:b1_ridge": _fake(0.50, 0.42),
+    }
+    gates = {
+        "criterion_c_anchor": "in_domain_a1_v_path_zero",
+        "a3_minus_a1_o2_mae_min_vol_percent": 0.5,
+        "a3_minus_a2_o2_mae_max_vol_percent": 0.25,
+        "v_path_zero_anchor_delta_mae_max_vol_percent": 0.05,
+        "s_line_b1_reference_o2_mae": None,
+        "reciprocity_p95_max_s": 1.0e-7,
+    }
+    result = evaluate_f5_gates(arm_metrics, gates=gates, head="b1_ridge")
+    assert result["criterion_c_anchor"] == "in_domain_a1_v_path_zero"
+    # A3 zero 0.42 − A1 zero 0.40 = 0.02 ≤ 0.05
+    assert result["checks"]["c_zero_anchor_noninferior_vs_in_domain_a1"]["passed"] is True
+    assert result["core_gates_passed"] is True
+
+
+def test_wide_model_protocol_config_paths():
+    from pathlib import Path
+    import json
+
+    path = Path(__file__).resolve().parents[1] / "configs" / "tv3_bidir_model_protocol_wide.json"
+    cfg = json.loads(path.read_text(encoding="utf-8"))
+    assert cfg["composition_domain"] == "wide"
+    assert cfg["source_dataset_dir"] == "data/tv3-bidir-6000-wide"
+    assert cfg["output_dir"] == "outputs/tv3_bidir/model_protocol_wide"
+    assert cfg["f5_amplitude_gates"]["criterion_c_anchor"] == "in_domain_a1_v_path_zero"
+    assert cfg["f4_prerequisite"]["verdict_path"].endswith("identifiability_v2_wide/f4_verdict.json")
+    assert "tv3-bidir-6000-wide" in cfg["source_dataset_dir"]

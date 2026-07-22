@@ -129,6 +129,7 @@ sequences/ultrasonic_sound_speed_m_per_s.npy                 # oracle（介质 c
 - manifest：`sim_revision.tag = "v7-bidir-flow-v1"`、`physics_backend` 追加 flow 模型标识、`schema=tunnel-ventilation-bidir-1`、flow registry 摘要与 jitter 双情景登记。缺任一必需数组或元数据直接失败。
 - benchmark：`tv3-bidir-smoke`（本地链路验证）→ `tv3-bidir-6000`（服务器正式）。存储估计：双向两条 5 ms int16 窗 ≈ 7.7 GB@6000（现单向约 3.8 GB 的两倍）；保持 5 ms/方向不裁剪（避免触碰窗口长度相关代码），裁剪至 2.5 ms/方向留作后续存储优化项。
 - 组分/环境采样沿用 `tv3-formal-6000` 的约束 LHS 与 L 扫描（steady 0.18–0.28 m 五档），保证与现有结论可比。
+- **组分域变体（2026-07-22 立项，A1 仅 F 线 + B1 并行留档已确认）**：本计划 F0–F5 的组分域为窄域（CO₂ 0.03–5%、O₂ 18–21.2%）。另立**独立注册宽域**（CO₂ 0.03–10%、O₂ 15–25%，覆盖 OSHA 缺氧线 <19.5%/富氧火险线 >23.5% 与超 IDLH CO₂ 积聚），作用范围仅 F 线、与窄域并行留档，`-wide` 后缀独立命名与目录，不覆盖窄域任何冻结产物（含 v1/F3/F4/registry dc61d9e7）。误差预算锚点 O₂=20% 仍在宽域内，§Context.2 先验表沿用；宽域不改写 `coarse_monitoring_only` 物理墙，只拓宽部署包络。完整改动契约与分阶段步骤见 `docs/active/tv3_composition_range_widening_plan.md`。
 
 ### 4. 部署级估计器与 builder（F3 冻结项）
 
@@ -262,6 +263,11 @@ python -m pytest -q tests/test_tunnel_ventilation_bidir_model_protocol.py
 | 2026-07-21 | F3 | `f3_dsp_passed` | `raw_dsp_bidirectional_v1`；`data/tv3-bidir-f3`（零 jitter）；`outputs/tv3_bidir/dsp_fidelity/`；peak P95 AB/BA 0.087/0.046；τ̂ 误差 45 ns；steady 网格 ĉ 偏置 0.004 m/s、v̂ 偏置 −0.011 m/s；reciprocity P95 91 ns；测试 `tests/test_tunnel_ventilation_bidir_dsp.py` |
 | 2026-07-21 | F4 | `coarse_monitoring_only`（stage pass） | `outputs/tv3_bidir/identifiability_v2/`；flow=`implemented_physics`，拒绝率 0；joint rank≥2（+T 时 3）；窄窗 P90 max：nominal 4.37 / conservative 9.58 vol% O₂；主导项：nominal=T(1K)，conservative=jitter(3μs)；先验交叉核对通过；F5 幅度门已预注册；v1 目录未改写 |
 | 2026-07-21 | F5 code | `code_ready_awaiting_server_formal_6000` | preset `bidir-formal-6000`；`tv3/ml/bidir_s_flow.py`；`build_tv3_bidir_features.py`；`bidir_arm_features.py`（A1–A5）；`scripts/run_tv3_bidir_model_protocol.py`；`configs/tv3_bidir_model_protocol.json`；测试 `tests/test_tunnel_ventilation_bidir_model_protocol.py`；正式 6000 训练待服务器 |
+| 2026-07-22 | wide 域立项 | `scope_confirmed_a1_flow_only_b1_parallel` | 组分宽域 CO₂ 0.03–10%/O₂ 15–25% 独立注册域；A1 仅 F 线 + B1 并行留档已确认；改动契约 `docs/active/tv3_composition_range_widening_plan.md`；窄域 F0–F5 冻结不动 |
+| 2026-07-22 | F0'-wide / F1-wide | `f0_wide_registry_frozen` + `f1_wide_physics_passed` | `WIDE_COMPOSITION_RANGES`；spec/`--composition-domain` 线穿；`parameter_registry_wide.json`（独立 sha256，窄域 dc61d9e7… 未动）；`tests/test_tunnel_ventilation_wide_composition.py` |
+| 2026-07-22 | F2-wide | `f2_wide_smoke_passed` | `data/tv3-bidir-smoke-wide`（16×32）；`outputs/tv3_bidir/f0_registry_wide/` + `benchmark_audit_wide/`；int16 自洽；零锚点 12.5%；CO₂ max≈9.87 / O₂∈[15.47,24.86]；窄域 `stage_status.f2`/`allowed_next_stage` 未改写 |
+| 2026-07-22 | F3-wide | `f3_wide_dsp_passed` | `data/tv3-bidir-f3-wide`（32×32，零 jitter）；`outputs/tv3_bidir/dsp_fidelity_wide/`；peak P95 AB/BA≈0.087/0.046；stress(CO₂≥8%,L≥0.28) 30 帧 max≈0.090/0.047；τ≈53 ns；ĉ bias 0.008、v̂ bias −0.010；reciprocity P95 97 ns；窄域 `dsp_fidelity/` 未改写 |
+| 2026-07-22 | F4-wide | `coarse_monitoring_only`（stage pass） | `outputs/tv3_bidir/identifiability_v2_wide/`；六窗危害锚定；拒绝率 0；窄窗 P90 max 名义≈4.50 / 保守≈9.74 vol% O₂；先验交叉核对通过；F5-wide 幅度门已预注册（判据 c=`in_domain_a1_v_path_zero`）；窄域 F4/`identifiability_v2/` 与 v1 未改写；待 F5-wide |
 
 F0 要点：
 

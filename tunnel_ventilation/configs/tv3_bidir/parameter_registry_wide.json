@@ -1,0 +1,278 @@
+{
+  "schema_version": "tunnel-ventilation-bidir-1",
+  "registry_type": "parameter",
+  "stage": "F0",
+  "created_at": "2026-07-22",
+  "sim_revision_tag": "v7-bidir-flow-v1",
+  "claim_scope": "registered_simulation_domain_only",
+  "source_tags_allowed": [
+    "implemented_physics",
+    "literature_bound",
+    "engineering_scenario",
+    "not_represented"
+  ],
+  "composition_anchor": {
+    "component_fields": [
+      "x_CO2",
+      "x_O2",
+      "x_N2"
+    ],
+    "slow_channels": [
+      "V_NDIR_CO2",
+      "V_TCS",
+      "T_C",
+      "P_MPa",
+      "H_RH",
+      "L_m",
+      "piston_position_m"
+    ],
+    "flow_in_slow_channels": false,
+    "notes": "flow 不进 slow；部署中由双向声学推断。组分与 7 慢通道复用基 schema。本文件为 wide 危害监测域（CO2 0.03-10 / O2 15-25）；窄域见 parameter_registry.json。",
+    "source": "implemented_physics",
+    "ref": "tv3/sim/core/tunnel_ventilation_schema.py",
+    "composition_ranges": {
+      "x_CO2": {
+        "min": 0.03,
+        "max": 10.0,
+        "unit": "vol%",
+        "source": "engineering_scenario",
+        "notes": "新鲜空气 ~0.04% 到超 IDLH(4%) 严重积聚包络上限 10%。",
+        "ref": "docs/active/tv3_composition_range_widening_plan.md §1.2"
+      },
+      "x_O2": {
+        "min": 15.0,
+        "max": 25.0,
+        "unit": "vol%",
+        "source": "literature_bound",
+        "notes": "覆盖 OSHA 1910.146 缺氧线 <19.5% 与富氧火险线 >23.5%；15%/25% 为显著缺氧/富氧包络。",
+        "ref": "OSHA 1910.146; docs/active/tv3_composition_range_widening_plan.md §1.2"
+      },
+      "x_N2": {
+        "min": 65.0,
+        "max": 84.97,
+        "unit": "vol%",
+        "source": "implemented_physics",
+        "notes": "残差推导：min=100-10-25=65；max=100-0.03-15=84.97。无需联合约束修正。",
+        "ref": "docs/active/tv3_composition_range_widening_plan.md §1.1"
+      },
+      "domain_tag": "wide_hazard_v1",
+      "parallel_to_narrow": true,
+      "notes": "独立注册域；不覆盖窄域 F0 registry dc61d9e7…；A1 仅 F 线。"
+    }
+  },
+  "topology": {
+    "name": "ping_pong_bidirectional",
+    "description": "同一对换能器互为收发；同一 timestep 内 AB、BA 两次独立发射，各一条接收窗。",
+    "pair_interval_s": {
+      "value": 0.0025,
+      "unit": "s",
+      "source": "engineering_scenario",
+      "notes": "≤2.5 ms；登记为设计决策，非现场测得。"
+    },
+    "measurement_window_s_per_direction": {
+      "value": 0.005,
+      "unit": "s",
+      "source": "implemented_physics",
+      "ref": "WaveformSpec.measurement_window_s",
+      "notes": "保持 5 ms/方向，不裁剪；存储优化留后续。"
+    },
+    "transducer_count": 2,
+    "source": "engineering_scenario"
+  },
+  "parameters": {
+    "v_path_m_per_s": {
+      "unit": "m/s",
+      "representation": "path_projected_axial_flow",
+      "sampling": {
+        "mode": "constrained_lhs_with_zero_anchor",
+        "range": [
+          -4.0,
+          4.0
+        ],
+        "zero_anchor_fraction_min": 0.1,
+        "sequence_constant": true
+      },
+      "source": "literature_bound",
+      "refs": [
+        "docs/references/煤矿安全规程.pdf",
+        "docs/active/tv3_bidirectional_ultrasound_implementation_plan.md §Context.1"
+      ],
+      "notes": "沿声路投影，签名区分方向。规程：岩巷≥0.25、煤巷≥0.5、上限 4 m/s；采样取对称 [-4,4]，≥10% 序列固定 0 作 S 线锚点。",
+      "blocks_f0": false
+    },
+    "flow_scenario": {
+      "unit": "categorical",
+      "values": [
+        "zero_anchor",
+        "regulation_range",
+        "scan"
+      ],
+      "source": "engineering_scenario",
+      "notes": "condition grid 分类标签；不进部署输入。"
+    },
+    "delay_asymmetry_s": {
+      "unit": "s",
+      "baseline": 0.0,
+      "scan_abs_max": 2e-07,
+      "source": "engineering_scenario",
+      "notes": "δτ=τ_ab−τ_ba；默认 0；扫描情景 ≤0.2 μs。只进入 v̂，对 ĉ 为二阶。"
+    },
+    "fixed_delay_s": {
+      "unit": "s",
+      "baseline_ab": 8.2e-05,
+      "baseline_ba": 8.2e-05,
+      "source": "engineering_scenario",
+      "ref": "WaveformSpec.delay_correction_s / system_delay+cable",
+      "notes": "τ_ab=τ_ba=82 μs 基线；与单向 v1 对齐。"
+    },
+    "jitter_correlation": {
+      "baseline": "independent",
+      "optional_scenarios": [
+        "shared_trigger"
+      ],
+      "source": "engineering_scenario",
+      "notes": "基线：每次发射独立 jitter。shared_trigger 仅作 F4 可选情景，不进基线契约。"
+    },
+    "turbulence_temporal": {
+      "representation": "not_represented",
+      "source": "not_represented",
+      "prior_residual": {
+        "form": "-Var(v)/c",
+        "sigma_v_m_per_s": 0.4,
+        "relative_order": "Var(v)/c^2",
+        "equivalent_o2_vol_pct_upper": 0.01,
+        "notes": "序列内恒定流；剖面非均匀二阶残余先验上界，非阻断。"
+      },
+      "blocks_go_verdict": false,
+      "notes": "v1 版不表示湍流时变；显式登记缺口。"
+    },
+    "velocity_profile_nonuniformity": {
+      "representation": "not_represented",
+      "source": "not_represented",
+      "upgrade_path": "COMSOL G-line CFD Var(v) → literature_bound → implemented_physics",
+      "blocks_go_verdict": false
+    },
+    "beam_drift_refraction": {
+      "representation": "not_represented",
+      "source": "not_represented",
+      "blocks_go_verdict": false
+    },
+    "doppler_broadening": {
+      "representation": "not_represented",
+      "source": "not_represented",
+      "blocks_go_verdict": false
+    },
+    "transducer_angle_error": {
+      "representation": "not_represented",
+      "source": "not_represented",
+      "blocks_go_verdict": false
+    }
+  },
+  "propagation_model": {
+    "name": "uniform_axial_flow_transit_time_v1",
+    "equations": {
+      "t_true_ab": "L / (c + v_path)",
+      "t_true_ba": "L / (c - v_path)",
+      "attenuation": "same alpha(f) both directions"
+    },
+    "source": "implemented_physics",
+    "notes": "均匀轴向流 transit-time 模型；束偏移/折射仍 not_represented。"
+  },
+  "trigger_jitter_scenarios": {
+    "evidence_doc": "docs/references/tv3_bidir_trigger_jitter_scenarios.md",
+    "hardware_anchor": {
+      "device": "NI USB-6453",
+      "sample_rate_hz": 1000000,
+      "timing_resolution_s": 1e-08,
+      "timing_accuracy": "50 ppm of sample rate",
+      "base_clock_accuracy_ppm": 50,
+      "datasheet": "usb-6453_and_usb-6453_(oem)_specifications.pdf",
+      "local_summary": "docs/references/传感器硬件资料整理.md §9",
+      "notes": "datasheet 未公布 RMS trigger jitter；nominal 由采样周期半窗上界推导，不是厂商 RMS 声明。"
+    },
+    "scenarios": [
+      {
+        "id": "conservative_v1",
+        "std_s": 3e-06,
+        "source": "engineering_scenario",
+        "ref": "WaveformSpec.trigger_jitter_std_s / tv3_identifiability v1",
+        "notes": "保留 v1 保守情景；非 datasheet RMS。"
+      },
+      {
+        "id": "nominal_daq_half_sample",
+        "std_s": 5e-07,
+        "source": "literature_bound",
+        "derivation": {
+          "sample_period_s": 1e-06,
+          "bound": "0.5 * sample_period_s",
+          "rationale": "1 MS/s 同步 AI 的半采样上界；覆盖数字 Start Trigger + 样本时钟量化的工程上界。时钟 50 ppm 对 ~729 μs TOF 贡献约 36 ns，远小于本上界。",
+          "timing_resolution_floor_s": 1e-08,
+          "not_claimed": "NI 未发布 μs 级 RMS trigger jitter；本值不是实测校准。"
+        },
+        "notes": "F4/F5 双情景并行报告；≤0.5 μs 与计划先验一致。"
+      }
+    ],
+    "parallel_reporting_required": true
+  },
+  "schema_draft": {
+    "schema": "tunnel-ventilation-bidir-1",
+    "module": "tv3/sim/core/tunnel_ventilation_bidir_schema.py",
+    "condition_grid_extra_fields": [
+      "v_path_m_per_s",
+      "flow_scenario",
+      "pair_interval_s",
+      "delay_asymmetry_s",
+      "jitter_correlation"
+    ],
+    "required_array_stems": [
+      "ultrasonic_ab",
+      "ultrasonic_ba",
+      "ultrasonic_tof_observed_ab_s",
+      "ultrasonic_tof_observed_ba_s",
+      "ultrasonic_peak_index_ab",
+      "ultrasonic_peak_index_ba",
+      "ultrasonic_tof_quality_ab",
+      "ultrasonic_tof_quality_ba",
+      "ultrasonic_tof_accepted_ab",
+      "ultrasonic_tof_accepted_ba",
+      "ultrasonic_tof_true_ab_s",
+      "ultrasonic_tof_true_ba_s",
+      "ultrasonic_v_path_true_m_per_s",
+      "ultrasonic_sound_speed_m_per_s",
+      "ultrasonic_alpha_true_npm"
+    ],
+    "oracle_only_arrays": [
+      "ultrasonic_tof_true_ab_s",
+      "ultrasonic_tof_true_ba_s",
+      "ultrasonic_v_path_true_m_per_s",
+      "ultrasonic_sound_speed_m_per_s",
+      "ultrasonic_alpha_true_npm"
+    ],
+    "builder_formal": "raw_dsp_bidirectional_v1",
+    "benchmark_names": [
+      "tv3-bidir-smoke-wide",
+      "tv3-bidir-f3-wide",
+      "tv3-bidir-6000-wide"
+    ]
+  },
+  "f0_gate": {
+    "required_source_on_every_parameter": true,
+    "required_nominal_jitter_literature_bound": true,
+    "required_topology_decision": true,
+    "required_schema_draft": true,
+    "fail_verdict": "inconclusive_parameter_bounds",
+    "pass_verdict": "f0_registry_frozen",
+    "allowed_next_stage_on_pass": "F1_physics_unit_tests"
+  },
+  "blocking_items_f0": [],
+  "explicit_non_goals": [
+    "no_hardware_claim",
+    "no_sim2real",
+    "no_rewrite_v1_verdict",
+    "no_replace_b7",
+    "no_wet_air_new_physics_in_F_line",
+    "no_overwrite_narrow_registry",
+    "no_unidirectional_wide_default"
+  ],
+  "composition_domain": "wide_hazard_v1"
+}

@@ -46,10 +46,14 @@ from tv3.sim.generation.optical_backend import (
 )
 from tv3.sim.generation.phases import PHASE_SCHEDULES, PhaseSchedule, resolve_phase_schedule
 from tv3.sim.generation.tunnel_ventilation.conditions import (
+    COMPOSITION_DOMAIN_NARROW,
+    COMPOSITION_DOMAIN_WIDE,
     L_M_BASE_RANGE,
+    VALID_COMPOSITION_DOMAINS,
     build_tunnel_ventilation_label_rows as build_label_rows,
     generate_tunnel_ventilation_bidir_condition_rows,
     generate_tunnel_ventilation_condition_rows as generate_condition_rows,
+    resolve_composition_ranges,
 )
 from tv3.sim.generation.tunnel_ventilation.flow_physics import bidir_sim_revision
 from tv3.sim.generation.tunnel_ventilation.slow import build_sequence_arrays
@@ -144,6 +148,8 @@ class TunnelVentilationBenchmarkGenerationSpec:
     split_strategy: str = "random"
     spxy_alpha: float = 0.5  # SPXY X/Y 距离权重，仅 spxy_v1 用；1.0=KS, 0.5=标准, 0.0=纯 Y
     extrapolation_strategy: str = "none"  # 仅 spxy_v1 用；none/y_margin_ood/lhs_boundary/kmeans_boundary
+    # A1：仅 F 线可选 wide；默认 narrow，单向与旧 bidir 命令行为不变
+    composition_domain: str = COMPOSITION_DOMAIN_NARROW
 
 
 def _log(msg: str) -> None:
@@ -166,15 +172,22 @@ def generate_tunnel_ventilation_benchmark_dataset(
     try:
         _log(f"generating {spec.sequence_count} condition rows ...")
         if spec.bidirectional:
+            ranges = resolve_composition_ranges(spec.composition_domain)
             conditions = generate_tunnel_ventilation_bidir_condition_rows(
                 spec.sequence_count,
                 seed=spec.seed,
                 sampling_strategy=spec.sampling_strategy,
+                ranges=ranges,
             )
             condition_grid_fields = bidir_schema.CONDITION_GRID_FIELDS
             schema_version = bidir_schema.SCHEMA_VERSION
             composition_scheme = bidir_schema.COMPOSITION_SCHEME
         else:
+            if spec.composition_domain != COMPOSITION_DOMAIN_NARROW:
+                raise ValueError(
+                    "composition_domain='wide' is F-line only (A1); "
+                    "unidirectional generation must use composition_domain='narrow'"
+                )
             conditions = generate_condition_rows(
                 spec.sequence_count,
                 seed=spec.seed,
@@ -234,6 +247,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
         fiber_dtype = fiber_mic_spec.waveform_dtype if fiber_mic_spec is not None else "int16"
         shapes = write_arrays(staging_dir, arrays, labels, sequence_ids, SLOW_CHANNELS, COMPONENT_FIELDS, spec.storage, ultrasonic_dtype=ultrasonic_spec.waveform_dtype, fiber_dtype=fiber_dtype)
         if spec.bidirectional:
+            ranges = resolve_composition_ranges(spec.composition_domain)
             sim_revision = {
                 **bidir_sim_revision(),
                 "ultrasonic_center_frequency_hz": float(ultrasonic_spec.center_frequency_hz),
@@ -244,7 +258,22 @@ def generate_tunnel_ventilation_benchmark_dataset(
                 "l_m_base_range": [float(L_M_BASE_RANGE[0]), float(L_M_BASE_RANGE[1])],
                 "bidirectional": True,
                 "skip_fiber_mic": bool(spec.skip_fiber_mic),
+                "composition_domain": spec.composition_domain,
+                "composition_ranges": {
+                    "x_CO2": [float(ranges.co2[0]), float(ranges.co2[1])],
+                    "x_O2": [float(ranges.o2[0]), float(ranges.o2[1])],
+                    "x_N2": [float(ranges.n2_min), float(ranges.n2_max)],
+                },
             }
+            if spec.composition_domain == COMPOSITION_DOMAIN_WIDE:
+                from tv3.sim.generation.tunnel_ventilation.bidir_registry import (
+                    load_f0_registry_wide,
+                )
+
+                wide_reg = load_f0_registry_wide()
+                sim_revision["composition_domain_tag"] = "wide_hazard_v1"
+                sim_revision["f0_registry_file"] = "parameter_registry_wide.json"
+                sim_revision["f0_registry_sha256"] = wide_reg["sha256"]
         else:
             sim_revision = {
                 "ultrasonic_center_frequency_hz": float(ultrasonic_spec.center_frequency_hz),
@@ -353,6 +382,7 @@ def generate_tunnel_ventilation_benchmark_dataset(
     return {
         "dataset_slug": str(dataset_id),
         "composition_scheme": composition_scheme,
+        "composition_domain": spec.composition_domain,
         "schema_version": schema_version,
         "bidirectional": bool(spec.bidirectional),
         "sequence_count": len(conditions),
@@ -411,6 +441,15 @@ def _validate_spec(spec: TunnelVentilationBenchmarkGenerationSpec) -> None:
     if spec.split_strategy != "spxy_v1" and spec.extrapolation_strategy != "none":
         raise ValueError(
             f"extrapolation_strategy={spec.extrapolation_strategy!r} 仅在 split_strategy='spxy_v1' 下有效"
+        )
+    if spec.composition_domain not in VALID_COMPOSITION_DOMAINS:
+        raise ValueError(
+            f"composition_domain must be one of {list(VALID_COMPOSITION_DOMAINS)}, "
+            f"got {spec.composition_domain!r}"
+        )
+    if spec.composition_domain == COMPOSITION_DOMAIN_WIDE and not spec.bidirectional:
+        raise ValueError(
+            "composition_domain='wide' requires bidirectional=True (A1: F-line only)"
         )
 
 

@@ -19,19 +19,23 @@ from tv3.sim.generation.tunnel_ventilation.benchmark import (
 from tv3.sim.generation.tunnel_ventilation.conditions import (
     L_M_BASE_RANGE,
     TUNNEL_VENTILATION_RANGES,
+    WIDE_COMPOSITION_RANGES,
     TunnelVentilationRanges,
     build_tunnel_ventilation_label_rows,
     generate_tunnel_ventilation_condition_rows,
+    resolve_composition_ranges,
 )
 
 __all__ = [
     "DEFAULT_WAVEFORM_PATH_LMS",
     "L_M_BASE_RANGE",
     "TUNNEL_VENTILATION_RANGES",
+    "WIDE_COMPOSITION_RANGES",
     "TunnelVentilationBenchmarkGenerationSpec",
     "TunnelVentilationRanges",
     "build_tunnel_ventilation_label_rows",
     "default_worker_count",
     "generate_tunnel_ventilation_benchmark_dataset",
     "generate_tunnel_ventilation_condition_rows",
+    "resolve_composition_ranges",
 ]

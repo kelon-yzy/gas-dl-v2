@@ -22,6 +22,8 @@ from tv3.sim.generation.tunnel_ventilation.flow_physics import MAX_PAIR_INTERVAL
 # parents[4] = tunnel_ventilation package root (configs/ lives there)
 _DEFAULT_CONFIG_DIR = Path(__file__).resolve().parents[4] / "configs" / "tv3_bidir"
 _REGISTRY_NAME = "parameter_registry.json"
+_REGISTRY_NAME_WIDE = "parameter_registry_wide.json"
+_WIDE_COMPOSITION_DOMAIN_TAG = "wide_hazard_v1"
 
 
 def default_config_dir() -> Path:
@@ -45,9 +47,13 @@ def load_json_registry(path: Path) -> dict[str, Any]:
     return data
 
 
-def load_f0_registry(config_dir: Path | None = None) -> dict[str, Any]:
+def load_f0_registry(
+    config_dir: Path | None = None,
+    *,
+    registry_name: str = _REGISTRY_NAME,
+) -> dict[str, Any]:
     root = Path(config_dir) if config_dir is not None else default_config_dir()
-    path = root / _REGISTRY_NAME
+    path = root / registry_name
     registry = load_json_registry(path)
     return {
         "dir": str(root),
@@ -55,6 +61,11 @@ def load_f0_registry(config_dir: Path | None = None) -> dict[str, Any]:
         "registry": registry,
         "sha256": sha256_file(path),
     }
+
+
+def load_f0_registry_wide(config_dir: Path | None = None) -> dict[str, Any]:
+    """Load the independent wide-domain F0 registry (does not touch narrow freeze)."""
+    return load_f0_registry(config_dir, registry_name=_REGISTRY_NAME_WIDE)
 
 
 def _require_source(name: str, spec: dict[str, Any], issues: list[str]) -> None:
@@ -191,13 +202,47 @@ _FORBIDDEN_MUTABLE_REGISTRY_KEYS = frozenset(
 )
 
 
-def audit_f0_gate(config_dir: Path | None = None) -> dict[str, Any]:
+def _audit_composition_ranges_if_wide(registry: dict[str, Any], issues: list[str]) -> None:
+    domain = registry.get("composition_domain")
+    if domain is None:
+        return
+    if domain != _WIDE_COMPOSITION_DOMAIN_TAG:
+        issues.append(
+            f"composition_domain must be {_WIDE_COMPOSITION_DOMAIN_TAG!r} when set, got {domain!r}"
+        )
+        return
+    ranges = (registry.get("composition_anchor") or {}).get("composition_ranges")
+    if not isinstance(ranges, dict):
+        issues.append("composition_anchor.composition_ranges: required for wide domain")
+        return
+    expected = {
+        "x_CO2": (0.03, 10.00),
+        "x_O2": (15.00, 25.00),
+        "x_N2": (65.00, 84.97),
+    }
+    for key, (lo, hi) in expected.items():
+        block = ranges.get(key)
+        if not isinstance(block, dict):
+            issues.append(f"composition_ranges.{key}: missing object")
+            continue
+        _require_source(f"composition_ranges.{key}", block, issues)
+        if abs(float(block.get("min", -1)) - lo) > 1e-9 or abs(float(block.get("max", -1)) - hi) > 1e-9:
+            issues.append(f"composition_ranges.{key}: expected [{lo}, {hi}]")
+    if ranges.get("domain_tag") != _WIDE_COMPOSITION_DOMAIN_TAG:
+        issues.append("composition_ranges.domain_tag must be wide_hazard_v1")
+
+
+def audit_f0_gate(
+    config_dir: Path | None = None,
+    *,
+    registry_name: str = _REGISTRY_NAME,
+) -> dict[str, Any]:
     """Audit F0 registry completeness. Pass → F1 allowed; fail → inconclusive.
 
     Registry must remain frozen parameter evidence only. Stage progress lives in
     ``configs/tv3_bidir/stage_status.json`` or ``outputs/tv3_bidir/f*_verdict.json``.
     """
-    bundle = load_f0_registry(config_dir)
+    bundle = load_f0_registry(config_dir, registry_name=registry_name)
     registry = bundle["registry"]
     issues: list[str] = []
 
@@ -228,6 +273,7 @@ def audit_f0_gate(config_dir: Path | None = None) -> dict[str, Any]:
     _audit_topology(registry, issues)
     jitter_summary = _audit_jitter(registry, issues)
     _audit_schema_draft(registry, issues)
+    _audit_composition_ranges_if_wide(registry, issues)
 
     if not isinstance(prop, dict):
         issues.append("propagation_model: missing")
@@ -255,4 +301,9 @@ def audit_f0_gate(config_dir: Path | None = None) -> dict[str, Any]:
         "registry_sha256": bundle["sha256"],
         "registry_path": bundle["path"],
         "claim_scope": registry.get("claim_scope", "registered_simulation_domain_only"),
+        "composition_domain": registry.get("composition_domain"),
     }
+
+
+def audit_f0_gate_wide(config_dir: Path | None = None) -> dict[str, Any]:
+    return audit_f0_gate(config_dir, registry_name=_REGISTRY_NAME_WIDE)

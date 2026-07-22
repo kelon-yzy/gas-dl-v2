@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -24,6 +25,13 @@ BOUNDS = {
     "path_length_m": (0.2, 0.3),
     "v_path_m_per_s": (-4.0, 4.0),
 }
+BOUNDS_WIDE = {
+    "co2_percent": (0.03, 10.0),
+    "o2_percent": (15.0, 25.0),
+    "t_c": (15.0, 35.0),
+    "path_length_m": (0.2, 0.3),
+    "v_path_m_per_s": (-4.0, 4.0),
+}
 STEPS = {
     "co2_percent": 0.01,
     "o2_percent": 0.01,
@@ -33,11 +41,11 @@ STEPS = {
 }
 
 
-def _derivatives(point: BidirAcousticPoint):
+def _derivatives(point: BidirAcousticPoint, *, bounds: dict | None = None):
     return local_bidir_tof_sensitivity(
         point,
         parameter_steps=STEPS,
-        parameter_bounds=BOUNDS,
+        parameter_bounds=bounds or BOUNDS,
         fixed_delay_s=82e-6,
         max_relative_step_disagreement=0.01,
     )
@@ -78,6 +86,21 @@ def test_bidir_fisher_acoustic_subsystem_full_rank():
     assert result["joint_observation_count"] == 3
     assert result["acoustic_subsystem_full_rank"] is True
     assert result["conditional_o2_information"] > 0.0
+
+
+def test_wide_corner_derivatives_remain_finite():
+    """Wide-domain corner points: Fisher math still well-defined (no hard-coded narrow bounds)."""
+    for co2, o2 in ((10.0, 15.0), (10.0, 25.0), (0.03, 15.0), (0.03, 25.0)):
+        point = BidirAcousticPoint(co2, o2, 20.0, 0.25, v_path_m_per_s=1.0)
+        derivatives = _derivatives(point, bounds=BOUNDS_WIDE)
+        result = fisher_information_bidir(
+            derivatives,
+            tof_std_s=5e-7,
+            temperature_std_c=1.0,
+            parameter_steps=STEPS,
+        )
+        assert result["acoustic_subsystem_full_rank"] is True
+        assert math.isfinite(result["conditional_o2_information"])
     assert result["nuisance_marginalized_status"] == "unavailable_rank_deficient"
 
 

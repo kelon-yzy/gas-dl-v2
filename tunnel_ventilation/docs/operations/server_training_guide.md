@@ -354,6 +354,23 @@ python scripts/run_tv3_bidir_model_protocol.py \
 
 产物：`outputs/tv3_bidir/model_protocol/`（含 `f5_verdict.json`）。不覆盖 `outputs/tv3_d2b/` 或 `outputs/tv3_identifiability/`。说明见 `docs/active/tv3_bidirectional_ultrasound_implementation_plan.md`。
 
+#### 6.2.1 双向 F 线宽域正式集（`tv3-bidir-6000-wide`）
+
+独立注册域（CO₂ 0.03–10% / O₂ 15–25%）。**不覆盖**窄域 `tv3-bidir-6000` / `model_protocol/`。F0–F4-wide 已通过；F5-wide 在服务器执行。前置：`outputs/tv3_bidir/identifiability_v2_wide/f4_verdict.json`；判据 (c) 锚到域内 A1 零流（非窄域 B1）。
+
+```bash
+python -m tv3.pipeline.generate_tunnel_ventilation_benchmark \
+    --output-root data --preset bidir-formal-6000 --composition-domain wide
+
+python scripts/check_slow_channels.py data/tv3-bidir-6000-wide
+
+python scripts/run_tv3_bidir_model_protocol.py \
+    --config configs/tv3_bidir_model_protocol_wide.json \
+    --stage all --device cuda
+```
+
+产物：`data/tv3-bidir-6000-wide`、`data/tv3-bidir-6000-wide-splits/`、`outputs/tv3_bidir/model_protocol_wide/`（含 `f5_verdict.json`）。说明见 `docs/active/tv3_composition_range_widening_plan.md`。
+
 ### 6.3 阶段 Ⅱ ablation
 
 见 [experiment_roadmap.md](../archive/legacy/experiment_roadmap.md) 阶段 Ⅱ：

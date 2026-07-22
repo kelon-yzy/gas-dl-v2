@@ -34,6 +34,12 @@ from tv3.audit.identifiability_v2 import (  # noqa: E402
     observed_bidir_tof_s,
     sound_speed_m_per_s,
 )
+from tv3.sim.generation.tunnel_ventilation.bidir_registry import (  # noqa: E402
+    default_config_dir,
+)
+from tv3.sim.generation.tunnel_ventilation.conditions import (  # noqa: E402
+    COMPOSITION_DOMAIN_WIDE,
+)
 
 AUDIT_SCHEMA = "tv3-identifiability-bidir-2"
 REPRESENTATION_FIELDS = {
@@ -678,8 +684,15 @@ def run_identifiability_v2(
 
     created_at = datetime.now(timezone.utc).isoformat()
     f5_prereg = config["f5_amplitude_gate_preregistration"]
+    composition_domain = str(config.get("composition_domain", "narrow"))
+    next_stage = (
+        "F5_wide_formal_model_protocol"
+        if composition_domain == COMPOSITION_DOMAIN_WIDE
+        else "F5_formal_model_protocol"
+    )
     metrics = {
         "schema_version": AUDIT_SCHEMA,
+        "composition_domain": composition_domain,
         "created_at": created_at,
         "prerequisites": prerequisites,
         "jitter_scenarios": scenario_payloads,
@@ -699,11 +712,13 @@ def run_identifiability_v2(
             "v1_blocking": "flow_projection",
             "v2_flow_representation": "implemented_physics",
             "v1_output_dir_untouched": "outputs/tv3_identifiability",
+            "narrow_f4_output_dir_untouched": "outputs/tv3_bidir/identifiability_v2",
         },
     }
     verdict = {
-        "stage": "F4",
+        "stage": "F4_wide" if composition_domain == COMPOSITION_DOMAIN_WIDE else "F4",
         "schema_version": AUDIT_SCHEMA,
+        "composition_domain": composition_domain,
         "verdict": stage_status,
         "passed": stage_status != "audit_failed",
         "reason": stage_reason,
@@ -717,13 +732,14 @@ def run_identifiability_v2(
         ],
         "prior_crosscheck_passed": prior["all_within_tolerance"],
         "f5_amplitude_gate_preregistration": f5_prereg,
-        "allowed_next_stage_on_pass": "F5_formal_model_protocol",
+        "allowed_next_stage_on_pass": next_stage,
         "note": (
             "F4 stage pass means the audit completed with acoustic Fisher rank>=2 and "
             "flow unblocked; continuous_regression_supported additionally requires "
             "nuisance_marginalized_status=available (full joint rank). Current AB/BA(+T) "
             "observation model cannot marginalize five parameters, so continuous is unreachable "
-            "until NDIR/TCS (or other) observables enter the Fisher."
+            "until NDIR/TCS (or other) observables enter the Fisher. "
+            "Wide-domain F4 does not rewrite narrow F4 / v1 directories or coarse_monitoring_only physics wall."
         ),
     }
 
@@ -732,6 +748,7 @@ def run_identifiability_v2(
         output_dir / "manifest.json",
         {
             "schema_version": AUDIT_SCHEMA,
+            "composition_domain": composition_domain,
             "config_sha256": _sha256(config_path),
             "prerequisites": prerequisites,
             "observation": config["observation"],
@@ -741,6 +758,8 @@ def run_identifiability_v2(
             "independent_observables": ["observed_tof_ab_s", "observed_tof_ba_s", "T_C"],
             "shared_observables_excluded_from_fisher": ["sound_speed_m_per_s", "v_hat_from_tof"],
             "jitter_scenario_ids": [item["id"] for item in config["jitter_scenarios"]],
+            "narrow_windows": config.get("narrow_windows"),
+            "parameter_bounds": config.get("parameter_bounds"),
         },
     )
     _write_json(output_dir / "metrics.json", metrics)
@@ -748,6 +767,7 @@ def run_identifiability_v2(
         output_dir / "audit.json",
         {
             "status": "passed" if stage_status != "audit_failed" else "failed",
+            "composition_domain": composition_domain,
             "checks": [
                 "f0_registry_sha256",
                 "f3_dsp_passed_prerequisite",
@@ -763,16 +783,63 @@ def run_identifiability_v2(
     )
     _write_json(output_dir / "verdict.json", verdict)
     _write_json(output_dir / "f4_verdict.json", verdict)
+    readme_title = (
+        "# tv3 双向可辨识性审计 v2-wide（F4-wide）\n\n"
+        if composition_domain == COMPOSITION_DOMAIN_WIDE
+        else "# tv3 双向可辨识性审计 v2（F4）\n\n"
+    )
     (output_dir / "README.md").write_text(
-        "# tv3 双向可辨识性审计 v2（F4）\n\n"
-        "本目录独立于 `outputs/tv3_identifiability/`（v1 单向）。\n\n"
-        "- 观测：AB/BA TOF + 登记 T（Fisher 附加行）；误差预算用 mid-pair TOF。\n"
+        readme_title
+        + "本目录独立于 `outputs/tv3_identifiability/`（v1 单向）"
+        + (
+            "与 `outputs/tv3_bidir/identifiability_v2/`（窄域 F4）。\n\n"
+            if composition_domain == COMPOSITION_DOMAIN_WIDE
+            else "。\n\n"
+        )
+        + "- 观测：AB/BA TOF + 登记 T（Fisher 附加行）；误差预算用 mid-pair TOF。\n"
         "- flow_projection：`implemented_physics`，不再阻断 verdict。\n"
         "- jitter：`conservative_v1` 与 `nominal_daq_half_sample` 并行子目录。\n"
         "- NDIR/TCS：登记为慢通道可观测，本轮未进入声学 Fisher（无 ∂V/∂x 灵敏度模型）。\n",
         encoding="utf-8",
     )
+    _update_stage_status_f4_wide(verdict=verdict, output_dir=output_dir)
     return output_dir
+
+
+def _update_stage_status_f4_wide(*, verdict: dict[str, Any], output_dir: Path) -> None:
+    """Write f4_wide only — never rewrite narrow f4 / allowed_next_stage."""
+    if verdict.get("composition_domain") != COMPOSITION_DOMAIN_WIDE or not verdict.get("passed"):
+        return
+    stage_path = default_config_dir() / "stage_status.json"
+    if not stage_path.is_file():
+        return
+    stage = json.loads(stage_path.read_text(encoding="utf-8"))
+    gates_nom = verdict.get("business_gate_assessment_nominal") or {}
+    gates_con = verdict.get("business_gate_assessment_conservative") or {}
+    stage["f4_wide"] = {
+        "verdict": verdict.get("verdict"),
+        "stage_passed": True,
+        "passed_at": datetime.now(timezone.utc).date().isoformat(),
+        "verdict_path": "outputs/tv3_bidir/identifiability_v2_wide/f4_verdict.json",
+        "metrics_path": "outputs/tv3_bidir/identifiability_v2_wide/metrics.json",
+        "composition_domain": "wide",
+        "flow_representation": "implemented_physics",
+        "prior_crosscheck_passed": verdict.get("prior_crosscheck_passed"),
+        "f5_amplitude_gate_preregistered": True,
+        "criterion_c_anchor": (verdict.get("f5_amplitude_gate_preregistration") or {}).get(
+            "criterion_c_anchor"
+        ),
+        "narrow_p90_max_nominal": (gates_nom.get("target_p90_o2_error_percent") or {}).get(
+            "observed_narrow_window_max"
+        ),
+        "narrow_p90_max_conservative": (gates_con.get("target_p90_o2_error_percent") or {}).get(
+            "observed_narrow_window_max"
+        ),
+        "allowed_next_stage": verdict.get("allowed_next_stage_on_pass"),
+        "narrow_f4_directory_untouched": True,
+        "v1_directory_untouched": True,
+    }
+    stage_path.write_text(json.dumps(stage, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:

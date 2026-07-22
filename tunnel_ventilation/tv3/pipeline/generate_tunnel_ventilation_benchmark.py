@@ -2,6 +2,7 @@
 
 阶段 1 只支持 empirical_v1 光学吸收后端。
 F 线：``--bidirectional`` / ``--preset bidir-smoke`` 生成 ``tv3-bidir-*``。
+宽域：``--composition-domain wide``（仅 F 线；dataset 自动加 ``-wide`` 后缀）。
 """
 from __future__ import annotations
 
@@ -21,6 +22,11 @@ from tv3.sim.generation.tunnel_ventilation.benchmark import (
     TunnelVentilationBenchmarkGenerationSpec,
     default_worker_count,
     generate_tunnel_ventilation_benchmark_dataset,
+)
+from tv3.sim.generation.tunnel_ventilation.conditions import (
+    COMPOSITION_DOMAIN_NARROW,
+    COMPOSITION_DOMAIN_WIDE,
+    VALID_COMPOSITION_DOMAINS,
 )
 
 
@@ -47,6 +53,7 @@ BIDIR_SMOKE_PRESET = {
     "split_strategy": "random",
     "extrapolation_strategy": "none",
     "workers": 1,
+    "composition_domain": COMPOSITION_DOMAIN_NARROW,
 }
 
 # F3 fidelity dataset: zero trigger jitter so absolute τ/ĉ/v̂ gates are identifiable.
@@ -80,6 +87,15 @@ def parse_path_lms(value: str) -> tuple[float, ...]:
     if any(path_l_m <= 0.0 for path_l_m in path_lms):
         raise argparse.ArgumentTypeError("--path-lms values must be > 0")
     return path_lms
+
+
+def apply_composition_domain_dataset_slug(dataset: str, composition_domain: str) -> str:
+    """Wide domain uses independent ``*-wide`` dataset names (B1 write-once)."""
+    if composition_domain != COMPOSITION_DOMAIN_WIDE:
+        return dataset
+    if dataset.endswith("-wide"):
+        return dataset
+    return f"{dataset}-wide"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -131,6 +147,12 @@ def build_parser() -> argparse.ArgumentParser:
         "bidir-formal-6000 is the F5 formal 6000-sequence set (S-Flow derived after generation).",
     )
     parser.add_argument(
+        "--composition-domain",
+        choices=VALID_COMPOSITION_DOMAINS,
+        default=COMPOSITION_DOMAIN_NARROW,
+        help="narrow=CO2 0.03-5/O2 18-21.2 (default); wide=CO2 0.03-10/O2 15-25 (F-line only, -wide slug).",
+    )
+    parser.add_argument(
         "--split-strategy",
         choices=("random", "spxy_v1", "lhs_stratified_split_v1"),
         default="random",
@@ -155,14 +177,20 @@ def _apply_preset(args: argparse.Namespace) -> argparse.Namespace:
     preset = presets.get(args.preset)
     if preset is None:
         raise ValueError(f"unknown preset: {args.preset!r}")
+    # CLI --composition-domain must survive preset application (wide is an overlay, not a preset).
+    cli_composition_domain = args.composition_domain
     for key, value in preset.items():
         setattr(args, key, value)
+    args.composition_domain = cli_composition_domain
     return args
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     args = _apply_preset(args)
+    args.dataset = apply_composition_domain_dataset_slug(args.dataset, args.composition_domain)
+    if args.composition_domain == COMPOSITION_DOMAIN_WIDE and not args.bidirectional:
+        raise SystemExit("composition-domain=wide requires --bidirectional (A1: F-line only)")
     workers = args.workers if args.workers is not None else default_worker_count(args.sequences)
     trigger_jitter_std_s = getattr(args, "trigger_jitter_std_s", None)
 
@@ -170,6 +198,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"[tv3-gen] dataset={args.dataset} sequences={args.sequences} "
         f"timesteps={args.timesteps} workers={workers} "
         f"skip_fiber_mic={args.skip_fiber_mic} bidirectional={args.bidirectional} "
+        f"composition_domain={args.composition_domain} "
         f"trigger_jitter_std_s={trigger_jitter_std_s}",
         flush=True,
     )
@@ -198,6 +227,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         split_strategy=args.split_strategy,
         spxy_alpha=args.spxy_alpha,
         extrapolation_strategy=args.extrapolation_strategy,
+        composition_domain=args.composition_domain,
     )
     result = generate_tunnel_ventilation_benchmark_dataset(Path(args.output_root), spec)
     elapsed = time.perf_counter() - started_at

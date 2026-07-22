@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Run F0 bidirectional ultrasound registry audit and write frozen verdict."""
+"""Run F0 bidirectional ultrasound registry audit and write frozen verdict.
+
+Narrow (default): configs/tv3_bidir/parameter_registry.json → outputs/tv3_bidir/f0_registry/
+Wide: --wide → parameter_registry_wide.json → outputs/tv3_bidir/f0_registry_wide/
+"""
 from __future__ import annotations
 
 import argparse
@@ -14,6 +18,7 @@ if str(_TV3_ROOT) not in sys.path:
 
 from tv3.sim.generation.tunnel_ventilation.bidir_registry import (  # noqa: E402
     audit_f0_gate,
+    audit_f0_gate_wide,
     default_config_dir,
 )
 
@@ -24,13 +29,18 @@ def _parse_args() -> argparse.Namespace:
         "--config-dir",
         type=Path,
         default=None,
-        help="Directory containing parameter_registry.json (default: configs/tv3_bidir)",
+        help="Directory containing parameter_registry*.json (default: configs/tv3_bidir)",
     )
     p.add_argument(
         "--output-dir",
         type=Path,
         default=None,
-        help="Output directory (default: outputs/tv3_bidir/f0_registry)",
+        help="Output directory (default: outputs/tv3_bidir/f0_registry[_wide])",
+    )
+    p.add_argument(
+        "--wide",
+        action="store_true",
+        help="Freeze wide-domain registry (parameter_registry_wide.json); does not touch narrow F0.",
     )
     p.add_argument(
         "--allow-overwrite",
@@ -49,8 +59,12 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     config_dir = args.config_dir or default_config_dir()
-    output_dir = args.output_dir or (_TV3_ROOT / "outputs" / "tv3_bidir" / "f0_registry")
-    output_dir = output_dir.resolve()
+    if args.output_dir is not None:
+        output_dir = args.output_dir.resolve()
+    elif args.wide:
+        output_dir = (_TV3_ROOT / "outputs" / "tv3_bidir" / "f0_registry_wide").resolve()
+    else:
+        output_dir = (_TV3_ROOT / "outputs" / "tv3_bidir" / "f0_registry").resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     verdict_path = output_dir / "f0_verdict.json"
@@ -62,10 +76,11 @@ def main() -> int:
             )
         previous = json.loads(verdict_path.read_text(encoding="utf-8"))
 
-    audit = audit_f0_gate(config_dir)
+    audit = audit_f0_gate_wide(config_dir) if args.wide else audit_f0_gate(config_dir)
     payload: dict[str, object] = {
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "config_dir": str(Path(config_dir).resolve()),
+        "composition_domain": "wide_hazard_v1" if args.wide else "narrow",
         "audit": audit,
     }
     if previous is not None:
@@ -74,36 +89,44 @@ def main() -> int:
             "previous_created_at_utc": previous.get("created_at_utc"),
             "previous_registry_sha256": prev_audit.get("registry_sha256"),
             "previous_verdict": prev_audit.get("verdict"),
-            "reason": args.supersede_reason
-            or (
-                "Restore F0 freeze semantics: stage progress moved to "
-                "configs/tv3_bidir/stage_status.json; registry is parameter evidence only; "
-                "oracle arrays include ultrasonic_alpha_true_npm."
-            ),
+            "reason": args.supersede_reason or "re-freeze registry evidence",
         }
 
     verdict_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     # Keep stage_status in sync with frozen hash (does not affect registry sha256).
+    # Wide writes f0_wide only — never overwrites narrow f0 / allowed_next_stage.
     stage_path = Path(config_dir).resolve() / "stage_status.json"
     if stage_path.is_file() and audit["passed"]:
         stage = json.loads(stage_path.read_text(encoding="utf-8"))
-        stage["f0"] = {
-            "verdict": audit["verdict"],
-            "registry_sha256": audit["registry_sha256"],
-            "verdict_path": "outputs/tv3_bidir/f0_registry/f0_verdict.json",
-            "passed_at": datetime.now(timezone.utc).date().isoformat(),
-        }
+        if args.wide:
+            stage["f0_wide"] = {
+                "verdict": audit["verdict"],
+                "registry_file": "parameter_registry_wide.json",
+                "registry_sha256": audit["registry_sha256"],
+                "verdict_path": "outputs/tv3_bidir/f0_registry_wide/f0_verdict.json",
+                "passed_at": datetime.now(timezone.utc).date().isoformat(),
+                "composition_domain": "wide_hazard_v1",
+            }
+        else:
+            stage["f0"] = {
+                "verdict": audit["verdict"],
+                "registry_sha256": audit["registry_sha256"],
+                "verdict_path": "outputs/tv3_bidir/f0_registry/f0_verdict.json",
+                "passed_at": datetime.now(timezone.utc).date().isoformat(),
+            }
         stage_path.write_text(json.dumps(stage, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     summary_path = output_dir / "f0_summary.md"
+    domain = "wide" if args.wide else "narrow"
     lines = [
-        "# tv3 bidir F0 registry audit",
+        f"# tv3 bidir F0 registry audit ({domain})",
         "",
         f"- verdict: `{audit['verdict']}`",
         f"- passed: `{audit['passed']}`",
         f"- allowed_next_stage: `{audit['allowed_next_stage']}`",
         f"- registry_sha256: `{audit['registry_sha256']}`",
+        f"- composition_domain: `{audit.get('composition_domain')}`",
         f"- jitter scenarios: `{audit['jitter_scenarios'].get('scenario_ids')}`",
         "",
     ]

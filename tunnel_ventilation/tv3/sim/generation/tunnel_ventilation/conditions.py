@@ -5,10 +5,12 @@
 采样策略：在 (x_CO2, x_O2) 二维空间做 LHS，x_N2 = 100 - x_CO2 - x_O2
 被动计算。N2 在本场景是显式预测目标，写入 condition grid 和 labels。
 
-约束（全部强制）：
-- x_CO2 ∈ [0.03, 5.00] %
-- x_O2 ∈ [18.00, 21.20] %
-- x_N2 = 100 - x_CO2 - x_O2 ∈ [73.80, 81.97] %（由前两者范围决定，自动满足）
+双域并存（A1：仅 F 线可显式选 wide；单向默认始终 narrow）：
+- narrow（默认）：CO2 0.03–5.00%，O2 18.00–21.20%，N2 73.80–81.97%
+- wide（危害监测）：CO2 0.03–10.00%，O2 15.00–25.00%，N2 65.00–84.97%
+
+共同约束：
+- x_N2 = 100 - x_CO2 - x_O2（由前两者范围决定，角点自动满足）
 - x_CO2 + x_O2 + x_N2 = 100 %（严格闭包）
 
 与 syngas 的差异：
@@ -36,19 +38,45 @@ from tv3.sim.generation.tunnel_ventilation.flow_physics import (
 )
 
 
+COMPOSITION_DOMAIN_NARROW = "narrow"
+COMPOSITION_DOMAIN_WIDE = "wide"
+VALID_COMPOSITION_DOMAINS = (COMPOSITION_DOMAIN_NARROW, COMPOSITION_DOMAIN_WIDE)
+
+
 # 组分区间（单位 %），见 tunnel_ventilation/docs/foundation/sampling_design.md §1.1
+# narrow / wide 两域并存；默认值保持 narrow，不得静默改写单向历史链路。
 @dataclass(frozen=True)
 class TunnelVentilationRanges:
     co2: tuple[float, float] = (0.03, 5.00)
     o2: tuple[float, float] = (18.00, 21.20)
     # N2 范围由 CO2/O2 范围间接决定：
-    # min N2 = 100 - 5.00 - 21.20 = 73.80
-    # max N2 = 100 - 0.03 - 18.00 = 81.97
+    # narrow: min N2 = 100 - 5.00 - 21.20 = 73.80; max = 100 - 0.03 - 18.00 = 81.97
+    # wide:   min N2 = 100 - 10.00 - 25.00 = 65.00; max = 100 - 0.03 - 15.00 = 84.97
     n2_min: float = 73.80
     n2_max: float = 81.97
 
 
 TUNNEL_VENTILATION_RANGES = TunnelVentilationRanges()
+
+# F 线独立危害监测域（docs/active/tv3_composition_range_widening_plan.md）
+WIDE_COMPOSITION_RANGES = TunnelVentilationRanges(
+    co2=(0.03, 10.00),
+    o2=(15.00, 25.00),
+    n2_min=65.00,
+    n2_max=84.97,
+)
+
+
+def resolve_composition_ranges(composition_domain: str) -> TunnelVentilationRanges:
+    """Map composition_domain → ranges. Default / unknown rejected explicitly."""
+    if composition_domain == COMPOSITION_DOMAIN_NARROW:
+        return TUNNEL_VENTILATION_RANGES
+    if composition_domain == COMPOSITION_DOMAIN_WIDE:
+        return WIDE_COMPOSITION_RANGES
+    raise ValueError(
+        f"composition_domain must be one of {list(VALID_COMPOSITION_DOMAINS)}, "
+        f"got {composition_domain!r}"
+    )
 
 # 序列基准光程采样范围（每条序列的 L_m_base，与多光程扫描档位 path_lms 独立）
 # 200kHz 下长声程信号被 CH4/CO2 弛豫吸收淹没，L_m 上限 0.3m（见 Phase0 核对记录）
@@ -92,7 +120,7 @@ def generate_tunnel_ventilation_condition_rows(
                 "P_MPa_base": _fmt(rng.uniform(0.10, 0.709), 4),
                 "H_RH_base": _fmt(rng.uniform(20.0, 80.0), 4),
                 # 200kHz 下长声程信号被 CH4/CO2 弛豫吸收淹没，L_m 上限 0.3m
-                # （见 Phase0 核对记录）。tv3 CO2 最高 5%，压力较小，沿用一致约束。
+                # （见 Phase0 核对记录）。宽域 CO2 可达 10%，L 上限仍 0.3m（F3-wide 重验）。
                 "L_m_base": _fmt(rng.uniform(*L_M_BASE_RANGE), 4),
                 "status": "synthetic_measurement",
             }
@@ -112,7 +140,11 @@ def generate_tunnel_ventilation_bidir_condition_rows(
     v_path_range: tuple[float, float] = V_PATH_RANGE_M_PER_S,
     zero_anchor_fraction_min: float = ZERO_ANCHOR_FRACTION_MIN,
 ) -> list[dict[str, str]]:
-    """Generate base TV3 conditions then attach F-line flow fields."""
+    """Generate base TV3 conditions then attach F-line flow fields.
+
+    ``ranges`` 默认保持 narrow；wide 必须由 benchmark spec 显式传入
+    （A1：避免模块级默认静默移域）。
+    """
     base = generate_tunnel_ventilation_condition_rows(
         sequence_count,
         seed=seed,
