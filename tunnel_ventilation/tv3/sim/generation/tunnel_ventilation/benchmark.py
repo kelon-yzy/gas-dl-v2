@@ -648,15 +648,19 @@ def _cleanup_parallel_temp_arrays(arrays: dict[str, object], array_keys: tuple[s
 def _close_waveform_memmap(arrays: dict[str, object]) -> None:
     """关闭大波形数组的 memmap 句柄。
 
-    在 write_arrays 将数据拷贝到最终输出目录后调用，
-    确保 Windows 下可以安全删除临时 memmap 文件。
+    在 write_arrays 发布到最终目录后调用。若 storage=memmap 已对临时
+    merged_*.npy 做 rename/replace，句柄可能已关闭；重复 close 仍安全。
     """
     for key in ("ultrasonic", "ultrasonic_ab", "ultrasonic_ba", "fiber_mic"):
         arr = arrays.get(key)
         if arr is not None:
             mmap = getattr(arr, "_mmap", None)
             if mmap is not None:
-                mmap.close()
+                try:
+                    mmap.close()
+                except ValueError:
+                    # Already closed after relocate publish.
+                    pass
 
 
 def _cleanup_serial_waveform_temp(staging_dir: Path) -> None:

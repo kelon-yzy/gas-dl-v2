@@ -1,10 +1,26 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
 
 from tv3.common.waveform import waveform_array_filename
+
+
+def _memmap_source_path(array: object) -> Path | None:
+    """Return on-disk path for a NumPy memmap, else None."""
+    filename = getattr(array, "filename", None)
+    if not filename:
+        return None
+    path = Path(str(filename))
+    return path if path.is_file() else None
+
+
+def _close_array_mmap(array: object) -> None:
+    mmap = getattr(array, "_mmap", None)
+    if mmap is not None:
+        mmap.close()
 
 
 def write_arrays(output_dir: Path, arrays: dict[str, object], labels: np.ndarray, sequence_ids: list[str], slow_channel_names: tuple[str, ...], label_names: tuple[str, ...], storage: str, *, ultrasonic_dtype: str = "int16", fiber_dtype: str = "int16") -> dict[str, list[int]]:
@@ -41,20 +57,93 @@ def write_arrays(output_dir: Path, arrays: dict[str, object], labels: np.ndarray
     fiber_mic = arrays.get("fiber_mic")
     fiber_mic_scale = arrays.get("fiber_mic_scale")
 
-    _write_npy(sequences_dir / "slow.npy", slow, use_memmap=storage in {"memmap", "both"})
-    _write_npy(sequences_dir / waveform_array_filename("ultrasonic", ultrasonic_dtype), ultrasonic, use_memmap=storage in {"memmap", "both"})
-    _write_npy(sequences_dir / "ultrasonic_scale.npy", ultrasonic_scale, use_memmap=storage in {"memmap", "both"})
-    _write_npy(sequences_dir / "ultrasonic_tof_s.npy", ultrasonic_tof_s, use_memmap=storage in {"memmap", "both"})
-    _write_npy(sequences_dir / "ultrasonic_tof_observed_s.npy", ultrasonic_tof_observed_s, use_memmap=storage in {"memmap", "both"})
-    _write_npy(sequences_dir / "ultrasonic_peak_index.npy", ultrasonic_peak_index, use_memmap=storage in {"memmap", "both"})
-    _write_npy(sequences_dir / "ultrasonic_sound_speed_m_per_s.npy", ultrasonic_sound_speed, use_memmap=storage in {"memmap", "both"})
-    _write_npy(sequences_dir / "ultrasonic_sound_speed_estimated_m_per_s.npy", ultrasonic_sound_speed_estimated, use_memmap=storage in {"memmap", "both"})
-    _write_npy(sequences_dir / "ultrasonic_alpha_true_npm.npy", ultrasonic_alpha, use_memmap=storage in {"memmap", "both"})
-    _write_npy(sequences_dir / "ultrasonic_tof_quality.npy", ultrasonic_tof_quality, use_memmap=storage in {"memmap", "both"})
-    _write_npy(sequences_dir / "ultrasonic_tof_accepted.npy", ultrasonic_tof_accepted, use_memmap=storage in {"memmap", "both"})
+    # Capture shapes before publish: relocating memmaps closes source handles.
+    shapes = {
+        "slow": list(slow.shape),
+        "ultrasonic": list(ultrasonic.shape),
+        "ultrasonic_scale": list(ultrasonic_scale.shape),
+        "ultrasonic_tof_s": list(ultrasonic_tof_s.shape),
+        "ultrasonic_tof_observed_s": list(ultrasonic_tof_observed_s.shape),
+        "ultrasonic_peak_index": list(ultrasonic_peak_index.shape),
+        "ultrasonic_sound_speed_m_per_s": list(ultrasonic_sound_speed.shape),
+        "ultrasonic_sound_speed_estimated_m_per_s": list(ultrasonic_sound_speed_estimated.shape),
+        "ultrasonic_alpha_true_npm": list(ultrasonic_alpha.shape),
+        "ultrasonic_tof_quality": list(ultrasonic_tof_quality.shape),
+        "ultrasonic_tof_accepted": list(ultrasonic_tof_accepted.shape),
+        "y": list(labels.shape),
+    }
     if fiber_mic is not None:
-        _write_npy(sequences_dir / waveform_array_filename("fiber_mic", fiber_dtype), fiber_mic, use_memmap=storage in {"memmap", "both"})
-        _write_npy(sequences_dir / "fiber_mic_scale.npy", fiber_mic_scale, use_memmap=storage in {"memmap", "both"})
+        shapes["fiber_mic"] = list(fiber_mic.shape)
+        shapes["fiber_mic_scale"] = list(fiber_mic_scale.shape)
+
+    # Pure memmap storage: relocate on-disk temps (avoids 2x disk for ~28GiB waves).
+    # storage=both keeps copy so in-memory handles remain readable for npz.
+    use_memmap = storage in {"memmap", "both"}
+    relocate = storage == "memmap"
+    _write_npy(sequences_dir / "slow.npy", slow, use_memmap=use_memmap, relocate=relocate)
+    _write_npy(
+        sequences_dir / waveform_array_filename("ultrasonic", ultrasonic_dtype),
+        ultrasonic,
+        use_memmap=use_memmap,
+        relocate=relocate,
+    )
+    _write_npy(sequences_dir / "ultrasonic_scale.npy", ultrasonic_scale, use_memmap=use_memmap, relocate=relocate)
+    _write_npy(sequences_dir / "ultrasonic_tof_s.npy", ultrasonic_tof_s, use_memmap=use_memmap, relocate=relocate)
+    _write_npy(
+        sequences_dir / "ultrasonic_tof_observed_s.npy",
+        ultrasonic_tof_observed_s,
+        use_memmap=use_memmap,
+        relocate=relocate,
+    )
+    _write_npy(
+        sequences_dir / "ultrasonic_peak_index.npy",
+        ultrasonic_peak_index,
+        use_memmap=use_memmap,
+        relocate=relocate,
+    )
+    _write_npy(
+        sequences_dir / "ultrasonic_sound_speed_m_per_s.npy",
+        ultrasonic_sound_speed,
+        use_memmap=use_memmap,
+        relocate=relocate,
+    )
+    _write_npy(
+        sequences_dir / "ultrasonic_sound_speed_estimated_m_per_s.npy",
+        ultrasonic_sound_speed_estimated,
+        use_memmap=use_memmap,
+        relocate=relocate,
+    )
+    _write_npy(
+        sequences_dir / "ultrasonic_alpha_true_npm.npy",
+        ultrasonic_alpha,
+        use_memmap=use_memmap,
+        relocate=relocate,
+    )
+    _write_npy(
+        sequences_dir / "ultrasonic_tof_quality.npy",
+        ultrasonic_tof_quality,
+        use_memmap=use_memmap,
+        relocate=relocate,
+    )
+    _write_npy(
+        sequences_dir / "ultrasonic_tof_accepted.npy",
+        ultrasonic_tof_accepted,
+        use_memmap=use_memmap,
+        relocate=relocate,
+    )
+    if fiber_mic is not None:
+        _write_npy(
+            sequences_dir / waveform_array_filename("fiber_mic", fiber_dtype),
+            fiber_mic,
+            use_memmap=use_memmap,
+            relocate=relocate,
+        )
+        _write_npy(
+            sequences_dir / "fiber_mic_scale.npy",
+            fiber_mic_scale,
+            use_memmap=use_memmap,
+            relocate=relocate,
+        )
     np.save(labels_dir / "y.npy", labels)
     np.save(metadata_dir / "sequence_ids.npy", np.array(sequence_ids))
     np.save(metadata_dir / "slow_channel_names.npy", np.array(slow_channel_names))
@@ -83,23 +172,6 @@ def write_arrays(output_dir: Path, arrays: dict[str, object], labels: np.ndarray
             npz_payload["fiber_mic_scale"] = fiber_mic_scale
         np.savez_compressed(sequences_dir / "waveform_sequence.npz", **npz_payload)
 
-    shapes = {
-        "slow": list(slow.shape),
-        "ultrasonic": list(ultrasonic.shape),
-        "ultrasonic_scale": list(ultrasonic_scale.shape),
-        "ultrasonic_tof_s": list(ultrasonic_tof_s.shape),
-        "ultrasonic_tof_observed_s": list(ultrasonic_tof_observed_s.shape),
-        "ultrasonic_peak_index": list(ultrasonic_peak_index.shape),
-        "ultrasonic_sound_speed_m_per_s": list(ultrasonic_sound_speed.shape),
-        "ultrasonic_sound_speed_estimated_m_per_s": list(ultrasonic_sound_speed_estimated.shape),
-        "ultrasonic_alpha_true_npm": list(ultrasonic_alpha.shape),
-        "ultrasonic_tof_quality": list(ultrasonic_tof_quality.shape),
-        "ultrasonic_tof_accepted": list(ultrasonic_tof_accepted.shape),
-        "y": list(labels.shape),
-    }
-    if fiber_mic is not None:
-        shapes["fiber_mic"] = list(fiber_mic.shape)
-        shapes["fiber_mic_scale"] = list(fiber_mic_scale.shape)
     return shapes
 
 
@@ -152,45 +224,90 @@ def write_bidirectional_arrays(
     if missing:
         raise KeyError(f"bidirectional arrays missing keys: {missing}")
 
-    _write_npy(sequences_dir / "slow.npy", slow, use_memmap=use_memmap)
-    _write_npy(
-        sequences_dir / waveform_array_filename("ultrasonic_ab", ultrasonic_dtype),
-        arrays["ultrasonic_ab"],
-        use_memmap=use_memmap,
-    )
-    _write_npy(
-        sequences_dir / waveform_array_filename("ultrasonic_ba", ultrasonic_dtype),
-        arrays["ultrasonic_ba"],
-        use_memmap=use_memmap,
-    )
-    for key in required[2:]:
-        _write_npy(sequences_dir / f"{key}.npy", arrays[key], use_memmap=use_memmap)
-
     fiber_mic = arrays.get("fiber_mic")
     fiber_mic_scale = arrays.get("fiber_mic_scale")
-    if fiber_mic is not None:
-        _write_npy(
-            sequences_dir / waveform_array_filename("fiber_mic", fiber_dtype),
-            fiber_mic,
-            use_memmap=use_memmap,
-        )
-        _write_npy(sequences_dir / "fiber_mic_scale.npy", fiber_mic_scale, use_memmap=use_memmap)
-
-    np.save(labels_dir / "y.npy", labels)
-    np.save(metadata_dir / "sequence_ids.npy", np.array(sequence_ids))
-    np.save(metadata_dir / "slow_channel_names.npy", np.array(slow_channel_names))
-    np.save(metadata_dir / "label_names.npy", np.array(label_names))
-
+    # Shapes before publish: relocate closes source memmap handles.
     shapes = {key: list(np.asarray(arrays[key]).shape) for key in ("slow", *required)}
     shapes["y"] = list(labels.shape)
     if fiber_mic is not None:
         shapes["fiber_mic"] = list(fiber_mic.shape)
         shapes["fiber_mic_scale"] = list(fiber_mic_scale.shape)
+
+    relocate = storage == "memmap"
+    _write_npy(sequences_dir / "slow.npy", slow, use_memmap=use_memmap, relocate=relocate)
+    _write_npy(
+        sequences_dir / waveform_array_filename("ultrasonic_ab", ultrasonic_dtype),
+        arrays["ultrasonic_ab"],
+        use_memmap=use_memmap,
+        relocate=relocate,
+    )
+    _write_npy(
+        sequences_dir / waveform_array_filename("ultrasonic_ba", ultrasonic_dtype),
+        arrays["ultrasonic_ba"],
+        use_memmap=use_memmap,
+        relocate=relocate,
+    )
+    for key in required[2:]:
+        _write_npy(
+            sequences_dir / f"{key}.npy",
+            arrays[key],
+            use_memmap=use_memmap,
+            relocate=relocate,
+        )
+
+    if fiber_mic is not None:
+        _write_npy(
+            sequences_dir / waveform_array_filename("fiber_mic", fiber_dtype),
+            fiber_mic,
+            use_memmap=use_memmap,
+            relocate=relocate,
+        )
+        _write_npy(
+            sequences_dir / "fiber_mic_scale.npy",
+            fiber_mic_scale,
+            use_memmap=use_memmap,
+            relocate=relocate,
+        )
+
+    np.save(labels_dir / "y.npy", labels)
+    np.save(metadata_dir / "sequence_ids.npy", np.array(sequence_ids))
+    np.save(metadata_dir / "slow_channel_names.npy", np.array(slow_channel_names))
+    np.save(metadata_dir / "label_names.npy", np.array(label_names))
     return shapes
 
 
-def _write_npy(path: Path, array, *, use_memmap: bool) -> None:
+def _write_npy(path: Path, array, *, use_memmap: bool, relocate: bool = False) -> None:
+    """Publish ``array`` to ``path``.
+
+    When ``relocate`` is true and ``array`` is already an on-disk memmap on the
+    same filesystem, rename/replace instead of copying. This keeps peak disk near
+    one copy of AB/BA (~57 GiB) instead of two (~115 GiB) during bidir formal write.
+    Cross-device rename falls back to a streaming memmap copy.
+    """
     if use_memmap:
+        src_path = _memmap_source_path(array) if relocate else None
+        if src_path is not None and src_path.resolve() != path.resolve():
+            _close_array_mmap(array)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                os.replace(src_path, path)
+                return
+            except OSError:
+                # Different filesystem or replace unsupported: stream-copy fallback.
+                src = np.lib.format.open_memmap(str(src_path), mode="r")
+                try:
+                    target = np.lib.format.open_memmap(
+                        path, mode="w+", dtype=src.dtype, shape=src.shape
+                    )
+                    target[:] = src
+                    target.flush()
+                finally:
+                    _close_array_mmap(src)
+                try:
+                    src_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                return
         target = np.lib.format.open_memmap(path, mode="w+", dtype=array.dtype, shape=array.shape)
         target[:] = array
         target.flush()
