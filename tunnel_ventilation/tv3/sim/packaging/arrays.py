@@ -121,7 +121,9 @@ def write_arrays(output_dir: Path, arrays: dict[str, object], labels: np.ndarray
     # storage=both keeps copy so in-memory handles remain readable for npz.
     use_memmap = storage in {"memmap", "both"}
     relocate = storage == "memmap"
-    _write_npy(sequences_dir / "slow.npy", slow, use_memmap=use_memmap, relocate=relocate)
+    slow_path = sequences_dir / "slow.npy"
+    _write_npy(slow_path, slow, use_memmap=use_memmap, relocate=relocate)
+    arrays["slow"] = np.lib.format.open_memmap(slow_path, mode="r")
     _write_npy(
         sequences_dir / waveform_array_filename("ultrasonic", ultrasonic_dtype),
         ultrasonic,
@@ -214,8 +216,8 @@ def write_arrays(output_dir: Path, arrays: dict[str, object], labels: np.ndarray
         np.savez_compressed(sequences_dir / "waveform_sequence.npz", **npz_payload)
 
     # Drop memmap handles after publish (rename path leaves stale mappings otherwise).
+    # Keep arrays["slow"] — reopened above for scaler fitting.
     for key in (
-        "slow",
         "ultrasonic",
         "ultrasonic_scale",
         "ultrasonic_tof_s",
@@ -293,7 +295,10 @@ def write_bidirectional_arrays(
         shapes["fiber_mic_scale"] = list(fiber_mic_scale.shape)
 
     relocate = storage == "memmap"
-    _write_npy(sequences_dir / "slow.npy", slow, use_memmap=use_memmap, relocate=relocate)
+    slow_path = sequences_dir / "slow.npy"
+    _write_npy(slow_path, slow, use_memmap=use_memmap, relocate=relocate)
+    # Re-open slow for downstream scaler fitting; large wave keys are dropped below.
+    arrays["slow"] = np.lib.format.open_memmap(slow_path, mode="r")
     _write_npy(
         sequences_dir / waveform_array_filename("ultrasonic_ab", ultrasonic_dtype),
         arrays["ultrasonic_ab"],
@@ -332,8 +337,8 @@ def write_bidirectional_arrays(
     np.save(metadata_dir / "sequence_ids.npy", np.array(sequence_ids))
     np.save(metadata_dir / "slow_channel_names.npy", np.array(slow_channel_names))
     np.save(metadata_dir / "label_names.npy", np.array(label_names))
-    # Drop relocated memmap objects so post-write cleanup cannot close renamed files.
-    for key in ("slow", *required):
+    # Drop relocated wave/oracle handles; keep arrays["slow"] (reopened above).
+    for key in required:
         arrays[key] = None
     if fiber_mic is not None:
         arrays["fiber_mic"] = None
