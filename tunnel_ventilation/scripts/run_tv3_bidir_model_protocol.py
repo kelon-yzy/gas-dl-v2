@@ -26,7 +26,12 @@ if str(_TV3_ROOT) not in sys.path:
 from tv3.ml.bidir_arm_features import (  # noqa: E402
     arm_specs,
     build_arm_feature_cache,
+    build_arm_feature_caches,
     load_arm_split_matrix,
+)
+from tv3.pipeline.build_tv3_bidir_features import (  # noqa: E402
+    build_tv3_bidir_feature_cache,
+    default_bidir_workers,
 )
 from tv3.ml.bidir_s_flow import (  # noqa: E402
     DEFAULT_OOD_ABS_V_MAX,
@@ -44,7 +49,6 @@ from tv3.ml.ridge_residual_head import (  # noqa: E402
 )
 from tv3.ml.rocket_training import DEFAULT_RIDGE_ALPHAS  # noqa: E402
 from tv3.ml.training import evaluate_regressor  # noqa: E402
-from tv3.pipeline.build_tv3_bidir_features import build_tv3_bidir_feature_cache  # noqa: E402
 from tv3.sim.core.tunnel_ventilation_bidir_schema import (  # noqa: E402
     COMPOSITION_SCHEME,
     FORMAL_FEATURE_BUILDER,
@@ -145,8 +149,12 @@ def train_arm_head(
     if metrics_path.is_file() and not overwrite:
         return _read_json(metrics_path)
 
-    train = load_arm_split_matrix(dataset_dir, arm_id, split="train")
-    val = load_arm_split_matrix(dataset_dir, arm_id, split="val")
+    matrices = {
+        split_name: load_arm_split_matrix(dataset_dir, arm_id, split=split_name)
+        for split_name in ("train", "val", "test", "extrapolation")
+    }
+    train = matrices["train"]
+    val = matrices["val"]
     eval_splits = ("val", "test", "extrapolation")
 
     if head == "b1_ridge":
@@ -190,7 +198,7 @@ def train_arm_head(
     evaluations: dict[str, Any] = {}
     eval_objects = {}
     for split_name in ("train", *eval_splits):
-        matrix = train if split_name == "train" else load_arm_split_matrix(dataset_dir, arm_id, split=split_name)
+        matrix = matrices[split_name]
         evaluation = evaluate_regressor(
             model,
             matrix,
@@ -232,6 +240,23 @@ def train_arm_head(
     _write_json(metrics_path, payload)
     return payload
 
+
+def _build_arms_for_dataset(
+    dataset_dir: Path,
+    arms: tuple[str, ...],
+    *,
+    arm_workers: int = 1,
+) -> dict[str, Any]:
+    """Build arm caches: shared-slow batch (default) or ProcessPool when arm_workers>1."""
+    if arm_workers <= 1 or len(arms) <= 1:
+        return build_arm_feature_caches(dataset_dir, arms)
+    from concurrent.futures import ProcessPoolExecutor
+
+    with ProcessPoolExecutor(max_workers=min(arm_workers, len(arms))) as executor:
+        futures = {
+            arm_id: executor.submit(build_arm_feature_cache, dataset_dir, arm_id) for arm_id in arms
+        }
+        return {arm_id: futures[arm_id].result() for arm_id in arms}
 
 def _sound_speed_bias_audit(dataset_dir: Path) -> dict[str, Any] | None:
     frame_dir = dataset_dir / "features" / "raw_dsp_bidir" / FORMAL_FEATURE_BUILDER
@@ -380,6 +405,7 @@ def _ensure_source_bootstrap_cache(
     overwrite: bool,
     template_max_frames: int,
     bootstrap_cache_dir: Path | None = None,
+    workers: int | None = None,
 ) -> dict[str, Any]:
     """Build source-base-train bidir RawDSP cache used only for SPXY X."""
     cache_dir = bootstrap_cache_dir or _default_bootstrap_cache_dir(source_dir)
@@ -399,6 +425,7 @@ def _ensure_source_bootstrap_cache(
         overwrite=overwrite,
         template_max_frames=template_max_frames,
         template_source_split="train",
+        workers=workers,
     )
     payload["role"] = "split_selection_bootstrap_only"
     return payload
@@ -415,6 +442,8 @@ def _run_f5s_secondary_matrix(
     seed: int,
     arms: tuple[str, ...],
     heads: tuple[str, ...],
+    workers: int | None = None,
+    arm_workers: int = 1,
 ) -> dict[str, Any]:
     """Derive S-Y/S-L splits, rebuild caches, train matrix, return cell metrics."""
     import importlib.util
@@ -449,6 +478,7 @@ def _run_f5s_secondary_matrix(
         overwrite=overwrite,
         template_max_frames=template_max_frames,
         bootstrap_cache_dir=bootstrap_path,
+        workers=workers,
     )
     x_contract = expected_x_feature_digest()
 
@@ -492,10 +522,9 @@ def _run_f5s_secondary_matrix(
                 overwrite=overwrite,
                 template_max_frames=template_max_frames,
                 template_source_split="train",
+                workers=workers,
             )
-            arm_manifests = {
-                arm_id: build_arm_feature_cache(out_dir, arm_id) for arm_id in arms
-            }
+            arm_manifests = _build_arms_for_dataset(out_dir, arms, arm_workers=arm_workers)
             entry["frame_cache"] = {
                 "cache_dir": frame_manifest["cache_dir"],
                 "build_signature": frame_manifest["build_signature"],
@@ -633,6 +662,11 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
     arms = tuple(config.get("arms", list(ARM_IDS)))
     gates = dict(config["f5_amplitude_gates"])
     expected_domain = config.get("composition_domain")
+    workers = config.get("workers")
+    workers = None if workers is None else int(workers)
+    arm_workers = int(config.get("arm_workers", 1))
+    if arm_workers < 1:
+        raise ValueError("arm_workers must be >= 1")
 
     s_flow_dir = splits_root / "s_flow"
     summary: dict[str, Any] = {
@@ -642,6 +676,8 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
         "feature_builder": FORMAL_FEATURE_BUILDER,
         "source_dataset_dir": str(source_dir.resolve()),
         "stage": stage,
+        "workers": workers if workers is not None else default_bidir_workers(),
+        "arm_workers": arm_workers,
     }
 
     if stage in ("derive", "features", "train", "all"):
@@ -667,14 +703,15 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
             s_flow_dir,
             overwrite=overwrite,
             template_max_frames=int(config.get("template_max_frames", 512)),
+            workers=workers,
         )
         summary["frame_cache"] = {
             "cache_dir": frame_manifest["cache_dir"],
             "build_signature": frame_manifest["build_signature"],
+            "reused": frame_manifest.get("reused", False),
+            "workers": frame_manifest.get("workers"),
         }
-        arm_manifests = {}
-        for arm_id in arms:
-            arm_manifests[arm_id] = build_arm_feature_cache(s_flow_dir, arm_id)
+        arm_manifests = _build_arms_for_dataset(s_flow_dir, arms, arm_workers=arm_workers)
         summary["arm_caches"] = arm_manifests
         _write_json(output_root / "feature_build_summary.json", summary)
 
@@ -743,6 +780,8 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
             seed=seed,
             arms=arms,
             heads=heads,
+            workers=workers,
+            arm_workers=arm_workers,
         )
         # Persist without dumping full metrics blobs twice.
         index = {
@@ -801,6 +840,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--source-dataset-dir", type=Path, default=None)
     p.add_argument("--output-dir", type=Path, default=None)
     p.add_argument("--device", default=None)
+    p.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Frame-extract process count (default: min(30, cpu_count-2)).",
+    )
+    p.add_argument(
+        "--arm-workers",
+        type=int,
+        default=None,
+        help="Arm-cache process count (default: 1 = shared-slow sequential batch).",
+    )
     p.add_argument("--overwrite", action="store_true")
     return p
 
@@ -814,6 +865,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         config["output_dir"] = str(args.output_dir)
     if args.device is not None:
         config["device"] = args.device
+    if args.workers is not None:
+        config["workers"] = int(args.workers)
+    if args.arm_workers is not None:
+        config["arm_workers"] = int(args.arm_workers)
     if args.overwrite:
         config["overwrite"] = True
     # Resolve relative paths against tv3 root.

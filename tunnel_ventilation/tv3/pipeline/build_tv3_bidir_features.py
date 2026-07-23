@@ -6,6 +6,10 @@ import csv
 import hashlib
 import json
 import logging
+import math
+import os
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
@@ -18,6 +22,7 @@ from tv3.ml.bidir_arm_features import BIDIR_FRAME_CACHE_ROOT, ORACLE_V_SCALAR, d
 from tv3.ml.bidir_features import (
     BIDIR_RAW_DSP_SCHEMA_VERSION,
     FEATURE_BUILDER,
+    BidirSessionDelayCalibration,
     assert_no_oracle_inputs,
     build_direction_template,
     calibrate_session_delay_shared_s,
@@ -30,6 +35,8 @@ from tv3.ml.raw_dsp_features import RawDSPConfig, dequantize_waveforms
 from tv3.sim.core.tunnel_ventilation_bidir_schema import COMPOSITION_SCHEME, SCHEMA_VERSION
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_MAX_BIDIR_WORKERS = 30
 
 FRAME_ARRAY_SPECS: dict[str, tuple[str, np.dtype[Any]]] = {
     "ultrasonic_tof_observed_ab_raw_dsp_s": ("tof_observed_ab_s", np.dtype(np.float32)),
@@ -61,6 +68,42 @@ SEQ_SCALAR_SPECS: dict[str, str] = {
 }
 
 
+def default_bidir_workers(sequence_count: int | None = None) -> int:
+    """Default process count: min(30, cpu_count-2), capped by sequence count."""
+    cpu_count = os.cpu_count() or 1
+    workers = max(1, min(DEFAULT_MAX_BIDIR_WORKERS, cpu_count - 2))
+    if sequence_count is not None:
+        workers = min(workers, max(1, int(sequence_count)))
+    return workers
+
+
+def _limit_blas_threads(n_threads: int = 1) -> None:
+    """Pin BLAS/FFT thread pools (required under ProcessPool to avoid oversubscription)."""
+    n = str(max(1, int(n_threads)))
+    for key in (
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+    ):
+        os.environ[key] = n
+    try:
+        import threadpoolctl
+
+        threadpoolctl.threadpool_limits(int(n))
+    except ImportError:
+        pass
+
+
+def _chunk_indices(indices: Sequence[int], workers: int) -> list[tuple[int, ...]]:
+    if not indices:
+        return []
+    n_workers = max(1, min(int(workers), len(indices)))
+    chunk_size = int(math.ceil(len(indices) / n_workers))
+    return [tuple(indices[start : start + chunk_size]) for start in range(0, len(indices), chunk_size)]
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -80,6 +123,43 @@ def _load_phase_lookup(path: Path) -> dict[str, tuple[str, ...]]:
     for row in rows:
         lookup.setdefault(row["sequence_id"], []).append(row["phase_id"])
     return {sid: tuple(phases) for sid, phases in lookup.items()}
+
+
+def _try_reuse_existing_cache(cache_dir: Path, *, overwrite: bool) -> dict[str, Any] | None:
+    """Skip rebuild when a complete matching cache already exists (checkpoint resume)."""
+    if overwrite:
+        return None
+    manifest_path = cache_dir / "manifest.json"
+    if not manifest_path.is_file():
+        if cache_dir.exists() and any(cache_dir.iterdir()):
+            raise FileExistsError(
+                f"bidir feature cache already exists without manifest: {cache_dir} "
+                "(pass overwrite=True to rebuild)"
+            )
+        return None
+    payload = _read_json(manifest_path)
+    if payload.get("feature_builder") != FEATURE_BUILDER:
+        raise ValueError(
+            f"bidir cache feature_builder mismatch at {cache_dir}: "
+            f"{payload.get('feature_builder')!r} != {FEATURE_BUILDER!r} "
+            "(pass overwrite=True to rebuild)"
+        )
+    if payload.get("schema_version") != BIDIR_RAW_DSP_SCHEMA_VERSION:
+        raise ValueError(
+            f"bidir cache schema_version mismatch at {cache_dir}: "
+            f"{payload.get('schema_version')!r} != {BIDIR_RAW_DSP_SCHEMA_VERSION!r} "
+            "(pass overwrite=True to rebuild)"
+        )
+    if not payload.get("build_signature"):
+        raise ValueError(
+            f"bidir cache manifest missing build_signature: {manifest_path} "
+            "(pass overwrite=True to rebuild)"
+        )
+    logger.info("Reusing existing bidir feature cache: %s", cache_dir)
+    payload = dict(payload)
+    payload["cache_dir"] = str(cache_dir.resolve())
+    payload["reused"] = True
+    return payload
 
 
 def _select_baseline_frames(
@@ -150,6 +230,141 @@ def _direction_tof_for_calibration(
     return tof, path_lengths, np.asarray(accepted, dtype=bool)
 
 
+@dataclass(frozen=True, slots=True)
+class _BidirCalibBatchTask:
+    dataset_dir: str
+    waveform_dtype: str
+    sequence_indices: tuple[int, ...]
+    path_index: int
+    template_ab: np.ndarray
+    template_ba: np.ndarray
+    peak_off_ab: int
+    peak_off_ba: int
+    daq_full_scale_v: float
+    config: RawDSPConfig
+
+
+@dataclass(frozen=True, slots=True)
+class _BidirExtractBatchTask:
+    dataset_dir: str
+    waveform_dtype: str
+    sequence_indices: tuple[int, ...]
+    path_index: int
+    slow_names: tuple[str, ...]
+    template_ab: np.ndarray
+    template_ba: np.ndarray
+    calibration: BidirSessionDelayCalibration
+    peak_off_ab: int
+    peak_off_ba: int
+    daq_full_scale_v: float
+    config: RawDSPConfig
+
+
+def _process_calib_batch(
+    task: _BidirCalibBatchTask,
+) -> list[tuple[int, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+    _limit_blas_threads(1)
+    dataset_dir = Path(task.dataset_dir)
+    wave_ab = np.load(
+        dataset_dir / "sequences" / waveform_array_filename("ultrasonic_ab", task.waveform_dtype),
+        mmap_mode="r",
+    )
+    wave_ba = np.load(
+        dataset_dir / "sequences" / waveform_array_filename("ultrasonic_ba", task.waveform_dtype),
+        mmap_mode="r",
+    )
+    scale_ab = np.load(dataset_dir / "sequences" / "ultrasonic_ab_scale.npy", mmap_mode="r")
+    scale_ba = np.load(dataset_dir / "sequences" / "ultrasonic_ba_scale.npy", mmap_mode="r")
+    slow = np.load(dataset_dir / "sequences" / "slow.npy", mmap_mode="r")
+    rows: list[tuple[int, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = []
+    for sequence_index in task.sequence_indices:
+        tof_ab, paths, acc_ab = _direction_tof_for_calibration(
+            waveform=wave_ab,
+            scale=scale_ab,
+            slow=slow,
+            path_index=task.path_index,
+            sequence_index=sequence_index,
+            template=task.template_ab,
+            template_peak_offset=task.peak_off_ab,
+            daq_full_scale_v=task.daq_full_scale_v,
+            config=task.config,
+        )
+        tof_ba, _, acc_ba = _direction_tof_for_calibration(
+            waveform=wave_ba,
+            scale=scale_ba,
+            slow=slow,
+            path_index=task.path_index,
+            sequence_index=sequence_index,
+            template=task.template_ba,
+            template_peak_offset=task.peak_off_ba,
+            daq_full_scale_v=task.daq_full_scale_v,
+            config=task.config,
+        )
+        rows.append((sequence_index, tof_ab, tof_ba, paths, acc_ab, acc_ba))
+    return rows
+
+
+def _process_extract_batch(
+    task: _BidirExtractBatchTask,
+) -> list[tuple[int, dict[str, np.ndarray], dict[str, float], np.ndarray, np.ndarray]]:
+    _limit_blas_threads(1)
+    dataset_dir = Path(task.dataset_dir)
+    wave_ab = np.load(
+        dataset_dir / "sequences" / waveform_array_filename("ultrasonic_ab", task.waveform_dtype),
+        mmap_mode="r",
+    )
+    wave_ba = np.load(
+        dataset_dir / "sequences" / waveform_array_filename("ultrasonic_ba", task.waveform_dtype),
+        mmap_mode="r",
+    )
+    scale_ab = np.load(dataset_dir / "sequences" / "ultrasonic_ab_scale.npy", mmap_mode="r")
+    scale_ba = np.load(dataset_dir / "sequences" / "ultrasonic_ba_scale.npy", mmap_mode="r")
+    slow = np.load(dataset_dir / "sequences" / "slow.npy", mmap_mode="r")
+    rows: list[tuple[int, dict[str, np.ndarray], dict[str, float], np.ndarray, np.ndarray]] = []
+    for seq_idx in task.sequence_indices:
+        result = extract_bidir_sequence(
+            wave_ab[seq_idx],
+            scale_ab[seq_idx],
+            wave_ba[seq_idx],
+            scale_ba[seq_idx],
+            slow[seq_idx],
+            task.slow_names,
+            template_ab=task.template_ab,
+            template_ba=task.template_ba,
+            calibration=task.calibration,
+            daq_full_scale_v=task.daq_full_scale_v,
+            config=task.config,
+            template_peak_offset_ab=task.peak_off_ab,
+            template_peak_offset_ba=task.peak_off_ba,
+        )
+        frame_values = {
+            name: np.asarray(getattr(result, attr), dtype=dtype)
+            for name, (attr, dtype) in FRAME_ARRAY_SPECS.items()
+        }
+        path_lengths = np.asarray(slow[seq_idx, :, task.path_index], dtype=np.float64)
+        t_ab = np.asarray(result.tof_corrected_ab_s, dtype=np.float64)
+        t_ba = np.asarray(result.tof_corrected_ba_s, dtype=np.float64)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            c_ab = np.where(t_ab > 0.0, path_lengths / t_ab, np.nan).astype(np.float32)
+            c_ba = np.where(t_ba > 0.0, path_lengths / t_ba, np.nan).astype(np.float32)
+        seq_values = {name: float(getattr(result, attr)) for name, attr in SEQ_SCALAR_SPECS.items()}
+        rows.append((seq_idx, frame_values, seq_values, c_ab, c_ba))
+    return rows
+
+
+def _run_batches(tasks: Sequence[Any], worker_fn: Any, workers: int) -> list[Any]:
+    if not tasks:
+        return []
+    if workers == 1 or len(tasks) == 1:
+        return [worker_fn(task) for task in tasks]
+    with ProcessPoolExecutor(
+        max_workers=min(workers, len(tasks)),
+        initializer=_limit_blas_threads,
+        initargs=(1,),
+    ) as executor:
+        return list(executor.map(worker_fn, tasks))
+
+
 def build_tv3_bidir_feature_cache(
     dataset_dir: Path | str,
     *,
@@ -162,14 +377,14 @@ def build_tv3_bidir_feature_cache(
     template_reference_peak_polarity: int = -1,
     raw_dsp_overrides: dict[str, Any] | None = None,
     overwrite: bool = False,
+    workers: int | None = None,
 ) -> dict[str, Any]:
     """Extract bidirectional RawDSP frame + sequence scalars (train-calibrated)."""
     dataset_dir = Path(dataset_dir)
     cache_dir = Path(cache_dir) if cache_dir is not None else default_frame_cache_dir(dataset_dir)
-    if cache_dir.exists() and any(cache_dir.iterdir()) and not overwrite:
-        raise FileExistsError(
-            f"bidir feature cache already exists: {cache_dir} (pass overwrite=True to rebuild)"
-        )
+    reused = _try_reuse_existing_cache(cache_dir, overwrite=overwrite)
+    if reused is not None:
+        return reused
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     manifest = _read_json(dataset_dir / "manifest.json")
@@ -217,6 +432,9 @@ def build_tv3_bidir_feature_cache(
     scale_ba = np.load(dataset_dir / "sequences" / "ultrasonic_ba_scale.npy", mmap_mode="r")
     slow = np.load(dataset_dir / "sequences" / "slow.npy", mmap_mode="r")
     n_seq, n_t = int(wave_ab.shape[0]), int(wave_ab.shape[1])
+    resolved_workers = default_bidir_workers(n_seq) if workers is None else int(workers)
+    if resolved_workers < 1:
+        raise ValueError("workers must be >= 1")
 
     assert_no_oracle_inputs(["ultrasonic_ab", "ultrasonic_ba", "slow"])
 
@@ -267,6 +485,29 @@ def build_tv3_bidir_feature_cache(
     peak_off_ba = int(template_pre_samples)
 
     # Session τ̂: train-only mid-pair shared intercept (F3 freeze; asymmetry≈0).
+    calib_chunks = _chunk_indices(train_indices, resolved_workers)
+    calib_tasks = tuple(
+        _BidirCalibBatchTask(
+            dataset_dir=str(dataset_dir.resolve()),
+            waveform_dtype=dtype,
+            sequence_indices=chunk,
+            path_index=path_index,
+            template_ab=template_ab,
+            template_ba=template_ba,
+            peak_off_ab=peak_off_ab,
+            peak_off_ba=peak_off_ba,
+            daq_full_scale_v=daq_full_scale_v,
+            config=config,
+        )
+        for chunk in calib_chunks
+    )
+    calib_by_index: dict[
+        int, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+    ] = {}
+    for batch in _run_batches(calib_tasks, _process_calib_batch, resolved_workers):
+        for sequence_index, tof_ab, tof_ba, paths, acc_ab, acc_ba in batch:
+            calib_by_index[sequence_index] = (tof_ab, tof_ba, paths, acc_ab, acc_ba)
+
     cal_tofs_ab: list[np.ndarray] = []
     cal_tofs_ba: list[np.ndarray] = []
     cal_paths: list[np.ndarray] = []
@@ -274,33 +515,11 @@ def build_tv3_bidir_feature_cache(
     cal_acc_ab: list[np.ndarray] = []
     cal_acc_ba: list[np.ndarray] = []
     for sequence_index in train_indices:
-        phases = phase_lookup[sequence_ids[sequence_index]]
-        tof_ab, paths, acc_ab = _direction_tof_for_calibration(
-            waveform=wave_ab,
-            scale=scale_ab,
-            slow=slow,
-            path_index=path_index,
-            sequence_index=sequence_index,
-            template=template_ab,
-            template_peak_offset=peak_off_ab,
-            daq_full_scale_v=daq_full_scale_v,
-            config=config,
-        )
-        tof_ba, _, acc_ba = _direction_tof_for_calibration(
-            waveform=wave_ba,
-            scale=scale_ba,
-            slow=slow,
-            path_index=path_index,
-            sequence_index=sequence_index,
-            template=template_ba,
-            template_peak_offset=peak_off_ba,
-            daq_full_scale_v=daq_full_scale_v,
-            config=config,
-        )
+        tof_ab, tof_ba, paths, acc_ab, acc_ba = calib_by_index[sequence_index]
         cal_tofs_ab.append(tof_ab)
         cal_tofs_ba.append(tof_ba)
         cal_paths.append(paths)
-        cal_phases.append(phases)
+        cal_phases.append(phase_lookup[sequence_ids[sequence_index]])
         cal_acc_ab.append(acc_ab)
         cal_acc_ba.append(acc_ba)
 
@@ -324,8 +543,8 @@ def build_tv3_bidir_feature_cache(
 
     # Allocate outputs.
     frame_store: dict[str, np.ndarray] = {
-        name: np.empty((n_seq, n_t), dtype=dtype)
-        for name, (_attr, dtype) in FRAME_ARRAY_SPECS.items()
+        name: np.empty((n_seq, n_t), dtype=arr_dtype)
+        for name, (_attr, arr_dtype) in FRAME_ARRAY_SPECS.items()
     }
     sound_speed_ab = np.empty((n_seq, n_t), dtype=np.float32)
     sound_speed_ba = np.empty((n_seq, n_t), dtype=np.float32)
@@ -333,37 +552,36 @@ def build_tv3_bidir_feature_cache(
         name: np.empty((n_seq,), dtype=np.float32) for name in SEQ_SCALAR_SPECS
     }
 
-    for seq_idx in range(n_seq):
-        result = extract_bidir_sequence(
-            wave_ab[seq_idx],
-            scale_ab[seq_idx],
-            wave_ba[seq_idx],
-            scale_ba[seq_idx],
-            slow[seq_idx],
-            slow_names,
+    extract_chunks = _chunk_indices(range(n_seq), resolved_workers)
+    extract_tasks = tuple(
+        _BidirExtractBatchTask(
+            dataset_dir=str(dataset_dir.resolve()),
+            waveform_dtype=dtype,
+            sequence_indices=chunk,
+            path_index=path_index,
+            slow_names=tuple(slow_names),
             template_ab=template_ab,
             template_ba=template_ba,
             calibration=calibration,
+            peak_off_ab=peak_off_ab,
+            peak_off_ba=peak_off_ba,
             daq_full_scale_v=daq_full_scale_v,
             config=config,
-            template_peak_offset_ab=peak_off_ab,
-            template_peak_offset_ba=peak_off_ba,
         )
-        for name, (attr, _dtype) in FRAME_ARRAY_SPECS.items():
-            frame_store[name][seq_idx] = np.asarray(getattr(result, attr), dtype=_dtype)
-        # Unidirectional (flow-polluted) sound speeds for A1/A2.
-        path_lengths = np.asarray(slow[seq_idx, :, path_index], dtype=np.float64)
-        t_ab = np.asarray(result.tof_corrected_ab_s, dtype=np.float64)
-        t_ba = np.asarray(result.tof_corrected_ba_s, dtype=np.float64)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            c_ab = np.where(t_ab > 0.0, path_lengths / t_ab, np.nan)
-            c_ba = np.where(t_ba > 0.0, path_lengths / t_ba, np.nan)
-        sound_speed_ab[seq_idx] = c_ab.astype(np.float32)
-        sound_speed_ba[seq_idx] = c_ba.astype(np.float32)
-        for name, attr in SEQ_SCALAR_SPECS.items():
-            seq_store[name][seq_idx] = float(getattr(result, attr))
-        if (seq_idx + 1) % 50 == 0 or seq_idx + 1 == n_seq:
-            logger.info("bidir feature extract %s/%s", seq_idx + 1, n_seq)
+        for chunk in extract_chunks
+    )
+    done = 0
+    for batch in _run_batches(extract_tasks, _process_extract_batch, resolved_workers):
+        for seq_idx, frame_values, seq_values, c_ab, c_ba in batch:
+            for name, values in frame_values.items():
+                frame_store[name][seq_idx] = values
+            sound_speed_ab[seq_idx] = c_ab
+            sound_speed_ba[seq_idx] = c_ba
+            for name, value in seq_values.items():
+                seq_store[name][seq_idx] = value
+            done += 1
+            if done % 50 == 0 or done == n_seq:
+                logger.info("bidir feature extract %s/%s (workers=%s)", done, n_seq, resolved_workers)
 
     for name, array in frame_store.items():
         np.save(cache_dir / f"{name}.npy", array)
@@ -414,6 +632,7 @@ def build_tv3_bidir_feature_cache(
         "build_signature": build_signature,
         "sequence_count": n_seq,
         "timesteps": n_t,
+        "workers": resolved_workers,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "oracle_arrays_for_audit_only": [ORACLE_V_SCALAR],
         "deploy_arrays": sorted(
@@ -424,6 +643,7 @@ def build_tv3_bidir_feature_cache(
             ]
             + list(SEQ_SCALAR_SPECS)
         ),
+        "reused": False,
     }
     (cache_dir / "manifest.json").write_text(
         json.dumps(payload, indent=2, ensure_ascii=False),
@@ -439,6 +659,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--template-source-split", default="train")
     parser.add_argument("--template-max-frames", type=int, default=512)
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help=f"Process count (default: min({DEFAULT_MAX_BIDIR_WORKERS}, cpu_count-2)).",
+    )
     return parser
 
 
@@ -451,8 +677,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         template_source_split=args.template_source_split,
         template_max_frames=args.template_max_frames,
         overwrite=args.overwrite,
+        workers=args.workers,
     )
-    print(json.dumps({"cache_dir": payload["cache_dir"], "build_signature": payload["build_signature"]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "cache_dir": payload["cache_dir"],
+                "build_signature": payload["build_signature"],
+                "reused": payload.get("reused", False),
+                "workers": payload.get("workers"),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

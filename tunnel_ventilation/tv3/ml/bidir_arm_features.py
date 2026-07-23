@@ -180,6 +180,32 @@ def load_frame_cache_arrays(
     return out
 
 
+def compute_shared_slow_windowed_block(
+    *,
+    slow: np.ndarray,
+    slow_channel_names: Sequence[str],
+    sequence_ids: Sequence[str],
+    phase_lookup: Mapping[str, tuple[str, ...]],
+) -> tuple[np.ndarray, tuple[str, ...]]:
+    """Slow windowed block shared by all F5 arms within one split (35 dims)."""
+    slow_arr = np.asarray(slow, dtype=np.float32)
+    selected_slow, selected_names = _select_slow_channels(
+        slow_arr, tuple(slow_channel_names), FORMAL_SLOW_CHANNELS
+    )
+    sequence_ids_t = tuple(sequence_ids)
+    slow_block, slow_names = _windowed_sequence_features(
+        selected_slow,
+        sequence_ids=sequence_ids_t,
+        channel_names=selected_names,
+        phase_lookup=dict(phase_lookup),
+        statistics=B1_FULL_STATS,
+        source_prefix="slow",
+        phase_windows=DEFAULT_PHASE_WINDOWS,
+        early_fractions=DEFAULT_EARLY_FRACTIONS,
+    )
+    return slow_block, tuple(slow_names)
+
+
 def assemble_arm_feature_matrix(
     *,
     slow: np.ndarray,
@@ -191,6 +217,7 @@ def assemble_arm_feature_matrix(
     frame_arrays: Mapping[str, np.ndarray],
     sequence_scalars: Mapping[str, np.ndarray],
     arm: BidirArmSpec,
+    shared_slow_block: tuple[np.ndarray, tuple[str, ...]] | None = None,
 ) -> MLFeatureMatrix:
     """Assemble one arm matrix from already-extracted arrays."""
     if arm.deployable:
@@ -203,21 +230,18 @@ def assemble_arm_feature_matrix(
     feature_names: list[str] = []
 
     if arm.include_slow:
-        slow_arr = np.asarray(slow, dtype=np.float32)
-        selected_slow, selected_names = _select_slow_channels(
-            slow_arr, tuple(slow_channel_names), FORMAL_SLOW_CHANNELS
-        )
-        slow_block, slow_names = _windowed_sequence_features(
-            selected_slow,
-            sequence_ids=sequence_ids_t,
-            channel_names=selected_names,
-            phase_lookup=dict(phase_lookup),
-            statistics=B1_FULL_STATS,
-            source_prefix="slow",
-            phase_windows=DEFAULT_PHASE_WINDOWS,
-            early_fractions=DEFAULT_EARLY_FRACTIONS,
-        )
-        blocks.append(slow_block)
+        if shared_slow_block is not None:
+            slow_block, slow_names = shared_slow_block
+            if slow_block.shape[0] != len(sequence_ids_t):
+                raise ValueError("shared_slow_block row count mismatch")
+        else:
+            slow_block, slow_names = compute_shared_slow_windowed_block(
+                slow=slow,
+                slow_channel_names=slow_channel_names,
+                sequence_ids=sequence_ids_t,
+                phase_lookup=phase_lookup,
+            )
+        blocks.append(np.asarray(slow_block, dtype=np.float32))
         feature_names.extend(slow_names)
 
     for array_name in arm.frame_arrays:
@@ -272,18 +296,44 @@ def build_arm_feature_cache(
     cache_dir: Path | str | None = None,
 ) -> dict[str, Any]:
     """Build per-split feature matrices for one arm into features/rocket/<builder>/."""
-    dataset_dir = Path(dataset_dir)
-    arm = arm_specs()[arm_id]
-    frame_cache_dir = Path(frame_cache_dir) if frame_cache_dir else default_frame_cache_dir(dataset_dir)
-    cache_dir = Path(cache_dir) if cache_dir else default_arm_cache_dir(dataset_dir, arm_id)
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    return build_arm_feature_caches(
+        dataset_dir,
+        (arm_id,),
+        frame_cache_dir=frame_cache_dir,
+        cache_dirs={arm_id: cache_dir} if cache_dir is not None else None,
+    )[arm_id]
 
-    needed_frames = list(arm.frame_arrays)
+
+def build_arm_feature_caches(
+    dataset_dir: Path | str,
+    arm_ids: Sequence[str],
+    *,
+    frame_cache_dir: Path | str | None = None,
+    cache_dirs: Mapping[str, Path | str | None] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Build multiple arms, sharing the slow windowed block once per split."""
+    dataset_dir = Path(dataset_dir)
+    if not arm_ids:
+        raise ValueError("arm_ids must be non-empty")
+    specs = arm_specs()
+    unknown = [arm_id for arm_id in arm_ids if arm_id not in specs]
+    if unknown:
+        raise KeyError(f"unknown arm_id(s): {unknown}")
+    arms = [specs[arm_id] for arm_id in arm_ids]
+    frame_cache_dir = Path(frame_cache_dir) if frame_cache_dir else default_frame_cache_dir(dataset_dir)
+    resolved_cache_dirs: dict[str, Path] = {}
+    for arm in arms:
+        override = None if cache_dirs is None else cache_dirs.get(arm.arm_id)
+        resolved_cache_dirs[arm.arm_id] = (
+            Path(override) if override is not None else default_arm_cache_dir(dataset_dir, arm.arm_id)
+        )
+        resolved_cache_dirs[arm.arm_id].mkdir(parents=True, exist_ok=True)
+
+    needed_frames = sorted({name for arm in arms for name in arm.frame_arrays})
     frame_arrays_all = load_frame_cache_arrays(frame_cache_dir, needed_frames)
-    scalar_names = list(arm.sequence_scalars)
-    # Oracle v is stored beside the frame cache for audit arms only.
+    needed_scalars = sorted({name for arm in arms for name in arm.sequence_scalars})
     sequence_scalars_all: dict[str, np.ndarray] = {}
-    for name in scalar_names:
+    for name in needed_scalars:
         path = frame_cache_dir / f"{name}.npy"
         if not path.is_file():
             raise FileNotFoundError(f"missing sequence scalar array: {path}")
@@ -298,59 +348,79 @@ def build_arm_feature_cache(
     splits = load_splits(dataset_dir / "splits")
     split_indices = resolve_split_indices(splits, master_sequence_ids)
 
-    feature_names: tuple[str, ...] | None = None
-    split_counts: dict[str, int] = {}
+    feature_names_by_arm: dict[str, tuple[str, ...] | None] = {arm.arm_id: None for arm in arms}
+    split_counts_by_arm: dict[str, dict[str, int]] = {arm.arm_id: {} for arm in arms}
+
     for split_name, indices in split_indices.items():
         seq_ids = tuple(master_sequence_ids[i] for i in indices)
-        frame_sub = {k: np.asarray(v[indices], dtype=np.float32) for k, v in frame_arrays_all.items()}
-        scalar_sub = {
-            k: np.asarray(v[indices], dtype=np.float32) for k, v in sequence_scalars_all.items()
-        }
-        matrix = assemble_arm_feature_matrix(
-            slow=np.asarray(slow[indices], dtype=np.float32),
+        slow_sub = np.asarray(slow[indices], dtype=np.float32)
+        shared_slow = compute_shared_slow_windowed_block(
+            slow=slow_sub,
             slow_channel_names=slow_names,
             sequence_ids=seq_ids,
-            labels=labels[indices],
-            label_names=label_names,
             phase_lookup=phase_lookup,
-            frame_arrays=frame_sub,
-            sequence_scalars=scalar_sub,
-            arm=arm,
         )
-        if feature_names is None:
-            feature_names = matrix.feature_names
-        elif matrix.feature_names != feature_names:
-            raise ValueError(f"feature names drifted on split {split_name}")
-        np.save(cache_dir / f"feature_matrix_{split_name}.npy", matrix.x)
-        split_counts[split_name] = len(seq_ids)
+        for arm in arms:
+            frame_sub = {
+                k: np.asarray(frame_arrays_all[k][indices], dtype=np.float32) for k in arm.frame_arrays
+            }
+            scalar_sub = {
+                k: np.asarray(sequence_scalars_all[k][indices], dtype=np.float32)
+                for k in arm.sequence_scalars
+            }
+            matrix = assemble_arm_feature_matrix(
+                slow=slow_sub,
+                slow_channel_names=slow_names,
+                sequence_ids=seq_ids,
+                labels=labels[indices],
+                label_names=label_names,
+                phase_lookup=phase_lookup,
+                frame_arrays=frame_sub,
+                sequence_scalars=scalar_sub,
+                arm=arm,
+                shared_slow_block=shared_slow,
+            )
+            prev_names = feature_names_by_arm[arm.arm_id]
+            if prev_names is None:
+                feature_names_by_arm[arm.arm_id] = matrix.feature_names
+            elif matrix.feature_names != prev_names:
+                raise ValueError(f"feature names drifted on split {split_name} for arm {arm.arm_id}")
+            cache_dir = resolved_cache_dirs[arm.arm_id]
+            np.save(cache_dir / f"feature_matrix_{split_name}.npy", matrix.x)
+            split_counts_by_arm[arm.arm_id][split_name] = len(seq_ids)
 
-    assert feature_names is not None
-    (cache_dir / "feature_names.json").write_text(
-        json.dumps(list(feature_names), indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    manifest = {
-        "schema_version": "tv3-bidir-arm-feature-1",
-        "arm_id": arm.arm_id,
-        "feature_builder": arm.feature_builder,
-        "deployable": arm.deployable,
-        "base_feature_builder": FORMAL_FEATURE_BUILDER,
-        "frame_cache_dir": str(frame_cache_dir.resolve()),
-        "dataset_dir": str(dataset_dir.resolve()),
-        "feature_count": len(feature_names),
-        "feature_names_digest": __import__("hashlib")
-        .sha256("\n".join(feature_names).encode("utf-8"))
-        .hexdigest(),
-        "split_sequence_counts": split_counts,
-        "frame_arrays": list(arm.frame_arrays),
-        "sequence_scalars": list(arm.sequence_scalars),
-        "physics_statistics": list(arm.physics_statistics),
-    }
-    (cache_dir / "feature_manifest.json").write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    return manifest
+    manifests: dict[str, dict[str, Any]] = {}
+    for arm in arms:
+        feature_names = feature_names_by_arm[arm.arm_id]
+        assert feature_names is not None
+        cache_dir = resolved_cache_dirs[arm.arm_id]
+        (cache_dir / "feature_names.json").write_text(
+            json.dumps(list(feature_names), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        manifest = {
+            "schema_version": "tv3-bidir-arm-feature-1",
+            "arm_id": arm.arm_id,
+            "feature_builder": arm.feature_builder,
+            "deployable": arm.deployable,
+            "base_feature_builder": FORMAL_FEATURE_BUILDER,
+            "frame_cache_dir": str(frame_cache_dir.resolve()),
+            "dataset_dir": str(dataset_dir.resolve()),
+            "feature_count": len(feature_names),
+            "feature_names_digest": __import__("hashlib")
+            .sha256("\n".join(feature_names).encode("utf-8"))
+            .hexdigest(),
+            "split_sequence_counts": split_counts_by_arm[arm.arm_id],
+            "frame_arrays": list(arm.frame_arrays),
+            "sequence_scalars": list(arm.sequence_scalars),
+            "physics_statistics": list(arm.physics_statistics),
+        }
+        (cache_dir / "feature_manifest.json").write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        manifests[arm.arm_id] = manifest
+    return manifests
 
 
 def load_arm_split_matrix(
@@ -367,7 +437,8 @@ def load_arm_split_matrix(
     splits = load_splits(dataset_dir / "splits")
     indices = resolve_split_indices(splits, master_sequence_ids)[split]
     sequence_ids = tuple(master_sequence_ids[i] for i in indices)
-    x = np.load(cache_dir / f"feature_matrix_{split}.npy").astype(np.float32, copy=False)
+    x = np.load(cache_dir / f"feature_matrix_{split}.npy", mmap_mode="r")
+    x = np.asarray(x, dtype=np.float32)
     y = np.load(dataset_dir / "labels" / "y.npy").astype(np.float32)[indices]
     feature_names = tuple(json.loads((cache_dir / "feature_names.json").read_text(encoding="utf-8")))
     if x.shape[0] != len(sequence_ids):
@@ -391,6 +462,8 @@ __all__ = [
     "arm_specs",
     "assemble_arm_feature_matrix",
     "build_arm_feature_cache",
+    "build_arm_feature_caches",
+    "compute_shared_slow_windowed_block",
     "default_arm_cache_dir",
     "default_frame_cache_dir",
     "load_arm_split_matrix",

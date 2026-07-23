@@ -120,8 +120,8 @@ class _ScaledMLPRegressor:
             weight_decay=self.config.weight_decay,
         )
 
-        x_tensor = torch.tensor(x_scaled, dtype=torch.float32)
-        y_tensor = torch.tensor(y_train_for_loss, dtype=torch.float32)
+        x_tensor = torch.tensor(x_scaled, dtype=torch.float32, device=self._device)
+        y_tensor = torch.tensor(y_train_for_loss, dtype=torch.float32, device=self._device)
         batch_size = min(self.config.batch_size, max(1, x_tensor.shape[0]))
         generator = torch.Generator()
         generator.manual_seed(self.config.seed)
@@ -142,8 +142,6 @@ class _ScaledMLPRegressor:
         for epoch in range(1, self.config.max_epochs + 1):
             module.train()
             for batch_x, batch_y in loader:
-                batch_x = batch_x.to(self._device)
-                batch_y = batch_y.to(self._device)
                 optimizer.zero_grad(set_to_none=True)
                 predictions = module(batch_x)
                 per_dim = (predictions - batch_y).square()
