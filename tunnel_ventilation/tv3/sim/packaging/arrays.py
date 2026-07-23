@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -12,7 +13,14 @@ def _memmap_source_path(array: object) -> Path | None:
     """Return on-disk path for a NumPy memmap, else None."""
     filename = getattr(array, "filename", None)
     if not filename:
+        # Some numpy builds expose the path only on the underlying mmap.
+        mmap = getattr(array, "_mmap", None)
+        filename = getattr(mmap, "filename", None) if mmap is not None else None
+    if not filename:
         return None
+    # mmap.filename may be bytes on some platforms.
+    if isinstance(filename, bytes):
+        filename = filename.decode("utf-8", errors="surrogateescape")
     path = Path(str(filename))
     return path if path.is_file() else None
 
@@ -20,7 +28,27 @@ def _memmap_source_path(array: object) -> Path | None:
 def _close_array_mmap(array: object) -> None:
     mmap = getattr(array, "_mmap", None)
     if mmap is not None:
-        mmap.close()
+        try:
+            mmap.close()
+        except ValueError:
+            pass
+
+
+def _disk_free_bytes(path: Path) -> int:
+    path.mkdir(parents=True, exist_ok=True)
+    usage = shutil.disk_usage(path)
+    return int(usage.free)
+
+
+def _array_nbytes(array: object) -> int:
+    try:
+        return int(np.asarray(array).nbytes)
+    except Exception:
+        shape = getattr(array, "shape", None)
+        dtype = getattr(array, "dtype", None)
+        if shape is None or dtype is None:
+            return 0
+        return int(np.prod(shape) * np.dtype(dtype).itemsize)
 
 
 def write_arrays(output_dir: Path, arrays: dict[str, object], labels: np.ndarray, sequence_ids: list[str], slow_channel_names: tuple[str, ...], label_names: tuple[str, ...], storage: str, *, ultrasonic_dtype: str = "int16", fiber_dtype: str = "int16") -> dict[str, list[int]]:
@@ -282,18 +310,39 @@ def _write_npy(path: Path, array, *, use_memmap: bool, relocate: bool = False) -
     When ``relocate`` is true and ``array`` is already an on-disk memmap on the
     same filesystem, rename/replace instead of copying. This keeps peak disk near
     one copy of AB/BA (~57 GiB) instead of two (~115 GiB) during bidir formal write.
-    Cross-device rename falls back to a streaming memmap copy.
+    Cross-device rename falls back to a streaming memmap copy **only when free
+    space is sufficient**; otherwise raise a clear OSError instead of SIGBUS.
     """
     if use_memmap:
         src_path = _memmap_source_path(array) if relocate else None
+        nbytes = _array_nbytes(array)
         if src_path is not None and src_path.resolve() != path.resolve():
             _close_array_mmap(array)
             path.parent.mkdir(parents=True, exist_ok=True)
             try:
                 os.replace(src_path, path)
+                if nbytes >= (1 << 30):
+                    print(
+                        f"[tv3-gen] published via rename "
+                        f"{src_path.name} -> {path.name} ({nbytes / (1 << 30):.1f} GiB)",
+                        flush=True,
+                    )
                 return
-            except OSError:
-                # Different filesystem or replace unsupported: stream-copy fallback.
+            except OSError as exc:
+                free = _disk_free_bytes(path.parent)
+                if free < nbytes + (1 << 30):
+                    raise OSError(
+                        f"cannot publish {path.name}: rename failed ({exc}); "
+                        f"copy fallback needs ~{nbytes / (1 << 30):.1f} GiB but only "
+                        f"{free / (1 << 30):.1f} GiB free under {path.parent}. "
+                        f"Free disk or keep temp+output on the same filesystem."
+                    ) from exc
+                print(
+                    f"[tv3-gen] rename failed ({exc}); streaming copy "
+                    f"{src_path.name} -> {path.name} ({nbytes / (1 << 30):.1f} GiB, "
+                    f"free={free / (1 << 30):.1f} GiB)",
+                    flush=True,
+                )
                 src = np.lib.format.open_memmap(str(src_path), mode="r")
                 try:
                     target = np.lib.format.open_memmap(
@@ -308,6 +357,21 @@ def _write_npy(path: Path, array, *, use_memmap: bool, relocate: bool = False) -
                 except OSError:
                     pass
                 return
+        if nbytes >= (1 << 30):
+            free = _disk_free_bytes(path.parent)
+            if free < nbytes + (1 << 30):
+                src_desc = str(src_path) if src_path is not None else "in-memory/non-memmap"
+                raise OSError(
+                    f"cannot publish {path.name}: need ~{nbytes / (1 << 30):.1f} GiB "
+                    f"to copy from {src_desc}, but only {free / (1 << 30):.1f} GiB free. "
+                    f"Ensure memmap rename publish is active and merged_*.npy stays on "
+                    f"the same filesystem as sequences/."
+                )
+            print(
+                f"[tv3-gen] publishing via copy {path.name} "
+                f"({nbytes / (1 << 30):.1f} GiB, free={free / (1 << 30):.1f} GiB)",
+                flush=True,
+            )
         target = np.lib.format.open_memmap(path, mode="w+", dtype=array.dtype, shape=array.shape)
         target[:] = array
         target.flush()
