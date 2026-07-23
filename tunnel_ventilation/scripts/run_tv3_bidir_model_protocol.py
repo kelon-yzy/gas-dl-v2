@@ -2,6 +2,9 @@
 """F5 model protocol: five-arm × S-Flow (plus L / S-Y report) with frozen B1/B7 heads.
 
 Does not overwrite unidirectional B1/B7 artefacts. Formal 6000 training belongs on the server.
+
+Exit codes come from train (or ``--stage all``) verdict via ``protocol_exit_code``.
+``--stage report_selectors`` alone is not a gate: without a prior train verdict it exits 0.
 """
 from __future__ import annotations
 
@@ -577,11 +580,35 @@ def _build_selector_gate_d(
     return result
 
 
+def map_f5_verdict(
+    core_pass: bool, selector_gate_d: dict[str, Any]
+) -> tuple[str, bool, str | None]:
+    """Map core gates + criterion-d payload to (verdict, stage_passed, allowed_next).
+
+    When core passes but d does not: ``status == "failed"`` (complete matrix, gate fail)
+    yields ``f5_model_protocol_failed``; any other non-pass d status (blocked / incomplete
+    matrix) yields ``f5_model_protocol_incomplete``.
+    """
+    gate_d_pass = bool(selector_gate_d.get("passed"))
+    stage_passed = bool(core_pass and gate_d_pass)
+    if stage_passed:
+        return "f5_model_protocol_passed", True, "F6_verdict_backfill"
+    if core_pass and not gate_d_pass:
+        verdict = (
+            "f5_model_protocol_failed"
+            if selector_gate_d.get("status") == "failed"
+            else "f5_model_protocol_incomplete"
+        )
+        return verdict, False, None
+    return "f5_model_protocol_failed", False, None
+
+
 def protocol_exit_code(summary: dict[str, Any]) -> int:
     """Map F5 verdict to process exit code.
 
     0 = formal pass; 2 = incomplete (core ok / d blocked); 1 = failed.
-    Stages without a train verdict (derive/features only) return 0.
+    Stages without a train verdict (derive / features / report_selectors alone) return 0;
+    ``report_selectors`` is not a gate by itself — use ``--stage all`` for formal exit codes.
     """
     verdict_payload = summary.get("verdict")
     if not isinstance(verdict_payload, dict):
@@ -686,17 +713,7 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
         f5s_payload = summary.get("f5s")
         selector_gate_d = _build_selector_gate_d(config, gates, f5s_payload=f5s_payload)
         summary["selector_gate_d"] = selector_gate_d
-        gate_d_pass = bool(selector_gate_d["passed"])
-        stage_passed = bool(core_pass and gate_d_pass)
-        if stage_passed:
-            verdict = "f5_model_protocol_passed"
-            allowed_next = "F6_verdict_backfill"
-        elif core_pass and not gate_d_pass:
-            verdict = "f5_model_protocol_incomplete"
-            allowed_next = None
-        else:
-            verdict = "f5_model_protocol_failed"
-            allowed_next = None
+        verdict, stage_passed, allowed_next = map_f5_verdict(core_pass, selector_gate_d)
         verdict_payload = {
             "schema_version": "tv3-bidir-f5-verdict-1",
             "verdict": verdict,
@@ -752,21 +769,9 @@ def run_protocol(config: dict[str, Any], *, stage: str) -> dict[str, Any]:
             summary["selector_gate_d"] = selector_gate_d
             if "verdict" in summary:
                 core_pass = bool(summary["verdict"].get("core_gates_passed"))
-                gate_d_pass = bool(selector_gate_d["passed"])
-                stage_passed = bool(core_pass and gate_d_pass)
-                if stage_passed:
-                    verdict = "f5_model_protocol_passed"
-                    allowed_next = "F6_verdict_backfill"
-                elif core_pass and not gate_d_pass:
-                    verdict = (
-                        "f5_model_protocol_failed"
-                        if selector_gate_d.get("status") == "failed"
-                        else "f5_model_protocol_incomplete"
-                    )
-                    allowed_next = None
-                else:
-                    verdict = "f5_model_protocol_failed"
-                    allowed_next = None
+                verdict, stage_passed, allowed_next = map_f5_verdict(
+                    core_pass, selector_gate_d
+                )
                 summary["verdict"].update(
                     {
                         "verdict": verdict,

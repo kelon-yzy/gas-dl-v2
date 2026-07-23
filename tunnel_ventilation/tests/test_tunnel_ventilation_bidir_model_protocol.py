@@ -328,6 +328,61 @@ def test_wide_model_protocol_config_paths():
     assert "tv3-bidir-6000-wide" in cfg["source_dataset_dir"]
 
 
+def test_narrow_model_protocol_locks_s_line_b1_reference():
+    import json
+    import math
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "configs" / "tv3_bidir_model_protocol.json"
+    cfg = json.loads(path.read_text(encoding="utf-8"))
+    ref = cfg["f5_amplitude_gates"]["s_line_b1_reference_o2_mae"]
+    assert ref is not None
+    assert isinstance(ref, (int, float))
+    assert math.isfinite(float(ref))
+    assert float(ref) == pytest.approx(0.5423065249125163)
+
+
+def test_map_f5_verdict_branches():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "run_tv3_bidir_model_protocol.py"
+    spec = importlib.util.spec_from_file_location("tv3_bidir_model_protocol", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+
+    cases = [
+        (False, {"passed": True, "status": "passed"}, "f5_model_protocol_failed", False, None),
+        (
+            True,
+            {"passed": False, "status": "incomplete"},
+            "f5_model_protocol_incomplete",
+            False,
+            None,
+        ),
+        (
+            True,
+            {"passed": False, "status": "failed"},
+            "f5_model_protocol_failed",
+            False,
+            None,
+        ),
+        (
+            True,
+            {"passed": True, "status": "passed"},
+            "f5_model_protocol_passed",
+            True,
+            "F6_verdict_backfill",
+        ),
+    ]
+    for core_pass, gate_d, expected_verdict, expected_passed, expected_next in cases:
+        verdict, stage_passed, allowed_next = mod.map_f5_verdict(core_pass, gate_d)
+        assert verdict == expected_verdict
+        assert stage_passed is expected_passed
+        assert allowed_next == expected_next
+
+
 def test_f5_protocol_exit_code_incomplete_is_nonzero():
     import importlib.util
     from pathlib import Path

@@ -1,9 +1,9 @@
 # tv3 双向超声（F 线）实施规划
 
-> 状态：**F5-S 代码已落地（2026-07-22）**：`bidir_spxy_observed_ab_v1` + S-Y/S-L×3 seeds 十二格判据 (d) 已接线；`stage_status.f5*=f5s_code_ready_awaiting_formal_matrix`。F0–F4 / F*-wide 已通过。**下一步：smoke 端到端 → 服务器正式 `tv3-bidir-6000`（及 `-wide`）矩阵**；F6 未执行。
->
+> 状态：**F5-S 代码已落地（2026-07-22）**：`bidir_spxy_observed_ab_v1` + S-Y/S-L×3 seeds 十二格判据 (d) 已接线；`stage_status.f5*=f5s_code_ready_awaiting_formal_matrix`。F0–F4 / F*-wide 已通过。**2026-07-23**：窄域判据 c 参考值已锁定（冻结 B1 test O₂ MAE `0.5423065249125163`）。**下一步：smoke 端到端 → 服务器正式 `tv3-bidir-6000`（及 `-wide`）矩阵**；F6 未执行。
+> 
 > 责任：给出恢复双向声学路线的完整实施契约：物理与观测模型、数据 schema、部署级估计器、F0–F6 阶段门与 verdict 分流。本计划立项**不**改写 v1 `information_source_upgrade_required`、**不**撤销静止空气 P0、**不**替换 B7 默认头；执行启动以本文前置条件为准。
->
+> 
 > 命名：本线阶段前缀为 **F**（flow）。数据契约 `tunnel-ventilation-bidir-1`，benchmark `tv3-bidir-*`，正式 builder `raw_dsp_bidirectional_v1`。
 
 ---
@@ -38,18 +38,18 @@ v̂_path = (L / 2) × (1/t'_ab − 1/t'_ba)
 
 参考点：`x_CO2=1%, x_O2=20%, x_N2=79%, T=20°C` → `c≈342.9 m/s`，`TOF@L=0.25m≈729 μs`。O₂ 灵敏度：1 vol% O₂↔N₂ 交换 → `δc/c ≈ −7.1×10⁻⁴`（≈0.24 m/s，ΔTOF≈0.51 μs @0.25 m）。γ 项贡献仅 −3.5×10⁻⁵/vol%（O₂/N₂ 同为双原子），信号本质来自摩尔质量差。
 
-| 误差项 | 情景 | 等效 O₂（单帧） | 64 帧序列后 | 性质 |
-| --- | --- | ---: | ---: | --- |
-| flow 未校正 | v_path=1 m/s | 4.1 vol% | 4.1 vol% | 偏置，不随平均下降 |
-| flow 未校正 | 规程范围 0.25–4 m/s | 1.0–16.5 vol% | 同左 | 偏置 |
-| flow 双向解耦后残余 | σ_v,turb=0.4 m/s 剖面非均匀 | <0.01 vol% | <0.01 vol% | `−Var(v)/c` 二阶项 |
-| trigger jitter | 3 μs（v1 保守登记） | 5.8 vol% | 0.73 vol%(1σ) / P90≈1.2 | 随机，√N 下降 |
-| trigger jitter | ≤0.5 μs（待 F0 依硬件规格重登记） | 0.97 vol% | P90≈0.20 vol% | 随机 |
-| 温度误差 | 1 K | 2.4 vol% | 2.4 vol% | 偏置/慢漂 |
-| 温度误差 | 0.1 K | 0.24 vol% | 0.24 vol% | 偏置/慢漂 |
-| 固定延迟残余 | δτ̂=0.1 μs | 0.19 vol% | 0.19 vol% | 偏置，session 内稳定 |
-| 声程误差 | 0.5 mm 未标定 | 2.8 vol% | 2.8 vol% | 偏置，由 span 标定吸收 |
-| 峰值定位噪声 | 0.02 sample（D2b 实测水平） | 0.04 vol% | <0.01 vol% | 随机 |
+| 误差项            | 情景                     | 等效 O₂（单帧）     | 64 帧序列后                 | 性质              |
+| -------------- | ---------------------- | -------------:| -----------------------:| --------------- |
+| flow 未校正       | v_path=1 m/s           | 4.1 vol%      | 4.1 vol%                | 偏置，不随平均下降       |
+| flow 未校正       | 规程范围 0.25–4 m/s        | 1.0–16.5 vol% | 同左                      | 偏置              |
+| flow 双向解耦后残余   | σ_v,turb=0.4 m/s 剖面非均匀 | <0.01 vol%    | <0.01 vol%              | `−Var(v)/c` 二阶项 |
+| trigger jitter | 3 μs（v1 保守登记）          | 5.8 vol%      | 0.73 vol%(1σ) / P90≈1.2 | 随机，√N 下降        |
+| trigger jitter | ≤0.5 μs（待 F0 依硬件规格重登记） | 0.97 vol%     | P90≈0.20 vol%           | 随机              |
+| 温度误差           | 1 K                    | 2.4 vol%      | 2.4 vol%                | 偏置/慢漂           |
+| 温度误差           | 0.1 K                  | 0.24 vol%     | 0.24 vol%               | 偏置/慢漂           |
+| 固定延迟残余         | δτ̂=0.1 μs             | 0.19 vol%     | 0.19 vol%               | 偏置，session 内稳定  |
+| 声程误差           | 0.5 mm 未标定             | 2.8 vol%      | 2.8 vol%                | 偏置，由 span 标定吸收  |
+| 峰值定位噪声         | 0.02 sample（D2b 实测水平）  | 0.04 vol%     | <0.01 vol%              | 随机              |
 
 三条立项判断：
 
@@ -59,12 +59,12 @@ v̂_path = (L / 2) × (1/t'_ab − 1/t'_ba)
 
 ### 3. 双向能解决什么、不能解决什么
 
-| 能 | 不能 |
-| --- | --- |
-| 解除 v1 flow 阻断拒绝，恢复可辨识性审计的量化意义 | 不改变 `c=√(γRT/M)` 中 T–M 混叠：ĉ 仍是一个方程两个未知量，T 必须由外部测量承担 |
-| 把流速从 nuisance 变成副产品输出（风速监测本身有安全价值） | 不突破 0.8% 窄窗口物理墙的结论（oracle 仍全负），不承诺窄窗精细回归 |
-| 提供 reciprocity 残差作为链路健康与质量信号 | 不构成真实硬件 / Sim2Real 证据，全部结论限定在已登记仿真分布内 |
-| 消除延迟共模项与流速偏置的耦合，改善 span 标定的可迁移性 | 不替代 TDLAS：若 F4 后 T/jitter 预算仍不达标，`information_source_upgrade_required` 对"更高精度 O₂"仍然成立 |
+| 能                                  | 不能                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------- |
+| 解除 v1 flow 阻断拒绝，恢复可辨识性审计的量化意义      | 不改变 `c=√(γRT/M)` 中 T–M 混叠：ĉ 仍是一个方程两个未知量，T 必须由外部测量承担                                   |
+| 把流速从 nuisance 变成副产品输出（风速监测本身有安全价值） | 不突破 0.8% 窄窗口物理墙的结论（oracle 仍全负），不承诺窄窗精细回归                                              |
+| 提供 reciprocity 残差作为链路健康与质量信号       | 不构成真实硬件 / Sim2Real 证据，全部结论限定在已登记仿真分布内                                                 |
+| 消除延迟共模项与流速偏置的耦合，改善 span 标定的可迁移性    | 不替代 TDLAS：若 F4 后 T/jitter 预算仍不达标，`information_source_upgrade_required` 对"更高精度 O₂"仍然成立 |
 
 ### 4. 与现有路线的关系
 
@@ -95,16 +95,16 @@ v̂_path = (L / 2) × (1/t'_ab − 1/t'_ba)
 
 ### 2. 物理与观测模型（F0 冻结项）
 
-| 项 | 契约 | 来源类型 |
-| --- | --- | --- |
-| 流速表示 | 直接采样 `v_path_m_per_s`（沿声路投影，签名区分方向），序列内恒定 | `engineering_scenario`（几何投影抽象） |
-| 采样范围 | `v_path ∈ [−4.0, +4.0] m/s` 约束 LHS；≥10% 序列固定 `v_path=0` 作 S 线对照锚点 | `literature_bound`（煤矿安全规程风速界） |
-| 湍流波动 | v1 版不表示（序列内恒定），在 registry 显式标 `not_represented`，并给出 `−Var(v)/c` 先验上界说明其非阻断 | 登记缺口 |
-| 传播模型 | `t_true,ab = L/(c+v_path)`、`t_true,ba = L/(c−v_path)`；衰减双向同 `α(f)`；束偏移/折射不表示（标注） | `implemented_physics`（落地后） |
-| 时序拓扑 | ping-pong 交替对射：同一 timestep 内 AB、BA 两次独立发射（间隔 ≤2.5 ms，登记 `pair_interval_s`），两条 5 ms 接收窗 | 设计决策 |
-| jitter 相关性 | 基线 `independent`（每次发射独立 jitter）；`shared_trigger` 作为可选情景开关（同步交叉发射的理想化） | 设计决策 + 情景 |
-| 固定延迟 | `τ_ab = τ_ba = 82 μs` 基线 + 可配置不对称 `delay_asymmetry_s`（默认 0，扫描情景 ≤0.2 μs） | `engineering_scenario` |
-| trigger jitter 值 | F0 必须依 DAQ/触发硬件规格重推导：保守情景保留 3 μs，新增 nominal 情景（预期 ≤0.5 μs），双情景全程并行报告 | `literature_bound`（datasheet） |
+| 项                | 契约                                                                                     | 来源类型                           |
+| ---------------- | -------------------------------------------------------------------------------------- | ------------------------------ |
+| 流速表示             | 直接采样 `v_path_m_per_s`（沿声路投影，签名区分方向），序列内恒定                                              | `engineering_scenario`（几何投影抽象） |
+| 采样范围             | `v_path ∈ [−4.0, +4.0] m/s` 约束 LHS；≥10% 序列固定 `v_path=0` 作 S 线对照锚点                      | `literature_bound`（煤矿安全规程风速界）  |
+| 湍流波动             | v1 版不表示（序列内恒定），在 registry 显式标 `not_represented`，并给出 `−Var(v)/c` 先验上界说明其非阻断             | 登记缺口                           |
+| 传播模型             | `t_true,ab = L/(c+v_path)`、`t_true,ba = L/(c−v_path)`；衰减双向同 `α(f)`；束偏移/折射不表示（标注）       | `implemented_physics`（落地后）     |
+| 时序拓扑             | ping-pong 交替对射：同一 timestep 内 AB、BA 两次独立发射（间隔 ≤2.5 ms，登记 `pair_interval_s`），两条 5 ms 接收窗 | 设计决策                           |
+| jitter 相关性       | 基线 `independent`（每次发射独立 jitter）；`shared_trigger` 作为可选情景开关（同步交叉发射的理想化）                  | 设计决策 + 情景                      |
+| 固定延迟             | `τ_ab = τ_ba = 82 μs` 基线 + 可配置不对称 `delay_asymmetry_s`（默认 0，扫描情景 ≤0.2 μs）               | `engineering_scenario`         |
+| trigger jitter 值 | F0 必须依 DAQ/触发硬件规格重推导：保守情景保留 3 μs，新增 nominal 情景（预期 ≤0.5 μs），双情景全程并行报告                   | `literature_bound`（datasheet）  |
 
 明确不表示（registry 中标注，不得伪装为已验证零贡献）：湍流时变、速度剖面非均匀性、束漂移与折射、Doppler 展宽、换能器角度安装误差。
 
@@ -142,25 +142,25 @@ sequences/ultrasonic_sound_speed_m_per_s.npy                 # oracle（介质 c
 
 ### 5. 阶段与验收门
 
-| 阶段 | 内容 | 通过门 | 失败动作 |
-| --- | --- | --- | --- |
-| **F0** 契约与参数重登记 | flow registry、jitter 双情景推导、拓扑/时序/不对称决策、schema 草案评审 | registry 完整且每项有来源类型；jitter nominal 情景有 datasheet 依据 | 缺依据 → `inconclusive_parameter_bounds`，不进 F1 |
-| **F1** 仿真物理与单元测试 | flow 传播、双向波形生成、schema/packaging/manifest | 零噪零 jitter 网格上 ĉ 恢复 ≤0.01 m/s、v̂ ≤0.01 m/s；`v_path=0` 时 AB 帧 TOF 字段与现单向生成器逐点一致；全 pytest 通过 | 修物理，不生成数据 |
-| **F2** smoke benchmark | `tv3-bidir-smoke` 生成 + 校验 + 存储审计 | validation 全过；int16+scale 往返误差与现契约同档；体积符合估计 | 修 packaging |
-| **F3** DSP 估计器与保真 | 帧级 fidelity + 延迟自标定 + 物理量恢复 | 逐方向 peak P95 ≤0.25 sample（train-calibrated 模板）；`|τ̂−τ_true| ≤0.10 μs`；全 flow 网格 ĉ 偏置 ≤0.05 m/s（≈0.2 vol% 等效）；v̂ 偏置 ≤0.05 m/s；reciprocity 残差 P95 ≤0.10 μs | 先修 DSP，不训练模型（停止条件 3 同款） |
-| **F4** 可辨识性 v2 审计 | 观测集 = 双向 TOF（多 L 多帧）+ 登记 T/NDIR/TCS 协方差；flow 转 `implemented_physics`；同门限 P90/nuisance/拒绝率；jitter 双情景并行 | 联合 Fisher 非秩亏；产出各情景窄窗 P90 与主导项排序；与 §Context.2 先验表交叉核对（偏离超量级须解释） | 按 verdict 分流（见 §7），不训练模型 |
-| **F5** 正式数据与模型对照 | `tv3-bidir-6000` + 五臂对照 + S-Flow selector | 见下表 | 记录失败臂，不扩大结构 |
-| **F6** verdict 与回填 | 汇总 F4/F5，更新记忆库/统一路线/导读 | 记忆库结论表新增 F 行并保持 v1 行不变 | — |
+| 阶段                     | 内容                                                                                                     | 通过门                                                                                        | 失败动作                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| **F0** 契约与参数重登记        | flow registry、jitter 双情景推导、拓扑/时序/不对称决策、schema 草案评审                                                     | registry 完整且每项有来源类型；jitter nominal 情景有 datasheet 依据                                        | 缺依据 → `inconclusive_parameter_bounds`，不进 F1 |
+| **F1** 仿真物理与单元测试       | flow 传播、双向波形生成、schema/packaging/manifest                                                               | 零噪零 jitter 网格上 ĉ 恢复 ≤0.01 m/s、v̂ ≤0.01 m/s；`v_path=0` 时 AB 帧 TOF 字段与现单向生成器逐点一致；全 pytest 通过 | 修物理，不生成数据                                   |
+| **F2** smoke benchmark | `tv3-bidir-smoke` 生成 + 校验 + 存储审计                                                                       | validation 全过；int16+scale 往返误差与现契约同档；体积符合估计                                                | 修 packaging                                 |
+| **F3** DSP 估计器与保真      | 帧级 fidelity + 延迟自标定 + 物理量恢复                                                                            | 逐方向 peak P95 ≤0.25 sample（train-calibrated 模板）；`                                           | τ̂−τ_true                                   |
+| **F4** 可辨识性 v2 审计      | 观测集 = 双向 TOF（多 L 多帧）+ 登记 T/NDIR/TCS 协方差；flow 转 `implemented_physics`；同门限 P90/nuisance/拒绝率；jitter 双情景并行 | 联合 Fisher 非秩亏；产出各情景窄窗 P90 与主导项排序；与 §Context.2 先验表交叉核对（偏离超量级须解释）                            | 按 verdict 分流（见 §7），不训练模型                    |
+| **F5** 正式数据与模型对照       | `tv3-bidir-6000` + 五臂对照 + S-Flow selector                                                              | 见下表                                                                                        | 记录失败臂，不扩大结构                                 |
+| **F6** verdict 与回填     | 汇总 F4/F5，更新记忆库/统一路线/导读                                                                                 | 记忆库结论表新增 F 行并保持 v1 行不变                                                                     | —                                           |
 
 **F5 五臂对照**（全部使用冻结 B1 Ridge 与 B7 配方重训，不改超参；S-Flow：train `|v_path|≤2.5`，OOD `|v_path|∈(2.5,4]`；同时报告 S-Y/S-L 与 `v_path=0` 锚点子集）：
 
-| 臂 | 输入 | 回答的问题 |
-| --- | --- | --- |
-| A1 单向 | 仅 AB 方向特征 | flow 污染下单向基线退化多少（相对静止锚点） |
-| A2 单向 + oracle v 校正 | AB + true `v_path`（仅审计臂，不可部署） | 完美流速信息的收益上限 |
-| A3 双向解耦 | pair 物理块（ĉ、v̂、reciprocity）+ 逐方向 compact 栈 | 部署级解耦能否逼近 A2 |
-| A4 双向全特征 | A3 + 全部逐方向统计 | 增量维度是否还有信息 |
-| A5 双向去 flow 列 | A3 移除 v̂ 及其派生 | 增益来自解耦后的 ĉ 还是 v̂ 本身 |
+| 臂                   | 输入                                        | 回答的问题                    |
+| ------------------- | ----------------------------------------- | ------------------------ |
+| A1 单向               | 仅 AB 方向特征                                 | flow 污染下单向基线退化多少（相对静止锚点） |
+| A2 单向 + oracle v 校正 | AB + true `v_path`（仅审计臂，不可部署）             | 完美流速信息的收益上限              |
+| A3 双向解耦             | pair 物理块（ĉ、v̂、reciprocity）+ 逐方向 compact 栈 | 部署级解耦能否逼近 A2             |
+| A4 双向全特征            | A3 + 全部逐方向统计                              | 增量维度是否还有信息               |
+| A5 双向去 flow 列       | A3 移除 v̂ 及其派生                             | 增益来自解耦后的 ĉ 还是 v̂ 本身      |
 
 F5 预注册判据：a) A3 在 S-Flow OOD 上的 O₂ MAE 显著优于 A1（幅度门在 F4 后依误差预算预注册，先验预期 ≥0.5 vol% 级）；b) A3 与 A2 差距 ≤ 预注册残余（解耦充分性）；c) A3 的 `v_path=0` 锚点子集相对 S 线/现有 B1 非劣（Δ ≤0.05）；d) S-Y/S-L 非劣（ΔR² ≥ −0.01）；e) corrected sound speed bias 相对 A1 下降且 reciprocity 可稳定标定（沿用统一路线 0.10 μs 初始目标）。任一增益仅出现在 val 不同步到 test/OOD → 判未通过。
 
@@ -172,16 +172,16 @@ F5 预注册判据：a) A3 在 S-Flow OOD 上的 O₂ MAE 显著优于 A1（幅�
 
 正式 profile 命名为 `bidir_spxy_observed_ab_v1`，summary 写 `x_feature_profile=bidir_spxy_observed_ab_stats_v1`。X 只使用部署可得的 7 slow 通道和 **AB 单向 RawDSP**，保持 selector 对 A1/A3 中立，不能预先利用只有双向臂才有的解耦信息。
 
-| X 块 | 数组 | 统计 | 维数 |
-| --- | --- | --- | ---: |
-| slow | 7 个 `SLOW_CHANNELS` | mean/std/min/max/trend | 35 |
-| AB corrected TOF | `ultrasonic_tof_corrected_ab_raw_dsp_s` | mean/std/trend | 3 |
-| AB peak | `ultrasonic_peak_index_ab_raw_dsp` | mean/std | 2 |
-| AB sound speed proxy | `ultrasonic_sound_speed_ab_raw_dsp_m_per_s` | mean/std | 2 |
-| AB SNR | `ultrasonic_snr_db_ab` | mean/std | 2 |
-| AB PSR | `ultrasonic_psr_ab` | mean/std | 2 |
-| AB quality | `ultrasonic_quality_ab_raw_dsp` | mean/std | 2 |
-| AB accepted | `ultrasonic_accepted_ab_raw_dsp` | mean/std | 2 |
+| X 块                  | 数组                                          | 统计                     | 维数  |
+| -------------------- | ------------------------------------------- | ---------------------- | ---:|
+| slow                 | 7 个 `SLOW_CHANNELS`                         | mean/std/min/max/trend | 35  |
+| AB corrected TOF     | `ultrasonic_tof_corrected_ab_raw_dsp_s`     | mean/std/trend         | 3   |
+| AB peak              | `ultrasonic_peak_index_ab_raw_dsp`          | mean/std               | 2   |
+| AB sound speed proxy | `ultrasonic_sound_speed_ab_raw_dsp_m_per_s` | mean/std               | 2   |
+| AB SNR               | `ultrasonic_snr_db_ab`                      | mean/std               | 2   |
+| AB PSR               | `ultrasonic_psr_ab`                         | mean/std               | 2   |
+| AB quality           | `ultrasonic_quality_ab_raw_dsp`             | mean/std               | 2   |
+| AB accepted          | `ultrasonic_accepted_ab_raw_dsp`            | mean/std               | 2   |
 
 总维数固定为 **50**，逐列 `StandardScaler` 后进入 SPXY 距离。以下字段禁止进入 X：任何 BA 数组、pair ĉ、v̂、reciprocity、`v_path_m_per_s`、true/oracle TOF、true sound speed、true alpha、组分标签及 simulator 内部量。标签只允许作为 SPXY 的标准化 Y 和 `y_margin_ood` selector 输入，不得拼入 X。缺列、非有限值、维数/feature-name digest 漂移直接失败，不回退到 `oracle_v1` 或旧单向 `observed_v1`。
 
@@ -194,10 +194,10 @@ F5 预注册判据：a) A3 在 S-Flow OOD 上的 O₂ MAE 显著优于 A1（幅�
 
 **3. selector 与正式矩阵**
 
-| ID | SPXY | 独立 OOD selector | 作用 |
-| --- | --- | --- | --- |
-| S-Y | `alpha=0.5` + `bidir_spxy_observed_ab_v1` | `y_margin_ood` | 组分边界 OOD |
-| S-L | `alpha=0.5` + `bidir_spxy_observed_ab_v1` | `lhs_boundary` | LHS 几何边界 OOD |
+| ID  | SPXY                                      | 独立 OOD selector | 作用           |
+| --- | ----------------------------------------- | --------------- | ------------ |
+| S-Y | `alpha=0.5` + `bidir_spxy_observed_ab_v1` | `y_margin_ood`  | 组分边界 OOD     |
+| S-L | `alpha=0.5` + `bidir_spxy_observed_ab_v1` | `lhs_boundary`  | LHS 几何边界 OOD |
 
 - split seeds 冻结为 `20260704 / 20260712 / 20260720`；保持 `mixture_id` 分组与 train/val/test/extrapolation=`70/15/10/5`。
 - 正式矩阵为 `2 selectors × 3 split seeds × 5 arms × 2 heads`。每个派生 split 都训练冻结 B1 Ridge 与 B7 residual；不得只跑表现较好的 selector、seed 或臂。
@@ -216,13 +216,13 @@ delta_r2_o2 = R2_O2(A3, same selector/seed/split) - R2_O2(A1, same selector/seed
 
 **5. 实现落点与验证**
 
-| 文件 | 动作 |
-| --- | --- |
-| `tv3/sim/packaging/spxy_split.py` | 注册 `bidir_spxy_observed_ab_v1` 及 50 维字段契约；复用标准化 SPXY 与现有 OOD selector，不复制算法 |
-| `scripts/recompute_tv3_split.py` | 支持 bidir AB bootstrap adapter、`-wide` provenance 和派生目录不链接 feature cache |
-| `scripts/run_tv3_bidir_model_protocol.py` | 新增 F5-S derive/audit/rebuild/train/report 编排；以真实 12 格配对结果替换 `blocked_unimplemented` |
-| `configs/tv3_bidir_model_protocol*.json` | 冻结 profile、selectors、split seeds、目录和 `selector_r2_noninferior_delta=-0.01` |
-| `tests/test_tunnel_ventilation_bidir_secondary_selectors.py` | 覆盖 50 维字段、oracle/BA/pair 拒绝、分组互斥、hash 绑定、split-specific cache 重建、12 格门与退出码 |
+| 文件                                                           | 动作                                                                                  |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `tv3/sim/packaging/spxy_split.py`                            | 注册 `bidir_spxy_observed_ab_v1` 及 50 维字段契约；复用标准化 SPXY 与现有 OOD selector，不复制算法         |
+| `scripts/recompute_tv3_split.py`                             | 支持 bidir AB bootstrap adapter、`-wide` provenance 和派生目录不链接 feature cache             |
+| `scripts/run_tv3_bidir_model_protocol.py`                    | 新增 F5-S derive/audit/rebuild/train/report 编排；以真实 12 格配对结果替换 `blocked_unimplemented` |
+| `configs/tv3_bidir_model_protocol*.json`                     | 冻结 profile、selectors、split seeds、目录和 `selector_r2_noninferior_delta=-0.01`          |
+| `tests/test_tunnel_ventilation_bidir_secondary_selectors.py` | 覆盖 50 维字段、oracle/BA/pair 拒绝、分组互斥、hash 绑定、split-specific cache 重建、12 格门与退出码          |
 
 最小执行顺序：smoke 上完成 profile 与两 selector 派生审计 → 生成正式 6000 benchmark → 构建 source bootstrap → 派生 6 个正式 split → 各 split 重建 bidir cache → 跑完整五臂双头矩阵 → 汇总判据 (d)。任何派生 split 未通过审计时禁止开始该 split 的模型训练。
 
@@ -230,18 +230,18 @@ delta_r2_o2 = R2_O2(A3, same selector/seed/split) - R2_O2(A1, same selector/seed
 
 ### 6. 实施范围
 
-| 文件 | 动作 | 约束 |
-| --- | --- | --- |
-| `tv3/sim/core/tunnel_ventilation_bidir_schema.py` | 新增；复用基 schema 常量，定义双向数组名与 condition 字段 | 不改基 schema |
-| `tv3/sim/generation/tunnel_ventilation/flow_physics.py` | 新增；v_path 采样、双向有效声速、registry 描述 | 常数进 config，不散落 |
-| `tv3/sim/generation/waveforms.py` | 新增 `simulate_bidirectional_waveform_measurement`（组合两次现核心单发射） | 不改现函数语义；现测试不回归 |
-| `tv3/sim/generation/tunnel_ventilation/{conditions,benchmark,slow}.py` | 扩展 bidir 生成路径 | flow 真值只进 condition grid/oracle 数组 |
-| `tv3/sim/packaging/arrays.py` | 新增 `_ab/_ba` 数组写读 | schema 驱动，旧数据不受影响 |
-| `tv3/pipeline/generate_tunnel_ventilation_benchmark.py` | 新增 `--bidirectional` 入口与 manifest 字段 | 默认关闭 |
-| `tv3/ml/bidir_features.py` | 新增 `raw_dsp_bidirectional_v1` 估计器 + builder | train-only 标定，digest 固化 |
-| `tv3/audit/identifiability*.py` | 扩展多观测 Fisher（v2），复用 S2 机制 | v1 代码路径与产物不动 |
-| `scripts/run_tv3_bidir_*.py`、`configs/tv3_bidir_*.json` | 新增各阶段入口 | 输出不可覆盖 |
-| `tests/test_tunnel_ventilation_bidir_*.py` | 新增：解析恢复、零流回归一致、延迟不对称传播、jitter 相关性模式、schema/packaging 往返、估计器门 | 纯小型数值 fixture |
+| 文件                                                                     | 动作                                                           | 约束                                 |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------- |
+| `tv3/sim/core/tunnel_ventilation_bidir_schema.py`                      | 新增；复用基 schema 常量，定义双向数组名与 condition 字段                       | 不改基 schema                         |
+| `tv3/sim/generation/tunnel_ventilation/flow_physics.py`                | 新增；v_path 采样、双向有效声速、registry 描述                              | 常数进 config，不散落                     |
+| `tv3/sim/generation/waveforms.py`                                      | 新增 `simulate_bidirectional_waveform_measurement`（组合两次现核心单发射） | 不改现函数语义；现测试不回归                     |
+| `tv3/sim/generation/tunnel_ventilation/{conditions,benchmark,slow}.py` | 扩展 bidir 生成路径                                                | flow 真值只进 condition grid/oracle 数组 |
+| `tv3/sim/packaging/arrays.py`                                          | 新增 `_ab/_ba` 数组写读                                            | schema 驱动，旧数据不受影响                  |
+| `tv3/pipeline/generate_tunnel_ventilation_benchmark.py`                | 新增 `--bidirectional` 入口与 manifest 字段                         | 默认关闭                               |
+| `tv3/ml/bidir_features.py`                                             | 新增 `raw_dsp_bidirectional_v1` 估计器 + builder                  | train-only 标定，digest 固化            |
+| `tv3/audit/identifiability*.py`                                        | 扩展多观测 Fisher（v2），复用 S2 机制                                    | v1 代码路径与产物不动                       |
+| `scripts/run_tv3_bidir_*.py`、`configs/tv3_bidir_*.json`                | 新增各阶段入口                                                      | 输出不可覆盖                             |
+| `tests/test_tunnel_ventilation_bidir_*.py`                             | 新增：解析恢复、零流回归一致、延迟不对称传播、jitter 相关性模式、schema/packaging 往返、估计器门 | 纯小型数值 fixture                      |
 
 正式产物目录：
 
@@ -256,13 +256,13 @@ outputs/tv3_bidir/
 
 ### 7. verdict 分流（沿用 v1 词表，范围限定"已登记仿真分布内"）
 
-| verdict | 条件 | 后续 |
-| --- | --- | --- |
+| verdict                                     | 条件                                          | 后续                                               |
+| ------------------------------------------- | ------------------------------------------- | ------------------------------------------------ |
 | `continuous_regression_supported`（bidir 范围） | F4 三门通过（至少 nominal jitter 情景）且 F5 判据 a–e 通过 | 进入湿空气/设备 `acoustic_measurement_v2` 与 UQ；仍不外推现场能力 |
-| `coarse_monitoring_only` | flow 解耦成功但窄窗 P90 仍超门（预期主导：T 或保守 jitter） | 组分输出保持分档/趋势；v̂ 流速输出可独立保留价值 |
-| `information_source_upgrade_required` | 解耦后仍有阻断性缺口或全域信息不足 | 维持 v1 判断，升级方向转多频/TDLAS |
-| `inconclusive_parameter_bounds` | F0 依据不足 | 不给继续/停止结论 |
-| `audit_failed` / `estimator_failed` | hash、数值、闭包或 F3 门失败 | 修链路，不训练模型 |
+| `coarse_monitoring_only`                    | flow 解耦成功但窄窗 P90 仍超门（预期主导：T 或保守 jitter）     | 组分输出保持分档/趋势；v̂ 流速输出可独立保留价值                       |
+| `information_source_upgrade_required`       | 解耦后仍有阻断性缺口或全域信息不足                           | 维持 v1 判断，升级方向转多频/TDLAS                           |
+| `inconclusive_parameter_bounds`             | F0 依据不足                                     | 不给继续/停止结论                                        |
+| `audit_failed` / `estimator_failed`         | hash、数值、闭包或 F3 门失败                          | 修链路，不训练模型                                        |
 
 ---
 
@@ -305,34 +305,35 @@ python -m pytest -q tests/test_tunnel_ventilation_bidir_model_protocol.py
 
 ## 备选设计与明确不做（记录取舍，防止重复讨论）
 
-| 备选 | 取舍 | 状态 |
-| --- | --- | --- |
-| 正交双径（横向路径测 c、轴向测 v） | 免解耦数学，但需 4 换能器与新几何契约；对射双向 2 换能器即可达成同等一阶效果 | 不实施，保留记录 |
-| 同步交叉发射（共模 jitter 消除） | Δt 精度大幅提升（v̂ 噪声降约两个量级），但需收发隔离/编码分离，硬件复杂度高 | 以 `shared_trigger` 情景开关保留在 F4 审计中，不进基线契约 |
-| 单窗双脉冲复用（两发射共用一条 5 ms 窗） | 省一半存储，但混合两个接收通道的物理身份，破坏逐方向模板与质量标记 | 不实施 |
-| sing-around / ring-around 高精度 c | 提升 c 分辨率，但改变帧结构契约且不解决 T–M 混叠 | 不实施 |
-| 序列内时变湍流 AR(1) | 更真实，但 v1 版先以恒定流 + `not_represented` 登记；`Var(v)` 先验证明其非阻断 | 后续情景扩展 |
-| 多频色散（CO₂ 弛豫）通道 | 独立信息维度，属于另一条信息源升级线 | 独立立项，不混入 F 线 |
+| 备选                              | 取舍                                                       | 状态                                       |
+| ------------------------------- | -------------------------------------------------------- | ---------------------------------------- |
+| 正交双径（横向路径测 c、轴向测 v）             | 免解耦数学，但需 4 换能器与新几何契约；对射双向 2 换能器即可达成同等一阶效果                | 不实施，保留记录                                 |
+| 同步交叉发射（共模 jitter 消除）            | Δt 精度大幅提升（v̂ 噪声降约两个量级），但需收发隔离/编码分离，硬件复杂度高                | 以 `shared_trigger` 情景开关保留在 F4 审计中，不进基线契约 |
+| 单窗双脉冲复用（两发射共用一条 5 ms 窗）         | 省一半存储，但混合两个接收通道的物理身份，破坏逐方向模板与质量标记                        | 不实施                                      |
+| sing-around / ring-around 高精度 c | 提升 c 分辨率，但改变帧结构契约且不解决 T–M 混叠                             | 不实施                                      |
+| 序列内时变湍流 AR(1)                   | 更真实，但 v1 版先以恒定流 + `not_represented` 登记；`Var(v)` 先验证明其非阻断 | 后续情景扩展                                   |
+| 多频色散（CO₂ 弛豫）通道                  | 独立信息维度，属于另一条信息源升级线                                       | 独立立项，不混入 F 线                             |
 
 ---
 
 ## 实施记录
 
-| 日期 | 阶段 | verdict | 产物 |
-| --- | --- | --- | --- |
-| 2026-07-21 | F0 | `f0_registry_frozen` | `configs/tv3_bidir/parameter_registry.json`（冻结 sha256 `dc61d9e7…`）；进度外置于 `stage_status.json`；oracle 含 `ultrasonic_alpha_true_npm`；`outputs/tv3_bidir/f0_registry/` 标注 supersedes 旧哈希 `67752835…`；测试 `tests/test_tunnel_ventilation_bidir_f0.py` |
-| 2026-07-21 | F1 | `f1_physics_passed` | `flow_physics.py`；`simulate_bidirectional_waveform_measurement`；`slow.build_sequence_arrays(bidirectional=True)`；`write_bidirectional_arrays`；`tests/test_tunnel_ventilation_bidir_physics.py` |
-| 2026-07-21 | F2 | `f2_smoke_passed` | `data/tv3-bidir-smoke`（16×32，AB/BA int16 + alpha oracle）；F2 审计校验 registry sha256 ≡ F0；`int16_storage_self_consistency`；体积 ~9.9 MB；零锚点 12.5% |
-| 2026-07-21 | pre-F3 | provenance 修复 | registry 去可变状态；`sample_v_path` 改为 1D LHS；alpha 落盘；`MAX_PAIR_INTERVAL_S`；workers=2 小规模验证通过 |
-| 2026-07-21 | F3 | `f3_dsp_passed` | `raw_dsp_bidirectional_v1`；`data/tv3-bidir-f3`（零 jitter）；`outputs/tv3_bidir/dsp_fidelity/`；peak P95 AB/BA 0.087/0.046；τ̂ 误差 45 ns；steady 网格 ĉ 偏置 0.004 m/s、v̂ 偏置 −0.011 m/s；reciprocity P95 91 ns；测试 `tests/test_tunnel_ventilation_bidir_dsp.py` |
-| 2026-07-21 | F4 | `coarse_monitoring_only`（stage pass） | `outputs/tv3_bidir/identifiability_v2/`；flow=`implemented_physics`，拒绝率 0；joint rank≥2（+T 时 3）；窄窗 P90 max：nominal 4.37 / conservative 9.58 vol% O₂；主导项：nominal=T(1K)，conservative=jitter(3μs)；先验交叉核对通过；F5 幅度门已预注册；v1 目录未改写 |
-| 2026-07-21 | F5 code | `code_ready_awaiting_server_formal_6000` | preset `bidir-formal-6000`；`tv3/ml/bidir_s_flow.py`；`build_tv3_bidir_features.py`；`bidir_arm_features.py`（A1–A5）；`scripts/run_tv3_bidir_model_protocol.py`；`configs/tv3_bidir_model_protocol.json`；测试 `tests/test_tunnel_ventilation_bidir_model_protocol.py`；正式 6000 训练待服务器 |
-| 2026-07-22 | wide 域立项 | `scope_confirmed_a1_flow_only_b1_parallel` | 组分宽域 CO₂ 0.03–10%/O₂ 15–25% 独立注册域；A1 仅 F 线 + B1 并行留档已确认；改动契约 `docs/active/tv3_composition_range_widening_plan.md`；窄域 F0–F5 冻结不动 |
-| 2026-07-22 | F0'-wide / F1-wide | `f0_wide_registry_frozen` + `f1_wide_physics_passed` | `WIDE_COMPOSITION_RANGES`；spec/`--composition-domain` 线穿；`parameter_registry_wide.json`（独立 sha256，窄域 dc61d9e7… 未动）；`tests/test_tunnel_ventilation_wide_composition.py` |
-| 2026-07-22 | F2-wide | `f2_wide_smoke_passed` | `data/tv3-bidir-smoke-wide`（16×32）；`outputs/tv3_bidir/f0_registry_wide/` + `benchmark_audit_wide/`；int16 自洽；零锚点 12.5%；CO₂ max≈9.87 / O₂∈[15.47,24.86]；窄域 `stage_status.f2`/`allowed_next_stage` 未改写 |
-| 2026-07-22 | F3-wide | `f3_wide_dsp_passed` | `data/tv3-bidir-f3-wide`（32×32，零 jitter）；`outputs/tv3_bidir/dsp_fidelity_wide/`；peak P95 AB/BA≈0.087/0.046；stress(CO₂≥8%,L≥0.28) 30 帧 max≈0.090/0.047；τ≈53 ns；ĉ bias 0.008、v̂ bias −0.010；reciprocity P95 97 ns；窄域 `dsp_fidelity/` 未改写 |
-| 2026-07-22 | F4-wide | `coarse_monitoring_only`（stage pass） | `outputs/tv3_bidir/identifiability_v2_wide/`；六窗危害锚定；拒绝率 0；窄窗 P90 max 名义≈4.50 / 保守≈9.74 vol% O₂；先验交叉核对通过；F5-wide 幅度门已预注册（判据 c=`in_domain_a1_v_path_zero`）；窄域 F4/`identifiability_v2/` 与 v1 未改写 |
-| 2026-07-22 | F5-S code | `f5s_code_ready_awaiting_formal_matrix` | `bidir_spxy_observed_ab_v1`（50 维 AB-only）；`recompute_tv3_split` bidir adapter；`tv3/ml/bidir_f5_secondary.py`；协议 `derive_secondary_selectors=true` + 12 格判据 (d)；窄/宽 `configs/tv3_bidir_model_protocol*.json`；测试 `tests/test_tunnel_ventilation_bidir_secondary_selectors.py`；下一步 smoke 端到端 → 服务器 6000 矩阵 |
+| 日期         | 阶段                 | verdict                                              | 产物                                                                                                                                                                                                                                                                                                      |
+| ---------- | ------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-07-21 | F0                 | `f0_registry_frozen`                                 | `configs/tv3_bidir/parameter_registry.json`（冻结 sha256 `dc61d9e7…`）；进度外置于 `stage_status.json`；oracle 含 `ultrasonic_alpha_true_npm`；`outputs/tv3_bidir/f0_registry/` 标注 supersedes 旧哈希 `67752835…`；测试 `tests/test_tunnel_ventilation_bidir_f0.py`                                                         |
+| 2026-07-21 | F1                 | `f1_physics_passed`                                  | `flow_physics.py`；`simulate_bidirectional_waveform_measurement`；`slow.build_sequence_arrays(bidirectional=True)`；`write_bidirectional_arrays`；`tests/test_tunnel_ventilation_bidir_physics.py`                                                                                                          |
+| 2026-07-21 | F2                 | `f2_smoke_passed`                                    | `data/tv3-bidir-smoke`（16×32，AB/BA int16 + alpha oracle）；F2 审计校验 registry sha256 ≡ F0；`int16_storage_self_consistency`；体积 ~9.9 MB；零锚点 12.5%                                                                                                                                                             |
+| 2026-07-21 | pre-F3             | provenance 修复                                        | registry 去可变状态；`sample_v_path` 改为 1D LHS；alpha 落盘；`MAX_PAIR_INTERVAL_S`；workers=2 小规模验证通过                                                                                                                                                                                                               |
+| 2026-07-21 | F3                 | `f3_dsp_passed`                                      | `raw_dsp_bidirectional_v1`；`data/tv3-bidir-f3`（零 jitter）；`outputs/tv3_bidir/dsp_fidelity/`；peak P95 AB/BA 0.087/0.046；τ̂ 误差 45 ns；steady 网格 ĉ 偏置 0.004 m/s、v̂ 偏置 −0.011 m/s；reciprocity P95 91 ns；测试 `tests/test_tunnel_ventilation_bidir_dsp.py`                                                       |
+| 2026-07-21 | F4                 | `coarse_monitoring_only`（stage pass）                 | `outputs/tv3_bidir/identifiability_v2/`；flow=`implemented_physics`，拒绝率 0；joint rank≥2（+T 时 3）；窄窗 P90 max：nominal 4.37 / conservative 9.58 vol% O₂；主导项：nominal=T(1K)，conservative=jitter(3μs)；先验交叉核对通过；F5 幅度门已预注册；v1 目录未改写                                                                               |
+| 2026-07-21 | F5 code            | `code_ready_awaiting_server_formal_6000`             | preset `bidir-formal-6000`；`tv3/ml/bidir_s_flow.py`；`build_tv3_bidir_features.py`；`bidir_arm_features.py`（A1–A5）；`scripts/run_tv3_bidir_model_protocol.py`；`configs/tv3_bidir_model_protocol.json`；测试 `tests/test_tunnel_ventilation_bidir_model_protocol.py`；正式 6000 训练待服务器                            |
+| 2026-07-22 | wide 域立项           | `scope_confirmed_a1_flow_only_b1_parallel`           | 组分宽域 CO₂ 0.03–10%/O₂ 15–25% 独立注册域；A1 仅 F 线 + B1 并行留档已确认；改动契约 `docs/active/tv3_composition_range_widening_plan.md`；窄域 F0–F5 冻结不动                                                                                                                                                                         |
+| 2026-07-22 | F0'-wide / F1-wide | `f0_wide_registry_frozen` + `f1_wide_physics_passed` | `WIDE_COMPOSITION_RANGES`；spec/`--composition-domain` 线穿；`parameter_registry_wide.json`（独立 sha256，窄域 dc61d9e7… 未动）；`tests/test_tunnel_ventilation_wide_composition.py`                                                                                                                                  |
+| 2026-07-22 | F2-wide            | `f2_wide_smoke_passed`                               | `data/tv3-bidir-smoke-wide`（16×32）；`outputs/tv3_bidir/f0_registry_wide/` + `benchmark_audit_wide/`；int16 自洽；零锚点 12.5%；CO₂ max≈9.87 / O₂∈[15.47,24.86]；窄域 `stage_status.f2`/`allowed_next_stage` 未改写                                                                                                     |
+| 2026-07-22 | F3-wide            | `f3_wide_dsp_passed`                                 | `data/tv3-bidir-f3-wide`（32×32，零 jitter）；`outputs/tv3_bidir/dsp_fidelity_wide/`；peak P95 AB/BA≈0.087/0.046；stress(CO₂≥8%,L≥0.28) 30 帧 max≈0.090/0.047；τ≈53 ns；ĉ bias 0.008、v̂ bias −0.010；reciprocity P95 97 ns；窄域 `dsp_fidelity/` 未改写                                                                  |
+| 2026-07-22 | F4-wide            | `coarse_monitoring_only`（stage pass）                 | `outputs/tv3_bidir/identifiability_v2_wide/`；六窗危害锚定；拒绝率 0；窄窗 P90 max 名义≈4.50 / 保守≈9.74 vol% O₂；先验交叉核对通过；F5-wide 幅度门已预注册（判据 c=`in_domain_a1_v_path_zero`）；窄域 F4/`identifiability_v2/` 与 v1 未改写                                                                                                           |
+| 2026-07-22 | F5-S code          | `f5s_code_ready_awaiting_formal_matrix`              | `bidir_spxy_observed_ab_v1`（50 维 AB-only）；`recompute_tv3_split` bidir adapter；`tv3/ml/bidir_f5_secondary.py`；协议 `derive_secondary_selectors=true` + 12 格判据 (d)；窄/宽 `configs/tv3_bidir_model_protocol*.json`；测试 `tests/test_tunnel_ventilation_bidir_secondary_selectors.py`；下一步 smoke 端到端 → 服务器 6000 矩阵 |
+| 2026-07-23 | F5 判据 c 锁定       | `s_line_b1_reference_locked`                         | 窄域 `tv3_bidir_model_protocol.json`：`s_line_b1_reference_o2_mae=0.5423065249125163`（冻结 B1 `outputs/tv3_d2b/raw_dsp_ridge_provenance/metrics.json` test O₂ MAE）；`map_f5_verdict` 统一 train/report 分流；正式矩阵可启动                                                                                                                              |
 
 F0 要点：
 

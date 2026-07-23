@@ -31,7 +31,7 @@
     "a3_minus_a1_o2_mae_min_vol_percent": 0.5,
     "a3_minus_a2_o2_mae_max_vol_percent": 0.25,
     "v_path_zero_anchor_delta_mae_max_vol_percent": 0.05,
-    "s_line_b1_reference_o2_mae": null,
+    "s_line_b1_reference_o2_mae": 0.5423065249125163,
     "selector_r2_noninferior_delta": -0.01,
     "reciprocity_p95_max_s": 1.0e-7
   },
@@ -39,7 +39,7 @@
     "Frozen B1 RidgeCV alpha grid and B7 OOF residual MLP hyperparams; do not retune for bidir.",
     "Primary selector is S-Flow (|v|≤2.5 train / (2.5,4] pure OOD by mixture median).",
     "A2 is audit-only (oracle v_path). Deploy conclusions use A3.",
-    "Set f5_amplitude_gates.s_line_b1_reference_o2_mae from locked S-line / frozen B1 before formal train.",
+    "s_line_b1_reference_o2_mae locked from frozen B1 test O2 MAE: outputs/tv3_d2b/raw_dsp_ridge_provenance/metrics.json evaluations.test.component_metrics.x_O2.mae (=0.5423065249125163).",
     "F5-S criterion d: 2 selectors × 3 seeds × test/extrapolation A3−A1 O₂ ΔR² ≥ −0.01 on b1_ridge.",
     "incomplete → exit 2; matrix complete but gate fail → exit 1; a–e all pass → exit 0."
   ]
