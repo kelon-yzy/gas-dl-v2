@@ -77,15 +77,26 @@ def cleanup_parallel_temp_arrays(arrays: dict[str, object], array_keys: ArrayKey
     temp_dir_value = arrays.pop("_temp_dir_to_cleanup", None)
     if temp_dir_value is None:
         return
-    # 关闭 merged memmap（防止 Windows 下文件占用）
+    # 关闭仍存活的 merged memmap（rename 发布后对应 key 可能已是 None）
     for key in array_keys:
         array = arrays.get(key)
+        if array is None:
+            continue
         mmap = getattr(array, "_mmap", None)
-        if mmap is not None:
+        if mmap is None:
+            continue
+        try:
             mmap.close()
+        except Exception:
+            pass
+        try:
+            array._mmap = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        arrays[key] = None
     temp_dir = Path(str(temp_dir_value))
     if temp_dir.exists():
-        shutil.rmtree(temp_dir)
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def _condition_chunks(

@@ -26,11 +26,23 @@ def _memmap_source_path(array: object) -> Path | None:
 
 
 def _close_array_mmap(array: object) -> None:
+    """Close and detach a memmap handle. Safe to call repeatedly."""
+    if array is None:
+        return
     mmap = getattr(array, "_mmap", None)
-    if mmap is not None:
+    if mmap is None:
+        return
+    try:
+        mmap.close()
+    except Exception:
+        # Closed, already unmapped, or file renamed away — never SIGSEGV the process.
+        pass
+    try:
+        object.__setattr__(array, "_mmap", None)
+    except Exception:
         try:
-            mmap.close()
-        except ValueError:
+            array._mmap = None  # type: ignore[attr-defined]
+        except Exception:
             pass
 
 
@@ -41,14 +53,15 @@ def _disk_free_bytes(path: Path) -> int:
 
 
 def _array_nbytes(array: object) -> int:
+    """Byte size from dtype/shape only — never materialize or touch file pages."""
+    shape = getattr(array, "shape", None)
+    dtype = getattr(array, "dtype", None)
+    if shape is None or dtype is None:
+        return 0
     try:
-        return int(np.asarray(array).nbytes)
+        return int(np.prod(shape, dtype=np.int64) * np.dtype(dtype).itemsize)
     except Exception:
-        shape = getattr(array, "shape", None)
-        dtype = getattr(array, "dtype", None)
-        if shape is None or dtype is None:
-            return 0
-        return int(np.prod(shape) * np.dtype(dtype).itemsize)
+        return 0
 
 
 def write_arrays(output_dir: Path, arrays: dict[str, object], labels: np.ndarray, sequence_ids: list[str], slow_channel_names: tuple[str, ...], label_names: tuple[str, ...], storage: str, *, ultrasonic_dtype: str = "int16", fiber_dtype: str = "int16") -> dict[str, list[int]]:
@@ -200,6 +213,24 @@ def write_arrays(output_dir: Path, arrays: dict[str, object], labels: np.ndarray
             npz_payload["fiber_mic_scale"] = fiber_mic_scale
         np.savez_compressed(sequences_dir / "waveform_sequence.npz", **npz_payload)
 
+    # Drop memmap handles after publish (rename path leaves stale mappings otherwise).
+    for key in (
+        "slow",
+        "ultrasonic",
+        "ultrasonic_scale",
+        "ultrasonic_tof_s",
+        "ultrasonic_tof_observed_s",
+        "ultrasonic_peak_index",
+        "ultrasonic_sound_speed_m_per_s",
+        "ultrasonic_sound_speed_estimated_m_per_s",
+        "ultrasonic_alpha_true_npm",
+        "ultrasonic_tof_quality",
+        "ultrasonic_tof_accepted",
+        "fiber_mic",
+        "fiber_mic_scale",
+    ):
+        if key in arrays:
+            arrays[key] = None
     return shapes
 
 
@@ -301,6 +332,13 @@ def write_bidirectional_arrays(
     np.save(metadata_dir / "sequence_ids.npy", np.array(sequence_ids))
     np.save(metadata_dir / "slow_channel_names.npy", np.array(slow_channel_names))
     np.save(metadata_dir / "label_names.npy", np.array(label_names))
+    # Drop relocated memmap objects so post-write cleanup cannot close renamed files.
+    for key in ("slow", *required):
+        arrays[key] = None
+    if fiber_mic is not None:
+        arrays["fiber_mic"] = None
+        arrays["fiber_mic_scale"] = None
+    print("[tv3-gen] array publish done", flush=True)
     return shapes
 
 
@@ -321,6 +359,8 @@ def _write_npy(path: Path, array, *, use_memmap: bool, relocate: bool = False) -
             path.parent.mkdir(parents=True, exist_ok=True)
             try:
                 os.replace(src_path, path)
+                # Detach so later cleanup must not close a renamed-away mapping.
+                _close_array_mmap(array)
                 if nbytes >= (1 << 30):
                     print(
                         f"[tv3-gen] published via rename "

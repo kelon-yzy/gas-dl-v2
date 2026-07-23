@@ -362,13 +362,14 @@ def generate_tunnel_ventilation_benchmark_dataset(
         )
         write_json(staging_dir / "manifest.json", manifest)
         write_json(staging_dir / "quality" / "validation_summary.json", validation_summary)
+        _log("closing memmaps / cleaning temp ...")
         # 关闭大波形数组的 memmap 句柄：数据已写入 staging_dir/sequences/，
         # 必须释放句柄才能安全清理临时目录（Windows 要求无打开句柄才能删除）
         _close_waveform_memmap(arrays)
         _cleanup_parallel_temp_arrays(arrays, array_keys)
         # 串行路径的 .waveform_temp 目录也需要清理，避免随 staging 迁入最终输出
         _cleanup_serial_waveform_temp(staging_dir)
-        _log("writing metadata / CSVs / scalers ...")
+        _log("publishing staging -> output ...")
         _publish_staging_dir(staging_dir, output_dir)
     except Exception:
         if staging_dir.exists():
@@ -648,19 +649,25 @@ def _cleanup_parallel_temp_arrays(arrays: dict[str, object], array_keys: tuple[s
 def _close_waveform_memmap(arrays: dict[str, object]) -> None:
     """关闭大波形数组的 memmap 句柄。
 
-    在 write_arrays 发布到最终目录后调用。若 storage=memmap 已对临时
-    merged_*.npy 做 rename/replace，句柄可能已关闭；重复 close 仍安全。
+    rename 发布后对应条目可能已是 None，或 _mmap 已 detach；必须容忍，避免段错误。
     """
     for key in ("ultrasonic", "ultrasonic_ab", "ultrasonic_ba", "fiber_mic"):
         arr = arrays.get(key)
-        if arr is not None:
-            mmap = getattr(arr, "_mmap", None)
-            if mmap is not None:
-                try:
-                    mmap.close()
-                except ValueError:
-                    # Already closed after relocate publish.
-                    pass
+        if arr is None:
+            continue
+        mmap = getattr(arr, "_mmap", None)
+        if mmap is None:
+            arrays[key] = None
+            continue
+        try:
+            mmap.close()
+        except Exception:
+            pass
+        try:
+            arr._mmap = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        arrays[key] = None
 
 
 def _cleanup_serial_waveform_temp(staging_dir: Path) -> None:
