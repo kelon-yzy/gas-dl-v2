@@ -1,8 +1,8 @@
 """SPXY + OOD 数据集划分（tv3 场景）。
 
-实施依据：tunnel_ventilation/docs/active/spxy_split_implementation_plan.md。
+实施依据：tunnel_ventilation/docs/archive/completed/spxy_split_implementation_plan.md。
 B7 正式 OOD 协议的 observed-only X profile 依据：
-tunnel_ventilation/docs/active/b7_repeated_split_ood_protocol_implementation_plan.md。
+tunnel_ventilation/docs/archive/completed/b7_repeated_split_ood_protocol_implementation_plan.md。
 
 不变量（文档 §2.4）：
 1. SPXY 只在 ID pool 内选择 train，不参与 extrapolation 选择。

@@ -33,7 +33,7 @@
 > - **narrow（默认 / 单向）**：CO₂ 0.03–5%，O₂ 18–21.2%，覆盖新鲜空气到局部积聚与正常到低氧下限。
 > - **wide（仅 F 线，`--composition-domain wide`）**：CO₂ 0.03–10%，O₂ 15–25%，覆盖 OSHA 缺氧线 <19.5% / 富氧火险线 >23.5% 与超 IDLH 积聚包络；独立 `-wide` 产物，不覆盖窄域冻结集。
 >
-> 上述区间用于模型训练覆盖，不直接作为现场报警阈值。正式报警阈值需依据目标场景的安全规程单独确认。详见 `docs/active/tv3_composition_range_widening_plan.md`。
+> 上述区间用于模型训练覆盖，不直接作为现场报警阈值。正式报警阈值需依据目标场景的安全规程单独确认。详见 `docs/archive/completed/tv3_composition_range_widening_plan.md`。
 
 ## 2. 现有检测技术
 

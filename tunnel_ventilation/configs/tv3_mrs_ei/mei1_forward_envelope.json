@@ -1,0 +1,110 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-ei-1",
+  "stage": "MEI-1",
+  "claim_scope": "registered_simulation_domain_only",
+  "mei0_prerequisite": {
+    "stage_status": "configs/tv3_mrs_ei/stage_status.json",
+    "expected_verdict": "mei0_registry_frozen"
+  },
+  "arm": "obs-cfreq",
+  "point_sampling": {
+    "mode": "full_narrow_grid",
+    "stride": 1,
+    "notes": "正式前向包络门使用完整 216 窄窗点；holdout 若未覆盖则并入"
+  },
+  "design_enumeration": {
+    "k": 4,
+    "pool_from": "frequency_band.candidate_pool_hz",
+    "include_baseline_k4": true,
+    "rank_metric": "max_p90_o2_percent",
+    "secondary_metric": "median_p90_o2_percent",
+    "rank_tie_rule": "delta_num_relative_equivalence"
+  },
+  "families": [
+    {"id": "F0_mrs1_baseline", "kind": "baseline"},
+    {
+      "id": "F1_humid_air_c_eq_upper",
+      "kind": "parameter_envelope",
+      "registry_family": "F1_humid_air_c_eq",
+      "c_eq_relative_correction": 0.01
+    },
+    {
+      "id": "F3_coupled_proxy",
+      "kind": "structural_proxy",
+      "registry_family": "F3_coupled_relaxation",
+      "o2_n2_cross_mix": 0.05,
+      "notes": "诊断代理，不能清除 registry not_represented"
+    },
+    {
+      "id": "F4_diffraction_proxy",
+      "kind": "structural_proxy",
+      "registry_family": "F4_diffraction_near_field",
+      "diffraction_amp": 0.002,
+      "frequency_floor_hz": 15000.0,
+      "notes": "诊断代理，不能清除 registry not_represented"
+    },
+    {
+      "id": "F5_transducer_proxy",
+      "kind": "structural_proxy",
+      "registry_family": "F5_transducer_response",
+      "alpha_ripple_amp": 0.05,
+      "notes": "仅影响 alpha；obs-cfreq(TOF) 上预期 inert；不能清除 not_represented"
+    },
+    {
+      "id": "S_parallel",
+      "kind": "synthetic_bias",
+      "direction": "parallel",
+      "relative_observation_rms": 0.002,
+      "orthogonal_seed_amp": 0.002,
+      "frequency_floor_hz": 15000.0,
+      "notes": "对目标 O2 Jacobian 做平行观测偏差，再映射到 c_f"
+    },
+    {
+      "id": "S_orthogonal",
+      "kind": "synthetic_bias",
+      "direction": "orthogonal",
+      "relative_observation_rms": 0.002,
+      "orthogonal_seed_amp": 0.002,
+      "frequency_floor_hz": 15000.0,
+      "notes": "衍射种子经 Jacobian 正交化后映射到 c_f"
+    },
+    {
+      "id": "S_mixed",
+      "kind": "synthetic_bias",
+      "direction": "mixed",
+      "relative_observation_rms": 0.002,
+      "orthogonal_seed_amp": 0.002,
+      "frequency_floor_hz": 15000.0,
+      "notes": "平行与正交单位方向等权混合"
+    }
+  ],
+  "stability_gates": {
+    "delta_num_source": "mei0.delta_num",
+    "max_principal_angle_deg": 15.0,
+    "principal_angle_gate_stat": "max_deg",
+    "principal_angle_quantiles": [0.5, 0.9, 0.95],
+    "min_spearman_vs_f0": 0.95,
+    "top1_must_match_f0": true,
+    "bottleneck_flip_fraction_max": 0.25,
+    "require_ranking_resolvable_within_delta_num": true,
+    "unrepresented_blocks_supported": true,
+    "inert_family_ids": ["F5_transducer_proxy"],
+    "notes": "inert 只跳过 flip 门；not_represented 与不可分辨排名一律阻止 supported；S_* 不得清除未表征项"
+  },
+  "comsol_holdout": {
+    "family_id": "F6_comsol_local_acoustics_holdout",
+    "search_globs": [
+      "outputs/runs/tv3_comsol_multiphysics/**/*mrs*",
+      "outputs/tv3_comsol/**/*local*acoustic*"
+    ],
+    "action_if_missing": "skip_with_status_unavailable"
+  },
+  "explicit_non_goals": [
+    "no_train_free_residual_network",
+    "no_formal_waveform_generation",
+    "no_auto_resume_comsol_g2_plus",
+    "no_mei2_design_optimization",
+    "no_clear_not_represented_via_proxy_or_commentary"
+  ],
+  "source": "engineering_scenario"
+}

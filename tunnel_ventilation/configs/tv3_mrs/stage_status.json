@@ -1,0 +1,34 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-1",
+  "notes": "阶段进度与 MRS-0 parameter_registry.json 分离；本文件不参与 registry sha256 冻结。registry 变更后必须重跑 MRS-0 审计并回填 registry_sha256。",
+  "registry_file": "parameter_registry.json",
+  "allowed_next_stage": "MRS_line_closed",
+  "mrs0": {
+    "verdict": "mrs0_registry_frozen",
+    "registry_sha256": "cb5f697597dddb05b580f4d954a797ec9e2891cd1501530397901d32eb051422",
+    "verdict_path": "outputs/tv3_mrs/mrs0_registry/mrs0_verdict.json",
+    "passed_at": "2026-07-24"
+  },
+  "mrs1": {
+    "verdict": "mrs1_physics_passed",
+    "passed_at": "2026-07-24",
+    "tests": "tests/test_tunnel_ventilation_mrs_physics.py",
+    "verdict_path": "outputs/tv3_mrs/mrs1_physics/mrs1_verdict.json",
+    "module": "tv3/sim/generation/tunnel_ventilation/relaxation_spectrum.py"
+  },
+  "mrs2": {
+    "verdict": "mrs2_rank_upgraded_p90_fail",
+    "passed_at": "2026-07-24",
+    "verdict_path": "outputs/tv3_mrs/identifiability_mrs2/mrs2_verdict.json",
+    "allow_mrs3": false,
+    "require_mrs6": true,
+    "quick": false
+  },
+  "mrs6": {
+    "verdict": "mrs6_hardware_requirements_delivered",
+    "delivered_at": "2026-07-25",
+    "verdict_path": "outputs/tv3_mrs/mrs6_hardware/mrs6_verdict.json",
+    "spec_doc": "docs/active/tv3_mrs6_hardware_requirements.md",
+    "quick": false
+  }
+}

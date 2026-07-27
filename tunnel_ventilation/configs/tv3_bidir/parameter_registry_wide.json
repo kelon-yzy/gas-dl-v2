@@ -37,7 +37,7 @@
         "unit": "vol%",
         "source": "engineering_scenario",
         "notes": "新鲜空气 ~0.04% 到超 IDLH(4%) 严重积聚包络上限 10%。",
-        "ref": "docs/active/tv3_composition_range_widening_plan.md §1.2"
+        "ref": "docs/archive/completed/tv3_composition_range_widening_plan.md §1.2"
       },
       "x_O2": {
         "min": 15.0,
@@ -45,7 +45,7 @@
         "unit": "vol%",
         "source": "literature_bound",
         "notes": "覆盖 OSHA 1910.146 缺氧线 <19.5% 与富氧火险线 >23.5%；15%/25% 为显著缺氧/富氧包络。",
-        "ref": "OSHA 1910.146; docs/active/tv3_composition_range_widening_plan.md §1.2"
+        "ref": "OSHA 1910.146; docs/archive/completed/tv3_composition_range_widening_plan.md §1.2"
       },
       "x_N2": {
         "min": 65.0,
@@ -53,7 +53,7 @@
         "unit": "vol%",
         "source": "implemented_physics",
         "notes": "残差推导：min=100-10-25=65；max=100-0.03-15=84.97。无需联合约束修正。",
-        "ref": "docs/active/tv3_composition_range_widening_plan.md §1.1"
+        "ref": "docs/archive/completed/tv3_composition_range_widening_plan.md §1.1"
       },
       "domain_tag": "wide_hazard_v1",
       "parallel_to_narrow": true,

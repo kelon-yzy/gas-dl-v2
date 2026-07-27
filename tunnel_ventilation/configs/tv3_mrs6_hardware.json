@@ -1,0 +1,42 @@
+{
+  "schema_version": "tv3-mrs6-hardware-1",
+  "stage": "MRS-6",
+  "claim_scope": "registered_simulation_domain_only",
+  "output_dir": "outputs/tv3_mrs/mrs6_hardware",
+  "mrs2_config": "configs/tv3_mrs_identifiability.json",
+  "mrs0_registry": {
+    "path": "configs/tv3_mrs/parameter_registry.json",
+    "expected_sha256": "cb5f697597dddb05b580f4d954a797ec9e2891cd1501530397901d32eb051422"
+  },
+  "mrs2_prerequisite": {
+    "stage_status": "configs/tv3_mrs/stage_status.json",
+    "expected_verdict": "mrs2_rank_upgraded_p90_fail"
+  },
+  "spec_targets": {
+    "target_p90_o2_error_percent": 0.4,
+    "max_nuisance_fraction_of_signal": 0.5,
+    "statistic": "max",
+    "notes": "v1 冻结门数值复用为规格目标；本阶段不产生 pass/fail verdict，MRS-2 verdict 不变。"
+  },
+  "arms": ["obs-cfreq", "obs-calpha", "obs-rh-diff", "obs-p-scan"],
+  "jitter_scan_us": [3.0, 1.0, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01],
+  "t_prior_scan_k": [1.0, 0.5, 0.2, 0.1],
+  "amp_scan_rel": [0.02, 0.01, 0.005],
+  "amp_scan_arm": "obs-calpha",
+  "k_subset_arm": "obs-cfreq",
+  "floor_diagnosis": {
+    "arm": "obs-p-scan",
+    "jitter_std_us": 0.01,
+    "t_prior_k": 0.1,
+    "variants": [
+      {"id": "floor_base", "prior_overrides": {}, "relative_amp_std": 0.02},
+      {"id": "rh_prior_0p1", "prior_overrides": {"h_rh": 0.1}, "relative_amp_std": 0.02},
+      {"id": "co2_prior_0p01", "prior_overrides": {"co2_percent": 0.01}, "relative_amp_std": 0.02},
+      {"id": "L_prior_10um", "prior_overrides": {"path_length_m": 1e-5}, "relative_amp_std": 0.02},
+      {"id": "amp_0p1pct", "prior_overrides": {}, "relative_amp_std": 0.001},
+      {"id": "full_stack", "prior_overrides": {"h_rh": 0.1, "co2_percent": 0.01, "path_length_m": 1e-5}, "relative_amp_std": 0.001}
+    ],
+    "notes": "在 jitter=10 ns、T 先验=0.1 K 处逐项收紧其余先验，定位 P90≈1 vol% 饱和层的约束项；full_stack 给出最小可行硬件栈候选。"
+  },
+  "notes": "MRS-6 噪声预算灵敏度扫描（说明书 §6.1 附录条款）。Jacobian 与噪声无关：每臂每点预计算一次，预算组合仅做 5x5 Fisher 复评。不重跑 MRS-2、不改门、不生成波形。"
+}

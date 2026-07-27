@@ -12,7 +12,7 @@
 - **RQ2**：在约 4200 个训练序列和现有 raw waveform + slow 输入下，哪种端到端 DL 路线最可能恢复 B1/B7 已利用的信息？
 - **RQ3**：怎样用分阶段消融证明改善来自正确机制，而不是数据泄漏、shortcut、随机种子或放宽门限？
 
-项目正式证据来自[算法方向复核](deep_research_algorithm_ideas_20260717.md)、[项目记忆库](../掘进通风项目记忆库.md)、[EC-MSW 实施计划](../active/tv3_ec_msw_gatednet_implementation_plan.md)和[端到端框架证据稿](../references/端到端波形动态门控组分反演框架与文献证据.md)。截至 2026-07-17，证据链如下：
+项目正式证据来自[算法方向复核](deep_research_algorithm_ideas_20260717.md)、[项目记忆库](../掘进通风项目记忆库.md)、[EC-MSW 实施计划](../archive/completed/tv3_ec_msw_gatednet_implementation_plan.md)和[端到端框架证据稿](../references/端到端波形动态门控组分反演框架与文献证据.md)。截至 2026-07-17，证据链如下：
 
 | 层次      | 正式事实                                                                              | 对 RQ 的约束                    |
 | ------- | --------------------------------------------------------------------------------- | --------------------------- |

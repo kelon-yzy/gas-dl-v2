@@ -220,7 +220,7 @@ python scripts/audit_ec_msw_e1.py --config configs/tv3_ec_msw_e1r_audit.json
 
 本次 E1r 正式审计只有 `frame_fidelity.json` 通过，`b1_parity.json` 未通过，因此不得改变 `e2_allowed=false`。不要通过修改门限、延长同结构训练或直接进入 E2 覆盖该 verdict。
 
-审计器冻结 encoder，仅在 train split 拟合 peak-index probe 和 sequence Ridge probe；val/test/extrapolation 全量评价。旧 E1 的 `e1_s20260704/audit/` 与 E1r 的 `e1r_s20260704/audit/` 都是正式失败证据。E1d / E1d-SB / attachment / E2s-LS 正式均已完成；LS 不晋升。下一步见 `docs/active/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md`。E2 仍禁止。失败时保留原始 JSON/CSV，不修改门限重跑。
+审计器冻结 encoder，仅在 train split 拟合 peak-index probe 和 sequence Ridge probe；val/test/extrapolation 全量评价。旧 E1 的 `e1_s20260704/audit/` 与 E1r 的 `e1r_s20260704/audit/` 都是正式失败证据。E1d / E1d-SB / attachment / E2s-LS 正式均已完成；LS 不晋升。下一步见 `docs/archive/completed/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md`。E2 仍禁止。失败时保留原始 JSON/CSV，不修改门限重跑。
 
 > E1 / E1r 正式配置已含 `waveform_preprocess: "gpu"`（见 §4.5）。审计脚本读取 `run_config.json` 中的同名字段，保证训练与审计组装路径一致。
 
@@ -391,7 +391,7 @@ python scripts/run_tv3_bidir_model_protocol.py \
 # expect exit 0 only when f5_model_protocol_passed; incomplete → 2; (d) fail → 1
 ```
 
-产物：`data/tv3-bidir-6000-wide`、`data/tv3-bidir-6000-wide-splits/`、`outputs/tv3_bidir/model_protocol_wide/`（含 `f5_verdict.json`）。说明见 `docs/active/tv3_composition_range_widening_plan.md`。
+产物：`data/tv3-bidir-6000-wide`、`data/tv3-bidir-6000-wide-splits/`、`outputs/tv3_bidir/model_protocol_wide/`（含 `f5_verdict.json`）。说明见 `docs/archive/completed/tv3_composition_range_widening_plan.md`。
 
 ### 6.3 阶段 Ⅱ ablation
 

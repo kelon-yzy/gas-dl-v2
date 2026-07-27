@@ -37,7 +37,8 @@ PROCESSING_PARAMS_V2 = {
     "f_relax_co2_per_atm": 28000.0,
     "k_h2o_to_f_relax_co2": 0.015,
     "alpha_lambda_max_n2": 0.004,
-    "f_relax_n2_per_atm": 65000.0,
+    # Bass 1990 / ISO 9613-1 dry air: fr,N ≈ 9 Hz/atm（旧值 65000 错误，差 ~4 个数量级）
+    "f_relax_n2_per_atm": 9.0,
     "alpha_lambda_max_h2o": 0.01,
     "f_relax_h2o_per_atm": 100000.0,
     # O₂ V-T 弛豫在 200 kHz 下可忽略（dry air fr,O ≈ 24 Hz/atm，Bass 1990 JASA）。
@@ -140,7 +141,7 @@ def hidden_attenuation_v2(
         c_mix=c_mix,
     )
 
-    # N2 V-T 弛豫（很慢）
+    # N2 V-T 弛豫（干空气 fr,N ≈ 9 Hz/atm，Bass 1990；200 kHz 下深度冻结）
     x_n2_frac = max(0.0, x_n2) / 100.0
     f_r_n2 = params["f_relax_n2_per_atm"] * p_atm
     alpha_n2_npm = _relaxation_alpha_npm(

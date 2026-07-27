@@ -1,0 +1,335 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-1",
+  "registry_type": "parameter",
+  "stage": "MRS-0",
+  "created_at": "2026-07-24",
+  "sim_revision_tag": "v8-mrs-dispersion-v1",
+  "claim_scope": "registered_simulation_domain_only",
+  "source_tags_allowed": [
+    "implemented_physics",
+    "literature_bound",
+    "engineering_scenario",
+    "not_represented"
+  ],
+  "composition_anchor": {
+    "component_fields": ["x_CO2", "x_O2", "x_N2"],
+    "slow_channels": [
+      "V_NDIR_CO2",
+      "V_TCS",
+      "T_C",
+      "P_MPa",
+      "H_RH",
+      "L_m",
+      "piston_position_m"
+    ],
+    "flow_in_slow_channels": false,
+    "flow_baseline_m_per_s": 0.0,
+    "notes": "MRS v1 基线 flow=0；扰动登记复用 S 线与 v1 registry。组分与 7 慢通道复用基 schema。",
+    "source": "implemented_physics",
+    "ref": "tv3/sim/core/tunnel_ventilation_schema.py"
+  },
+  "sampling_domain": {
+    "T_C": {"min": 15.0, "max": 35.0},
+    "H_RH": {"min": 20.0, "max": 80.0},
+    "P_MPa": {"min": 0.10, "max": 0.709},
+    "L_m": {"min": 0.20, "max": 0.30},
+    "x_O2": {"min": 18.0, "max": 21.2},
+    "x_CO2": {"min": 0.03, "max": 5.0},
+    "source": "implemented_physics",
+    "ref": "tv3/sim/generation/tunnel_ventilation/conditions.py"
+  },
+  "bass_relaxation_frequencies": {
+    "name": "bass_1990_iso9613_1",
+    "refs": [
+      "doi:10.1121/1.400176",
+      "doi:10.1121/1.412989"
+    ],
+    "T0_K": 293.15,
+    "P0_atm": 1.0,
+    "h_definition": "water_vapor_mole_percent",
+    "h_source_fn": "h2o_mole_percent_from_rh",
+    "f_r_o2_hz_per_atm": {
+      "formula": "(P/P0) * [24 + 4.04e4 * h * (0.02 + h) / (0.391 + h)]",
+      "coefficients": {
+        "dry_offset_hz": 24.0,
+        "humidity_scale": 40400.0,
+        "humidity_num_offset": 0.02,
+        "humidity_den_offset": 0.391
+      },
+      "anchors": {
+        "h0": {"h": 0.0, "P_atm": 1.0, "expected_hz": 24.0},
+        "h1_pct": {"h": 1.0, "P_atm": 1.0, "expected_hz": 29649.0, "tolerance_rel": 0.01}
+      },
+      "source": "literature_bound"
+    },
+    "f_r_n2_hz_per_atm": {
+      "formula": "(P/P0) * (T/T0)^(-1/2) * [9 + 280*h*exp(-4.17*((T/T0)^(-1/3) - 1))]",
+      "coefficients": {
+        "dry_offset_hz": 9.0,
+        "humidity_scale": 280.0,
+        "temp_exp_coeff": 4.17
+      },
+      "anchors": {
+        "h0_20C": {"h": 0.0, "T_C": 20.0, "P_atm": 1.0, "expected_hz": 9.0},
+        "h1_20C": {"h": 1.0, "T_C": 20.0, "P_atm": 1.0, "expected_hz": 289.0, "tolerance_rel": 0.02}
+      },
+      "source": "literature_bound"
+    },
+    "source": "literature_bound",
+    "notes": "Bass 1990 / ISO 9613-1 全式；湿度催化非对称是 O₂↔N₂ 可分机制之一。"
+  },
+  "vibrational_heat_capacity": {
+    "theta_vib_K": {
+      "O2": 2270.0,
+      "N2": 3390.0,
+      "CO2_bending": 960.0
+    },
+    "C_vib_over_R": {
+      "formula": "(theta/T)^2 * exp(theta/T) / (exp(theta/T) - 1)^2",
+      "anchors_300K": {
+        "O2": {"expected": 0.029, "tolerance_rel": 0.05},
+        "N2": {"expected": 0.0016, "tolerance_rel": 0.05}
+      }
+    },
+    "dispersion_step": {
+      "formula_small_Cvib": "Delta_c / c_eq ≈ ((gamma-1)^2 / (2*gamma)) * (C_vib/R)",
+      "pure_gas_anchors_300K_m_per_s": {
+        "O2": {"expected": 0.5, "tolerance_rel": 0.30},
+        "N2": {"expected": 0.03, "tolerance_rel": 0.30}
+      },
+      "notes": "容差来自综述 §A3(c) 手算链；MRS-1 单元测试确认。"
+    },
+    "kramers_kronig_single_relaxation": {
+      "constraint": "alpha_lambda_max_i = pi * Delta_c_i / c_eq",
+      "notes": "单弛豫加和近似内部约束；不做完整耦合弛豫矩阵。"
+    },
+    "legacy_v2_empirical_intensity": {
+      "alpha_lambda_max_co2": 0.12,
+      "alpha_lambda_max_n2": 0.004,
+      "alpha_lambda_max_o2": 0.0,
+      "alpha_lambda_max_h2o": 0.01,
+      "notes": "仅对照；MRS 强度由 C_vib 推导，不改 hidden_attenuation_v2。",
+      "source": "implemented_physics",
+      "ref": "tv3/sim/generation/tunnel_ventilation/acoustic_physics.py"
+    },
+    "source": "literature_bound",
+    "refs": [
+      "docs/references/声速法_N2-O2辨识_深度学习突破路径_综述.md §A3",
+      "doi:10.1121/1.400176"
+    ]
+  },
+  "frequency_set": {
+    "K": 8,
+    "f_hz": [10000.0, 16000.0, 25000.0, 40000.0, 63000.0, 100000.0, 160000.0, 200000.0],
+    "grid": "log_approx_1-2-2.5-4-6.3",
+    "design_rule": "Zhu_2017a_2N+1_with_N_le_3_active_relaxations",
+    "sensitivity_subsets_K": [4, 6, 8],
+    "geometry_floor_hz": {
+      "value": 15000.0,
+      "rule": "path_length_ge_approx_10_wavelengths_at_L_0.2_to_0.3_m",
+      "notes": "10 kHz 处 L/λ≈6–9 属边界；死角在 Fisher 热力图显式覆盖。",
+      "source": "engineering_scenario"
+    },
+    "source": "engineering_scenario",
+    "notes": "MRS-0 冻结基线；MRS-2 对 K=4/6/8 子集做敏感性。"
+  },
+  "burst_schedule": {
+    "rule": "burst_duration_well_below_nominal_TOF_approx_725_us",
+    "per_frequency_cycles": {
+      "10000": 2,
+      "16000": 3,
+      "25000": 4,
+      "40000": 5,
+      "63000": 6,
+      "100000": 8,
+      "160000": 8,
+      "200000": 8
+    },
+    "baseline_cycles_at_200khz": 8,
+    "source": "engineering_scenario",
+    "ref": "tv3/sim/generation/waveforms.py BURST_CYCLES",
+    "notes": "低频减周期，避免 burst 时长接近 TOF。"
+  },
+  "observation_noise": {
+    "trigger_jitter": {
+      "reuse": "v1_conservative_and_s_line",
+      "std_s": 3.0e-6,
+      "independence": "per_frequency_independent",
+      "source": "engineering_scenario",
+      "ref": "WaveformSpec.trigger_jitter_std_s / tv3_identifiability v1"
+    },
+    "tof_phase_precision": {
+      "model": "sigma_tof_s ∝ 1 / (f_hz * SNR)",
+      "anchor": {
+        "f_hz": 200000.0,
+        "relative_scale": 1.0,
+        "notes": "以 200 kHz 为相对尺度 1；低频按 200k/f 放大。"
+      },
+      "source": "engineering_scenario"
+    },
+    "amplitude_calibration": {
+      "relative_std": 0.02,
+      "independence": "per_frequency_independent",
+      "notes": "逐频幅度标定相对误差情景；进 MRS-2 CRB 的 α 臂。",
+      "source": "engineering_scenario"
+    },
+    "rh_measurement": {
+      "std_rh_percent": 2.0,
+      "notes": "湿度计测量误差文献/工程边界；进联合估计 nuisance。",
+      "source": "literature_bound",
+      "ref": "docs/references/tv3_identifiability_business_threshold_evidence.md (nuisance 登记惯例)"
+    },
+    "source": "engineering_scenario"
+  },
+  "rh_modulation_arm": {
+    "enabled_in_baseline": false,
+    "mode": "same_sequence_two_rh_levels",
+    "delta_rh_percent": 20.0,
+    "settle_time_s": 30.0,
+    "notes": "同序列双湿度点 + 稳定时间；基线无调制，调制臂仅 MRS-2 obs-rh-diff / MRS-3 可选 schedule。",
+    "source": "engineering_scenario"
+  },
+  "pressure_scan_arm": {
+    "enabled_in_baseline": false,
+    "mode": "two_points_in_sampling_domain",
+    "P_MPa_points": [0.10, 0.50],
+    "notes": "域内变压两点；对应 MRS-2 obs-p-scan（部署现实性低）。",
+    "source": "engineering_scenario",
+    "ref": "Petculescu 2006 pressure-scan precedent (survey D-branch)"
+  },
+  "low_frequency_diffraction": {
+    "representation": "not_represented",
+    "source": "not_represented",
+    "prior_residual": {
+      "form": "near_field_and_beam_spreading_unmodeled",
+      "frequency_floor_hz": 15000.0,
+      "notes": "v1 未表示衍射/近场；10–15 kHz 边界误差先验登记，非阻断。"
+    },
+    "upgrade_path": "COMSOL G-line FEM diffraction correction → literature_bound → implemented_physics",
+    "blocks_go_verdict": false
+  },
+  "dispersion_forward_model": {
+    "name": "single_relaxation_sum_v1",
+    "equations": {
+      "c_f": "c_eq * (1 + sum_i (Delta_c_i/c_eq) * f^2/(f^2+f_r_i^2))",
+      "alpha_f": "alpha_classical(f) + sum_i Lorentzian_i(f; alpha_lambda_max_i, f_r_i)"
+    },
+    "explicit_non_goals": [
+      "no_full_coupled_relaxation_matrix_dain_lueptow",
+      "no_change_to_hidden_sound_speed_v2",
+      "no_change_to_hidden_attenuation_v2"
+    ],
+    "source": "engineering_scenario",
+    "notes": "MRS-1 实现；近似误差边界若影响 MRS-2 判定再立 MRS-1b。"
+  },
+  "storage_policy": {
+    "waveform_store_carrier_hz": [25000.0, 63000.0, 100000.0, 200000.0],
+    "store_all_K_observed_features": true,
+    "dtype": "int16_per_timestep_scale",
+    "skip_fiber_mic_default": true,
+    "source": "engineering_scenario",
+    "notes": "K=8 全波形约 8×3 GB；存 4 代表载波波形 + 全 K observed 特征。"
+  },
+  "mrs2_gates": {
+    "target_p90_o2_error_vol_pct": 0.4,
+    "max_nuisance_fraction_of_signal": 0.50,
+    "max_rejection_rate": 0.05,
+    "min_joint_fisher_relative_svd_rank": 2,
+    "narrow_window_o2_width_vol_pct": 0.8,
+    "nuisance_scenarios_reuse_v1": ["temperature_1K", "trigger_jitter_3us"],
+    "source": "literature_bound",
+    "ref": "docs/references/tv3_identifiability_business_threshold_evidence.md",
+    "notes": "全部沿用 v1 预注册值；正式运行后不得调门。"
+  },
+  "mrs5_protocol_draft": {
+    "freeze_refs": ["B1", "B7"],
+    "retrain_freeze_refs": false,
+    "split_selector": "reuse_B7_protocol_frozen_subset",
+    "heads": ["H1_analytic_relaxation_ridge", "H2_physics_informed_inverter"],
+    "optional_head": "H3_broadband_waveform_Hf",
+    "amplitude_gates": {
+      "status": "deferred_to_mrs2_crb_budget",
+      "structure": [
+        "narrow_o2_p90_mae_improvement_vs_B7",
+        "ood_o2_improvement_vs_B7",
+        "three_component_non_inferiority",
+        "leakage_negative_control_single_freq_must_not_beat_B7"
+      ],
+      "notes": "数值幅度门由 MRS-2 CRB 预算折算后预注册；MRS-0 只冻结结构与参照。"
+    },
+    "source": "engineering_scenario"
+  },
+  "schema_draft": {
+    "schema": "tunnel-ventilation-mrs-1",
+    "module_planned": "tv3/sim/core/tunnel_ventilation_mrs_schema.py",
+    "create_after": "MRS-2_pass",
+    "builder_formal": "raw_dsp_mrs_v1",
+    "benchmark_names": ["tv3-mrs-smoke", "tv3-mrs-6000"],
+    "manifest_extra_fields": [
+      "mrs_frequency_set_hz",
+      "rh_modulation",
+      "sim_revision.tag=v8-mrs-dispersion-v1"
+    ],
+    "required_array_stems_example": [
+      "ultrasonic_f{k}",
+      "ultrasonic_tof_observed_f{k}_s",
+      "ultrasonic_amp_observed_f{k}",
+      "ultrasonic_tof_quality_f{k}"
+    ],
+    "oracle_only_arrays_example": [
+      "ultrasonic_sound_speed_true_f{k}_m_per_s",
+      "ultrasonic_alpha_true_f{k}_np_per_m"
+    ],
+    "source": "engineering_scenario",
+    "notes": "仅登记；schema 代码 MRS-2 pass 后才创建。"
+  },
+  "doc_errata_checklist": {
+    "checked_at": "2026-07-24",
+    "items": [
+      {
+        "path": "docs/references/co2_o2_n2_gas_properties.md",
+        "checks": ["N2_9_Hz_per_atm", "Bass_DOI_10.1121/1.400176"],
+        "status": "verified"
+      },
+      {
+        "path": "docs/foundation/physics_references.md",
+        "checks": ["N2_9_Hz_per_atm", "Bass_DOI_10.1121/1.400176"],
+        "status": "verified"
+      },
+      {
+        "path": "docs/references/tv3_acoustic_simulation_fidelity_review.md",
+        "checks": ["Bass_DOI_10.1121/1.400176"],
+        "status": "verified"
+      }
+    ],
+    "forbidden_legacy_tokens": ["65000", "65 kHz/atm", "10.1121/1.400476"],
+    "source": "literature_bound",
+    "notes": "立项批已勘误；MRS-0 验收复查。"
+  },
+  "mrs0_gate": {
+    "required_source_on_every_parameter": true,
+    "required_bass_formulas": true,
+    "required_cvib_derivation": true,
+    "required_frequency_set_K8": true,
+    "required_noise_models": true,
+    "required_rh_and_pressure_arms": true,
+    "required_diffraction_not_represented": true,
+    "required_mrs2_gates_frozen": true,
+    "required_doc_errata_verified": true,
+    "fail_verdict": "inconclusive_parameter_bounds",
+    "pass_verdict": "mrs0_registry_frozen",
+    "allowed_next_stage_on_pass": "MRS-1_relaxation_spectrum_physics"
+  },
+  "blocking_items_mrs0": [],
+  "explicit_non_goals": [
+    "no_hardware_claim",
+    "no_sim2real",
+    "no_rewrite_v1_f4_f5_verdicts",
+    "no_replace_b7",
+    "no_change_hidden_sound_speed_v2",
+    "no_change_hidden_attenuation_v2",
+    "no_regenerate_tv3_formal_6000_or_bidir",
+    "no_single_carrier_new_regression_arm",
+    "no_e2_structures"
+  ]
+}

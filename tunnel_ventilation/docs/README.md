@@ -6,18 +6,17 @@
 
 1. [掘进通风项目记忆库.md](掘进通风项目记忆库.md)：当前有效事实、正式结果、硬不变量和执行门。
 2. [methods/tv3_名词与实验顺序导读.md](methods/tv3_名词与实验顺序导读.md)：初学者名词说明，按实验顺序分级检索。
-3. [active/tv3_static_air_feasibility_implementation_plan.md](active/tv3_static_air_feasibility_implementation_plan.md)：当前仿真 P0，`flow=0` 静止空气扰动、可辨识性与独立参数 holdout。
-3b. [active/tv3_bidirectional_ultrasound_implementation_plan.md](active/tv3_bidirectional_ultrasound_implementation_plan.md)：双向超声 F 线（F0–F4 完成，F5-S 代码已落地）：`coarse_monitoring_only`；正式 `tv3-bidir-6000`（及 `-wide`）矩阵待 smoke → 服务器。
-3c. [active/tv3_composition_range_widening_plan.md](active/tv3_composition_range_widening_plan.md)：组分宽域独立注册（`-wide`）：F0'–F4-wide 通过；F5-S 共用；正式 6000-wide 待服务器。
-4. [active/tv3_comsol_multiphysics_dl_implementation_plan.md](active/tv3_comsol_multiphysics_dl_implementation_plan.md)：P1 并行线：隧道 CFD / 输运 / 局部声学与 DL；G1 smoke 已通过，下一步 G2；正式 DOE 仍阻断。
-5. [active/tv3_ec_msw_gatednet_implementation_plan.md](active/tv3_ec_msw_gatednet_implementation_plan.md)：算法实验线；LS 正式不晋升；下一步见 deploy-joint 计划，E2 仍禁止。
-5b. [active/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md](active/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md)：e1d_sb（无 LS）可部署联合系统。
-6. [active/b7_repeated_split_ood_protocol_implementation_plan.md](active/b7_repeated_split_ood_protocol_implementation_plan.md)：B7 冻结后的重复 split、独立 OOD、审计和通过门。
-7. [active/README.md](active/README.md)：D2b、B6、B7、R5-T、R7、SPXY、COMSOL 多物理场等当前工作。
-8. [foundation/README.md](foundation/README.md)：场景、适配、采样和物理基础。
-9. [operations/README.md](operations/README.md)：服务器训练与运行操作（含波形 `waveform_preprocess` gpu/cpu 通路）。
-10. [references/README.md](references/README.md)：物性、传感器和算法文献。
-11. [../COMSOL/README.md](../COMSOL/README.md)：气室 P0 孪生入口；隧道输运见 `COMSOL/tunnel_transport/`。
+3. [active/tv3_mrs_information_efficient_inversion_experiment_plan.md](active/tv3_mrs_information_efficient_inversion_experiment_plan.md)：**MRS-EI 当前主线**——MEI-0 已按版本化证据目录重冻结；MEI-1=`mei1_inconclusive_forward_model`，不放行 MEI-2；正式波形、新 benchmark 和硬件试验仍未授权。
+4. [active/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md](active/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md)：**MRS 线**——MRS-2=`mrs2_rank_upgraded_p90_fail`；禁止 MRS-3；硬件规格见 [tv3_mrs6_hardware_requirements.md](active/tv3_mrs6_hardware_requirements.md)。
+5. [active/tv3_static_air_feasibility_implementation_plan.md](active/tv3_static_air_feasibility_implementation_plan.md)：并行 `flow=0` 静止空气扰动与留出检验；不作现场声明。
+6. [active/tv3_bidirectional_ultrasound_implementation_plan.md](active/tv3_bidirectional_ultrasound_implementation_plan.md)：**暂缓**——F 线：F4=`coarse_monitoring_only`；F5-wide=`f5_model_protocol_failed`；窄域 F5 / F6 不排期。
+7. [active/tv3_comsol_multiphysics_dl_implementation_plan.md](active/tv3_comsol_multiphysics_dl_implementation_plan.md)：**暂缓**——G1 冒烟测试已通过；G2 及后续不排期。
+8. [active/README.md](active/README.md)：当前待评审、推进或暂缓的专项计划索引。
+9. [archive/README.md](archive/README.md)：已完成 / 已证伪专项（B7、D2b、SPXY、R5、identifiability v1、宽域 F5-wide、EC-MSW 全线等）。
+10. [foundation/README.md](foundation/README.md)：场景、适配、采样和物理基础。
+11. [operations/README.md](operations/README.md)：服务器训练与运行操作（含波形 `waveform_preprocess` gpu/cpu 通路）。
+11. [references/README.md](references/README.md)：物性、传感器和算法文献。
+12. [../COMSOL/README.md](../COMSOL/README.md)：气室 P0 孪生入口；隧道输运见 `COMSOL/tunnel_transport/`。
 
 ## 目录结构
 

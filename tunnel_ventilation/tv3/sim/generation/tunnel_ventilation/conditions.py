@@ -58,7 +58,7 @@ class TunnelVentilationRanges:
 
 TUNNEL_VENTILATION_RANGES = TunnelVentilationRanges()
 
-# F 线独立危害监测域（docs/active/tv3_composition_range_widening_plan.md）
+# F 线独立危害监测域（docs/archive/completed/tv3_composition_range_widening_plan.md）
 WIDE_COMPOSITION_RANGES = TunnelVentilationRanges(
     co2=(0.03, 10.00),
     o2=(15.00, 25.00),

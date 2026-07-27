@@ -1,6 +1,6 @@
 # tv3 组分区间拓宽实施规划（CO₂ 0.03–10%，O₂ 15–25%）
 
-> 状态：**F5-S 代码已落地（2026-07-22）**：`bidir_spxy_observed_ab_v1`（50 维 AB-only）+ recompute 适配 + 协议 12 格判据 (d)。`stage_status.f5*_wide=f5s_code_ready_awaiting_formal_matrix`。**下一步：smoke-wide 端到端审计 → 再服务器 6000-wide**；incomplete 仍 exit 2。
+> 状态：**F5-wide 正式 6000 矩阵已完整运行（2026-07-23）**，verdict=`f5_model_protocol_failed`。判据 (a) A3−A1 O₂ OOD MAE 改善 `0.1165405 vol% < 0.5`，判据 (b)/(c)/(d) 通过；不得进入 F6-wide。判据 (e) 的 F5 全时序 frame-vs-sequence 残差与 F3 steady 多 L 残差口径不一致，须同口径重审，但不影响判据 (a) 的正式失败。
 > 
 > 责任边界：本规划**不**覆盖任何已冻结产物（v1 单向审计、F4 窄域 verdict、F3 窄域保真、B1/B7/E1d-SB、S 线、tv3-formal-6000），**不**改写 F 线物理/流速契约，**不**声称推翻 `coarse_monitoring_only`。新域按独立注册域处理。
 
@@ -248,7 +248,7 @@ python scripts/run_tv3_identifiability_v2.py --config configs/tv3_bidir_identifi
 ### F5-wide —— 正式数据与五臂对照（服务器）
 
 - **F5-S 已落地（2026-07-22）**：`bidir_spxy_observed_ab_v1`；`recompute_tv3_split --spxy-x-profile bidir_spxy_observed_ab_v1`；协议 `derive_secondary_selectors=true` 跑 S-Y/S-L×3 seeds 全矩阵并评 12 格判据 (d)。
-- **仍建议先 smoke 再 6000**：本地用 `tv3-bidir-smoke-wide` 跑通 bootstrap→派生→重建 cache→门逻辑后，再服务器正式集。
+- **正式矩阵已完成（2026-07-23）**：6000 条守恒；S-Flow 主矩阵 5 arms×2 heads=10 格，F5-S 2 selectors×3 seeds×5 arms×2 heads=60 格，JSON 与 provenance 审计无缺项。
 
 工作目录 `tunnel_ventilation/`：
 
@@ -271,6 +271,14 @@ python -m pytest -q tests/test_tunnel_ventilation_bidir_secondary_selectors.py \
 
 - 判据（域内）：(a)–(e) 同前；(d) 为 **2×3×2=12 格** A3−A1 O₂ ΔR²，禁止均值掩盖。
 - 验收：`f5_verdict.json` 且 `verdict=f5_model_protocol_passed`（exit 0）后进 F6-wide。
+
+**正式结果**：
+
+- B1 主头判据 (a) 失败：A1/A3 S-Flow OOD O₂ MAE=`1.236351/1.119811`，改善 `0.116541 vol%`，仅为冻结门 `0.5` 的约 23%；val/test/OOD 改善方向一致，属于幅度不足而非 val-only 假增益。
+- 判据 (b) 通过：A3−A2=`−0.085016 vol%≤0.25`；判据 (c) 通过：A3−A1 零流锚点 ΔMAE=`−0.066524 vol%≤0.05`；判据 (d) 12/12 通过，ΔR²=`0.024224–0.065607`。
+- pair 声速 mean-abs-sequence bias 从 AB-only `1.806706` 降至 `0.036810 m/s`，说明 flow 解耦有效；A4 没有稳定增益，A5 接近 A3，v̂ 单列的边际信息很小。
+- 判据 (e) 形式上失败：F5 `reciprocity_residual_p95_of_seq_p95=16.598 μs`。该量是全部 phase 的逐帧 ĉ 相对整段 `c_seq` 的残差，并叠加正式集 `3 μs` 独立 jitter；F3 `0.10 μs` 门则来自 steady accepted 帧的多 L mid-pair 拟合截距。统计口径不一致，故只登记为审计实现缺口，不解释为物理互易失效，也不据此改门。
+- S-Y 三个 seed 的 OOD hash 相同，对应 OOD 指标完全重复，只量化不同 ID 划分；S-L 三个 OOD hash 不同。该边界不影响 12 格逐格均过门，但禁止表述为 6 个独立 OOD 集。
 
 ### F6-wide —— verdict 与回填
 
@@ -295,4 +303,4 @@ python -m pytest -q tests/test_tunnel_ventilation_bidir_secondary_selectors.py \
 4. ~~窄窗铺法~~ → **危害锚定 6 窗（F4-wide 已用）**
 5. ~~F3-wide CO₂ 高端是否降 L_m~~ → **F3-wide 已过门，无需降 L_m**
 
-> Decision Gate 全部关闭；F5-S 代码已落地；F5-wide 仅差 smoke 端到端 → 服务器正式跑数。
+> Decision Gate 全部关闭；F5-wide 正式矩阵已完成并判 `f5_model_protocol_failed`。当前停止于 F5-wide：保持 F4 `coarse_monitoring_only`，不进入 F6-wide；判据 (e) 仅做同口径审计修正，判据 (a) 不重调、不重训规避。

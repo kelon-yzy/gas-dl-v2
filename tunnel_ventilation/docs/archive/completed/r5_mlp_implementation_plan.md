@@ -2,7 +2,7 @@
 
 > 状态：**默认 R5 正式 6000 未通过（2026-07-09）；R5-T 目标标准化正式 6000 通过（2026-07-10）**
 > 日期：2026-07-09  
-> 依据：[掘进通风项目记忆库.md](../掘进通风项目记忆库.md) §5.4 / §6.8 / §6.9 / §8.4；[r5_tabpfn_implementation_plan.md](../archive/completed/r5_tabpfn_implementation_plan.md)（R5' 已完成）；[rocket_hydra_regression_implementation_plan.md](../archive/completed/rocket_hydra_regression_implementation_plan.md) 阶段 D；[small_sample_dl_strategies.md](../methods/small_sample_dl_strategies.md) S2/S3；下列表格 MLP 文献。
+> 依据：[掘进通风项目记忆库.md](../../掘进通风项目记忆库.md) §5.4 / §6.8 / §6.9 / §8.4；[r5_tabpfn_implementation_plan.md](./r5_tabpfn_implementation_plan.md)（R5' 已完成）；[rocket_hydra_regression_implementation_plan.md](./rocket_hydra_regression_implementation_plan.md) 阶段 D；[small_sample_dl_strategies.md](../../methods/small_sample_dl_strategies.md) S2/S3；下列表格 MLP 文献。
 
 ## 结论
 
@@ -44,7 +44,7 @@ R5 在 **D0-observed 864 维** 特征上，把回归头从 RidgeCV / TabPFN 换�
 | Gorishniy, Rubachev, Babenko. **On Embeddings for Numerical Features**, arXiv:2203.05556 | 数值特征 embedding（PLR 等）可显著抬升 MLP | **第二版可选消融**；第一版先 StandardScaler + 裸 MLP，控制变量 |
 | Grinsztajn, Oyallon, Varoquaux. **Why do tree-based models still outperform DL on tabular data?**, arXiv:2207.08815 | ~10K 样本上树模型仍常胜 NN；NN 需抗无关特征、保方向、学不规则函数 | 预期 R5 可能达不到 TabPFN；成功标准是相对 **Ridge**，不是相对 TabPFN |
 | Gorishniy et al. **Benchmarking Optimizers for MLPs in Tabular DL**, arXiv:2604.15297 | AdamW 仍是常用默认；Muon 更强但有开销；EMA 可改善 AdamW | 第一版 **AdamW**；不引入 Muon |
-| 项目 [small_sample_dl_strategies.md](../methods/small_sample_dl_strategies.md) S2/S3 | 小样本下轻量 + dropout/weight decay/early stop | hidden 不宜过大；dropout 0.1–0.25；early stop 必开 |
+| 项目 [small_sample_dl_strategies.md](../../methods/small_sample_dl_strategies.md) S2/S3 | 小样本下轻量 + dropout/weight decay/early stop | hidden 不宜过大；dropout 0.1–0.25；early stop 必开 |
 | Hollmann et al. *Nature* 2025; Chen et al. *JCIM* 2026 | TabPFN 为上限参考 | 只作对照，不参与 R5 训练 |
 
 **设计翻译（第一版默认）**：
@@ -259,10 +259,10 @@ R5-T 正式结果：val/test/extrap O₂ R² 为 `0.6642 / 0.6462 / 0.5815`，�
 
 项目内：
 
-- [r5_tabpfn_implementation_plan.md](../archive/completed/r5_tabpfn_implementation_plan.md) — 上限探针与判据  
-- [rocket_hydra_regression_implementation_plan.md](../archive/completed/rocket_hydra_regression_implementation_plan.md) — 阶段 D（本计划已修正特征口径）  
-- [small_sample_dl_strategies.md](../methods/small_sample_dl_strategies.md) — S2/S3  
-- [references/observed_o2_algorithm_review.md](../references/observed_o2_algorithm_review.md) — TDLAS 暂缓期的 TOF 环境补偿与表格回归文献依据
+- [r5_tabpfn_implementation_plan.md](./r5_tabpfn_implementation_plan.md) — 上限探针与判据  
+- [rocket_hydra_regression_implementation_plan.md](./rocket_hydra_regression_implementation_plan.md) — 阶段 D（本计划已修正特征口径）  
+- [small_sample_dl_strategies.md](../../methods/small_sample_dl_strategies.md) — S2/S3  
+- [references/observed_o2_algorithm_review.md](../../references/observed_o2_algorithm_review.md) — TDLAS 暂缓期的 TOF 环境补偿与表格回归文献依据
 
 ---
 

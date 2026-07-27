@@ -1,0 +1,262 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-ei-1",
+  "registry_type": "design_space",
+  "stage": "MEI-0",
+  "created_at": "2026-07-27",
+  "claim_scope": "registered_simulation_domain_only",
+  "target_direction": {
+    "primary": "o2_narrow_window_error",
+    "report_also": ["co2_error", "n2_error", "closure_sum_abs_error_monitor"],
+    "narrow_windows": [
+      {"id": "o2_18_4", "center_percent": 18.4, "width_percent": 0.8},
+      {"id": "o2_19_2", "center_percent": 19.2, "width_percent": 0.8},
+      {"id": "o2_20_0", "center_percent": 20.0, "width_percent": 0.8},
+      {"id": "o2_20_8", "center_percent": 20.8, "width_percent": 0.8}
+    ],
+    "notes": "主指标为 O2 窄窗误差；CO2/N2 与闭包仅完整报告，不作 absolute pass gate",
+    "source": "engineering_scenario"
+  },
+  "frequency_band": {
+    "min_hz": 25000.0,
+    "max_hz": 200000.0,
+    "candidate_pool_hz": [25000.0, 40000.0, 63000.0, 100000.0, 160000.0, 200000.0],
+    "baseline_k4_hz": [25000.0, 63000.0, 100000.0, 200000.0],
+    "legacy_k8_hz": [10000.0, 16000.0, 25000.0, 40000.0, 63000.0, 100000.0, 160000.0, 200000.0],
+    "notes": "MEI 候选频带 25–200 kHz；10/16 kHz 仅作 MRS 历史对照，不进新稳健设计默认池（衍射边界）",
+    "source": "engineering_scenario"
+  },
+  "narrow_context_grid": {
+    "co2_percent": [0.03, 2.515, 5.0],
+    "t_c": [15.0, 25.0, 35.0],
+    "path_length_m": [0.2, 0.25, 0.3],
+    "h_rh": [30.0, 50.0, 70.0],
+    "p_mpa": [0.101325],
+    "rh_filter_rule": "skip_if_h_rh + rh_delta_percent > 80",
+    "rh_delta_percent": 20.0,
+    "expected_n_points": 216,
+    "source": "implemented_physics",
+    "ref": "configs/tv3_mrs_identifiability.json + scripts/run_tv3_identifiability_v3_mrs.py _narrow_points"
+  },
+  "holdout_conditions": {
+    "rule": "by_context_corner_ids_not_used_in_design_optimization",
+    "holdout_ids": [
+      "holdout_low_rh_high_co2",
+      "holdout_high_t_short_L",
+      "holdout_mid_o2_mid_grid"
+    ],
+    "definitions": {
+      "holdout_low_rh_high_co2": {
+        "o2_window_id": "o2_20_0",
+        "co2_percent": 5.0,
+        "t_c": 15.0,
+        "path_length_m": 0.3,
+        "h_rh": 30.0,
+        "p_mpa": 0.101325
+      },
+      "holdout_high_t_short_L": {
+        "o2_window_id": "o2_18_4",
+        "co2_percent": 0.03,
+        "t_c": 35.0,
+        "path_length_m": 0.2,
+        "h_rh": 50.0,
+        "p_mpa": 0.101325
+      },
+      "holdout_mid_o2_mid_grid": {
+        "o2_window_id": "o2_19_2",
+        "co2_percent": 2.515,
+        "t_c": 25.0,
+        "path_length_m": 0.25,
+        "h_rh": 50.0,
+        "p_mpa": 0.101325
+      }
+    },
+    "pressure_dead_corner_sensitivity": {
+      "p_mpa_extra": [0.10, 0.50, 0.709],
+      "notes": "低 RH / 高压力死角必须进入 MEI-2 约束，不能只在结果图附带展示",
+      "source": "engineering_scenario"
+    },
+    "source": "engineering_scenario"
+  },
+  "cost_function": {
+    "terms": [
+      "n_frequencies",
+      "total_acoustic_energy",
+      "total_measurement_time_s",
+      "rh_switch_time_s",
+      "pressure_switch_time_s",
+      "settle_wait_time_s"
+    ],
+    "baseline_burst_cycles": {
+      "10000": 2,
+      "16000": 3,
+      "25000": 4,
+      "40000": 5,
+      "63000": 6,
+      "100000": 8,
+      "160000": 8,
+      "200000": 8
+    },
+    "energy_model": {
+      "formula": "E_total ∝ sum_k (cycles_k / f_k) * drive_power_relative_k",
+      "drive_power_relative_default": 1.0,
+      "normalization": "relative_to_baseline_k4_equal_power",
+      "source": "engineering_scenario"
+    },
+    "time_model": {
+      "per_frequency_acquire_s": 0.05,
+      "inter_frequency_switch_s": 0.01,
+      "rh_settle_time_s": 30.0,
+      "pressure_settle_time_s": 60.0,
+      "two_stage_control_overhead_s": 5.0,
+      "notes": "D4 停止规则必须计入控制和等待成本",
+      "source": "engineering_scenario"
+    },
+    "cost_calculator": {
+      "energy_formula": "sum_k((cycles_k / frequency_hz_k) * drive_power_relative_k)",
+      "time_formula": "n_frequencies*per_frequency_acquire_s + max(n_frequencies-1,0)*inter_frequency_switch_s + control_overhead_s + n_rh_switches*rh_settle_time_s + n_pressure_switches*pressure_settle_time_s",
+      "d0_ledger": {
+        "n_frequencies": 4,
+        "total_acoustic_energy_relative_s": 0.000375238095238095,
+        "total_measurement_time_s": 0.23,
+        "control_overhead_s": 0.0,
+        "n_rh_switches": 0,
+        "n_pressure_switches": 0
+      },
+      "comparison_policy": "D1-D3 must be recomputed with this calculator and satisfy both D0 limits. D4 and D5 are registered diagnostics but are not eligible for the equal-cost information gate under the frozen MEI-0 budget.",
+      "source": "engineering_scenario"
+    },
+    "cost_balancing_rule": {
+      "id": "equal_total_energy_and_wall_time_vs_d0",
+      "statement": "任何进入信息门的候选设计相对 D0 固定 K4，必须在 total_acoustic_energy 与 total_measurement_time_s（含 RH/P 切换与稳态等待）上同时 ≤ D0×(1+tol)，tol=0；D4/D5 在当前账本下只作诊断，不得声称等成本信息优势。",
+      "d4_includes_pilot_and_control_cost": true,
+      "source": "engineering_scenario"
+    },
+    "source": "engineering_scenario"
+  },
+  "design_arms": [
+    {
+      "id": "D0",
+      "name": "fixed_k4",
+      "design": [25000.0, 63000.0, 100000.0, 200000.0],
+      "role": "mrs6_low_cost_baseline",
+      "eligible_for_information_gate": true
+    },
+    {
+      "id": "D1",
+      "name": "equal_cost_random_k4",
+      "role": "random_control",
+      "n_frequencies": 4,
+      "eligible_for_information_gate": true
+    },
+    {
+      "id": "D2",
+      "name": "center_local_c_optimal_k4",
+      "role": "center_fragility_probe",
+      "n_frequencies": 4,
+      "eligible_for_information_gate": true
+    },
+    {
+      "id": "D3",
+      "name": "robust_c_optimal_k4",
+      "role": "primary_candidate",
+      "n_frequencies": 4,
+      "eligible_for_information_gate": true
+    },
+    {
+      "id": "D4",
+      "name": "two_stage_adaptive_k4",
+      "role": "adaptive_diagnostic_infeasible_at_frozen_d0_budget",
+      "pilot_n_frequencies": [2, 3],
+      "pilot_reused_in_total_k4": true,
+      "total_n_frequencies": 4,
+      "total_measurement_time_s": 5.23,
+      "eligible_for_information_gate": false,
+      "ineligibility_reason": "5 s control overhead alone exceeds the 0.23 s D0 wall-time budget"
+    },
+    {
+      "id": "D5",
+      "name": "equal_energy_k8",
+      "role": "redundancy_diagnosis_not_cost_advantage",
+      "design": [10000.0, 16000.0, 25000.0, 40000.0, 63000.0, 100000.0, 160000.0, 200000.0],
+      "drive_power_relative": 0.400152342262283,
+      "total_acoustic_energy_relative_s": 0.000375238095238095,
+      "total_measurement_time_s": 0.47,
+      "eligible_for_information_gate": false,
+      "ineligibility_reason": "equal energy is achievable by power scaling, but K8 wall time exceeds the 0.23 s D0 budget"
+    }
+  ],
+  "objective": {
+    "form": "min_d max_xi [c^T I_eff(d, xi)^(-1) c] + lambda_time*Time(d) + lambda_energy*Energy(d)",
+    "c_vector": {
+      "target": "o2_percent",
+      "definition": "unit_vector_on_o2_in_theta",
+      "notes": "c-最优目标方向固定为 O2；CO2/N2 只报告，不进入主稳健目标"
+    },
+    "xi_covers": ["operating_conditions", "model_families"],
+    "lambdas_provisional": {
+      "lambda_time": 0.0,
+      "lambda_energy": 0.0,
+      "notes": "主比较先用硬成本约束配平；lambda 仅作敏感性，MEI-2 运行前若启用须写入 stage 配置摘要"
+    },
+    "source": "engineering_scenario"
+  },
+  "noise_families": {
+    "N0_independent": {
+      "id": "per_frequency_independent",
+      "role": "primary_registered_noise",
+      "source": "engineering_scenario",
+      "ref": "configs/tv3_mrs/parameter_registry.json observation_noise"
+    },
+    "N1_low_rank_common_mode": {
+      "id": "low_rank_common_mode",
+      "role": "sensitivity_only_until_mei5_bench",
+      "source": "engineering_scenario",
+      "status": "sensitivity_analysis_only",
+      "notes": "共模情景不得代替台架证据"
+    },
+    "N2_mixed": {
+      "id": "mixed_independent_plus_common_mode",
+      "role": "sensitivity_only_until_mei5_bench",
+      "source": "engineering_scenario",
+      "status": "sensitivity_analysis_only"
+    }
+  },
+  "observation_baselines": {
+    "registered_mrs2": {
+      "jitter_std_s": 3.0e-6,
+      "relative_amp_std": 0.02,
+      "prior_std": {
+        "t_c": 1.0,
+        "path_length_m": 0.0001,
+        "h_rh": 2.0,
+        "co2_percent": 0.05
+      }
+    },
+    "low_cost_k4_reference": {
+      "arm": "obs-cfreq",
+      "k": "K4",
+      "jitter_std_s": 5.0e-7,
+      "t_prior_k": 0.1,
+      "max_p90_o2_percent": 1.51,
+      "median_p90_o2_percent": 1.23,
+      "source": "outputs/tv3_mrs/mrs6_hardware"
+    },
+    "fixed_delay_s": 0.000082,
+    "source": "engineering_scenario"
+  },
+  "review_answers": {
+    "q3_cost_balancing": {
+      "answer": "采用可执行 cost_calculator 与冻结 D0 账本：D0 能量 0.000375238095238095 relative-s、墙钟 0.23 s。D1-D3 必须逐臂复算并同时不超 D0。D4 即使复用 pilot 也需 5.23 s，D5 等能量后仍需 0.47 s，因此二者在当前预算下只作诊断，不进入等成本信息门。",
+      "status": "frozen_for_mei0"
+    },
+    "q5_mei5_without_hardware": {
+      "answer": "无参考负载、重复采集、同步激励与可核对总能量时，MEI-5 保持 blocked_by_hardware_evidence；不得用有利仿真相关代替实测。",
+      "status": "frozen_for_mei0"
+    },
+    "q6_mixture_id_stability": {
+      "answer": "多视图配对要求同一 mixture_id 在组分稳定窗口内采集；跨 train/test 禁止拆分同混合物视图；错误配对与时间打乱为强制负对照。",
+      "status": "frozen_for_mei0"
+    }
+  },
+  "source": "engineering_scenario"
+}

@@ -23,7 +23,7 @@
 | `frame_embedding` | `(B,T,64)`   | 共享多尺度波形 encoder 输出                                 |
 | `prediction`      | `(B,3)`      | 独立 raw3 线性输出                                       |
 
-数据通路（工程，非算法门）：正式 E1/E1r 配置默认 `waveform_preprocess: "gpu"`——DataLoader 只搬运 int16 与 scale，在训练设备上完成 dequant、归一化前 stats 与 z-score，再组装为上表 NTC 输入。数值语义与 `cpu` 路径对齐；审计读 `run_config.waveform_preprocess`。细节见 [server_training_guide.md §4.5](../operations/server_training_guide.md#45-波形数据通路-waveform_preprocessp1-吞吐)。
+数据通路（工程，非算法门）：正式 E1/E1r 配置默认 `waveform_preprocess: "gpu"`——DataLoader 只搬运 int16 与 scale，在训练设备上完成 dequant、归一化前 stats 与 z-score，再组装为上表 NTC 输入。数值语义与 `cpu` 路径对齐；审计读 `run_config.waveform_preprocess`。细节见 [server_training_guide.md §4.5](../../operations/server_training_guide.md#45-波形数据通路-waveform_preprocessp1-吞吐)。
 
 E1 不读取 `aux_target_arrays`。真实 TOF 与 peak index 仅允许由离线审计程序读取，用于 frame fidelity 评价，不作为训练输入或 loss target。
 

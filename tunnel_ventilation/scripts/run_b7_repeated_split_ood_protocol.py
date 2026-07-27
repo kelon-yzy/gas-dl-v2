@@ -1,6 +1,6 @@
 """B7 冻结后的重复 split × 独立 OOD 协议编排。
 
-依据：tunnel_ventilation/docs/active/b7_repeated_split_ood_protocol_implementation_plan.md
+依据：tunnel_ventilation/docs/archive/completed/b7_repeated_split_ood_protocol_implementation_plan.md
 
 只负责编排既有入口，不复制训练逻辑、不重定义 B7 超参数：
 1. 派生 random / LHS / SPXY-observed splits（跳过 source RawDSP hardlink）

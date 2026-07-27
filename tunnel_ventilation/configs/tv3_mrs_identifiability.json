@@ -1,0 +1,107 @@
+{
+  "schema_version": "tv3-identifiability-mrs-3",
+  "stage": "MRS-2",
+  "claim_scope": "registered_simulation_domain_only",
+  "output_dir": "outputs/tv3_mrs/identifiability_mrs2",
+  "mrs0_registry": {
+    "path": "configs/tv3_mrs/parameter_registry.json",
+    "expected_sha256": "cb5f697597dddb05b580f4d954a797ec9e2891cd1501530397901d32eb051422"
+  },
+  "mrs1_prerequisite": {
+    "stage_status": "configs/tv3_mrs/stage_status.json",
+    "expected_verdict": "mrs1_physics_passed"
+  },
+  "frequency_set_hz": [10000.0, 16000.0, 25000.0, 40000.0, 63000.0, 100000.0, 160000.0, 200000.0],
+  "frequency_subsets": {
+    "K8": [10000.0, 16000.0, 25000.0, 40000.0, 63000.0, 100000.0, 160000.0, 200000.0],
+    "K6": [25000.0, 40000.0, 63000.0, 100000.0, 160000.0, 200000.0],
+    "K4": [25000.0, 63000.0, 100000.0, 200000.0]
+  },
+  "parameter_bounds": {
+    "co2_percent": [0.03, 5.0],
+    "o2_percent": [18.0, 21.2],
+    "t_c": [15.0, 35.0],
+    "path_length_m": [0.2, 0.3],
+    "h_rh": [20.0, 80.0]
+  },
+  "narrow_windows": [
+    {"id": "o2_18_4", "center_percent": 18.4, "width_percent": 0.8},
+    {"id": "o2_19_2", "center_percent": 19.2, "width_percent": 0.8},
+    {"id": "o2_20_0", "center_percent": 20.0, "width_percent": 0.8},
+    {"id": "o2_20_8", "center_percent": 20.8, "width_percent": 0.8}
+  ],
+  "narrow_context_grid": {
+    "co2_percent": [0.03, 2.515, 5.0],
+    "t_c": [15.0, 25.0, 35.0],
+    "path_length_m": [0.2, 0.25, 0.3],
+    "h_rh": [30.0, 50.0, 70.0],
+    "p_mpa": [0.101325]
+  },
+  "heatmap_grid": {
+    "co2_percent": [1.0],
+    "o2_percent": [20.0],
+    "t_c": [25.0],
+    "path_length_m": [0.25],
+    "h_rh": [20.0, 35.0, 50.0, 65.0, 80.0],
+    "p_mpa": [0.10, 0.20, 0.35, 0.50, 0.709]
+  },
+  "finite_difference": {
+    "steps": {
+      "o2_percent": 0.01,
+      "co2_percent": 0.01,
+      "t_c": 0.1,
+      "path_length_m": 0.001,
+      "h_rh": 0.5
+    },
+    "max_relative_step_disagreement": 0.01
+  },
+  "observation": {
+    "fixed_delay_s": 0.000082,
+    "jitter_std_s": 0.000003,
+    "phase_std_s_at_anchor": 0.0,
+    "relative_amp_std": 0.02,
+    "rh_delta_percent": 20.0,
+    "p_scan_mpa": [0.10, 0.50],
+    "notes": "Trigger jitter is frequency-independent (v1-aligned). phase_std=0 baseline; optional 1/f phase term not enabled for primary gate.",
+    "source": "configs/tv3_mrs/parameter_registry.json observation_noise + rh/pressure arms"
+  },
+  "prior_std": {
+    "t_c": 1.0,
+    "path_length_m": 0.0001,
+    "h_rh": 2.0,
+    "co2_percent": 0.05,
+    "notes": "T=1K v1 freeze; RH=2% registry; L=0.1mm piston engineering; CO2=0.05 vol% NDIR engineering_scenario (V_NDIR_CO2 exists in slow channels — acoustic-only free-CO2 CRLB is separately pathological due to O2-CO2 collinearity)"
+  },
+  "arms": [
+    "obs-single-200k",
+    "obs-cfreq",
+    "obs-calpha",
+    "obs-rh-diff",
+    "obs-p-scan"
+  ],
+  "business_thresholds": {
+    "target_p90_o2_error_percent": 0.4,
+    "max_nuisance_fraction_of_signal": 0.5,
+    "max_rejection_rate": 0.05,
+    "min_joint_fisher_relative_svd_rank": 2
+  },
+  "rejection_policy": {
+    "id": "mrs2_blocking_nuisance_reject_all",
+    "reject_if_unrepresented_blocking_nuisance": true,
+    "source": "v1 policy reused; MRS diffraction is not_represented but blocks_go_verdict=false"
+  },
+  "representation_audit": [
+    {
+      "name": "low_frequency_diffraction",
+      "representation": "not_represented",
+      "source": "configs/tv3_mrs/parameter_registry.json",
+      "blocks_go_verdict": false
+    },
+    {
+      "name": "flow_projection",
+      "representation": "implemented_physics_zero",
+      "source": "MRS flow=0 baseline",
+      "blocks_go_verdict": false
+    }
+  ]
+}

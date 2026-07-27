@@ -1,14 +1,16 @@
 # tv3 运行产物索引
 
-> 整理日期：2026-07-21。正式组分结论以 clean `tv3-formal-6000` 为准；双向 F 线正式训练待 `tv3-bidir-6000`。路径与 [掘进通风项目记忆库](../docs/掘进通风项目记忆库.md) §七 对齐。
+> 整理日期：2026-07-27。正式组分结论以 clean `tv3-formal-6000` 为准；双向宽域 F5 正式结果已回填，窄域 F5/F6 不排期。MRS-0/1/2/6 证据在 `tv3_mrs/`，MRS-EI 的版本化阶段证据在 `runs/tv3_mrs_ei/`。路径与 [掘进通风项目记忆库](../docs/掘进通风项目记忆库.md) §七 对齐。
 
 ## 顶层结构
 
 | 目录 | 用途 | 状态 |
 | --- | --- | --- |
+| `tv3_mrs/` | MRS 线：registry / 弛豫谱物理门 / 前向可辨识性 v3 / 硬件需求扫描 | ✅ MRS-0/1 通过；❌ MRS-2=`mrs2_rank_upgraded_p90_fail`（升秩成立，P90 未过门）；✅ MRS-6=`mrs6_hardware_requirements_delivered`（2026-07-25）；MRS 线收尾 |
+| `runs/tv3_mrs_ei/` | MRS-EI：MEI-0 registry、数值复算和后续 MEI-* 阶段证据 | ▶️ MEI-0=`mei0_registry_frozen`；freeze 目录只追加不覆盖；下一步 MEI-1；正式波形仍禁止 |
 | `tv3_d0/` | D0 六组特征拆分（Ridge，6000） | 正式 baseline |
 | `tv3_d2/` | D2 TOF-PhaseNet 失败证据 | 已停止 |
-| `tv3_d2b/` | RawDSP fidelity、B1 reference、B6 MLP | 当前主线 |
+| `tv3_d2b/` | RawDSP fidelity、B1 reference、B6 MLP | ✅ 冻结默认头链路（B7） |
 | `tv3_r5/` | TabPFN、R5 MLP、R5-T | 正式 / 失败证据 |
 | `tv3_r7/` | ExtraTrees observed | 失败证据 |
 | `tv3_rocket/` | R0 / R1a / R1b 固定特征回归 | 正式 |
@@ -17,9 +19,9 @@
 | `tv3_module_c_grouped_bottleneck/` | 模块 C 分组 bottleneck C1 / C2 协议 | ❌ 24 条正式矩阵 `grouped_failed` |
 | `tv3_baseline_freeze/` | B1/B7 配置、结果、split、RawDSP 与环境 hash 冻结 | ✅ `frozen` |
 | `tv3_identifiability/` | 冻结 v1 单向 TOF 的敏感度、Fisher 与误差预算审计 | ✅ `audit=passed`；P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 均失败，flow 未表示，verdict=`information_source_upgrade_required`（永不改写） |
-| `tv3_bidir/` | 双向 F 线：F0 registry、F2 audit、F3 dsp_fidelity、F4 identifiability_v2；F5 `model_protocol/` | ✅ F0–F4；F4=`coarse_monitoring_only`；F5 正式 6000 待服务器 |
+| `tv3_bidir/` | 双向 F 线：F0 registry、F2 audit、F3 dsp_fidelity、F4 identifiability_v2；F5 model protocol | ✅ F0–F4；F4=`coarse_monitoring_only`；❌ `model_protocol_wide/`=`f5_model_protocol_failed`；⏸ 窄域 F5/F6 不排期 |
 | `tv3_ec_msw/` | EC-MSW-GatedNet 分阶段实验 | ✅ E1d/E1d-SB/attachment/D1；✅ LS 不晋升；D2 打包可选；E2 禁止 |
-| `runs/tv3_comsol_multiphysics/` | 隧道 COMSOL 多物理场 G0–G7 阶段产物 | ✅ G0 registry；✅ G1 `g1_cfd_smoke_passed`；下一步 G2；smoke 不进正式训练 |
+| `runs/tv3_comsol_multiphysics/` | 隧道 COMSOL 多物理场 G0–G7 阶段产物 | ✅ G0 registry；✅ G1 `g1_cfd_smoke_passed`；⏸ G2+ 不排期；smoke 不进正式训练 |
 | `summary/` | 跨运行汇总产物 | 汇总索引 |
 | `archive/` | 调试、本地 600、历史 DL、已取代子运行 | 仅追溯 |
 
@@ -51,6 +53,11 @@
 | `tv3_rocket/r0|r1a|r1b/metrics.json` | Rocket 固定特征回归 |
 | `tv3_identifiability/verdict.json` | 单向 TOF 可辨识性正式 verdict |
 | `tv3_identifiability/nuisance_fraction_summary.csv` | 窄窗口内每个已声明 nuisance 情景相对 `0.8 vol%` 信号的最坏 P90 比例 |
+| `tv3_mrs/mrs0_registry/` | MRS-0 参数 registry 冻结产物 |
+| `tv3_mrs/mrs1_physics/` | MRS-1 弛豫谱物理门产物 |
+| `tv3_mrs/identifiability_mrs2/mrs2_verdict.json` | MRS-2 正式 verdict=`mrs2_rank_upgraded_p90_fail` |
+| `tv3_mrs/mrs6_hardware/` | MRS-6 噪声预算扫描 + 饱和层诊断（`mrs6_verdict.json` / `budget_scan.csv` / `k_subset_scan.csv` / `amp_scan.csv` / `floor_diagnosis.csv`） |
+| `runs/tv3_mrs_ei/mei0_registry/freezes/20260727T071921821957Z_f209e893a9e5/` | 当前 MEI-0 verdict、完整 `delta_num` 复算、stage snapshot 与 evidence manifest；manifest SHA256=`4230c8…d862` |
 | `tv3_ec_msw/e1_s20260704/metrics.json` | EC-MSW E1 正式训练曲线与神经头指标 |
 | `tv3_ec_msw/e1_s20260704/audit/verdict.json` | EC-MSW E1 正式 `frame_fidelity_failed` 判定与 E2 门 |
 | `tv3_ec_msw/e1_s20260704/audit/frame_fidelity.json` | learned frame embedding 的正式 peak-index fidelity 失败证据 |

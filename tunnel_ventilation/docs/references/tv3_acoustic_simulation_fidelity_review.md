@@ -139,7 +139,7 @@ def coolprop_c(x_co2, x_o2, x_n2, t_c, p_mpa, h_rh):
 
 - 国际标准 / 权威文献，给出含 N₂、O₂ 振动弛豫和显式湿度/温度依赖的验证过的吸收公式。代码现只引用 Bass 1990 的 O₂ 弛豫频率，未实现完整吸收模型。
 - Python `acoustics` 包含大气吸收实现可参照（`[待验证]` 具体 API 未实跑）。
-- 文献：Bass, Sutherland, Zuckerwar 1990, JASA 88(4), DOI:10.1121/1.400476；Bass & Sutherland 2004, JASA, DOI:10.1121/1.1631937。
+- 文献：Bass, Sutherland, Zuckerwar 1990, JASA 88(4), DOI:10.1121/1.400176（2026-07-24 修正；旧引 10.1121/1.400476 指向无关文献）；Bass & Sutherland 2004, JASA, DOI:10.1121/1.1631937。
 
 ### 3. HITRAN / HITEMP（hapi）—— NDIR 与 O₂ 光学通道
 

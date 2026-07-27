@@ -2,7 +2,7 @@
 
 > 状态：**clean 6000 RawDSP cache、B1 Ridge parity、帧级 fidelity、B6 stable_pass 与 B7 residual_pass 均已通过**
 > 日期：2026-07-11  
-> 依据：[掘进通风项目记忆库.md](../掘进通风项目记忆库.md)、[d2_tof_phasenet_implementation_plan.md](../archive/completed/d2_tof_phasenet_implementation_plan.md)、`tv3-formal-6000` 的 D0、D2、R5' 与 R5 结果，以及本地 raw waveform 只读诊断。
+> 依据：[掘进通风项目记忆库.md](../../掘进通风项目记忆库.md)、[d2_tof_phasenet_implementation_plan.md](./d2_tof_phasenet_implementation_plan.md)、`tv3-formal-6000` 的 D0、D2、R5' 与 R5 结果，以及本地 raw waveform 只读诊断。
 
 ## 1. 结论
 
@@ -58,7 +58,7 @@ D2b 的首要验收不是直接把 O₂ R² 推到 0.70，而是证明 raw wavef
 | test | 0.4786 | 0.5244 | +0.0458 |
 | extrapolation | 0.3695 | 0.4957 | +0.1262 |
 
-三 eval split 同步超过 B1 通过线；train−val gap `0.274`。正式产物为 `outputs/tv3_d2b/raw_dsp_mlp_target_scaled_v2/metrics.json`，已绑定 fidelity 与 `raw_dsp_ridge_provenance`。单 seed 正式验收通过；三新增 seed 均值 `0.5581 / 0.5356 / 0.4835`。细节见 [d2b_raw_dsp_mlp_implementation_plan.md](../archive/completed/d2b_raw_dsp_mlp_implementation_plan.md)。
+三 eval split 同步超过 B1 通过线；train−val gap `0.274`。正式产物为 `outputs/tv3_d2b/raw_dsp_mlp_target_scaled_v2/metrics.json`，已绑定 fidelity 与 `raw_dsp_ridge_provenance`。单 seed 正式验收通过；三新增 seed 均值 `0.5581 / 0.5356 / 0.4835`。细节见 [d2b_raw_dsp_mlp_implementation_plan.md](./d2b_raw_dsp_mlp_implementation_plan.md)。
 
 ### 1.4 2026-07-11 正式 B7 结果
 
@@ -68,7 +68,7 @@ D2b 的首要验收不是直接把 O₂ R² 推到 0.70，而是证明 raw wavef
 | test | 0.5356 | 0.7001 | +0.1645 |
 | extrapolation | 0.4835 | 0.6157 | +0.1322 |
 
-三新增 seed 均过 B1 门槛，判定 **`residual_pass`**。正式产物 `outputs/tv3_d2b/b7_oof_ridge_residual_mlp/`；参数量 68931，val `sum_abs_error≈0.0004`，train−val gap≈0.16。B7 成为当前默认 raw-DSP 头候选；不扩大 residual 结构。细节见 [b7_oof_ridge_residual_mlp_implementation_plan.md](../archive/completed/b7_oof_ridge_residual_mlp_implementation_plan.md)。
+三新增 seed 均过 B1 门槛，判定 **`residual_pass`**。正式产物 `outputs/tv3_d2b/b7_oof_ridge_residual_mlp/`；参数量 68931，val `sum_abs_error≈0.0004`，train−val gap≈0.16。B7 成为当前默认 raw-DSP 头候选；不扩大 residual 结构。细节见 [b7_oof_ridge_residual_mlp_implementation_plan.md](./b7_oof_ridge_residual_mlp_implementation_plan.md)。
 
 ## 2. 背景与已验证事实
 

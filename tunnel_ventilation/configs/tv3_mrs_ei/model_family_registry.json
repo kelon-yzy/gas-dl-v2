@@ -1,0 +1,166 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-ei-1",
+  "registry_type": "model_family",
+  "stage": "MEI-0",
+  "created_at": "2026-07-27",
+  "claim_scope": "registered_simulation_domain_only",
+  "lineage": {
+    "mrs0_registry": {
+      "path": "configs/tv3_mrs/parameter_registry.json",
+      "expected_sha256": "cb5f697597dddb05b580f4d954a797ec9e2891cd1501530397901d32eb051422"
+    },
+    "mrs1_forward": {
+      "module": "tv3/sim/generation/tunnel_ventilation/relaxation_spectrum.py",
+      "expected_module_sha256": "7756294558e9a52e8f8a41991d9c136a3c00598a6b21c530ba3e964ed16f060e",
+      "expected_verdict": "mrs1_physics_passed",
+      "verdict_path": "outputs/tv3_mrs/mrs1_physics/mrs1_verdict.json",
+      "expected_verdict_sha256": "db3ac9b256f6f321ce0dc88410951f9b37f7792965f266cde236ea32b1da1b7a",
+      "stage_status": "configs/tv3_mrs/stage_status.json"
+    },
+    "mrs2_verdict": {
+      "path": "outputs/tv3_mrs/identifiability_mrs2/mrs2_verdict.json",
+      "expected_sha256": "c9e5020444c05dbd5c617b7da4db3d8d975928d13cb9a8157cb07d022cfcf3a6",
+      "expected_verdict": "mrs2_rank_upgraded_p90_fail",
+      "notes": "引用历史结论，不得改写"
+    },
+    "mrs6_verdict": {
+      "path": "outputs/tv3_mrs/mrs6_hardware/mrs6_verdict.json",
+      "expected_sha256": "20cdf377cfcb100a7ec5ec66f7c6feff22e1e04301288722f5ca5dfe6b75c949",
+      "expected_verdict": "mrs6_hardware_requirements_delivered",
+      "notes": "引用噪声预算与 K4 粗精度参考，不得改写"
+    }
+  },
+  "baseline_forward": {
+    "id": "mrs1_single_relaxation_sum_v1",
+    "name": "single_relaxation_sum_v1",
+    "module": "tv3/sim/generation/tunnel_ventilation/relaxation_spectrum.py",
+    "source": "implemented_physics",
+    "equations": {
+      "c_f": "c_eq * (1 + sum_i (Delta_c_i/c_eq) * f^2/(f^2+f_r_i^2))",
+      "alpha_f": "alpha_classical(f) + sum_i Lorentzian_i(f; alpha_lambda_max_i, f_r_i)"
+    },
+    "explicit_non_goals": [
+      "no_full_coupled_relaxation_matrix_dain_lueptow",
+      "no_change_to_hidden_sound_speed_v2",
+      "no_change_to_hidden_attenuation_v2"
+    ],
+    "notes": "MEI 线共享唯一前向实现；设计器/求解器/后验不得复制弛豫公式。"
+  },
+  "model_families": [
+    {
+      "id": "F0_mrs1_baseline",
+      "role": "baseline",
+      "perturbation": null,
+      "source": "implemented_physics",
+      "status": "implemented",
+      "notes": "MRS-1 单弛豫加和基线"
+    },
+    {
+      "id": "F1_humid_air_c_eq",
+      "role": "envelope",
+      "perturbation": {
+        "type": "parameter_envelope",
+        "target": "c_eq_humid_air_correction",
+        "relative_bounds": [0.0, 0.01],
+        "bound_semantics": "additive_relative_correction_from_dry_baseline",
+        "notes": "CoolProp 复核显示 5 mol% H2O 使声速约增加 0.81%；上界 1% 留出量级保护，不解释为统计置信区间。"
+      },
+      "source": "engineering_scenario",
+      "refs": [
+        "docs/references/tv3_acoustic_simulation_fidelity_review.md §4 and §5.1",
+        "CoolProp 8.0.0 HEOS smoke check recorded in the cited review"
+      ],
+      "status": "registered_not_implemented",
+      "mei1_action": "implement_or_mark_not_represented"
+    },
+    {
+      "id": "F2_h2o_relaxation_params",
+      "role": "envelope",
+      "perturbation": {
+        "type": "unmodeled_parameter_uncertainty",
+        "target": "h2o_catalysis_and_alpha_lambda_max_h2o",
+        "relative_bounds": null,
+        "notes": "现有 H2O 弛豫强度是未验证 proxy；没有可追溯不确定度时不登记任意百分比包络。"
+      },
+      "source": "not_represented",
+      "refs": [
+        "configs/tv3_mrs/parameter_registry.json vibrational_heat_capacity and legacy_v2_empirical_intensity",
+        "doi:10.1121/1.400176"
+      ],
+      "status": "not_represented",
+      "blocking_reason": "no validated H2O relaxation-strength uncertainty bound",
+      "mei1_action": "remain_not_represented_until_a_traceable_bound_is_registered"
+    },
+    {
+      "id": "F3_coupled_relaxation",
+      "role": "envelope",
+      "perturbation": {
+        "type": "structural_alternative",
+        "target": "coupled_relaxation_matrix",
+        "notes": "相对单弛豫加和的耦合矩阵偏差方向；完整实现非本线目标"
+      },
+      "source": "not_represented",
+      "status": "not_represented",
+      "mei1_action": "synthetic_orthogonal_parallel_mixed_bias_only"
+    },
+    {
+      "id": "F4_diffraction_near_field",
+      "role": "envelope",
+      "perturbation": {
+        "type": "unmodeled_bias",
+        "target": "low_frequency_diffraction_near_field",
+        "frequency_floor_hz": 15000.0,
+        "notes": "沿用 MRS-0 low_frequency_diffraction；10–15 kHz 边界"
+      },
+      "source": "not_represented",
+      "status": "not_represented",
+      "blocks_go_verdict": false,
+      "mei1_action": "keep_as_not_represented_unless_comsol_subset"
+    },
+    {
+      "id": "F5_transducer_response",
+      "role": "envelope",
+      "perturbation": {
+        "type": "unmodeled_bias",
+        "target": "transducer_amplitude_phase_response",
+        "notes": "换能器幅度/相位响应未进入 MRS-1；MEI-1 仅登记灵敏度方向扰动"
+      },
+      "source": "not_represented",
+      "status": "not_represented",
+      "mei1_action": "keep_as_not_represented_unless_bench_calibration"
+    },
+    {
+      "id": "F6_comsol_local_acoustics_holdout",
+      "role": "independent_holdout_family",
+      "perturbation": null,
+      "source": "engineering_scenario",
+      "status": "conditional",
+      "prerequisite": "available_comsol_local_acoustics_subset_only",
+      "explicit_non_goals": [
+        "no_auto_resume_comsol_g2_plus",
+        "no_treat_g1_smoke_as_high_fidelity_mrs_data"
+      ],
+      "mei1_action": "use_only_if_subset_exists_else_skip"
+    }
+  ],
+  "synthetic_bias_directions": {
+    "parallel_to_o2_jacobian": true,
+    "orthogonal_to_o2_jacobian": true,
+    "mixed": true,
+    "notes": "MEI-1 构造合成偏差，检查稳健设计与求解器在最不利偏差下是否仍成立",
+    "source": "engineering_scenario"
+  },
+  "review_answers": {
+    "q2_model_family_coverage": {
+      "answer": "已登记湿空气 c_eq、H2O 参数、耦合弛豫、衍射/近场和换能器响应。F1 使用 CoolProp 复核支持的 0–1% 单向修正包络；F2–F5 均如实标为 not_represented，不再伪造任意参数边界。MEI-1 若无法证明未表示项不会翻转排名，必须输出 mei1_inconclusive_forward_model。",
+      "status": "frozen_for_mei0"
+    }
+  },
+  "explicit_non_goals": [
+    "no_train_free_residual_network_in_mei1",
+    "no_rewrite_mrs_history",
+    "no_restore_mrs3",
+    "no_resume_f_line_or_comsol_g2_plus"
+  ],
+  "source": "engineering_scenario"
+}

@@ -1,7 +1,7 @@
 # tv3 静止空气仿真可辨识性实施计划
 
-> 状态：**当前仿真 P0；真实测量与硬件闭环暂缓**
->
+> 状态：**并行保留（不阻塞 MRS-EI）**；真实测量与硬件闭环仍暂缓。当前正式执行主线为 [MRS-EI 计划](tv3_mrs_information_efficient_inversion_experiment_plan.md)，MEI-0 已冻结，MEI-1=`mei1_inconclusive_forward_model`，不放行 MEI-2。
+> 
 > 目的：在显式固定 `flow=0` 的仿真边界内，系统量化现有单向声学链路对 O₂ 的信息量、测量链扰动敏感度和独立参数 holdout 表现。本计划的任何通过结论都只表示“在已登记仿真分布内成立”，不能外推为真实静止空气、掘进通风现场或安全联锁能力。
 
 ## Context
@@ -49,12 +49,12 @@
 
 ### 4. 判定边界
 
-| 结果 | 含义 | 后续动作 |
-| --- | --- | --- |
-| `static_sim_supported` | 在已登记仿真分布内三项研究门通过，且独立参数 holdout 稳定 | 保留为仿真可行性证据；不升级为真实能力，可继续扩展湿空气或设备物理 |
-| `static_sim_information_insufficient` | 仿真范围内仍有 P90、nuisance、秩或拒绝率失败 | 停止增加回归头；定位主导 nuisance 或评估新信息源 |
-| `inconclusive_parameter_bounds` | 参数来源、协方差或物理表示不足 | 补充文献边界或仿真物理，不给继续 / 停止结论 |
-| `static_sim_audit_failed` | manifest、split、hash、数值稳定性或禁止输入审计失败 | 修仿真与审计链路，不训练模型 |
+| 结果                                    | 含义                                 | 后续动作                              |
+| ------------------------------------- | ---------------------------------- | --------------------------------- |
+| `static_sim_supported`                | 在已登记仿真分布内三项研究门通过，且独立参数 holdout 稳定  | 保留为仿真可行性证据；不升级为真实能力，可继续扩展湿空气或设备物理 |
+| `static_sim_information_insufficient` | 仿真范围内仍有 P90、nuisance、秩或拒绝率失败       | 停止增加回归头；定位主导 nuisance 或评估新信息源     |
+| `inconclusive_parameter_bounds`       | 参数来源、协方差或物理表示不足                    | 补充文献边界或仿真物理，不给继续 / 停止结论           |
+| `static_sim_audit_failed`             | manifest、split、hash、数值稳定性或禁止输入审计失败 | 修仿真与审计链路，不训练模型                    |
 
 ## Non-goals
 

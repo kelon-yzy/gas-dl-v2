@@ -1,0 +1,64 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-ei-1",
+  "notes": "MEI-0 freeze directories are append-only. Registry changes require a new versioned freeze; later-stage statuses are not carried across re-freezes.",
+  "registry_files": [
+    "model_family_registry.json",
+    "design_space.json",
+    "metric_registry.json"
+  ],
+  "allowed_next_stage": null,
+  "mei0": {
+    "verdict": "mei0_registry_frozen",
+    "registry_sha256": {
+      "model_family_registry.json": "f64a8f59732b18734d0d76a64f8b75831063d765da4233a83bb88046525028b2",
+      "design_space.json": "bb2c5c9131addf2706eed1118ab1a2abc2dc0daa889db8645c453abfb56fe514",
+      "metric_registry.json": "f209e893a9e5bce217a96f81dd8d01d4ee6174451dba29f087bb4ecbbd7977ab"
+    },
+    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei0_registry/freezes/20260727T071921821957Z_f209e893a9e5",
+    "verdict_path": "outputs/runs/tv3_mrs_ei/mei0_registry/freezes/20260727T071921821957Z_f209e893a9e5/mei0_verdict.json",
+    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei0_registry/freezes/20260727T071921821957Z_f209e893a9e5/evidence_manifest.json",
+    "passed_at_utc": "2026-07-27T07:19:21.821957+00:00",
+    "formal_waveform_generation": "forbidden_until_authorized",
+    "delta_num": 0.02,
+    "evidence_manifest_sha256": "4230c8c8695a9506d3f00870bca056d13cc938f640b293cb1ce56c8c5375d862"
+  },
+  "mei1": {
+    "verdict": "mei1_inconclusive_forward_model",
+    "passed": false,
+    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260727T081544975672Z_ea58c1e41e30",
+    "verdict_path": "outputs/runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260727T081544975672Z_ea58c1e41e30/mei1_verdict.json",
+    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260727T081544975672Z_ea58c1e41e30/evidence_manifest.json",
+    "passed_at_utc": "2026-07-27T08:15:44.975672+00:00",
+    "formal_waveform_generation": "forbidden_until_authorized",
+    "delta_num": 0.02,
+    "n_points": 216,
+    "n_designs": 15,
+    "comsol_holdout_status": "unavailable",
+    "blockers": [
+      "unrepresented_families_without_flip_proof:F2_h2o_relaxation_params,F3_coupled_relaxation,F4_diffraction_near_field,F5_transducer_response",
+      "design_ranking_not_resolvable_within_delta_num"
+    ],
+    "unrepresented_registry_families": [
+      "F2_h2o_relaxation_params",
+      "F3_coupled_relaxation",
+      "F4_diffraction_near_field",
+      "F5_transducer_response"
+    ],
+    "f0_ranking_meta": {
+      "ranking_resolvable": false,
+      "ranking_span_relative": 0.0071170280697116966,
+      "distinguishable_rank_levels": 1,
+      "baseline_k4_metric": 7.546243869071015,
+      "best_metric": 7.533428454045556,
+      "worst_metric": 7.587044075814163,
+      "best_vs_baseline_improve_relative": 0.0016982508447658717
+    },
+    "config_sha256": {
+      "model_family_registry.json": "f64a8f59732b18734d0d76a64f8b75831063d765da4233a83bb88046525028b2",
+      "design_space.json": "bb2c5c9131addf2706eed1118ab1a2abc2dc0daa889db8645c453abfb56fe514",
+      "metric_registry.json": "f209e893a9e5bce217a96f81dd8d01d4ee6174451dba29f087bb4ecbbd7977ab",
+      "mei1_forward_envelope.json": "ea58c1e41e30df940da53fa157f130af0d8a7ee71c68f2961d20dd458d94a205"
+    },
+    "evidence_manifest_sha256": "9a14e3c895ff2c278e68fb8300dfeaa1743b34bd1e6107b8d82052464a0b68e2"
+  }
+}

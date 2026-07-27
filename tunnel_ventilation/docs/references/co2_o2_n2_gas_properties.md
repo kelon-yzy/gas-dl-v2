@@ -5,6 +5,7 @@
 > O₂ 参数来源见各表"来源"列；置信度标注于关键条目。
 >
 > **数据核实状态（2026-07-04 经 smart-search 多源验证）**：O₂ cp 经 NIST WebBook Shomate 方程手算确认；O₂ λ/η 经 NIST/CRC/Engineering ToolBox/NBS TN.350 交叉确认；O₂ 弛豫机制经 Bass 1990 JASA 公式确认；CO₂ NDIR 滤光片经 Umicore/MicroHybrid datasheet 确认。
+> **勘误（2026-07-24）**：① N₂ V-T 弛豫频率修正为 dry air fr,N ≈ 9 Hz/atm（旧值 65 kHz/atm 错误约 4 个数量级；代码 `f_relax_n2_per_atm` 已同步修正）；② Bass 1990 DOI 修正为 10.1121/1.400176（旧引 10.1121/1.400476 实际指向 Brown 1991 音乐信号处理文献）。核验依据见 [声速法_N2-O2辨识_深度学习突破路径_综述.md](声速法_N2-O2辨识_深度学习突破路径_综述.md) §4-A3 / §7。
 
 ## 1. 声学参数
 
@@ -30,8 +31,8 @@ O₂ cp = 29.38 J/(mol·K) @ 298.15 K 来自 NIST WebBook Shomate 方程，与�
 | 气体 | 弛豫类型 | 弛豫频率 f_r | 弛豫强度 λ_max | 来源 | 置信度 |
 |------|----------|----------:|----------:|------|--------|
 | CO₂ | V-T 弛豫 | 28 kHz/atm | 0.12 | [代码已有] `hidden_attenuation_v2` | 高 |
-| O₂ | V-T 弛豫 | dry air (h=0) 下 **fr,O ≈ 24 Hz/atm**；受 H₂O 显著加速（V-V 传能），典型大气条件仍 ≪ 200 kHz | 对 200 kHz 贡献可忽略 | Bass, Sutherland, Zuckerwar 1990, "Atmospheric absorption of sound: Update", JASA 88(4), DOI:10.1121/1.400476 | 高（公式已验证）|
-| N₂ | V-T 弛豫 | 65 kHz/atm | 0.004 | [代码已有] `hidden_attenuation_v2` | 高 |
+| O₂ | V-T 弛豫 | dry air (h=0) 下 **fr,O ≈ 24 Hz/atm**；受 H₂O 显著加速（V-V 传能），项目采样域内 ≈2.3–166 kHz，典型大气条件仍 ≪ 200 kHz | 对 200 kHz 贡献可忽略 | Bass, Sutherland, Zuckerwar 1990, "Atmospheric absorption of sound: Update", JASA 88(4), DOI:10.1121/1.400176 | 高（公式已验证）|
+| N₂ | V-T 弛豫 | dry air (h=0) 下 **fr,N ≈ 9 Hz/atm**（2026-07-24 修正；旧值 65 kHz/atm 错误约 4 个数量级）；受 H₂O 催化后典型大气条件 ≲1.3 kHz | 0.004（经验值；MRS 线拟按 C_vib 重新推导，见 active MRS 计划） | Bass 1990 (DOI:10.1121/1.400176)；[代码已修正 2026-07-24] `hidden_attenuation_v2` | 高 |
 
 CO₂ 的振动弛豫在 200 kHz 载波下可能产生显著的频率依赖衰减，需要特别关注。O₂ 和 N₂ 的振动弛豫频率远低于 200 kHz，对波形影响有限。
 
@@ -64,7 +65,7 @@ CO₂ 在 200 kHz 下的声衰减系数显著高于 O₂ 和 N₂，是超声波
 |------|------------------------:|------|--------|
 | CO₂ | 需根据 `hidden_attenuation_v2` 模型计算（alpha_classical + alpha_co2 弛豫，P=0.5 MPa 时弛豫峰移近 200 kHz） | [代码已有] §13.5 | 计算依赖 P/T/湿度 |
 | O₂ | 经典吸收为主（alpha_classical ∝ f²），弛豫贡献可忽略（fr,O ≈ 24 Hz/atm ≪ 200 kHz）；具体值需根据 K_ref=1.84e-11 计算 | Bass 1990 JASA + [代码已有] §13.5 | 计算依赖 P/T |
-| N₂ | 同上，经典吸收为主，弛豫峰 65 kHz/atm 远低于 200 kHz | [代码已有] §13.5 | 计算依赖 P/T |
+| N₂ | 同上，经典吸收为主，弛豫峰 9 Hz/atm（Bass 1990；2026-07-24 修正，旧文误作 65 kHz/atm）远低于 200 kHz | Bass 1990 JASA + [代码已修正] §13.5 | 计算依赖 P/T |
 
 > 200 kHz 下纯组分声衰减系数无简单查表值，需根据主线 `hidden_attenuation_v2` 公式（经典吸收 + 各组分弛豫）在给定 P/T/湿度条件下计算。编码后用单元测试覆盖典型工况。
 
@@ -164,7 +165,7 @@ N₂ 同样为同核双原子分子，无红外活性。NDIR 和 HITRAN 方法�
 | [2] | NBS Technical Note 350, Childs 1966, "The viscosity and thermal conductivity coefficients of dilute nitrogen and oxygen", DOI:10.6028/nbs.tn.350 | O₂/N₂ 稀薄气体粘度与热导率系数 | 高 |
 | [3] | CRC Handbook of Chemistry and Physics | 气体热导率、粘度、幂律温度指数 n | 高 |
 | [4] | HITRAN2020 (hitran.org) | CO₂ 红外光谱参数（ν₃ 带，分子编号 2） | 高 |
-| [5] | Bass, Sutherland, Zuckerwar 1990, "Atmospheric absorption of sound: Update", JASA 88(4), DOI:10.1121/1.400476 | O₂/N₂ 振动弛豫频率公式（fr,O、fr,N） | 高（公式已验证）|
+| [5] | Bass, Sutherland, Zuckerwar 1990, "Atmospheric absorption of sound: Update", JASA 88(4), DOI:10.1121/1.400176（2026-07-24 修正；旧引 10.1121/1.400476 指向无关文献） | O₂/N₂ 振动弛豫频率公式（fr,O、fr,N） | 高（公式已验证）|
 | [6] | Bass & Sutherland 2004, "Atmospheric absorption in the atmosphere up to 160 km", JASA, DOI:10.1121/1.1631937 | 大气吸收算法（高海拔扩展） | 高 |
 | [7] | Mukhopadhyay, Das Gupta, Barua 1967, "Thermal conductivity of hydrogen-nitrogen and hydrogen-carbon-dioxide gas mixtures", British Journal of Applied Physics, DOI:10.1088/0508-3443/18/9/312 | 气体混合物热导率实验与 Wassiljewa 混合规则验证 | 高 |
 | [8] | Wilke 1950, "A Viscosity Equation for Gas Mixtures", J. Chem. Phys. | Wilke 粘度混合规则（φ_ij 公式来源） | 高 |

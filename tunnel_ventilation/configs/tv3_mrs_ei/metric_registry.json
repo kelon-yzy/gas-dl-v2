@@ -1,0 +1,322 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-ei-1",
+  "registry_type": "metric",
+  "stage": "MEI-0",
+  "created_at": "2026-07-27",
+  "claim_scope": "registered_simulation_domain_only",
+  "reference_lines": {
+    "historical_0p4": {
+      "metric": "max_p90_o2_percent",
+      "value": 0.4,
+      "role": "reference_annotation_only",
+      "notes": "2026-07-25 业务决策：不再作强制通过门"
+    },
+    "low_cost_fixed_k4": {
+      "metric": "max_median_p90_o2_percent",
+      "max_p90_o2_percent": 1.51,
+      "median_p90_o2_percent": 1.23,
+      "role": "cost_reference",
+      "condition": "obs-cfreq K4, sigma_TOF=0.5us, T_prior=0.1K"
+    },
+    "full_stack_ideal": {
+      "metric": "max_p90_o2_percent",
+      "value": 0.287,
+      "role": "idealized_lower_bound_reference_only",
+      "notes": "极端全栈只是理想化下界，不作新实验通过门"
+    }
+  },
+  "primary_metrics": {
+    "information_gate": {
+      "statistic": "worst_case_p90_o2_percent_on_holdout_and_model_families",
+      "compare": "relative_improvement_vs_D0_under_equal_cost",
+      "require_paired_bootstrap_95ci_lower_bound_positive": true
+    },
+    "solver_gate": {
+      "statistic": "paired_p90_o2_on_test_and_ood",
+      "compare": "relative_improvement_vs_frozen_deterministic_baseline",
+      "no_degrade_beyond_delta_num": [
+        "mae_o2",
+        "mae_co2",
+        "mae_n2",
+        "convergence_failure_rate",
+        "worst_group_error"
+      ],
+      "crb_efficiency_and_iterations": "explanatory_only"
+    },
+    "calibration_gate": {
+      "nominal_coverages": [
+        0.5,
+        0.8,
+        0.9,
+        0.95
+      ],
+      "acceptance": "empirical_coverage_inside_binomial_95_interval_by_n",
+      "also_report": [
+        "interval_width",
+        "rejection_rate",
+        "sbc_rank_histogram",
+        "nll",
+        "crps"
+      ]
+    },
+    "mechanism_gate": {
+      "require_dedicated_negative_controls_before_attribution": true
+    }
+  },
+  "component_reporting": {
+    "o2": "primary",
+    "co2": "full_report",
+    "n2": "full_report",
+    "closure_sum_abs_error": "monitor_only_not_hard_constraint",
+    "output_contract": {
+      "raw3": true,
+      "out_dim": 3,
+      "forbidden": [
+        "n2_closure_backfill",
+        "target_transform",
+        "closure_residual_head"
+      ]
+    }
+  },
+  "numerical_protocol": {
+    "finite_difference_steps": {
+      "o2_percent": 0.01,
+      "co2_percent": 0.01,
+      "t_c": 0.1,
+      "path_length_m": 0.001,
+      "h_rh": 0.5
+    },
+    "max_relative_step_disagreement": 0.01,
+    "svd_rank_relative_tol": 1e-06,
+    "rank_reporting_protocol": {
+      "relative_tolerance_grid": [
+        1e-07,
+        1e-06,
+        1e-05
+      ],
+      "decision_rule": "A discrete-rank claim must hold at every registered tolerance. If ranks differ, report the rank interval and scaled singular-value spectrum; do not use one tolerance as a gate.",
+      "continuous_diagnostics": [
+        "scaled_singular_values",
+        "effective_fisher_information",
+        "crb_p90"
+      ]
+    },
+    "normal_p90_z": 1.6448536269514722,
+    "parameter_bounds": {
+      "co2_percent": [
+        0.03,
+        5.0
+      ],
+      "o2_percent": [
+        18.0,
+        21.2
+      ],
+      "t_c": [
+        15.0,
+        35.0
+      ],
+      "path_length_m": [
+        0.2,
+        0.3
+      ],
+      "h_rh": [
+        20.0,
+        80.0
+      ]
+    }
+  },
+  "delta_num": {
+    "floor": 0.02,
+    "formula": "max(2*rel_change_fd, 2*rel_change_fresh_process_repeat, floor)",
+    "svd_tolerance_policy": "rank_diagnostic_only_not_part_of_crb_p90_delta",
+    "recompute_required_at_freeze": true,
+    "recompute_spec": {
+      "arm": "obs-cfreq",
+      "frequencies_hz": [
+        25000.0,
+        63000.0,
+        100000.0,
+        200000.0
+      ],
+      "noise": "registered_mrs2",
+      "point_set": "full_narrow_216",
+      "fd_step_scales": [
+        0.5,
+        2.0
+      ],
+      "svd_tol_scales": [
+        0.1,
+        10.0
+      ],
+      "repeat_execution": "fresh_process",
+      "metrics": [
+        "max_p90_o2_percent",
+        "median_p90_o2_percent"
+      ],
+      "n_repeat": 2
+    },
+    "frozen_value": 0.02,
+    "recompute_artifact": {
+      "max_relative_change_fd": 4.527697442120648e-05,
+      "max_relative_change_fresh_process_repeat": 0.0,
+      "nominal": {
+        "max_p90_o2_percent": 7.546243869071015,
+        "median_p90_o2_percent": 6.4307343463914535,
+        "min_joint_rank": 3,
+        "max_joint_rank": 4,
+        "median_joint_rank": 3.0,
+        "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
+        "unstable_fd_count": 0,
+        "process_id": 39316
+      },
+      "fresh_process_repeats": [
+        {
+          "max_p90_o2_percent": 7.546243869071015,
+          "median_p90_o2_percent": 6.4307343463914535,
+          "min_joint_rank": 3,
+          "max_joint_rank": 4,
+          "median_joint_rank": 3.0,
+          "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
+          "unstable_fd_count": 0,
+          "process_id": 18564
+        },
+        {
+          "max_p90_o2_percent": 7.546243869071015,
+          "median_p90_o2_percent": 6.4307343463914535,
+          "min_joint_rank": 3,
+          "max_joint_rank": 4,
+          "median_joint_rank": 3.0,
+          "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
+          "unstable_fd_count": 0,
+          "process_id": 17880
+        }
+      ],
+      "repeat_execution": "fresh_process",
+      "svd_rank_diagnostics": [
+        {
+          "scale": 0.1,
+          "relative_tol": 1e-07,
+          "n_rank_changes_vs_nominal": 81,
+          "summary": {
+            "max_p90_o2_percent": 7.546243869071015,
+            "median_p90_o2_percent": 6.4307343463914535,
+            "min_joint_rank": 3,
+            "max_joint_rank": 4,
+            "median_joint_rank": 4.0,
+            "rank_vector_sha256": "6e38bcce44e2fc00ee100de0a5b822004fd380a65a9ce55e694294492ee84005",
+            "unstable_fd_count": 0,
+            "process_id": 39316
+          }
+        },
+        {
+          "scale": 10.0,
+          "relative_tol": 9.999999999999999e-06,
+          "n_rank_changes_vs_nominal": 97,
+          "summary": {
+            "max_p90_o2_percent": 7.546243869071015,
+            "median_p90_o2_percent": 6.4307343463914535,
+            "min_joint_rank": 2,
+            "max_joint_rank": 3,
+            "median_joint_rank": 3.0,
+            "rank_vector_sha256": "c4e303b8415d2f0f46eb31af4e759ee8a8bfcc5393bc21282aaac37e742415f1",
+            "unstable_fd_count": 0,
+            "process_id": 39316
+          }
+        }
+      ],
+      "svd_tolerance_policy": "rank_diagnostic_only_not_part_of_crb_p90_delta",
+      "n_points": 216,
+      "arm": "obs-cfreq",
+      "frequencies_hz": [
+        25000.0,
+        63000.0,
+        100000.0,
+        200000.0
+      ],
+      "noise": "registered_mrs2"
+    },
+    "notes": "2% 高于 MRS-6 已观察的 K4 vs K8 <1% 差异；若 FD 或独立进程复算波动更大，按更大值执行。SVD 容差只改变相对秩判定，不进入使用普通逆矩阵的 CRB-P90，故单独报告秩敏感性。冻结脚本写入 frozen_value。"
+  },
+  "statistics_protocol": {
+    "n_data_split_seeds": 3,
+    "n_train_seeds": 3,
+    "bootstrap": {
+      "paired": true,
+      "stratified_by": [
+        "mixture_id",
+        "design_condition"
+      ],
+      "n_resamples": 2000,
+      "ci_level": 0.95
+    },
+    "multiple_testing": "control_within_stage_family_not_cherry_pick_best_of_six_hypotheses",
+    "leakage_negative_control_policy": "freeze_run_and_audit_before_citing_any_metric"
+  },
+  "gates": {
+    "information": {
+      "id": "information_gate",
+      "require_improvement_gt_delta_num": true,
+      "require_bootstrap_ci_lb_positive": true
+    },
+    "solver": {
+      "id": "solver_gate",
+      "require_improvement_gt_delta_num_on_test_and_ood": true,
+      "require_bootstrap_ci_lb_positive": true
+    },
+    "calibration": {
+      "id": "calibration_gate"
+    },
+    "mechanism": {
+      "id": "mechanism_gate"
+    }
+  },
+  "varpro_candidates": {
+    "nonlinear_block_beta_default": [
+      "composition_raw3",
+      "t_c",
+      "path_length_m",
+      "h_rh"
+    ],
+    "conditionally_linear_candidates": [
+      {
+        "name": "common_delay",
+        "status": "candidate_pending_mei3_derivation",
+        "notes": "仅当推导与数值测试证明条件线性/仿射才进入 a"
+      },
+      {
+        "name": "log_amplitude_gain",
+        "status": "candidate_pending_mei3_derivation"
+      },
+      {
+        "name": "per_frequency_calibration_offset",
+        "status": "candidate_pending_mei3_derivation"
+      }
+    ],
+    "path_length_policy": "keep_in_beta_if_nonlinearly_coupled_to_composition_do_not_force_linearize",
+    "source": "engineering_scenario"
+  },
+  "data_generation_authorization": {
+    "formal_waveform_generation": "forbidden_until_authorized",
+    "new_benchmark_schema": "tunnel-ventilation-mrs-ei-1",
+    "authorize_when": [
+      "mei0_registry_frozen",
+      "mei1_not_inconclusive_forward_model"
+    ],
+    "notes": "第十三节问题 7：至少 MEI-0 冻结且 MEI-1 非 inconclusive 后，才允许讨论生成新数据；正式授权写入后续 stage_status。"
+  },
+  "review_answers": {
+    "q1_delta_num": {
+      "answer": "按 recompute_spec 在 obs-cfreq K4 与 216 窄窗点上复算 FD 步长扰动，并用独立新进程复算 P90；delta_num=max(2×FD 相对变化, 2×独立进程相对变化, 2%)。SVD 容差只影响 joint_rank，作为独立秩敏感性诊断报告，不再虚称其进入 CRB-P90。",
+      "status": "frozen_for_mei0_method_value_filled_at_freeze"
+    },
+    "q4_varpro_linear_block": {
+      "answer": "公共延迟、对数幅度增益、逐频标定偏移为候选条件线性块；声程 L 若与组分非线性耦合则保留在 beta。最终准入由 MEI-3 推导+数值测试决定，MEI-0 只冻结候选与禁止错误线性化规则。",
+      "status": "frozen_for_mei0"
+    },
+    "q7_authorize_new_data": {
+      "answer": "mei0_registry_frozen 且 MEI-1 未输出 mei1_inconclusive_forward_model 后，才允许进入“允许生成新数据”评审；本冻结本身不授权波形生成。",
+      "status": "frozen_for_mei0"
+    }
+  },
+  "source": "engineering_scenario"
+}

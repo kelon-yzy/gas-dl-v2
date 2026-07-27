@@ -17,6 +17,16 @@
 | [completed/b7_oof_ridge_residual_mlp_implementation_plan.md](completed/b7_oof_ridge_residual_mlp_implementation_plan.md) | B7 residual_pass 的实现与 random-split 正式记录；后续协议由 b7_repeated_split 计划承接 |
 | [completed/r5t_b6_multiseed_replication_plan.md](completed/r5t_b6_multiseed_replication_plan.md) | R5-T / B6 六次冻结复核完成，均 stable_pass |
 | [completed/r7_extratrees_implementation_plan.md](completed/r7_extratrees_implementation_plan.md) | R7 正式 6000 未通过（显著训练-验证落差），失败证据保留 |
+| [completed/d2b_raw_dsp_implementation_plan.md](completed/d2b_raw_dsp_implementation_plan.md) | RawDSP 前端、B1 parity、fidelity、B6/B7 正式通过；默认 RawDSP 头契约 |
+| [completed/b7_repeated_split_ood_protocol_implementation_plan.md](completed/b7_repeated_split_ood_protocol_implementation_plan.md) | 完整 12-split × 3 training seed 矩阵 `protocol_pass`；B7 升级为默认头候选 |
+| [completed/spxy_split_implementation_plan.md](completed/spxy_split_implementation_plan.md) | 通用 SPXY 已落地；B7 正式 OOD 用 `spxy_observed_stats_v1` |
+| [completed/r5_mlp_implementation_plan.md](completed/r5_mlp_implementation_plan.md) | 默认 R5 正式失败；R5-T 目标标准化正式通过，可部署 MLP 对照 |
+| [completed/tv3_identifiability_implementation_plan.md](completed/tv3_identifiability_implementation_plan.md) | v1 单向 TOF 审计完成，`information_source_upgrade_required`；后续由 F 线 / 静止空气承接 |
+| [completed/tv3_composition_range_widening_plan.md](completed/tv3_composition_range_widening_plan.md) | 宽域 F0'–F4-wide 通过；F5-wide=`f5_model_protocol_failed`，不进 F6-wide |
+| [completed/tv3_bidir_f5_performance_optimization_plan.md](completed/tv3_bidir_f5_performance_optimization_plan.md) | F5 模型协议代码侧并行/缓存优化已落地；墙钟加速比待服务器实测 |
+| [completed/tv3_ec_msw_gatednet_implementation_plan.md](completed/tv3_ec_msw_gatednet_implementation_plan.md) | E1/E1r 失败证据、E1d/E1d-SB/attachment/LS 正式结论；`e2_allowed=false` |
+| [completed/tv3_ec_msw_structured_sequence_head_plan.md](completed/tv3_ec_msw_structured_sequence_head_plan.md) | E1d-SB / attachment / LS 正式完成；LS 不晋升 |
+| [completed/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md](completed/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md) | D1 正式 `deploy_probe_passed`；D2 打包可选；不替换 B7 |
 
 ## legacy
 

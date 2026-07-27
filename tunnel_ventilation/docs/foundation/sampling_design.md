@@ -18,7 +18,7 @@
 | **wide**（F 线） | `x_O2` | **15.00** | **25.00** | OSHA 缺氧线 <19.5% 与富氧火险线 >23.5% |
 | **wide**（F 线） | `x_N2` | **65.00** | **84.97** | min=100−10−25；max=100−0.03−15 |
 
-常量：`TUNNEL_VENTILATION_RANGES`（narrow）、`WIDE_COMPOSITION_RANGES`（wide）。契约见 `docs/active/tv3_composition_range_widening_plan.md`。
+常量：`TUNNEL_VENTILATION_RANGES`（narrow）、`WIDE_COMPOSITION_RANGES`（wide）。契约见 `docs/archive/completed/tv3_composition_range_widening_plan.md`。
 
 ### 1.2 联合约束
 

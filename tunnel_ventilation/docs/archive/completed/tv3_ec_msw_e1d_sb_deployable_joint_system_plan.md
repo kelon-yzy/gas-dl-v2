@@ -96,12 +96,12 @@ int16 ultrasonic + scale + slow(7)
 
 ## 6. 与相邻计划的关系
 
-| 文档                                                  | 关系                            |
-| --------------------------------------------------- | ----------------------------- |
-| `tv3_ec_msw_structured_sequence_head_plan.md`       | 表示 / LS 消融已完成；联合系统从本文接棒       |
-| `tv3_ec_msw_gatednet_implementation_plan.md`        | E2 仍禁止；本计划是 E1d-SB 旁路接线，不是 E2 |
-| `../archive/completed/b7_oof_ridge_residual_mlp_implementation_plan.md` | B7 保持默认头                      |
-| `tv3_static_air_feasibility_implementation_plan.md` | 当前仿真 P0：静止空气扰动与可辨识性独立；本计划不替代  |
+| 文档                                                                      | 关系                            |
+| ----------------------------------------------------------------------- | ----------------------------- |
+| `tv3_ec_msw_structured_sequence_head_plan.md`                           | 表示 / LS 消融已完成；联合系统从本文接棒       |
+| `tv3_ec_msw_gatednet_implementation_plan.md`                            | E2 仍禁止；本计划是 E1d-SB 旁路接线，不是 E2 |
+| `./b7_oof_ridge_residual_mlp_implementation_plan.md` | B7 保持默认头                      |
+| `../../active/tv3_static_air_feasibility_implementation_plan.md`                     | 并行：静止空气扰动与可辨识性；本计划不替代  |
 
 ## 7. 服务器命令（D1 启动后）
 

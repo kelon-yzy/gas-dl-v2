@@ -4,7 +4,7 @@
 > 
 > **2026-07-08 定位修正**：R0 实测 val O₂ R²=0.603 已越过本规划原设的 R1 判断点（R0 O₂ R²>0.30 即物理特征路线成立）。R1 的科学问题从"raw 波形有无 O₂ 信号"变更为"raw 波形卷积特征能否在 R0 已用满物理标量序列的基础上再贡献至 0.70 验收线"。本规划已据 [dl_training_plan.md §11.4](../legacy/dl_training_plan.md#114-服务器验证结果tv3-formal-6000-50-epoch-单-seed-rtx-5880)（v3_l2 DL fusion 实测 R²=+0.019）与 [波形特征提取算法评估.md](../../methods/波形特征提取算法评估.md)（10 算法排序）重写 §2/§3/§4.2/§8/§9.2/§10。
 >
-> **2026-07-09 后续回填**：R5 已按 [r5_mlp_implementation_plan.md](../../active/r5_mlp_implementation_plan.md) 在 **D0-observed 864**（非本文件旧写的 R0 1080）上完成正式 6000，**判据未通过**（val O₂ −0.183）。可部署上限维持 D0-observed Ridge；当前 P0 转为 O₂ 光学通道。详见记忆库 §6.9。
+> **2026-07-09 后续回填**：R5 已按 [r5_mlp_implementation_plan.md](../../archive/completed/r5_mlp_implementation_plan.md) 在 **D0-observed 864**（非本文件旧写的 R0 1080）上完成正式 6000，**判据未通过**（val O₂ −0.183）。可部署上限维持 D0-observed Ridge；当前 P0 转为 O₂ 光学通道。详见记忆库 §6.9。
 
 ## 0. 实施进度（截至 2026-07-07，状态更新 2026-07-08）
 
@@ -497,7 +497,7 @@ R1b 证明 raw 波形卷积无增量，R3/R4（MultiRocket raw 波形多池化�
 
 ### 阶段 D：小 MLP（R5，❌ 正式 6000 判据未通过）
 
-R1b 证伪后，R5 最终按 [r5_mlp_implementation_plan.md](../../active/r5_mlp_implementation_plan.md) 落地为 **D0-observed 864 + raw3 MLP**（本文件旧草案「R0 1080 + lr 1e-4」已过时，以该专项计划为准）。
+R1b 证伪后，R5 最终按 [r5_mlp_implementation_plan.md](../../archive/completed/r5_mlp_implementation_plan.md) 落地为 **D0-observed 864 + raw3 MLP**（本文件旧草案「R0 1080 + lr 1e-4」已过时，以该专项计划为准）。
 
 **实测（2026-07-09）**：val O₂ R²=−0.183，四 split 全负；相对 D0-observed −0.606，未过 +0.05 判据。浅 MLP 未复现 R5' TabPFN 非线性。可部署上限维持 D0-observed Ridge；详见记忆库 §6.9。
 

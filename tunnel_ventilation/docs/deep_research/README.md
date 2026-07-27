@@ -8,6 +8,7 @@
 
 | 文档 | 日期 | 责任 |
 | --- | --- | --- |
+| [tv3_mrs_generalizable_algorithm_ideas_20260727.md](tv3_mrs_generalizable_algorithm_ideas_20260727.md) | 2026-07-27 | MRS 稀疏多频反演的六类通用算法、有效费舍尔信息框架、负对照与组合优先级；MRS-EI 新计划的理论入口 |
 | [deep_research_end_to_end_dl_consolidated_20260719.md](deep_research_end_to_end_dl_consolidated_20260719.md) | 2026-07-19 | **合并稿（入口）**：五层失败分类 + 路线分诊 + teacher-student 实施方案 + G0–G6 硬门，来源间张力已显式裁决 |
 | [deep_research_algorithm_ideas_20260717.md](deep_research_algorithm_ideas_20260717.md) | 2026-07-17 | 原始报告：O₂ 突破方向分诊（主线 A1/A2/A3、支线 B1–B5、暂缓/拒绝表、P0–P2） |
 | [deep_research_end_to_end_dl_20260718.md](deep_research_end_to_end_dl_20260718.md) | 2026-07-18 | 原始报告：端到端 DL 失败成因五层综述 + 逐 RQ Go/No-go |

@@ -3,7 +3,7 @@
 > 面向初学者的名词说明。按**实验推进顺序**分级，便于对照记忆库与专项计划阅读。  
 > 正式指标与当前状态以 [掘进通风项目记忆库.md](../掘进通风项目记忆库.md) 为准；本文件只解释概念，不重复承担全局结论源责任。  
 > **维护义务**（记忆库 §1.4 / §8.3）：新增或实质变更正式实验、代码模块、算法/builder/头、协议门禁或 verdict 语义时，必须在同一变更批次更新本导读的名词定义、分级位置与索引；未联更不得视为文档齐全。  
-> 编写日期：2026-07-13；2026-07-14 增补 `waveform_preprocess` 工程名词；2026-07-20 增补 COMSOL 隧道多物理场 G0/G1 名词；2026-07-22 增补 F5-S / `bidir_spxy_observed_ab_v1` 与双域（narrow/wide）说明。
+> 编写日期：2026-07-13；2026-07-14 增补 `waveform_preprocess` 工程名词；2026-07-20 增补 COMSOL 隧道多物理场 G0/G1 名词；2026-07-22 增补 F5-S / `bidir_spxy_observed_ab_v1` 与双域（narrow/wide）说明；2026-07-23 回填 F5-wide 正式失败与 reciprocity 审计口径边界；2026-07-24 增补 MRS 线（多频弛豫谱 + 湿度差分）立项名词；2026-07-27 增补 MRS-EI 信息效率与可信反演计划，并回填 MEI-0 重冻结结果。
 
 ---
 
@@ -32,9 +32,12 @@
   → B1 → B6 → B7：RawDSP 默认头冻结与 OOD 协议
   → 模块 C：物理分组失败，停止该分支
   → 可辨识性 v1：物理误差预算；P90=0.4 vol%、nuisance=50%、拒绝率=5% 均失败，flow 未表示 → information-source-upgrade
-  → 当前仿真 P0：显式 flow=0，扫描测量链扰动并做独立参数 holdout，不外推到真实现场
-  → 并行 P1-comsol：隧道 CFD G1 smoke 已通过；下一步 G2 输运；正式 DOE 仍阻断
-  → 并行 P1-exp：EC-MSW D1 已通过；D2 打包可选；LS 不晋升，E2 仍禁止
+  → MRS-6 已交付：MRS-2 升秩但 P90 未过旧门；MRS-3 未进入；0.4 vol% 已降为参考线
+  → ▶️ MRS-EI 当前主线：MEI-0 已冻结；下一步 MEI-1 前向包络，不授权正式波形
+  → 并行：显式 flow=0 静止空气扰动与 holdout；不阻塞 MRS-EI，不外推到真实现场
+  → ⏸ F 线暂缓：F4=`coarse_monitoring_only`；F5-wide 正式失败；窄域 F5/F6 不排期
+  → ⏸ COMSOL 隧道线暂缓：G1 smoke 已通过；G2 及以后不排期
+  → EC-MSW：D1 已通过；D2 打包可选；LS 不晋升，E2 仍禁止（已归档结论）
 ```
 
 ---
@@ -117,25 +120,25 @@
 
 ### 2.2 环境与流动干扰
 
-| 名词                                 | 说明                                                                                                                      |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **nuisance（干扰量）**                  | 不是最终目标、但会改观测的量：T、RH、L、jitter、flow、SNR… 核心问题是 O₂ 信号是否大于 nuisance。                                                        |
-| **flow / 流速 / flow projection**    | 气流改变有效传播时间。v1 未建模 → 标 `not_represented`，并触发 189/189 点阻断拒绝。                                                              |
-| **v_path / 沿路流速投影**               | 流速在声路上的投影分量 `v·cos(α)`；单向 TOF 中与声速线性混叠 `t = L/(c ± v_path)`。                                                             |
-| **双向超声 / bidirectional / F 线**     | AB/BA 对射各测一次 TOF，`ĉ=(L/2)(1/t'_ab+1/t'_ba)` 与 `v̂=(L/2)(1/t'_ab−1/t'_ba)` 解耦声速与流速。F4 业务 verdict=`coarse_monitoring_only`；F5-S 代码已落地（`bidir_spxy_observed_ab_v1` + S-Y/S-L 十二格判据 d）；正式 `tv3-bidir-6000`（及 `-wide`）矩阵待服务器。 |
-| **reciprocity error / 互易残差**       | AB 与 BA 通道物理一致性的残差指标（帧对声速差、多 L 拟合残差）；用于链路健康与质量标记，目标 ≤0.10 μs。                                                           |
-| **静止空气仿真 / static-air simulation** | 在配置和 manifest 中显式固定 `flow=0` 的数字孪生情景。它不等于经风速核验的真实静止空气；当前 P0 只验证登记仿真分布内的单向 O₂ 可辨识性。                                      |
-| **参数来源类型**                         | `implemented_physics` 表示代码已实现物理，`literature_bound` 表示文献或规格边界，`engineering_scenario` 仅作敏感性扫描，`not_represented` 继续阻断能力结论。 |
-| **湿空气 / RH**                       | 湿度影响声学与弛豫；若未充分建模，不能写成已验证上限。                                                                                             |
-| **已表示 / 未表示**                      | 当前仿真链路是否真正建模该量。未表示只能记缺口，不能当已验证证据。                                                                                       |
+| 名词                                 | 说明                                                                                                                                                                                     |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **nuisance（干扰量）**                  | 不是最终目标、但会改观测的量：T、RH、L、jitter、flow、SNR… 核心问题是 O₂ 信号是否大于 nuisance。                                                                                                                       |
+| **flow / 流速 / flow projection**    | 气流改变有效传播时间。v1 未建模 → 标 `not_represented`，并触发 189/189 点阻断拒绝。                                                                                                                             |
+| **v_path / 沿路流速投影**                | 流速在声路上的投影分量 `v·cos(α)`；单向 TOF 中与声速线性混叠 `t = L/(c ± v_path)`。                                                                                                                           |
+| **双向超声 / bidirectional / F 线**     | AB/BA 对射各测一次 TOF，`ĉ=(L/2)(1/t'_ab+1/t'_ba)` 与 `v̂=(L/2)(1/t'_ab−1/t'_ba)` 解耦声速与流速。F4=`coarse_monitoring_only`；F5-wide 正式矩阵完整但判据 (a) 未达门，verdict=`f5_model_protocol_failed`；窄域 F5 仍待运行。 |
+| **reciprocity error / 互易残差**       | AB 与 BA 通道物理一致性的残差指标。冻结 `0.10 μs` 门对应 steady accepted 帧的多 L mid-pair 拟合残差；不得与全 phase 的逐帧 ĉ 相对整段均值残差混用。F5-wide 当前判据 (e) 正因两种口径混用而须重审。                                                   |
+| **静止空气仿真 / static-air simulation** | 在配置和 manifest 中显式固定 `flow=0` 的数字孪生情景。它不等于经风速核验的真实静止空气；当前 P0 只验证登记仿真分布内的单向 O₂ 可辨识性。                                                                                                     |
+| **参数来源类型**                         | `implemented_physics` 表示代码已实现物理，`literature_bound` 表示文献或规格边界，`engineering_scenario` 仅作敏感性扫描，`not_represented` 继续阻断能力结论。                                                                |
+| **湿空气 / RH**                       | 湿度影响声学与弛豫；若未充分建模，不能写成已验证上限。                                                                                                                                                            |
+| **已表示 / 未表示**                      | 当前仿真链路是否真正建模该量。未表示只能记缺口，不能当已验证证据。                                                                                                                                                      |
 
 ### 2.3 信息源升级选项
 
-| 名词        | 说明                                               |
-| --------- | ------------------------------------------------ |
-| **TDLAS** | 可调谐二极管激光吸收光谱；可做 O₂ 专用光学通道。声学信息不足时的硬件升级选项，不是当前默认。 |
-| **多频超声**  | 用多个载波频率增加独立观测维度。                                 |
-| **双向超声 F 线 / `raw_dsp_bidirectional_v1`** | 同一对换能器 ping-pong 对射：解除 v1 flow 阻断并输出流速副产品。契约 `tunnel-ventilation-bidir-1`，benchmark `tv3-bidir-*`。F4 identifiability v2 已确认声学 Fisher 非秩亏且 flow=`implemented_physics`；窄窗 P90 仍超门 → `coarse_monitoring_only`。F5-S：五臂×冻结 B1/B7 + S-Flow + AB-only SPXY 派生 S-Y/S-L；正式矩阵待服务器。 |
+| 名词                                        | 说明                                                                                                                                                                                                                                           |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TDLAS**                                 | 可调谐二极管激光吸收光谱；可做 O₂ 专用光学通道。声学信息不足时的硬件升级选项，不是当前默认。                                                                                                                                                                                             |
+| **多频超声**                                  | 用多个载波频率增加独立观测维度。                                                                                                                                                                                                                             |
+| **双向超声 F 线 / `raw_dsp_bidirectional_v1`** | 同一对换能器 ping-pong 对射：解除 v1 flow 阻断并输出流速副产品。契约 `tunnel-ventilation-bidir-1`，benchmark `tv3-bidir-*`。F4 已确认 flow=`implemented_physics`，但仍为 `coarse_monitoring_only`。F5-wide 完整跑完后因 A3−A1 O₂ OOD MAE 改善 `0.1165<0.5 vol%` 判失败；F5-S 十二格判据 (d) 全过。 |
 
 ---
 
@@ -143,27 +146,27 @@
 
 ### 3.1 误差与拟合指标
 
-| 名词                    | 说明                                          |
-| --------------------- | ------------------------------------------- |
-| **R²**                | 决定系数。1 完美；0 约等于猜均值；**负** 比猜均值还差。            |
-| **MAE**               | 平均绝对误差。                                     |
-| **P90 误差**            | 误差的第 90 百分位：90% 样本不差于该值。误差预算更常看 P90。        |
-| **0.8% O₂ bin / 窄窗口** | O₂ 仅在约 0.8 个百分点宽的小区间内评价。全域可粗辨识时，窄窗仍可能全负 R²。 |
+| 名词                    | 说明                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| **R²**                | 决定系数。1 完美；0 约等于猜均值；**负** 比猜均值还差。                                                      |
+| **MAE**               | 平均绝对误差。                                                                               |
+| **P90 误差**            | 误差的第 90 百分位：90% 样本不差于该值。误差预算更常看 P90。                                                  |
+| **0.8% O₂ bin / 窄窗口** | O₂ 仅在约 0.8 个百分点宽的小区间内评价。全域可粗辨识时，窄窗仍可能全负 R²。                                           |
 | **全域**                | 在当前注册组分域的较大 O₂ 范围上评价：narrow 约 18–21.2%；wide（仅 F 线）约 15–25%。宽域会抬高 R² 分母，不改变窄窗 P90 精度墙。 |
 
 ### 3.2 数据划分
 
-| 名词                         | 说明                                            |
-| -------------------------- | --------------------------------------------- |
-| **split**                  | train / val / test 等划分。正式以 `mixture_id` 为主键。  |
-| **extrapolation / extrap** | 相对更难的外推划分；仍不等于完整物理 OOD。                       |
-| **OOD**                    | 分布外样本（如组分落在训练边界外）。随机 test ≠ 真 OOD。            |
-| **S-Y**                    | 按标签/目标边界的 OOD 选择器（y_margin 一类）。F5 判据 (d) 在 bidir 上用 `bidir_spxy_observed_ab_v1` 派生，与 S-L 分列、禁止均值掩盖。 |
-| **S-L**                    | 按 LHS 采样边界的 OOD 选择器。与 S-Y **分列报告**。F5-S 与 S-Y 共用 AB-only SPXY profile。 |
-| **R / L**                  | 协议中的 ID 稳定性对照划分，不作“全部 OOD=某单一 R²”的混写依据。       |
-| **LHS**                    | 拉丁超立方采样，用于覆盖组分/条件空间。                          |
+| 名词                         | 说明                                                                                                         |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **split**                  | train / val / test 等划分。正式以 `mixture_id` 为主键。                                                               |
+| **extrapolation / extrap** | 相对更难的外推划分；仍不等于完整物理 OOD。                                                                                    |
+| **OOD**                    | 分布外样本（如组分落在训练边界外）。随机 test ≠ 真 OOD。                                                                         |
+| **S-Y**                    | 按标签/目标边界的 OOD 选择器（y_margin 一类）。F5 判据 (d) 在 bidir 上用 `bidir_spxy_observed_ab_v1` 派生，与 S-L 分列、禁止均值掩盖。        |
+| **S-L**                    | 按 LHS 采样边界的 OOD 选择器。与 S-Y **分列报告**。F5-S 与 S-Y 共用 AB-only SPXY profile。                                     |
+| **R / L**                  | 协议中的 ID 稳定性对照划分，不作“全部 OOD=某单一 R²”的混写依据。                                                                    |
+| **LHS**                    | 拉丁超立方采样，用于覆盖组分/条件空间。                                                                                       |
 | **SPXY**                   | 基于样本距离的划分方法；B7 用 observed 统计 profile；双向 F5-S 用 `bidir_spxy_observed_ab_v1`（50 维 AB-only，拒 BA/pair/oracle）。 |
-| **F5-S**                   | 双向次级 selector 实施：派生 S-Y/S-L×3 seeds，12 格 A3−A1 O₂ ΔR²≥−0.01 评判据 (d)；未完整则 `f5_model_protocol_incomplete`。 |
+| **F5-S**                   | 双向次级 selector 实施：派生 S-Y/S-L×3 seeds，12 格 A3−A1 O₂ ΔR²≥−0.01 评判据 (d)；未完整则 `f5_model_protocol_incomplete`。   |
 
 ### 3.3 门禁与冻结
 
@@ -313,7 +316,7 @@
 
 **目的**：在不改 B1/B7、不改正式 RawDSP builder 的前提下，量化 O₂ 相对 nuisance 的理论边界，并给出分流 verdict。
 
-对应计划：[tv3_identifiability_implementation_plan.md](../active/tv3_identifiability_implementation_plan.md)
+对应计划：[tv3_identifiability_implementation_plan.md](../archive/completed/tv3_identifiability_implementation_plan.md)
 
 ### 8.1 目标与非目标
 
@@ -383,24 +386,57 @@
 
 ---
 
-## 8.7 并行线：COMSOL 隧道多物理场 → DL（P1-comsol）
+## 8.7 ⏸ 暂缓：COMSOL 隧道多物理场 → DL
 
-与气室 P0（`tv3_acoustic_p0_clean.mph`、`flow=0`）**不是同一条线**。本线用 COMSOL 表达巷道通风、空间浓度与后续局部声学，再投影到现有传感器正演与 DL。正式计划见 `active/tv3_comsol_multiphysics_dl_implementation_plan.md`。
+与气室 P0（`tv3_acoustic_p0_clean.mph`、`flow=0`）**不是同一条线**。本线用 COMSOL 表达巷道通风、空间浓度与后续局部声学，再投影到现有传感器正演与 DL。正式计划见 `active/tv3_comsol_multiphysics_dl_implementation_plan.md`。**2026-07-24 起暂缓**：G1 结论保留；G2 及以后不排期。MEI-0 没有恢复 G 线；当前主线见 MRS-EI。
+
+| 名词                                 | 说明                                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| **`tunnel-ventilation-comsol-1`**  | 本线 schema 目标；与气室 P0、旧 `tv3-formal-6000` 隔离。                                                 |
+| **`field_case_id` / `F000001`**    | 一次完整 COMSOL 输运求解身份；split 按物理 case 分组，不按帧随机拆。                                                |
+| **`sensor_layout_id` / `SL0001`**  | 传感器点位、姿态与声路集合。                                                                              |
+| **`acoustic_case_id` / `A000001`** | 局部声学求解身份（G4 起）。                                                                             |
+| **G0 registry**                    | 参数/几何/布局/验证来源冻结。formal 仍可 `g0_input_blocked`；`engineering_scenario` 下允许 smoke。              |
+| **G1 CFD smoke**                   | 参数化直巷道 + 风筒 + 等效阻塞体；`TurbulentFlowkeps`；三档网格质量守恒。verdict=`g1_cfd_smoke_passed`（2026-07-20）。 |
+| **G2 输运**                          | `Transport of Concentrated Species`；源项时程；干基摩尔% ↔ 质量分数显式转换。                                  |
+| **physint**                        | COMSOL 物理接口类型字符串（如 `TurbulentFlowkeps`）；必须显式绑定 `geom1`。                                     |
+| **命名选择**                           | `bnd_working_face` / `bnd_open_end` / `bnd_duct_inlet` / `dom_fluid` 等；边界不得猜编号。             |
+| **smoke vs formal**                | smoke 只证明求解链与门禁；**不得**进入正式训练或改写 B7 / 现场声明。                                                  |
+
+产物入口：`COMSOL/tunnel_transport/`；verdict：`outputs/runs/tv3_comsol_multiphysics/g0_registry/`、`.../g1_cfd_smoke/`。
+
+---
+
+## 8.8 已立项线：多频弛豫谱 + 湿度差分（MRS 线）
+
+对 v1 `information_source_upgrade_required` 的第一条**直接升秩**回应线，源自 2026-07-24 深研综述（`references/声速法_N2-O2辨识_深度学习突破路径_综述.md`）。正式计划见 `active/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md`。状态：MRS-2=`mrs2_rank_upgraded_p90_fail`（升秩成立，P90 未过旧门）；MRS-3 未进入；MRS-6 已交付并关闭原 MRS 线。后继 MRS-EI 见 §8.9。
+
+| 名词                                                    | 说明                                                                                                                        |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **升秩前置判据**                                            | 本线第一性规则：任何新观测/新模型进入训练前，必须先用前向 Fisher 审计证明相对冻结基线升秩；不升秩的提案直接拒绝。                                                             |
+| **弛豫色散 / c(f)**                                       | 振动弛豫使声速随频率出现台阶（O₂ 纯气全台阶 ≈0.5 m/s、N₂ ≈0.03 m/s，比值≈19）。当前 `hidden_sound_speed_v2` 无频散，MRS-1 新增 `relaxation_spectrum.py` 表达。 |
+| **湿度催化 f_r,O**                                        | Bass 1990 公式：水汽把 O₂ 振动弛豫频率从 24 Hz/atm 抬到项目采样域内 ≈2.3–166 kHz，而 N₂ 仅 ≈0.16–1.3 kHz——峰位与强度双重非对称是 O₂/N₂ 可分机制。                 |
+| **MRS-0…MRS-6**                                       | registry 冻结 → 物理升级 → 前向 Fisher 审计（生死门）→ … → 硬件需求说明书。当前：MRS-2=`mrs2_rank_upgraded_p90_fail` → 跳过 MRS-3/4/5，直接 MRS-6。       |
+| **obs-cfreq / obs-calpha / obs-rh-diff / obs-p-scan** | MRS-2 观测臂：多频声速 only / 加吸收谱 / 加双湿度差分 / 加变压两点；`obs-single-200k` 为负对照（须复现 v1 秩 1）。                                           |
+| **H1 / H2**                                           | MRS-5 双头：H1=Zhu-2017a 式解析弛豫反演 + Ridge（DL 必须先赢它）；H2=物理信息反演器（可微弛豫前向解码器 + 谱重建残差）。                                            |
+| **`raw_dsp_mrs_v1` / `tunnel-ventilation-mrs-1`**     | MRS 专用 builder 与 schema 名；数据集 `tv3-mrs-smoke` / `tv3-mrs-6000`；`sim_revision=v8-mrs-dispersion-v1`。旧单频数据与结论不受影响。          |
+
+---
+
+## 8.9 当前线：信息效率与可信反演（MRS-EI）
+
+MRS-EI 是 MRS-6 之后形成的新实验计划，正式文档为 `active/tv3_mrs_information_efficient_inversion_experiment_plan.md`。它使用独立的 `MEI-*` 阶段，不是 MRS-3 的恢复或改名。`MEI-0` 已完成版本化重冻结；`MEI-1`=`mei1_inconclusive_forward_model`（F2–F5 未表征，且设计落在 `delta_num` 等价带内），不放行 MEI-2；正式波形、新 benchmark 和硬件试验仍未授权。
 
 | 名词 | 说明 |
 | --- | --- |
-| **`tunnel-ventilation-comsol-1`** | 本线 schema 目标；与气室 P0、旧 `tv3-formal-6000` 隔离。 |
-| **`field_case_id` / `F000001`** | 一次完整 COMSOL 输运求解身份；split 按物理 case 分组，不按帧随机拆。 |
-| **`sensor_layout_id` / `SL0001`** | 传感器点位、姿态与声路集合。 |
-| **`acoustic_case_id` / `A000001`** | 局部声学求解身份（G4 起）。 |
-| **G0 registry** | 参数/几何/布局/验证来源冻结。formal 仍可 `g0_input_blocked`；`engineering_scenario` 下允许 smoke。 |
-| **G1 CFD smoke** | 参数化直巷道 + 风筒 + 等效阻塞体；`TurbulentFlowkeps`；三档网格质量守恒。verdict=`g1_cfd_smoke_passed`（2026-07-20）。 |
-| **G2 输运** | `Transport of Concentrated Species`；源项时程；干基摩尔% ↔ 质量分数显式转换。 |
-| **physint** | COMSOL 物理接口类型字符串（如 `TurbulentFlowkeps`）；必须显式绑定 `geom1`。 |
-| **命名选择** | `bnd_working_face` / `bnd_open_end` / `bnd_duct_inlet` / `dom_fluid` 等；边界不得猜编号。 |
-| **smoke vs formal** | smoke 只证明求解链与门禁；**不得**进入正式训练或改写 B7 / 现场声明。 |
-
-产物入口：`COMSOL/tunnel_transport/`；verdict：`outputs/runs/tv3_comsol_multiphysics/g0_registry/`、`.../g1_cfd_smoke/`。
+| **信息增益 / 估计增益** | 信息增益表示实验设计或噪声结构降低了 CRB；估计增益表示求解器在同一 CRB 下更接近统计下界。二者必须分开报告。 |
+| **RG-cOED** | 稳健目标导向 c 最优实验设计。围绕 O2 目标方向选择频率、功率和观测条件，并把模型不确定性、时间和能量成本纳入目标。 |
+| **VarPro / NP-VPNet** | 变量投影先消去可证明为条件线性或仿射的干扰参数；NP-VPNet 只在确定性变量投影仍有稳定误差时，学习少量阻尼、预条件或权重。 |
+| **CC-SBI** | 覆盖率校准的基于仿真后验推断。重点是经验覆盖率和拒绝机制，不是用窄区间制造高精度。 |
+| **SIMD-MRS** | 同步多正弦与共模剖面似然。必须先有台架跨频协方差证据，不能在仿真中预设有利相关性。 |
+| **OMD-GreyBox / SMVCI** | 正交模型偏差与共享潜变量多视图方法；前者需要高保真或真实留出数据，后者需要同一 `mixture_id` 的稳定配对视图和错误配对负对照。 |
+| **`delta_num`** | 数值保护带。当前值为 2%，取有限差分步长扰动、两个独立新进程复算和 2% 下限三者的最大值。SVD 容差只用于离散秩敏感性诊断，不进入 CRB-P90 保护带。 |
+| **跨容差秩报告** | MEI-0 登记 `1e-7 / 1e-6 / 1e-5` 三档相对 SVD 容差。离散秩只有在三档下结论一致时才能作为门，否则报告秩区间、缩放奇异值与有效费舍尔信息。 |
 
 ---
 
@@ -421,107 +457,113 @@
 
 ## 10. 按实验顺序的速查表
 
-| 顺序  | 阶段              | 核心问题                   | 关键名词                                                  |
-| --- | ---------------:| ---------------------- | ----------------------------------------------------- |
-| 0   | 契约              | 预测什么、禁止什么              | tv3、闭包、raw3、manifest、oracle/observed                  |
-| 1   | 物理量             | 信号从哪来、谁在捣乱             | TOF、c、L、nuisance、flow、SNR                             |
-| 2   | 评价协议            | 怎么才算准、怎么划分             | R²、P90、OOD、S-Y/S-L、freeze                             |
-| 3   | D0              | 信息在哪、窄窗有没有墙            | D0-observed、oracle 膨胀、0.8% bin                        |
-| 4   | D2/D2b          | 波形能否变成可信特征             | TOF-PhaseNet、RawDSP、fidelity、builder                  |
-| 5   | R 系列            | observed 上非线性头         | R5、R5-T、TabPFN、R7                                     |
-| 6   | B 系列            | RawDSP 默认头             | B1、B6、B7、OOF、residual、protocol_pass                   |
-| 7   | 模块 C            | 物理早期分组是否有用             | grouped bottleneck、grouped_failed                     |
-| 8   | Identifiability | 物理上限与分流                | 灵敏度、Fisher、CRLB、误差预算、verdict                          |
-| 9   | 当前并行线           | 静止空气仿真、COMSOL 隧道输运、双向 F5-S→正式 6000（含 wide）、EC-MSW 是否继续 | static-air、G0/G1 COMSOL、F5-S server、EC-MSW |
+| 顺序  | 阶段              | 核心问题                                                            | 关键名词                                              |
+| --- | ---------------:| --------------------------------------------------------------- | ------------------------------------------------- |
+| 0   | 契约              | 预测什么、禁止什么                                                       | tv3、闭包、raw3、manifest、oracle/observed              |
+| 1   | 物理量             | 信号从哪来、谁在捣乱                                                      | TOF、c、L、nuisance、flow、SNR                         |
+| 2   | 评价协议            | 怎么才算准、怎么划分                                                      | R²、P90、OOD、S-Y/S-L、freeze                         |
+| 3   | D0              | 信息在哪、窄窗有没有墙                                                     | D0-observed、oracle 膨胀、0.8% bin                    |
+| 4   | D2/D2b          | 波形能否变成可信特征                                                      | TOF-PhaseNet、RawDSP、fidelity、builder              |
+| 5   | R 系列            | observed 上非线性头                                                  | R5、R5-T、TabPFN、R7                                 |
+| 6   | B 系列            | RawDSP 默认头                                                      | B1、B6、B7、OOF、residual、protocol_pass               |
+| 7   | 模块 C            | 物理早期分组是否有用                                                      | grouped bottleneck、grouped_failed                 |
+| 8   | Identifiability | 物理上限与分流                                                         | 灵敏度、Fisher、CRLB、误差预算、verdict                      |
+| 9   | 当前候选与并行线      | MRS-EI 已进入 MEI-1；静止空气仿真并行；F/COMSOL 暂缓；MRS 已收尾 | MRS-EI、MEI、static-air、G0/G1 COMSOL、F5-wide failed |
 
 ---
 
 ## 索引表（按拼音与英文）
 
-| 词条                                                               | 章节                                      |
-| ---------------------------------------------------------------- | --------------------------------------- |
-| alpha                                                            | [§1.5](#15-真值与可部署输入边界)                  |
-| audit_passed / audit_failed                                      | [§3.3](#33-门禁与冻结)                       |
-| B1 / B6 / B7                                                     | [§7.1](#71-头版本)                         |
-| baseline freeze                                                  | [§3.3](#33-门禁与冻结)                       |
-| bidirectional / 双向 / F 线 / F0–F6                                  | [§2.2](#22-环境与流动干扰) / [§2.3](#23-信息源升级选项) |
-| F5-S / bidir_spxy_observed_ab_v1                                   | [§3.2](#32-数据划分) / [§2.3](#23-信息源升级选项) |
-| builder                                                          | [§5.2](#52-d2b--rawdsp成功路线)             |
-| business threshold                                               | [§8.5](#85-业务门限与-verdict)               |
-| clean / tv3-formal-6000                                          | [§1.4](#14-数据标识与基准集)                    |
-| COMSOL 隧道多物理场 / G0–G7 / field_case_id                         | [§8.7](#87-并行线comsol-隧道多物理场--dlp1-comsol) |
-| condition number / 条件数                                           | [§8.2](#82-灵敏度与数值审计)                    |
-| correlation_group                                                | [§8.4](#84-误差折算与联合传播)                   |
-| CRLB                                                             | [§8.3](#83-统计信息论量)                      |
-| D0 / D0-observed / oracle                                        | [§4](#4-阶段-d0信息在哪特征消融基线)                |
-| D2 / TOF-PhaseNet                                                | [§5.1](#51-d2失败路线)                      |
-| D2b / RawDSP / DSP                                               | [§5.2](#52-d2b--rawdsp成功路线)             |
-| dequantize / scale                                               | [§1.3](#13-传感模态与慢通道)                    |
-| E0–E5 / E1 / E1r / E1d / E1d-SB / attachment / E2s / `ec_msw_e1` | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)    |
-| EC-MSW-GatedNet                                                  | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)    |
-| E2s / 结构化声速反演头                                                   | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)    |
-| error budget / 误差预算                                              | [§8.1](#81-目标与非目标)                      |
-| fidelity                                                         | [§5.2](#52-d2b--rawdsp成功路线)             |
-| Fisher information                                               | [§8.3](#83-统计信息论量)                      |
-| FiLM / attention / soft gate / MoE                               | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)    |
-| flow                                                             | [§2.2](#22-环境与流动干扰)                     |
-| gas_head / raw3                                                  | [§1.2](#12-组分与闭包)                       |
-| identifiability / 可辨识性                                           | [§8.1](#81-目标与非目标)                      |
-| LHS / SPXY                                                       | [§3.2](#32-数据划分)                        |
-| L / 声程                                                           | [§2.1](#21-传播与计时)                       |
-| MAE / P90 / R²                                                   | [§3.1](#31-误差与拟合指标)                     |
-| manifest / mixture_id                                            | [§1.4](#14-数据标识与基准集)                    |
-| MLP / Ridge                                                      | [§6](#6-阶段-r-系列observed-特征上的回归头探索)      |
-| 模块 C                                                             | [§7.3](#73-模块-c旁支证伪)                    |
-| NDIR / TCS                                                       | [§1.3](#13-传感模态与慢通道)                    |
-| normalize_waveforms                                              | [§1.3](#13-传感模态与慢通道)                    |
-| nuisance / 已表示未表示                                                | [§2.2](#22-环境与流动干扰)                     |
-| OOD / S-Y / S-L                                                  | [§3.2](#32-数据划分)                        |
-| OOF / residual                                                   | [§7.1](#71-头版本)                         |
-| oracle / observed                                                | [§1.5](#15-真值与可部署输入边界)                  |
-| parity                                                           | [§5.2](#52-d2b--rawdsp成功路线)             |
-| position fidelity probe / E1 parity probe                        | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)    |
-| protocol_pass                                                    | [§3.3](#33-门禁与冻结) / [§7.2](#72-协议与-ood) |
-| rank-deficient                                                   | [§8.3](#83-统计信息论量)                      |
-| raw_dsp_bidirectional_v1 / tunnel-ventilation-bidir-1            | [§2.3](#23-信息源升级选项)                     |
-| reciprocity error / 互易残差                                         | [§2.2](#22-环境与流动干扰)                     |
-| R5 / R5-T / R7 / TabPFN                                          | [§6](#6-阶段-r-系列observed-特征上的回归头探索)      |
-| sensitivity / 灵敏度                                                | [§8.2](#82-灵敏度与数值审计)                    |
-| smoke                                                            | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)    |
-| SNR / jitter                                                     | [§2.1](#21-传播与计时)                       |
-| sum_abs_error / 闭包                                               | [§1.2](#12-组分与闭包)                       |
-| TDLAS                                                            | [§2.3](#23-信息源升级选项)                     |
-| TOF / 声速 c                                                       | [§2.1](#21-传播与计时)                       |
-| tv3                                                              | [§1.1](#11-场景命名)                        |
-| v_path / 沿路流速投影                                                  | [§2.2](#22-环境与流动干扰)                     |
-| verdict 各状态                                                      | [§8.5](#85-业务门限与-verdict)               |
-| waveform / raw ultrasonic                                        | [§1.3](#13-传感模态与慢通道)                    |
-| waveform_preprocess                                              | [§1.3](#13-传感模态与慢通道)                    |
-| waveform_stats_features                                          | [§1.3](#13-传感模态与慢通道)                    |
-| 等效 O₂ 误差                                                         | [§8.4](#84-误差折算与联合传播)                   |
-| 窄窗口 0.8% bin                                                     | [§3.1](#31-误差与拟合指标)                     |
+| 词条                                                               | 章节                                        |
+| ---------------------------------------------------------------- | ----------------------------------------- |
+| alpha                                                            | [§1.5](#15-真值与可部署输入边界)                    |
+| audit_passed / audit_failed                                      | [§3.3](#33-门禁与冻结)                         |
+| B1 / B6 / B7                                                     | [§7.1](#71-头版本)                           |
+| baseline freeze                                                  | [§3.3](#33-门禁与冻结)                         |
+| bidirectional / 双向 / F 线 / F0–F6                                 | [§2.2](#22-环境与流动干扰) / [§2.3](#23-信息源升级选项) |
+| F5-S / bidir_spxy_observed_ab_v1                                 | [§3.2](#32-数据划分) / [§2.3](#23-信息源升级选项)    |
+| builder                                                          | [§5.2](#52-d2b--rawdsp成功路线)               |
+| business threshold                                               | [§8.5](#85-业务门限与-verdict)                 |
+| clean / tv3-formal-6000                                          | [§1.4](#14-数据标识与基准集)                      |
+| COMSOL 隧道多物理场 / G0–G7 / field_case_id                            | [§8.7](#87-并行线comsol-隧道多物理场--dlp1-comsol) |
+| condition number / 条件数                                           | [§8.2](#82-灵敏度与数值审计)                      |
+| correlation_group                                                | [§8.4](#84-误差折算与联合传播)                     |
+| CRLB                                                             | [§8.3](#83-统计信息论量)                        |
+| D0 / D0-observed / oracle                                        | [§4](#4-阶段-d0信息在哪特征消融基线)                  |
+| D2 / TOF-PhaseNet                                                | [§5.1](#51-d2失败路线)                        |
+| D2b / RawDSP / DSP                                               | [§5.2](#52-d2b--rawdsp成功路线)               |
+| dequantize / scale                                               | [§1.3](#13-传感模态与慢通道)                      |
+| E0–E5 / E1 / E1r / E1d / E1d-SB / attachment / E2s / `ec_msw_e1` | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)      |
+| EC-MSW-GatedNet                                                  | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)      |
+| E2s / 结构化声速反演头                                                   | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)      |
+| error budget / 误差预算                                              | [§8.1](#81-目标与非目标)                        |
+| fidelity                                                         | [§5.2](#52-d2b--rawdsp成功路线)               |
+| Fisher information                                               | [§8.3](#83-统计信息论量)                        |
+| FiLM / attention / soft gate / MoE                               | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)      |
+| flow                                                             | [§2.2](#22-环境与流动干扰)                       |
+| gas_head / raw3                                                  | [§1.2](#12-组分与闭包)                         |
+| identifiability / 可辨识性                                           | [§8.1](#81-目标与非目标)                        |
+| LHS / SPXY                                                       | [§3.2](#32-数据划分)                          |
+| L / 声程                                                           | [§2.1](#21-传播与计时)                         |
+| MAE / P90 / R²                                                   | [§3.1](#31-误差与拟合指标)                       |
+| manifest / mixture_id                                            | [§1.4](#14-数据标识与基准集)                      |
+| MLP / Ridge                                                      | [§6](#6-阶段-r-系列observed-特征上的回归头探索)        |
+| MRS 线 / 多频弛豫谱 / obs-cfreq / 升秩前置判据                               | [§8.8](#88-已立项线多频弛豫谱--湿度差分mrs-线)          |
+| MRS-EI / MEI / RG-cOED / VarPro / CC-SBI / SIMD-MRS                     | [§8.9](#89-当前线信息效率与可信反演mrs-ei)             |
+| 模块 C                                                             | [§7.3](#73-模块-c旁支证伪)                      |
+| NDIR / TCS                                                       | [§1.3](#13-传感模态与慢通道)                      |
+| normalize_waveforms                                              | [§1.3](#13-传感模态与慢通道)                      |
+| nuisance / 已表示未表示                                                | [§2.2](#22-环境与流动干扰)                       |
+| OOD / S-Y / S-L                                                  | [§3.2](#32-数据划分)                          |
+| OOF / residual                                                   | [§7.1](#71-头版本)                           |
+| oracle / observed                                                | [§1.5](#15-真值与可部署输入边界)                    |
+| parity                                                           | [§5.2](#52-d2b--rawdsp成功路线)               |
+| position fidelity probe / E1 parity probe                        | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)      |
+| protocol_pass                                                    | [§3.3](#33-门禁与冻结) / [§7.2](#72-协议与-ood)   |
+| rank-deficient                                                   | [§8.3](#83-统计信息论量)                        |
+| raw_dsp_bidirectional_v1 / tunnel-ventilation-bidir-1            | [§2.3](#23-信息源升级选项)                       |
+| reciprocity error / 互易残差                                         | [§2.2](#22-环境与流动干扰)                       |
+| R5 / R5-T / R7 / TabPFN                                          | [§6](#6-阶段-r-系列observed-特征上的回归头探索)        |
+| sensitivity / 灵敏度                                                | [§8.2](#82-灵敏度与数值审计)                      |
+| smoke                                                            | [§7.4](#74-ec-msw-gatednet当前-p1-实验线)      |
+| SNR / jitter                                                     | [§2.1](#21-传播与计时)                         |
+| sum_abs_error / 闭包                                               | [§1.2](#12-组分与闭包)                         |
+| TDLAS                                                            | [§2.3](#23-信息源升级选项)                       |
+| TOF / 声速 c                                                       | [§2.1](#21-传播与计时)                         |
+| tv3                                                              | [§1.1](#11-场景命名)                          |
+| v_path / 沿路流速投影                                                  | [§2.2](#22-环境与流动干扰)                       |
+| verdict 各状态                                                      | [§8.5](#85-业务门限与-verdict)                 |
+| waveform / raw ultrasonic                                        | [§1.3](#13-传感模态与慢通道)                      |
+| waveform_preprocess                                              | [§1.3](#13-传感模态与慢通道)                      |
+| waveform_stats_features                                          | [§1.3](#13-传感模态与慢通道)                      |
+| 等效 O₂ 误差                                                         | [§8.4](#84-误差折算与联合传播)                     |
+| 窄窗口 0.8% bin                                                     | [§3.1](#31-误差与拟合指标)                       |
 
 ---
 
 ## 相关文档
 
-| 文档                                                                                                                                | 用途                                   |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| [掘进通风项目记忆库.md](../掘进通风项目记忆库.md)                                                                                                   | 当前事实与正式结论                            |
-| [active/tv3_identifiability_implementation_plan.md](../active/tv3_identifiability_implementation_plan.md)                         | 可辨识性实施计划                             |
-| [active/tv3_static_air_feasibility_implementation_plan.md](../active/tv3_static_air_feasibility_implementation_plan.md)           | 当前仿真 P0：静止空气扰动、可辨识性与独立参数 holdout     |
-| [active/tv3_bidirectional_ultrasound_implementation_plan.md](../active/tv3_bidirectional_ultrasound_implementation_plan.md)       | 双向超声 F 线：F0–F4 完成；F5-S 代码已落地；F4=`coarse_monitoring_only` |
-| [active/tv3_composition_range_widening_plan.md](../active/tv3_composition_range_widening_plan.md)                               | 组分宽域 `-wide`：F0'–F4-wide 通过；F5-S 共用；正式 6000-wide 待服务器 |
-| [active/tv3_comsol_multiphysics_dl_implementation_plan.md](../active/tv3_comsol_multiphysics_dl_implementation_plan.md)           | 隧道多物理场 → 传感器投影 → DL；G1 已通过，下一步 G2      |
-| [../../COMSOL/tunnel_transport/README.md](../../COMSOL/tunnel_transport/README.md)                                                 | 隧道输运 COMSOL A 构建与 verdict 入口             |
-| [active/tv3_ec_msw_gatednet_implementation_plan.md](../active/tv3_ec_msw_gatednet_implementation_plan.md)                         | EC-MSW P0 契约与 E1d/attachment/LS 正式结论 |
-| [端到端波形动态门控组分反演框架与文献证据.md](../references/端到端波形动态门控组分反演框架与文献证据.md)                                                                             | EC-MSW 算法框架与文献证据边界                   |
-| [active/tv3_ec_msw_structured_sequence_head_plan.md](../active/tv3_ec_msw_structured_sequence_head_plan.md)                       | E1d-SB / attachment / LS；LS 不晋升      |
-| [active/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md](../active/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md)           | D1 已通过；D2 artifact 打包可选，不替换 B7       |
-| [references/tv3_identifiability_business_threshold_evidence.md](../references/tv3_identifiability_business_threshold_evidence.md) | P90 与 nuisance 门限的证据和适用边界            |
-| [active/b7_repeated_split_ood_protocol_implementation_plan.md](../active/b7_repeated_split_ood_protocol_implementation_plan.md)   | B7 协议                                |
-| [active/d2b_raw_dsp_implementation_plan.md](../active/d2b_raw_dsp_implementation_plan.md)                                         | D2b / RawDSP                         |
-| [foundation/adaptation_plan.md](../foundation/adaptation_plan.md)                                                                 | 场景适配与契约                              |
-| [foundation/physics_references.md](../foundation/physics_references.md)                                                           | 物性常数                                 |
-| [operations/server_training_guide.md](../operations/server_training_guide.md)                                                     | 服务器训练；§4.5 `waveform_preprocess`     |
-| [archive/completed/waveform_normalization_plan.md](../archive/completed/waveform_normalization_plan.md)                           | 三层归一化；§12 设备侧预处理                     |
+| 文档                                                                                                                                                    | 用途                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [掘进通风项目记忆库.md](../掘进通风项目记忆库.md)                                                                                                                       | 当前事实与正式结论                                                      |
+| [archive/completed/tv3_identifiability_implementation_plan.md](../archive/completed/tv3_identifiability_implementation_plan.md)                       | 可辨识性实施计划                                                       |
+| [active/tv3_static_air_feasibility_implementation_plan.md](../active/tv3_static_air_feasibility_implementation_plan.md)                               | 并行：静止空气扰动与 holdout；不阻塞 MRS-EI                                  |
+| [active/tv3_bidirectional_ultrasound_implementation_plan.md](../active/tv3_bidirectional_ultrasound_implementation_plan.md)                           | ⏸ 暂缓：F 线；F4=`coarse_monitoring_only`；F5-wide 正式失败；窄域 F5/F6 不排期 |
+| [archive/completed/tv3_composition_range_widening_plan.md](../archive/completed/tv3_composition_range_widening_plan.md)                               | 组分宽域 `-wide`：F0'–F4-wide 通过；F5-wide 正式失败，不进 F6-wide            |
+| [active/tv3_comsol_multiphysics_dl_implementation_plan.md](../active/tv3_comsol_multiphysics_dl_implementation_plan.md)                               | ⏸ 暂缓：G1 已通过；G2 及以后不排期                                          |
+| [active/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md](../active/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md)   | MRS 线计划；MRS-2=`mrs2_rank_upgraded_p90_fail`；禁止 MRS-3           |
+| [active/tv3_mrs6_hardware_requirements.md](../active/tv3_mrs6_hardware_requirements.md)                                                               | MRS-6 已交付硬件需求说明书；0.4 vol% 已降为参考线，原 MRS 线已收尾                   |
+| [active/tv3_mrs_information_efficient_inversion_experiment_plan.md](../active/tv3_mrs_information_efficient_inversion_experiment_plan.md)               | MRS-EI 当前计划；`MEI-0` 已冻结，下一步 MEI-1；不授权正式波形或恢复 MRS-3            |
+| [deep_research/tv3_mrs_generalizable_algorithm_ideas_20260727.md](../deep_research/tv3_mrs_generalizable_algorithm_ideas_20260727.md)                   | MRS-EI 的六类通用算法、理论依据、负对照和优先级                                      |
+| [../../COMSOL/tunnel_transport/README.md](../../COMSOL/tunnel_transport/README.md)                                                                    | 隧道输运 COMSOL A 构建与 verdict 入口                                   |
+| [archive/completed/tv3_ec_msw_gatednet_implementation_plan.md](../archive/completed/tv3_ec_msw_gatednet_implementation_plan.md)                       | EC-MSW P0 契约与 E1d/attachment/LS 正式结论                           |
+| [端到端波形动态门控组分反演框架与文献证据.md](../references/端到端波形动态门控组分反演框架与文献证据.md)                                                                                      | EC-MSW 算法框架与文献证据边界                                             |
+| [archive/completed/tv3_ec_msw_structured_sequence_head_plan.md](../archive/completed/tv3_ec_msw_structured_sequence_head_plan.md)                     | E1d-SB / attachment / LS；LS 不晋升                                |
+| [archive/completed/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md](../archive/completed/tv3_ec_msw_e1d_sb_deployable_joint_system_plan.md)         | D1 已通过；D2 artifact 打包可选，不替换 B7                                 |
+| [references/tv3_identifiability_business_threshold_evidence.md](../references/tv3_identifiability_business_threshold_evidence.md)                     | P90 与 nuisance 门限的证据和适用边界                                      |
+| [archive/completed/b7_repeated_split_ood_protocol_implementation_plan.md](../archive/completed/b7_repeated_split_ood_protocol_implementation_plan.md) | B7 协议                                                          |
+| [archive/completed/d2b_raw_dsp_implementation_plan.md](../archive/completed/d2b_raw_dsp_implementation_plan.md)                                       | D2b / RawDSP                                                   |
+| [foundation/adaptation_plan.md](../foundation/adaptation_plan.md)                                                                                     | 场景适配与契约                                                        |
+| [foundation/physics_references.md](../foundation/physics_references.md)                                                                               | 物性常数                                                           |
+| [operations/server_training_guide.md](../operations/server_training_guide.md)                                                                         | 服务器训练；§4.5 `waveform_preprocess`                               |
+| [archive/completed/waveform_normalization_plan.md](../archive/completed/waveform_normalization_plan.md)                                               | 三层归一化；§12 设备侧预处理                                               |

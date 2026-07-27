@@ -86,7 +86,7 @@ cv 由 `cp - R` 计算（理想气近似）。O₂ cv ≈ 20.79 J/mol·K，γ = 
 |------|------|----------|------------|------|
 | alpha_classical | 经典粘滞吸收 ∝f² | K_ref=1.84e-11 | 适用（通用） | [代码已有] §13.5 |
 | alpha_co2 | CO₂ V-T 弛豫 | f_relax=28 kHz/atm, λ_max=0.12 | 适用（CO₂ 是目标组分） | [代码已有] §13.5 |
-| alpha_n2 | N₂ V-T 弛豫 | 65 kHz/atm, λ_max=0.004 | 适用（N₂ 是目标组分） | [代码已有] §13.5 |
+| alpha_n2 | N₂ V-T 弛豫 | f_relax=9 Hz/atm（2026-07-24 修正；旧值 65 kHz/atm 错误约 4 个数量级）, λ_max=0.004 | 适用（N₂ 是目标组分） | Bass 1990 DOI:10.1121/1.400176 + [代码已修正] §13.5 |
 | alpha_h2o | H₂O V-T 弛豫 | 100 kHz/atm, λ_max=0.01 | 适用（湿度影响） | [代码已有] §13.5 |
 | alpha_ch4 | CH₄ V-T 弛豫 | — | **不适用**（场景无 CH₄） | — |
 | alpha_h2_diffusion | H₂ 扩散损耗 | — | **不适用**（场景无 H₂） | — |
@@ -95,7 +95,7 @@ cv 由 `cp - R` 计算（理想气近似）。O₂ cv ≈ 20.79 J/mol·K，γ = 
 
 | 分量 | 机制 | 关键常数 | 来源 | 置信度 |
 |------|------|----------|------|--------|
-| alpha_o2 | O₂ V-T 弛豫 | dry air (h=0) 下 **fr,O ≈ 24 Hz/atm**（Bass 1990 公式：`fr,O = (Ps/Pso)·[24 + 4.04×10⁴·h(0.02+h)/(0.391+h)]`，h 为水蒸气摩尔浓度 %）；受 H₂O 显著加速但典型大气条件下仍 ≪ 200 kHz。**200 kHz 载波远高于 O₂ 弛豫峰，对 200 kHz 衰减贡献可忽略**，工程实现取 alpha_o2 ≈ 0 或仅保留经典吸收分量 | Bass, Sutherland, Zuckerwar 1990, "Atmospheric absorption of sound: Update", J. Acoust. Soc. Am. 88(4), DOI:10.1121/1.400476；Bass & Sutherland 2004, JASA, DOI:10.1121/1.1631937 | 高（机制与公式已验证）|
+| alpha_o2 | O₂ V-T 弛豫 | dry air (h=0) 下 **fr,O ≈ 24 Hz/atm**（Bass 1990 公式：`fr,O = (Ps/Pso)·[24 + 4.04×10⁴·h(0.02+h)/(0.391+h)]`，h 为水蒸气摩尔浓度 %）；受 H₂O 显著加速但典型大气条件下仍 ≪ 200 kHz。**200 kHz 载波远高于 O₂ 弛豫峰，对 200 kHz 衰减贡献可忽略**，工程实现取 alpha_o2 ≈ 0 或仅保留经典吸收分量 | Bass, Sutherland, Zuckerwar 1990, "Atmospheric absorption of sound: Update", J. Acoust. Soc. Am. 88(4), DOI:10.1121/1.400176（2026-07-24 修正；旧引 10.1121/1.400476 指向无关文献）；Bass & Sutherland 2004, JASA, DOI:10.1121/1.1631937 | 高（机制与公式已验证）|
 
 O₂ 的振动弛豫频率远低于 200 kHz 载波（O₂ 基频 1556 cm⁻¹ 对应的振动能级高，弛豫极慢），预期对 200 kHz 衰减贡献很小。
 

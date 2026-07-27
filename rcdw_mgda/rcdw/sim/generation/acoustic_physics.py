@@ -40,7 +40,8 @@ PROCESSING_PARAMS_V2 = {
     "f_relax_co2_per_atm": 28000.0,
     "k_h2o_to_f_relax_co2": 0.015,
     "alpha_lambda_max_n2": 0.004,
-    "f_relax_n2_per_atm": 65000.0,
+    # Bass 1990 / ISO 9613-1 dry air: fr,N ≈ 9 Hz/atm（旧值 65000 错误，差 ~4 个数量级）
+    "f_relax_n2_per_atm": 9.0,
     "alpha_lambda_max_o2": 0.002,   # TBD: 实测校核
     "f_relax_o2_per_atm": 50000.0,  # TBD: 实测校核
     "alpha_lambda_max_h2o": 0.01,

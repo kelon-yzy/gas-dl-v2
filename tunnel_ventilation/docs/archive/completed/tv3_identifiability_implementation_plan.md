@@ -1,7 +1,7 @@
 # tv3 可辨识性与误差预算实施计划
 
-> 状态：**首轮 v1 审计已完成；`audit=passed`，P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 已预注册；flow 未表示，verdict=`information_source_upgrade_required`。双向 flow 与真实实验路线暂停，当前执行入口为 [静止空气仿真可辨识性计划](tv3_static_air_feasibility_implementation_plan.md)**
->
+> 状态：**首轮 v1 审计已完成；`audit=passed`，P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 已预注册；flow 未表示，verdict=`information_source_upgrade_required`。双向 flow 与真实实验路线暂停，当前执行入口为 [静止空气仿真可辨识性计划](../../active/tv3_static_air_feasibility_implementation_plan.md)**
+> 
 > 责任：在不新增回归模型、不改正式 RawDSP builder 的条件下，量化 O₂ 声学信息相对 nuisance 不确定度的理论边界，并给出是否继续追求窄区间连续回归的可审计 verdict。
 
 ## Context
@@ -62,13 +62,13 @@ python scripts/freeze_tv3_baseline.py
 
 ### 4. 实施范围
 
-| 文件 | 动作 | 责任 |
-| --- | --- | --- |
-| `tv3/audit/identifiability.py` | 新增局部敏感度、参数表示审计、Fisher 与条件数计算 | 不训练模型 |
-| `tv3/audit/error_budget.py` | 新增单项及联合等效 O₂ 误差传播与 P90 汇总 | 不吞掉未表示变量 |
-| `scripts/run_tv3_identifiability.py` | 读取冻结基线和配置，写入唯一正式目录 | 输出不可覆盖 |
-| `configs/tv3_identifiability.json` | 新增参数域、协方差来源与业务门限 | 无隐式默认阈值 |
-| `tests/test_tv3_identifiability.py` | 覆盖差分、闭包、Fisher、未表示变量和 verdict 分流 | 纯小型数值 fixture |
+| 文件                                   | 动作                               | 责任            |
+| ------------------------------------ | -------------------------------- | ------------- |
+| `tv3/audit/identifiability.py`       | 新增局部敏感度、参数表示审计、Fisher 与条件数计算     | 不训练模型         |
+| `tv3/audit/error_budget.py`          | 新增单项及联合等效 O₂ 误差传播与 P90 汇总        | 不吞掉未表示变量      |
+| `scripts/run_tv3_identifiability.py` | 读取冻结基线和配置，写入唯一正式目录               | 输出不可覆盖        |
+| `configs/tv3_identifiability.json`   | 新增参数域、协方差来源与业务门限                 | 无隐式默认阈值       |
+| `tests/test_tv3_identifiability.py`  | 覆盖差分、闭包、Fisher、未表示变量和 verdict 分流 | 纯小型数值 fixture |
 
 正式产物目录为：
 
@@ -89,15 +89,15 @@ outputs/tv3_identifiability/
 
 ### 5. 判定与分流
 
-| verdict | 条件 | 后续动作 |
-| --- | --- | --- |
-| `continuous_regression_supported` | P90 O₂ 误差满足业务门限；联合信息不近奇异；关键 nuisance 残余小于窄窗口信号的预注册比例 | 才进入双向 / 湿空气等按主导项排序的物理改进 |
-| `coarse_monitoring_only` | 窄窗口 P90 或 nuisance floor 不满足门限，但全域仍有可辨识信息 | 冻结精细连续回归，转为分档与趋势报告 |
-| `information_source_upgrade_required` | 全域信息不足、未表示 nuisance 主导或可测校正后仍超门限 | 评估多频与恢复 TDLAS 的条件 |
-| `inconclusive_missing_business_threshold` | 缺少业务精度或协方差依据 | 不做继续 / 停止声明，补齐输入 |
-| `audit_failed` | 基线 hash、物理映射、数值稳定性或闭包审计失败 | 修审计或物理参数，不训练新头 |
+| verdict                                   | 条件                                                   | 后续动作                    |
+| ----------------------------------------- | ---------------------------------------------------- | ----------------------- |
+| `continuous_regression_supported`         | P90 O₂ 误差满足业务门限；联合信息不近奇异；关键 nuisance 残余小于窄窗口信号的预注册比例 | 才进入双向 / 湿空气等按主导项排序的物理改进 |
+| `coarse_monitoring_only`                  | 窄窗口 P90 或 nuisance floor 不满足门限，但全域仍有可辨识信息            | 冻结精细连续回归，转为分档与趋势报告      |
+| `information_source_upgrade_required`     | 全域信息不足、未表示 nuisance 主导或可测校正后仍超门限                     | 评估多频与恢复 TDLAS 的条件       |
+| `inconclusive_missing_business_threshold` | 缺少业务精度或协方差依据                                         | 不做继续 / 停止声明，补齐输入        |
+| `audit_failed`                            | 基线 hash、物理映射、数值稳定性或闭包审计失败                            | 修审计或物理参数，不训练新头          |
 
-若 flow projection 是主导可测误差，通常下一步是 `raw_dsp_bidirectional_v1` 的单向 / 外部风速校正 / 双向解耦对照；该路线已立项为 F 线（见 [tv3_bidirectional_ultrasound_implementation_plan.md](tv3_bidirectional_ultrasound_implementation_plan.md)；F0 已冻结，F1 起落地）。实际实验暂时无法进行，当前先执行 [静止空气仿真可辨识性计划](tv3_static_air_feasibility_implementation_plan.md)：显式固定 `flow=0`，登记参数依据，扫描测量链 nuisance 并做独立参数 holdout。若 RH 或设备参数主导，后续以新 physics version 进入 `acoustic_measurement_v2` 仿真，不得在机制尚未量化前同时修改前端、数字孪生和模型头。
+若 flow projection 是主导可测误差，通常下一步是 `raw_dsp_bidirectional_v1` 的单向 / 外部风速校正 / 双向解耦对照；该路线已立项为 F 线（见 [tv3_bidirectional_ultrasound_implementation_plan.md](../../active/tv3_bidirectional_ultrasound_implementation_plan.md)；F0 已冻结，F1 起落地）。实际实验暂时无法进行，当前先执行 [静止空气仿真可辨识性计划](../../active/tv3_static_air_feasibility_implementation_plan.md)：显式固定 `flow=0`，登记参数依据，扫描测量链 nuisance 并做独立参数 holdout。若 RH 或设备参数主导，后续以新 physics version 进入 `acoustic_measurement_v2` 仿真，不得在机制尚未量化前同时修改前端、数字孪生和模型头。
 
 ## Format
 

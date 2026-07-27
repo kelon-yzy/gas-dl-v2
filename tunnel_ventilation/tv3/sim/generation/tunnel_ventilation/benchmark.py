@@ -141,7 +141,7 @@ class TunnelVentilationBenchmarkGenerationSpec:
     bidirectional: bool = False
     # None → WaveformSpec default (3 μs conservative). F3 nominal uses 0.5 μs.
     trigger_jitter_std_s: float | None = None
-    # 数据集划分策略（tunnel_ventilation/docs/active/spxy_split_implementation_plan.md）
+    # 数据集划分策略（tunnel_ventilation/docs/archive/completed/spxy_split_implementation_plan.md）
     # random: 现有 mixture_id shuffle 划分（build_default_split_rows）
     # spxy_v1: ID pool 内 SPXY 选 train + 独立 OOD selector 选 extrapolation + Y 分箱分层 val/test
     # lhs_stratified_split_v1: 全量 Y 分箱分层随机四分类（SPXY 简单对照）
@@ -528,7 +528,7 @@ def _split_summary(
     return summary
 
 
-# 支持的划分策略与 OOD selector（tunnel_ventilation/docs/active/spxy_split_implementation_plan.md）
+# 支持的划分策略与 OOD selector（tunnel_ventilation/docs/archive/completed/spxy_split_implementation_plan.md）
 _VALID_SPLIT_STRATEGIES = ("random", "spxy_v1", "lhs_stratified_split_v1")
 _VALID_EXTRAPOLATION_STRATEGIES = ("none", "y_margin_ood", "lhs_boundary", "kmeans_boundary")
 

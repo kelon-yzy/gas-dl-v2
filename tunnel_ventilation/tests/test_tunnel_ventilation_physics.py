@@ -99,9 +99,10 @@ def test_attenuation_o2_negligible_at_200khz():
     res = hidden_attenuation_v2(
         x_h2=0, x_ch4=0, x_co2=1.0, x_n2=78.0, t_c=25.0, p_mpa=0.5, h_rh=50.0, x_o2=21.0
     )
-    # alpha_o2 应远小于 alpha_co2 和 alpha_n2
+    # alpha_o2 工程取 0；应远小于 alpha_co2（N2 同为 Hz 量级弛豫，亦不贡献可观衰减）
     assert res["alpha_o2_v2"] < 1e-6
     assert res["alpha_o2_v2"] < res["alpha_co2_v2"]
+    assert res["alpha_n2_background_v2"] < res["alpha_co2_v2"]
 
 
 def test_attenuation_no_alpha_ch4_or_h2_diffusion():

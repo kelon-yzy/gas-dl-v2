@@ -42,7 +42,8 @@ PROCESSING_PARAMS_V2 = {
     "f_relax_ch4_slope_per_atm": 120000.0,
     "k_diffusion_h2": 1.6e-3,
     "alpha_lambda_max_n2": 0.004,
-    "f_relax_n2_per_atm": 65000.0,
+    # Bass 1990 / ISO 9613-1 dry air: fr,N ≈ 9 Hz/atm（旧值 65000 错误，差 ~4 个数量级）
+    "f_relax_n2_per_atm": 9.0,
     "alpha_lambda_max_h2o": 0.01,
     "f_relax_h2o_per_atm": 100000.0,
     # CO 项（新增）
