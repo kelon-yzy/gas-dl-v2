@@ -1,0 +1,211 @@
+{
+  "registry_schema_version": "tunnel-ventilation-mrs-ei-registry-2",
+  "reserved_benchmark_schema_version": "tunnel-ventilation-mrs-ei-1",
+  "stage": "MEI-3",
+  "phase": "b2_solver_core_audit",
+  "claim_scope": "registered_simulation_domain_only",
+  "role": "run_config_only_not_results",
+  "parent_b0": {
+    "expected_verdict": "mei3_b0_representation_closed",
+    "expected_phase": "b0_representation_audit",
+    "expected_manifest_sha256": "6e7823be7b056e0af86e3197c8b7096f3a6a330a570baeb2c2ad899c582ffbb2"
+  },
+  "parent_b1": {
+    "expected_verdict": "mei3_b1_s1_frozen",
+    "expected_phase": "b1_s1_freeze",
+    "expected_manifest_sha256": "d6af49868c317fff04609e191276dd3758caeb646ff23e6809e7e1b1eabe2e84"
+  },
+  "method_matrix": {
+    "S0": {
+      "status": "historical_h1_not_instantiated",
+      "execution_policy": "non_running_historical_note",
+      "formal_pairing_eligible": false,
+      "reason": "legacy_mrs5_h1_was_a_planned_two_stage_relaxation_reconstruction_plus_ridge_method_and_mrs5_was_never_entered",
+      "future_reimplementation_policy": "register_under_a_new_independent_method_id_not_s0"
+    },
+    "S1": {
+      "status": "b1_freeze_candidate",
+      "role": "primary_full_parameter_mechanism_baseline",
+      "formal_pairing_eligible": true
+    },
+    "S2": {
+      "status": "b2_core_candidate",
+      "role": "varpro_primary_candidate",
+      "formal_pairing_eligible": true
+    },
+    "S3": {
+      "status": "b2_upper_bound_candidate",
+      "role": "truth_nuisance_upper_bound_only",
+      "formal_pairing_eligible": true
+    }
+  },
+  "comparison_contract": {
+    "running_methods": ["S1", "S2", "S3"],
+    "primary_comparison": ["S1", "S2"],
+    "upper_bound_only": ["S3"],
+    "historical_non_running_notes": ["S0"],
+    "freeze_s1_before_observing_s2_results": true,
+    "forbid_posthoc_baseline_selection": true
+  },
+  "historical_h1_disposition": {
+    "status": "historical_h1_not_instantiated",
+    "legacy_plan_path": "docs/archive/completed/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md",
+    "legacy_h1_definition": "planned_mrs5_two_stage_relaxation_reconstruction_plus_ridge",
+    "mrs2_verdict_path": "outputs/tv3_mrs/identifiability_mrs2/mrs2_verdict.json",
+    "expected_mrs2_verdict": "mrs2_rank_upgraded_p90_fail",
+    "expected_mrs2_sha256": "c9e5020444c05dbd5c617b7da4db3d8d975928d13cb9a8157cb07d022cfcf3a6",
+    "mrs6_verdict_path": "outputs/tv3_mrs/mrs6_hardware/mrs6_verdict.json",
+    "expected_mrs6_verdict": "mrs6_hardware_requirements_delivered",
+    "expected_mrs6_sha256": "20cdf377cfcb100a7ec5ec66f7c6feff22e1e04301288722f5ca5dfe6b75c949",
+    "historical_verdicts_mutable": false
+  },
+  "composition_parameterization": {
+    "scope": "deterministic_mei3_s1_s2_s3_only",
+    "input_representation": "dry_raw3_percent",
+    "output_representation": "dry_raw3_percent",
+    "output_dimension": 3,
+    "effective_dimension": 2,
+    "sum_percent": 100.0,
+    "nonnegative": true,
+    "enforcement": "equality_constrained_tangent_space",
+    "internal_coordinate": "orthonormal_sum_zero_tangent_basis",
+    "posthoc_projection": false,
+    "n2_closure_backfill": false,
+    "silent_normalization": false
+  },
+  "b1_solver_audit": {
+    "role": "in_memory_nonformal_s1_numerical_audit_only",
+    "status": "ready_for_s1_freeze",
+    "frequencies_hz": [25000.0, 63000.0, 100000.0, 200000.0],
+    "phase_branch_cycles": [0, 0, 0, 0],
+    "observation_std": {
+      "raw_tof_s": 5e-07,
+      "log_amplitude": 0.02,
+      "unwrapped_phase_rad": 0.1
+    },
+    "fixed_pressure_mpa": 0.101325,
+    "parameters": {
+      "composition_tangent_0_percent": {"scale": 1.0, "lower": -80.0, "upper": 80.0, "finite_difference_step": 0.0001},
+      "composition_tangent_1_percent": {"scale": 1.0, "lower": -80.0, "upper": 80.0, "finite_difference_step": 0.0001},
+      "t_c": {"scale": 10.0, "lower": 10.0, "upper": 40.0, "finite_difference_step": 0.0001},
+      "path_length_m": {"scale": 0.05, "lower": 0.15, "upper": 0.35, "finite_difference_step": 1e-07},
+      "h_rh": {"scale": 20.0, "lower": 10.0, "upper": 80.0, "finite_difference_step": 0.001},
+      "common_delay_s": {"scale": 1e-05, "lower": -5e-05, "upper": 5e-05, "finite_difference_step": 1e-09},
+      "log_amplitude_gain": {"scale": 0.2, "lower": -0.5, "upper": 0.5, "finite_difference_step": 1e-05},
+      "log_amplitude_offset_25000hz": {"scale": 0.02, "lower": -0.1, "upper": 0.1, "finite_difference_step": 1e-05},
+      "log_amplitude_offset_63000hz": {"scale": 0.02, "lower": -0.1, "upper": 0.1, "finite_difference_step": 1e-05},
+      "log_amplitude_offset_100000hz": {"scale": 0.02, "lower": -0.1, "upper": 0.1, "finite_difference_step": 1e-05},
+      "log_amplitude_offset_200000hz": {"scale": 0.02, "lower": -0.1, "upper": 0.1, "finite_difference_step": 1e-05}
+    },
+    "priors": {
+      "t_c": {"mean": 25.0, "std": 0.1},
+      "path_length_m": {"mean": 0.25, "std": 0.0001},
+      "h_rh": {"mean": 50.0, "std": 2.0},
+      "common_delay_s": {"mean": 0.0, "std": 1e-05},
+      "log_amplitude_gain": {"mean": 0.0, "std": 0.2},
+      "log_amplitude_offset_25000hz": {"mean": 0.0, "std": 0.02},
+      "log_amplitude_offset_63000hz": {"mean": 0.0, "std": 0.02},
+      "log_amplitude_offset_100000hz": {"mean": 0.0, "std": 0.02},
+      "log_amplitude_offset_200000hz": {"mean": 0.0, "std": 0.02}
+    },
+    "solver": {
+      "max_iterations": 100,
+      "initial_damping": 0.001,
+      "damping_increase": 10.0,
+      "damping_decrease": 0.3,
+      "max_line_search_steps": 20,
+      "line_search_contraction": 0.5,
+      "gradient_tolerance": 1e-08,
+      "step_tolerance": 1e-10,
+      "objective_tolerance": 1e-12
+    },
+    "numerical_gates": {
+      "directional_derivative_step": 1e-05,
+      "max_directional_derivative_relative_error": 2e-05,
+      "max_multi_start_raw3_spread_percent": 0.0001,
+      "max_multi_start_objective_spread": 1e-10,
+      "max_scale_invariance_parameter_difference": 2e-05
+    },
+    "scale_invariance_factors": [3.0, 0.5, 2.0, 4.0, 0.25, 5.0, 0.4, 2.0, 0.5, 3.0, 0.75],
+    "synthetic_truth": {
+      "raw3_percent": [2.515, 19.6, 77.885],
+      "t_c": 25.0,
+      "path_length_m": 0.25,
+      "h_rh": 50.0,
+      "common_delay_s": 2e-06,
+      "log_amplitude_gain": 0.03,
+      "per_frequency_offsets": [-0.006, 0.002, -0.003, 0.007]
+    },
+    "frozen_initializations": [
+      {"raw3_percent": [1.0, 18.8, 80.2], "t_c": 24.8, "path_length_m": 0.2498, "h_rh": 48.0},
+      {"raw3_percent": [4.0, 20.8, 75.2], "t_c": 25.2, "path_length_m": 0.2502, "h_rh": 52.0},
+      {"raw3_percent": [2.0, 21.0, 77.0], "t_c": 25.0, "path_length_m": 0.25, "h_rh": 50.0}
+    ]
+  },
+  "b1_transition": {
+    "closed_status": "mei3_b1_s1_frozen",
+    "invalid_status": "mei3_b1_s1_invalid",
+    "allowed_next_stage_after_closed": "MEI-3_varpro_audit",
+    "formal_solver_gate_ready": false,
+    "formal_solver_gate_blocker": "mei3_solver_core_not_verified"
+  },
+  "b2_solver_core": {
+    "role": "in_memory_nonformal_s2_s3_mechanism_audit_only",
+    "nonlinear_parameter_names": [
+      "composition_tangent_0_percent",
+      "composition_tangent_1_percent",
+      "t_c",
+      "path_length_m",
+      "h_rh"
+    ],
+    "linear_parameter_names": [
+      "common_delay_s",
+      "log_amplitude_gain",
+      "log_amplitude_offset_25000hz",
+      "log_amplitude_offset_63000hz",
+      "log_amplitude_offset_100000hz",
+      "log_amplitude_offset_200000hz"
+    ],
+    "per_frequency_offset_scope": "device_profile_id_x_frequency_hz_shared_across_samples",
+    "independent_calibration_prior_required": true,
+    "max_phase_branch_standardized_error": 8.0,
+    "jacobian_check_step_factor": 0.25,
+    "numerical_gates": {
+      "max_projected_jacobian_relative_error": 5e-05,
+      "max_s1_s2_objective_difference": 1e-10,
+      "max_s1_s2_parameter_difference": 2e-05,
+      "max_s1_s2_raw3_difference_percent": 2e-05
+    },
+    "required_negative_controls": [
+      "wrong_phase_branch",
+      "unconstrained_per_sample_k4_offsets",
+      "non_positive_definite_covariance",
+      "path_length_forced_into_linear_block"
+    ],
+    "formal_data_generated": false
+  },
+  "b2_transition": {
+    "verified_status": "mei3_solver_core_verified",
+    "invalid_status": "mei3_solver_core_invalid",
+    "allowed_next_stage_after_verified": "MEI-3_varpro_audit",
+    "formal_solver_gate_ready": false,
+    "formal_solver_gate_blocker": "mei3_registered_data_authorization_ready_package_not_frozen"
+  },
+  "authorizations": {
+    "registered_sparse_simulation_generation": "forbidden_until_explicit_authorization",
+    "formal_waveform_generation": "forbidden_until_explicit_authorization",
+    "benchmark_packaging": "forbidden_until_explicit_authorization",
+    "hardware_trial": "forbidden_until_explicit_authorization"
+  },
+  "explicit_non_goals": [
+    "no_registered_sparse_simulation_generation",
+    "no_formal_waveform_generation",
+    "no_benchmark_packaging",
+    "no_hardware_trial",
+    "no_s0_reimplementation",
+    "no_formal_s2_or_s3_execution",
+    "no_solver_performance_claim",
+    "no_mei4_transition"
+  ],
+  "source": "engineering_scenario"
+}

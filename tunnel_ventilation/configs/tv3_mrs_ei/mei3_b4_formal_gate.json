@@ -1,0 +1,36 @@
+{
+  "registry_schema_version": "tunnel-ventilation-mrs-ei-registry-2",
+  "reserved_benchmark_schema_version": "tunnel-ventilation-mrs-ei-1",
+  "stage": "MEI-3",
+  "phase": "b4_formal_solver_comparison",
+  "claim_scope": "registered_simulation_domain_only",
+  "role": "formal_paired_comparison_gated_by_independent_authorization",
+  "parent_pre_b4": {
+    "expected_verdict": "mei3_pre_b4_technical_ready"
+  },
+  "parent_b3": {
+    "expected_verdict": "mei3_registered_data_authorization_ready",
+    "expected_protocol_schema_version": "tunnel-ventilation-mrs-ei-mei3-data-protocol-2"
+  },
+  "execution_policy": {
+    "require_registered_sparse_simulation_generation": "authorized",
+    "generate_once_freeze_observations": true,
+    "pair_s1_s2_s3_per_observation_row": true,
+    "freeze_s1_before_s2": true,
+    "s3_upper_bound_only": true,
+    "include_convergence_failures_in_primary_metrics": true,
+    "record_bound_hits_without_raising": true
+  },
+  "authorizations": {
+    "registered_sparse_simulation_generation": "forbidden_until_explicit_authorization",
+    "formal_waveform_generation": "forbidden_until_explicit_authorization",
+    "benchmark_packaging": "forbidden_until_explicit_authorization",
+    "hardware_trial": "forbidden_until_explicit_authorization"
+  },
+  "explicit_non_goals": [
+    "no_silent_authorization",
+    "no_formal_data_without_authorization",
+    "no_posthoc_baseline_selection"
+  ],
+  "source": "engineering_scenario"
+}

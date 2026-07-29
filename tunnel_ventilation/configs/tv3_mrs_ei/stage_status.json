@@ -1,5 +1,6 @@
 {
-  "schema_version": "tunnel-ventilation-mrs-ei-1",
+  "registry_schema_version": "tunnel-ventilation-mrs-ei-registry-2",
+  "reserved_benchmark_schema_version": "tunnel-ventilation-mrs-ei-1",
   "notes": "MEI-0 freeze directories are append-only. Registry changes require a new versioned freeze; later-stage statuses are not carried across re-freezes.",
   "registry_files": [
     "model_family_registry.json",
@@ -10,35 +11,54 @@
   "mei0": {
     "verdict": "mei0_registry_frozen",
     "registry_sha256": {
-      "model_family_registry.json": "f64a8f59732b18734d0d76a64f8b75831063d765da4233a83bb88046525028b2",
-      "design_space.json": "bb2c5c9131addf2706eed1118ab1a2abc2dc0daa889db8645c453abfb56fe514",
-      "metric_registry.json": "f209e893a9e5bce217a96f81dd8d01d4ee6174451dba29f087bb4ecbbd7977ab"
+      "model_family_registry.json": "69163f72b001f893d175c00c6d27347107150a604bf3088c3d8b3d84ac6cf678",
+      "design_space.json": "0bc150bcfd759ec157713b4e8eaa7cc453153eda3ef0d9c21265a16af7e436b3",
+      "metric_registry.json": "73ee1eb98502e08b772f1665f46738d2ea1a8ca6482b956940d0887f876ba527"
     },
-    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei0_registry/freezes/20260727T071921821957Z_f209e893a9e5",
-    "verdict_path": "outputs/runs/tv3_mrs_ei/mei0_registry/freezes/20260727T071921821957Z_f209e893a9e5/mei0_verdict.json",
-    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei0_registry/freezes/20260727T071921821957Z_f209e893a9e5/evidence_manifest.json",
-    "passed_at_utc": "2026-07-27T07:19:21.821957+00:00",
-    "formal_waveform_generation": "forbidden_until_authorized",
-    "delta_num": 0.02,
-    "evidence_manifest_sha256": "4230c8c8695a9506d3f00870bca056d13cc938f640b293cb1ce56c8c5375d862"
+    "input_contract_sha256": "8c02b8635dd7d407a82f8bb882b4ba2468e3fde7ba1fb4ab1a503c0e51ae5d50",
+    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei0_registry/freezes/20260728T063115704201Z_8c02b8635dd7",
+    "verdict_path": "outputs/runs/tv3_mrs_ei/mei0_registry/freezes/20260728T063115704201Z_8c02b8635dd7/mei0_verdict.json",
+    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei0_registry/freezes/20260728T063115704201Z_8c02b8635dd7/evidence_manifest.json",
+    "passed_at_utc": "2026-07-28T06:31:15.704201+00:00",
+    "delta_numerical_by_profile": {
+      "low_cost_k4_primary": 2.8210630817324963e-05,
+      "registered_mrs2_stress": 9.055394884241296e-05
+    },
+    "delta_numerical_shared_upper_bound": 9.055394884241296e-05,
+    "delta_practical": 0.02,
+    "authorizations": {
+      "registered_sparse_simulation_generation": "forbidden_until_explicit_authorization",
+      "formal_waveform_generation": "forbidden_until_explicit_authorization",
+      "benchmark_packaging": "forbidden_until_explicit_authorization",
+      "hardware_trial": "forbidden_until_explicit_authorization"
+    },
+    "evidence_manifest_sha256": "8ae3874750cccd284dd2a842acd4ff721847ec28ffa2f36fa4926eb80c1e8bda"
   },
   "mei1": {
-    "verdict": "mei1_inconclusive_forward_model",
-    "passed": false,
-    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260727T081544975672Z_ea58c1e41e30",
-    "verdict_path": "outputs/runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260727T081544975672Z_ea58c1e41e30/mei1_verdict.json",
-    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260727T081544975672Z_ea58c1e41e30/evidence_manifest.json",
-    "passed_at_utc": "2026-07-27T08:15:44.975672+00:00",
-    "formal_waveform_generation": "forbidden_until_authorized",
-    "delta_num": 0.02,
-    "n_points": 216,
+    "verdict": "mei1_fixed_k4_retained",
+    "passed": true,
+    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260728T064100731550Z_1b55aa2e09cb",
+    "verdict_path": "outputs/runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260728T064100731550Z_1b55aa2e09cb/mei1_verdict.json",
+    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260728T064100731550Z_1b55aa2e09cb/evidence_manifest.json",
+    "passed_at_utc": "2026-07-28T06:41:00.731550+00:00",
+    "formal_waveform_generation": "forbidden_until_explicit_authorization",
+    "authorizations": {
+      "registered_sparse_simulation_generation": "forbidden_until_explicit_authorization",
+      "formal_waveform_generation": "forbidden_until_explicit_authorization",
+      "benchmark_packaging": "forbidden_until_explicit_authorization",
+      "hardware_trial": "forbidden_until_explicit_authorization"
+    },
+    "registered_sparse_simulation_generation_review_eligible": false,
+    "delta_practical": 0.02,
+    "delta_numerical_shared_upper_bound": 9.055394884241296e-05,
+    "n_points": 432,
     "n_designs": 15,
     "comsol_holdout_status": "unavailable",
-    "blockers": [
-      "unrepresented_families_without_flip_proof:F2_h2o_relaxation_params,F3_coupled_relaxation,F4_diffraction_near_field,F5_transducer_response",
-      "design_ranking_not_resolvable_within_delta_num"
-    ],
-    "unrepresented_registry_families": [
+    "blockers": [],
+    "decision_reason": "design_ranking_not_resolvable_within_delta_practical",
+    "frozen_design": "D0_fixed_k4_25_63_100_200_khz",
+    "unrepresented_registry_families": [],
+    "parked_nonblocking_families": [
       "F2_h2o_relaxation_params",
       "F3_coupled_relaxation",
       "F4_diffraction_near_field",
@@ -46,19 +66,53 @@
     ],
     "f0_ranking_meta": {
       "ranking_resolvable": false,
-      "ranking_span_relative": 0.0071170280697116966,
+      "ranking_resolvable_numerical": true,
+      "ranking_resolvable_practical": false,
+      "ranking_span_relative": 0.004564833712193834,
       "distinguishable_rank_levels": 1,
-      "baseline_k4_metric": 7.546243869071015,
-      "best_metric": 7.533428454045556,
-      "worst_metric": 7.587044075814163,
-      "best_vs_baseline_improve_relative": 0.0016982508447658717
+      "baseline_k4_metric": 1.7013596774527533,
+      "best_metric": 1.6988377824999152,
+      "worst_metric": 1.7065926944810195,
+      "best_vs_baseline_improve_relative": 0.0014822820748954114
     },
     "config_sha256": {
-      "model_family_registry.json": "f64a8f59732b18734d0d76a64f8b75831063d765da4233a83bb88046525028b2",
-      "design_space.json": "bb2c5c9131addf2706eed1118ab1a2abc2dc0daa889db8645c453abfb56fe514",
-      "metric_registry.json": "f209e893a9e5bce217a96f81dd8d01d4ee6174451dba29f087bb4ecbbd7977ab",
-      "mei1_forward_envelope.json": "ea58c1e41e30df940da53fa157f130af0d8a7ee71c68f2961d20dd458d94a205"
+      "model_family_registry.json": "69163f72b001f893d175c00c6d27347107150a604bf3088c3d8b3d84ac6cf678",
+      "design_space.json": "0bc150bcfd759ec157713b4e8eaa7cc453153eda3ef0d9c21265a16af7e436b3",
+      "metric_registry.json": "73ee1eb98502e08b772f1665f46738d2ea1a8ca6482b956940d0887f876ba527",
+      "mei1_forward_envelope.json": "78a013b6f08d1a0e79ef554676a3a5f1860fa565e28996ce6688460c665ea84c"
     },
-    "evidence_manifest_sha256": "9a14e3c895ff2c278e68fb8300dfeaa1743b34bd1e6107b8d82052464a0b68e2"
+    "evidence_manifest_sha256": "faf397f9457b8eadc8871c55e488da0d62671826bf724ac3fd66f9c03b029396"
+  },
+  "mei3": {
+    "phase": "pre_b4_technical_readiness",
+    "verdict": "mei3_pre_b4_technical_ready",
+    "passed": true,
+    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T105306238861Z_464cbb0c1285",
+    "verdict_path": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T105306238861Z_464cbb0c1285/mei3_pre_b4_verdict.json",
+    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T105306238861Z_464cbb0c1285/evidence_manifest.json",
+    "evidence_manifest_sha256": "94bdd50df59222064bc1349b26bf5c2473ec6c2f3ff194da56ef6b7cd5a6b2a9",
+    "completed_at_utc": "2026-07-29T10:53:06.238861+00:00",
+    "s0_status": "historical_h1_not_instantiated",
+    "s1_frozen": true,
+    "s2_core_verified": true,
+    "s3_upper_bound_verified": true,
+    "b3_authorization_ready_package": true,
+    "registered_sparse_simulation_generation_review_eligible": true,
+    "registered_sparse_simulation_generation_authorized": false,
+    "formal_solver_gate_ready": false,
+    "formal_solver_gate_blocker": "registered_sparse_simulation_generation_forbidden_pending_independent_authorization",
+    "authorizations": {
+      "registered_sparse_simulation_generation": "forbidden_until_explicit_authorization",
+      "formal_waveform_generation": "forbidden_until_explicit_authorization",
+      "benchmark_packaging": "forbidden_until_explicit_authorization",
+      "hardware_trial": "forbidden_until_explicit_authorization"
+    },
+    "parent_b2_manifest_sha256": "ba8bafe0e903f2efc6d6cca8c081d479a98071749d4cdf32674f365d2e3ea8eb",
+    "parent_b1_manifest_sha256": "d6af49868c317fff04609e191276dd3758caeb646ff23e6809e7e1b1eabe2e84",
+    "parent_b0_manifest_sha256": "6e7823be7b056e0af86e3197c8b7096f3a6a330a570baeb2c2ad899c582ffbb2",
+    "parent_mei1_manifest_sha256": "faf397f9457b8eadc8871c55e488da0d62671826bf724ac3fd66f9c03b029396",
+    "config_sha256": "db52258d3ed3d02ec3cee109d069da8809f8818c052078fa5b675c98bde42cea",
+    "b4_technical_ready": true,
+    "parent_b3_manifest_sha256": "7badf39329a7b77cffbdaa862dc330add956e262b520ea30e8adc221f0579557"
   }
 }

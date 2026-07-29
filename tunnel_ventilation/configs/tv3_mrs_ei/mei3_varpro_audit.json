@@ -1,0 +1,137 @@
+{
+  "registry_schema_version": "tunnel-ventilation-mrs-ei-registry-2",
+  "reserved_benchmark_schema_version": "tunnel-ventilation-mrs-ei-1",
+  "stage": "MEI-3",
+  "phase": "b0_representation_audit",
+  "claim_scope": "registered_simulation_domain_only",
+  "role": "run_config_only_not_results",
+  "mei1_prerequisite": {
+    "expected_verdict": "mei1_fixed_k4_retained",
+    "expected_allowed_next_stage": "MEI-3_varpro_audit",
+    "expected_frozen_design": "D0_fixed_k4_25_63_100_200_khz"
+  },
+  "observation_representation": {
+    "tof": "raw_tof_s",
+    "amplitude": "log_amplitude",
+    "phase": "unwrapped_phase_rad",
+    "phase_unwrapping_assumption": "fixed_integer_branch_from_independent_preprocessing",
+    "complex_transfer_policy": "common_delay_is_not_conditionally_linear_in_real_imag_complex_transfer"
+  },
+  "conditionally_linear_blocks": {
+    "common_delay": {
+      "sharing": ["device_profile_id", "view_id"],
+      "prior_mean": 0.0,
+      "prior_std": 1e-05
+    },
+    "log_amplitude_gain": {
+      "sharing": ["device_profile_id", "view_id"],
+      "prior_mean": 0.0,
+      "prior_std": 0.2
+    },
+    "per_frequency_calibration_offset": {
+      "modality": "log_amplitude",
+      "sharing": ["device_profile_id", "frequency_hz"],
+      "prior_mean": 0.0,
+      "prior_std": 0.02,
+      "independent_calibration_prior_required": true
+    }
+  },
+  "composition_parameterization": {
+    "scope": "deterministic_mei3_s0_s1_s2_s3_only",
+    "input_representation": "dry_raw3_percent",
+    "output_representation": "dry_raw3_percent",
+    "output_dimension": 3,
+    "effective_dimension": 2,
+    "sum_percent": 100.0,
+    "nonnegative": true,
+    "enforcement": "equality_constrained_tangent_space",
+    "internal_coordinate": "orthonormal_sum_zero_tangent_basis",
+    "posthoc_projection": false,
+    "n2_closure_backfill": false,
+    "silent_normalization": false,
+    "total_scale_status": "fixed_by_dry_basis_definition_not_an_estimand",
+    "observation_identifies_total_scale": false,
+    "scoped_contract_amendment": {
+      "supersedes_for_this_scope": [
+        "metric_registry.component_reporting.closure_sum_abs_error_monitor_only_not_hard_constraint",
+        "metric_registry.component_reporting.output_contract.closure_sum_abs_error_audit_monitor_only"
+      ],
+      "does_not_change": [
+        "training_labels",
+        "learned_model_output_contracts",
+        "primary_metric_units",
+        "deployment_output_dimension"
+      ],
+      "reason": "dry_raw3_contains_two_physical_composition_degrees_of_freedom_and_one_definition_constraint"
+    }
+  },
+  "nonlinear_block": ["composition_raw3_constrained_2d", "t_c", "path_length_m", "h_rh"],
+  "path_length_policy": "keep_in_beta_for_combined_observation_audit",
+  "synthetic_numerical_fixture": {
+    "role": "in_memory_nonformal_numerical_equivalence_only",
+    "frequencies_hz": [25000.0, 63000.0, 100000.0, 200000.0],
+    "conditions": [
+      {"co2_percent": 0.03, "o2_percent": 18.4, "t_c": 15.0, "p_mpa": 0.101325, "h_rh": 30.0, "path_length_m": 0.20},
+      {"co2_percent": 2.515, "o2_percent": 19.6, "t_c": 25.0, "p_mpa": 0.101325, "h_rh": 50.0, "path_length_m": 0.25},
+      {"co2_percent": 5.0, "o2_percent": 21.2, "t_c": 35.0, "p_mpa": 0.101325, "h_rh": 70.0, "path_length_m": 0.30}
+    ],
+    "observation_std": {
+      "raw_tof_s": 5e-07,
+      "log_amplitude": 0.02,
+      "unwrapped_phase_rad": 0.1
+    },
+    "injected_linear_parameters": {
+      "common_delay_s": 2e-06,
+      "log_amplitude_gain": 0.03,
+      "per_frequency_calibration_offset": [-0.006, 0.002, -0.003, 0.007]
+    }
+  },
+  "numerical_gates": {
+    "max_parameter_difference_vs_joint_reference": 1e-09,
+    "max_projected_residual_difference_vs_joint_reference": 1e-09,
+    "require_full_augmented_column_rank": true
+  },
+  "b0_representation_audit": {
+    "role": "in_memory_nonformal_representation_and_rank_audit_only",
+    "frequencies_hz": [25000.0, 63000.0, 100000.0, 200000.0],
+    "phase_branch_cycles": [0, 0, 0, 0],
+    "phase_branch_source": "fixed_integer_branch_from_independent_preprocessing_fixture",
+    "observation_std": {
+      "raw_tof_s": 5e-07,
+      "log_amplitude": 0.02,
+      "unwrapped_phase_rad": 0.1
+    },
+    "tangent_finite_difference_step_percent": 0.0001,
+    "rank_relative_tolerances": [1e-07, 1e-06, 1e-05],
+    "points": [
+      {"co2_percent": 0.03, "o2_percent": 18.4, "n2_percent": 81.57, "t_c": 15.0, "p_mpa": 0.101325, "h_rh": 30.0, "path_length_m": 0.20},
+      {"co2_percent": 2.515, "o2_percent": 19.6, "n2_percent": 77.885, "t_c": 25.0, "p_mpa": 0.101325, "h_rh": 50.0, "path_length_m": 0.25},
+      {"co2_percent": 5.0, "o2_percent": 21.2, "n2_percent": 73.8, "t_c": 35.0, "p_mpa": 0.101325, "h_rh": 70.0, "path_length_m": 0.30},
+      {"co2_percent": 2.515, "o2_percent": 19.6, "n2_percent": 77.885, "t_c": 25.0, "p_mpa": 0.5, "h_rh": 50.0, "path_length_m": 0.25},
+      {"co2_percent": 0.03, "o2_percent": 21.2, "n2_percent": 78.77, "t_c": 15.0, "p_mpa": 0.709, "h_rh": 30.0, "path_length_m": 0.20}
+    ]
+  },
+  "phase_a_transition": {
+    "supported_status": "mei3_phase_a_structure_supported",
+    "not_applicable_status": "mei3_varpro_not_applicable",
+    "allowed_next_stage_after_supported": "MEI-3_varpro_audit",
+    "formal_solver_gate_ready": false,
+    "formal_solver_gate_blocker": "registered_sparse_simulation_generation_forbidden"
+  },
+  "b0_transition": {
+    "closed_status": "mei3_b0_representation_closed",
+    "invalid_status": "mei3_b0_representation_invalid",
+    "allowed_next_stage_after_closed": "MEI-3_varpro_audit",
+    "formal_solver_gate_ready": false,
+    "formal_solver_gate_blocker": "mei3_solver_core_not_verified"
+  },
+  "explicit_non_goals": [
+    "no_registered_sparse_simulation_generation",
+    "no_formal_waveform_generation",
+    "no_benchmark_packaging",
+    "no_hardware_trial",
+    "no_solver_performance_claim",
+    "no_mei4_transition"
+  ],
+  "source": "engineering_scenario"
+}

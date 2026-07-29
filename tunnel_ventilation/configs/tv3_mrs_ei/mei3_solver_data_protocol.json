@@ -1,0 +1,207 @@
+{
+  "registry_schema_version": "tunnel-ventilation-mrs-ei-registry-2",
+  "reserved_benchmark_schema_version": "tunnel-ventilation-mrs-ei-1",
+  "protocol_schema_version": "tunnel-ventilation-mrs-ei-mei3-data-protocol-2",
+  "stage": "MEI-3",
+  "phase": "b3_registered_data_authorization_readiness",
+  "claim_scope": "registered_simulation_domain_only",
+  "role": "authorization_ready_package_only_not_data_or_authorization",
+  "protocol_amendment": {
+    "id": "mei3_b3_view_nuisance_calibrate_then_prior_a",
+    "supersedes_protocol_schema_version": "tunnel-ventilation-mrs-ei-mei3-data-protocol-1",
+    "reason": "common_delay_s_and_log_amplitude_gain_must_carry_device_x_view_calibration_priors_before_b4"
+  },
+  "parent_b2": {
+    "expected_verdict": "mei3_solver_core_verified",
+    "expected_phase": "b2_solver_core_audit",
+    "expected_manifest_sha256": "ba8bafe0e903f2efc6d6cca8c081d479a98071749d4cdf32674f365d2e3ea8eb"
+  },
+  "frozen_design": {
+    "design_id": "D0_fixed_k4_25_63_100_200_khz",
+    "frequencies_hz": [25000.0, 63000.0, 100000.0, 200000.0],
+    "noise_profile_id": "low_cost_k4_primary"
+  },
+  "view_protocol": {
+    "views_per_mixture": 1,
+    "registered_view_ids": ["view_0"],
+    "view_id_reuse_across_mixtures": true,
+    "replicates_are_distinct_mixture_ids_not_views": true,
+    "notes": "replicates_per_condition creates distinct mixture_id rows and does not increase views_per_mixture"
+  },
+  "tables": {
+    "mixtures": {
+      "row_unit": "mixture_id",
+      "primary_key": ["mixture_id"],
+      "fields": {
+        "mixture_id": {"dtype": "string", "shape": [], "unit": "none", "role": "composition_primary_key"},
+        "x_CO2_percent": {"dtype": "float64", "shape": [], "unit": "percent_dry_basis", "role": "evaluation_truth_only"},
+        "x_O2_percent": {"dtype": "float64", "shape": [], "unit": "percent_dry_basis", "role": "evaluation_truth_only"},
+        "x_N2_percent": {"dtype": "float64", "shape": [], "unit": "percent_dry_basis", "role": "evaluation_truth_only"},
+        "split": {"dtype": "string", "shape": [], "unit": "none", "role": "frozen_partition"},
+        "design_condition_id": {"dtype": "string", "shape": [], "unit": "none", "role": "bootstrap_stratum"}
+      },
+      "invariants": {
+        "composition_nonnegative": true,
+        "composition_sum_percent": 100.0,
+        "same_mixture_all_views_same_split": true,
+        "sequence_id_present": false
+      }
+    },
+    "observation_rows": {
+      "row_unit": "mixture_id_x_view_id_x_frequency_hz",
+      "primary_key": ["observation_row_id"],
+      "foreign_keys": {
+        "mixture_id": "mixtures.mixture_id",
+        "covariance_block_id": "covariance_blocks.covariance_block_id"
+      },
+      "fields": {
+        "observation_row_id": {"dtype": "string", "shape": [], "unit": "none", "role": "observation_primary_key"},
+        "mixture_id": {"dtype": "string", "shape": [], "unit": "none", "role": "composition_foreign_key"},
+        "device_profile_id": {"dtype": "string", "shape": [], "unit": "none", "role": "calibration_hierarchy"},
+        "view_id": {"dtype": "string", "shape": [], "unit": "none", "role": "view_key"},
+        "frequency_hz": {"dtype": "float64", "shape": [], "unit": "Hz", "role": "frequency_key"},
+        "raw_tof_s": {"dtype": "float64", "shape": [], "unit": "s", "role": "solver_observation"},
+        "log_amplitude": {"dtype": "float64", "shape": [], "unit": "dimensionless", "role": "solver_observation"},
+        "unwrapped_phase_rad": {"dtype": "float64", "shape": [], "unit": "rad", "role": "solver_observation"},
+        "phase_branch_cycles": {"dtype": "int16", "shape": [], "unit": "cycles", "role": "independent_preprocessing_input"},
+        "covariance_block_id": {"dtype": "string", "shape": [], "unit": "none", "role": "covariance_foreign_key"},
+        "T_C": {"dtype": "float64", "shape": [], "unit": "degC", "role": "solver_allowed_condition"},
+        "P_MPa": {"dtype": "float64", "shape": [], "unit": "MPa", "role": "solver_allowed_condition"},
+        "H_RH": {"dtype": "float64", "shape": [], "unit": "percent_RH", "role": "solver_allowed_condition"},
+        "L_m": {"dtype": "float64", "shape": [], "unit": "m", "role": "solver_allowed_condition"}
+      },
+      "ordering": "frequency_hz_ascending_within_mixture_id_x_view_id",
+      "rows_per_view": 4,
+      "sequence_id_present": false
+    },
+    "covariance_blocks": {
+      "row_unit": "mixture_id_x_view_id",
+      "primary_key": ["covariance_block_id"],
+      "fields": {
+        "covariance_block_id": {"dtype": "string", "shape": [], "unit": "none", "role": "covariance_primary_key"},
+        "mixture_id": {"dtype": "string", "shape": [], "unit": "none", "role": "composition_foreign_key"},
+        "view_id": {"dtype": "string", "shape": [], "unit": "none", "role": "view_key"},
+        "observation_covariance": {"dtype": "float64", "shape": [12, 12], "unit": "mixed_by_row_units", "role": "solver_covariance"}
+      },
+      "matrix_row_order": "frequency_major_then_raw_tof_s_log_amplitude_unwrapped_phase_rad",
+      "required_properties": ["symmetric", "positive_definite"]
+    },
+    "calibration_priors": {
+      "row_unit": "device_profile_id_x_frequency_hz",
+      "primary_key": ["device_profile_id", "frequency_hz"],
+      "fields": {
+        "device_profile_id": {"dtype": "string", "shape": [], "unit": "none", "role": "calibration_hierarchy"},
+        "frequency_hz": {"dtype": "float64", "shape": [], "unit": "Hz", "role": "frequency_key"},
+        "log_amplitude_offset_prior_mean": {"dtype": "float64", "shape": [], "unit": "dimensionless", "role": "solver_prior"},
+        "log_amplitude_offset_prior_std": {"dtype": "float64", "shape": [], "unit": "dimensionless", "role": "solver_prior"},
+        "calibration_set_id": {"dtype": "string", "shape": [], "unit": "none", "role": "independent_calibration_evidence"}
+      },
+      "sharing": ["device_profile_id", "frequency_hz"],
+      "shared_across_samples": true,
+      "independent_from_evaluation_mixtures": true
+    },
+    "view_nuisance_calibration_priors": {
+      "row_unit": "device_profile_id_x_view_id",
+      "primary_key": ["device_profile_id", "view_id"],
+      "fields": {
+        "device_profile_id": {"dtype": "string", "shape": [], "unit": "none", "role": "calibration_hierarchy"},
+        "view_id": {"dtype": "string", "shape": [], "unit": "none", "role": "view_key"},
+        "common_delay_prior_mean": {"dtype": "float64", "shape": [], "unit": "s", "role": "solver_prior"},
+        "common_delay_prior_std": {"dtype": "float64", "shape": [], "unit": "s", "role": "solver_prior"},
+        "log_amplitude_gain_prior_mean": {"dtype": "float64", "shape": [], "unit": "dimensionless", "role": "solver_prior"},
+        "log_amplitude_gain_prior_std": {"dtype": "float64", "shape": [], "unit": "dimensionless", "role": "solver_prior"},
+        "calibration_set_id": {"dtype": "string", "shape": [], "unit": "none", "role": "independent_calibration_evidence"}
+      },
+      "sharing": ["device_profile_id", "view_id"],
+      "shared_across_samples": true,
+      "independent_from_evaluation_mixtures": true,
+      "evaluation_policy": "calibrate_on_calibration_split_join_posterior_as_prior_on_evaluation",
+      "forbids_unconstrained_per_sample_estimation": true,
+      "notes": "S1/S2 must join these priors by device_profile_id x view_id; truth common_delay_s and log_amplitude_gain remain S3-only"
+    },
+    "s3_truth_nuisance": {
+      "row_unit": "mixture_id_x_view_id",
+      "physical_isolation": "separate_file_not_joinable_by_s1_s2_runtime",
+      "fields": {
+        "mixture_id": {"dtype": "string", "shape": [], "unit": "none", "role": "evaluation_join_key_only"},
+        "view_id": {"dtype": "string", "shape": [], "unit": "none", "role": "evaluation_join_key_only"},
+        "common_delay_s": {"dtype": "float64", "shape": [], "unit": "s", "role": "s3_truth_only"},
+        "log_amplitude_gain": {"dtype": "float64", "shape": [], "unit": "dimensionless", "role": "s3_truth_only"},
+        "log_amplitude_offsets": {"dtype": "float64", "shape": [4], "unit": "dimensionless", "role": "s3_truth_only"}
+      }
+    }
+  },
+  "split_protocol": {
+    "random_unit": "mixture_id",
+    "split_labels": ["calibration", "test", "ood"],
+    "split_seeds": [20260729, 20260805, 20260812],
+    "group_integrity": "all_views_for_same_mixture_id_remain_in_one_split",
+    "test_point_set": "ambient_core_216",
+    "ood_point_set": "pressure_extension_low_rh_216",
+    "calibration_policy": "independent_calibration_set_for_frequency_offsets_and_view_nuisance_priors",
+    "forbid_sequence_id_grouping": true
+  },
+  "sample_size_and_power": {
+    "estimand": "paired_relative_improvement_of_o2_p90_s2_vs_s1",
+    "calculation": "normal_approximation_on_preregistered_paired_p90_influence_scale",
+    "ci_level": 0.95,
+    "target_power": 0.8,
+    "null_improvement": 0.02,
+    "planning_alternative_improvement": 0.05,
+    "paired_p90_influence_std_upper_bound": 0.25,
+    "raw_required_mixture_ids_per_domain": 546,
+    "registered_conditions_per_domain": 216,
+    "replicates_per_condition": 3,
+    "frozen_mixture_ids_per_domain": 648,
+    "evaluation_domains": ["test", "ood"],
+    "posthoc_sample_size_reduction_forbidden": true,
+    "assumption_source": "engineering_scenario_preregistered_before_formal_generation"
+  },
+  "initialization_and_statistics": {
+    "frozen_initialization_indices": [0, 1, 2],
+    "initialization_source": "mei3_b1_frozen_initializations",
+    "bootstrap": {
+      "n_resamples": 2000,
+      "ci_level": 0.95,
+      "paired_on": "mixture_id",
+      "strata": ["design_condition_id"],
+      "resample_within_domain": true,
+      "data_split_seed_indices_reported_separately": true
+    }
+  },
+  "runtime_field_whitelists": {
+    "S1": ["observation_row_id", "mixture_id", "device_profile_id", "view_id", "frequency_hz", "raw_tof_s", "log_amplitude", "unwrapped_phase_rad", "phase_branch_cycles", "covariance_block_id", "observation_covariance", "T_C", "P_MPa", "H_RH", "L_m", "log_amplitude_offset_prior_mean", "log_amplitude_offset_prior_std", "common_delay_prior_mean", "common_delay_prior_std", "log_amplitude_gain_prior_mean", "log_amplitude_gain_prior_std", "frozen_initialization_index"],
+    "S2": ["observation_row_id", "mixture_id", "device_profile_id", "view_id", "frequency_hz", "raw_tof_s", "log_amplitude", "unwrapped_phase_rad", "phase_branch_cycles", "covariance_block_id", "observation_covariance", "T_C", "P_MPa", "H_RH", "L_m", "log_amplitude_offset_prior_mean", "log_amplitude_offset_prior_std", "common_delay_prior_mean", "common_delay_prior_std", "log_amplitude_gain_prior_mean", "log_amplitude_gain_prior_std", "frozen_initialization_index"],
+    "S3": ["observation_row_id", "mixture_id", "device_profile_id", "view_id", "frequency_hz", "raw_tof_s", "log_amplitude", "unwrapped_phase_rad", "phase_branch_cycles", "covariance_block_id", "observation_covariance", "T_C", "P_MPa", "H_RH", "L_m", "common_delay_s", "log_amplitude_gain", "log_amplitude_offsets", "frozen_initialization_index"],
+    "evaluation_only": ["x_CO2_percent", "x_O2_percent", "x_N2_percent", "split", "design_condition_id"]
+  },
+  "hash_inventory": {
+    "required_source_roles": ["schema", "protocol_config", "split_implementation", "generator", "solver", "metric_implementation", "b3_audit", "b3_runner", "b3_tests"],
+    "hash_algorithm": "SHA256",
+    "notes": "execution_plan is documentation and is intentionally excluded from the input-contract hash inventory"
+  },
+  "b3_transition": {
+    "ready_status": "mei3_registered_data_authorization_ready",
+    "incomplete_status": "mei3_registered_data_authorization_incomplete",
+    "allowed_next_stage_after_ready": null,
+    "formal_solver_gate_ready": false,
+    "formal_solver_gate_blocker": "registered_sparse_simulation_generation_forbidden_pending_independent_authorization",
+    "registered_sparse_simulation_generation_review_eligible": true
+  },
+  "authorizations": {
+    "registered_sparse_simulation_generation": "forbidden_until_explicit_authorization",
+    "formal_waveform_generation": "forbidden_until_explicit_authorization",
+    "benchmark_packaging": "forbidden_until_explicit_authorization",
+    "hardware_trial": "forbidden_until_explicit_authorization"
+  },
+  "explicit_non_goals": [
+    "no_registered_sparse_simulation_generation",
+    "no_formal_waveform_generation",
+    "no_benchmark_packaging",
+    "no_hardware_trial",
+    "no_formal_s1_s2_s3_execution",
+    "no_solver_performance_claim",
+    "no_authorization_state_change"
+  ],
+  "source": "engineering_scenario"
+}
