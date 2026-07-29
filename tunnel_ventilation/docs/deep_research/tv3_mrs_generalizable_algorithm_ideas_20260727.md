@@ -2,8 +2,8 @@
 
 > 文档类型：文献核验与算法构想推演
 > 检索日期：2026-07-27
-> 项目起点：[`tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md`](../active/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md)
-> 项目证据：[`MRS-2 指标`](../../outputs/tv3_mrs/identifiability_mrs2/metrics.json)、[`MRS-6 硬件需求说明书`](../active/tv3_mrs6_hardware_requirements.md)
+> 项目起点：[`tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md`](../archive/completed/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md)
+> 项目证据：[`MRS-2 指标`](../../outputs/tv3_mrs/identifiability_mrs2/metrics.json)、[`MRS-6 硬件需求说明书`](../archive/completed/tv3_mrs6_hardware_requirements.md)
 > 适用边界：本文只提出新研究线候选，不改写 `mrs2_rank_upgraded_p90_fail`，不授权重启 MRS-3，也不把 0.4 vol% O2 重新设为强制门。
 
 ## 摘要

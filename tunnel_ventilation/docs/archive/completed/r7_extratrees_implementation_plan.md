@@ -1,7 +1,7 @@
 # R7 ExtraTrees 观测特征回归实施计划
 
 > 状态：正式 tv3-formal-6000 已完成（2026-07-10），未通过部署候选判据。
-> 文献依据：[observed_o2_algorithm_review.md](../references/observed_o2_algorithm_review.md)；[掘进通风项目记忆库.md](../掘进通风项目记忆库.md) §5.4、§6.4、§6.8、§6.9、§7.1。
+> 文献依据：[observed_o2_algorithm_review.md](../../references/observed_o2_algorithm_review.md)；[掘进通风项目记忆库.md](../../掘进通风项目记忆库.md) §5.4、§6.4、§6.8、§6.9、§7.1。
 > 定位：TDLAS O₂ 硬件暂缓期间的可部署非线性回归探针，不宣称突破窄 O₂ 分箱物理极限。
 
 ## 目标
@@ -17,11 +17,11 @@
 
 ## 实现
 
-- 回归器：[tv3/ml/extratrees_head.py](../../tv3/ml/extratrees_head.py)，`ExtraTreesRegressor` 多输出直接回归 raw3。
-- 训练入口：[tv3/ml/extratrees_training.py](../../tv3/ml/extratrees_training.py)。
-- 服务器命令入口：[tv3/pipeline/run_tv3_extratrees_baseline.py](../../tv3/pipeline/run_tv3_extratrees_baseline.py)。
-- 正式配置：[tv3_r7_extratrees_observed.json](../../configs/tv3_r7_extratrees_observed.json)。
-- 本地测试：[test_tv3_r7_extratrees.py](../../tests/test_tv3_r7_extratrees.py)，已通过 4 项；覆盖 864 维契约、oracle 拒绝、正式 JSON 对齐和 CLI 产物。
+- 回归器：[tv3/ml/extratrees_head.py](../../../tv3/ml/extratrees_head.py)，`ExtraTreesRegressor` 多输出直接回归 raw3。
+- 训练入口：[tv3/ml/extratrees_training.py](../../../tv3/ml/extratrees_training.py)。
+- 服务器命令入口：[tv3/pipeline/run_tv3_extratrees_baseline.py](../../../tv3/pipeline/run_tv3_extratrees_baseline.py)。
+- 正式配置：[tv3_r7_extratrees_observed.json](../../../configs/tv3_r7_extratrees_observed.json)。
+- 本地测试：[test_tv3_r7_extratrees.py](../../../tests/test_tv3_r7_extratrees.py)，已通过 4 项；覆盖 864 维契约、oracle 拒绝、正式 JSON 对齐和 CLI 产物。
 
 默认超参为 600 棵树、`max_features=0.7`、`min_samples_leaf=2`、无深度上限、全核并行。`min_samples_leaf=2` 用于降低单样本叶子对 OOD split 的脆弱性；正式结果必须验证，而不是把该选择当成性能保证。
 

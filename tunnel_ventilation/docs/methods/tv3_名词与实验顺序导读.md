@@ -3,7 +3,7 @@
 > 面向初学者的名词说明。按**实验推进顺序**分级，便于对照记忆库与专项计划阅读。  
 > 正式指标与当前状态以 [掘进通风项目记忆库.md](../掘进通风项目记忆库.md) 为准；本文件只解释概念，不重复承担全局结论源责任。  
 > **维护义务**（记忆库 §1.4 / §8.3）：新增或实质变更正式实验、代码模块、算法/builder/头、协议门禁或 verdict 语义时，必须在同一变更批次更新本导读的名词定义、分级位置与索引；未联更不得视为文档齐全。  
-> 编写日期：2026-07-13；2026-07-14 增补 `waveform_preprocess` 工程名词；2026-07-20 增补 COMSOL 隧道多物理场 G0/G1 名词；2026-07-22 增补 F5-S / `bidir_spxy_observed_ab_v1` 与双域（narrow/wide）说明；2026-07-23 回填 F5-wide 正式失败与 reciprocity 审计口径边界；2026-07-24 增补 MRS 线（多频弛豫谱 + 湿度差分）立项名词；2026-07-27 增补 MRS-EI 信息效率与可信反演计划，并回填 MEI-0 重冻结结果。
+> 编写日期：2026-07-13；2026-07-14 增补 `waveform_preprocess` 工程名词；2026-07-20 增补 COMSOL 隧道多物理场 G0/G1 名词；2026-07-22 增补 F5-S / `bidir_spxy_observed_ab_v1` 与双域（narrow/wide）说明；2026-07-23 回填 F5-wide 正式失败与 reciprocity 审计口径边界；2026-07-24 增补 MRS 线；2026-07-27 增补 MRS-EI；2026-07-28 回填 MEI-1 固定 K4、MEI-3 Phase A 和后续 B0--B5 路径；2026-07-29 回填 MEI-3 B0--B2 结论与 B3 授权边界。
 
 ---
 
@@ -33,7 +33,7 @@
   → 模块 C：物理分组失败，停止该分支
   → 可辨识性 v1：物理误差预算；P90=0.4 vol%、nuisance=50%、拒绝率=5% 均失败，flow 未表示 → information-source-upgrade
   → MRS-6 已交付：MRS-2 升秩但 P90 未过旧门；MRS-3 未进入；0.4 vol% 已降为参考线
-  → ▶️ MRS-EI 当前主线：MEI-0 已冻结；下一步 MEI-1 前向包络，不授权正式波形
+  → ▶️ MRS-EI 当前主线：固定 D0 K4；MEI-3 Phase A 与 B0--B2 已通过；当前执行 B3 数据授权就绪包
   → 并行：显式 flow=0 静止空气扰动与 holdout；不阻塞 MRS-EI，不外推到真实现场
   → ⏸ F 线暂缓：F4=`coarse_monitoring_only`；F5-wide 正式失败；窄域 F5/F6 不排期
   → ⏸ COMSOL 隧道线暂缓：G1 smoke 已通过；G2 及以后不排期
@@ -409,7 +409,7 @@
 
 ## 8.8 已立项线：多频弛豫谱 + 湿度差分（MRS 线）
 
-对 v1 `information_source_upgrade_required` 的第一条**直接升秩**回应线，源自 2026-07-24 深研综述（`references/声速法_N2-O2辨识_深度学习突破路径_综述.md`）。正式计划见 `active/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md`。状态：MRS-2=`mrs2_rank_upgraded_p90_fail`（升秩成立，P90 未过旧门）；MRS-3 未进入；MRS-6 已交付并关闭原 MRS 线。后继 MRS-EI 见 §8.9。
+对 v1 `information_source_upgrade_required` 的第一条**直接升秩**回应线，源自 2026-07-24 深研综述（`references/声速法_N2-O2辨识_深度学习突破路径_综述.md`）。已收尾计划见 `archive/completed/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md`。状态：MRS-2=`mrs2_rank_upgraded_p90_fail`（升秩成立，P90 未过旧门）；MRS-3 未进入；MRS-6 已交付并关闭原 MRS 线。后继 MRS-EI 见 §8.9。
 
 | 名词                                                    | 说明                                                                                                                        |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -418,24 +418,26 @@
 | **湿度催化 f_r,O**                                        | Bass 1990 公式：水汽把 O₂ 振动弛豫频率从 24 Hz/atm 抬到项目采样域内 ≈2.3–166 kHz，而 N₂ 仅 ≈0.16–1.3 kHz——峰位与强度双重非对称是 O₂/N₂ 可分机制。                 |
 | **MRS-0…MRS-6**                                       | registry 冻结 → 物理升级 → 前向 Fisher 审计（生死门）→ … → 硬件需求说明书。当前：MRS-2=`mrs2_rank_upgraded_p90_fail` → 跳过 MRS-3/4/5，直接 MRS-6。       |
 | **obs-cfreq / obs-calpha / obs-rh-diff / obs-p-scan** | MRS-2 观测臂：多频声速 only / 加吸收谱 / 加双湿度差分 / 加变压两点；`obs-single-200k` 为负对照（须复现 v1 秩 1）。                                           |
-| **H1 / H2**                                           | MRS-5 双头：H1=Zhu-2017a 式解析弛豫反演 + Ridge（DL 必须先赢它）；H2=物理信息反演器（可微弛豫前向解码器 + 谱重建残差）。                                            |
+| **H1 / H2**                                           | 旧 MRS-5 的计划双头：H1=解析弛豫反演 + Ridge，H2=物理信息反演器；MRS-5 从未进入，因此二者均未实例化。未来实现类似 H1 时必须使用新的独立 method ID，不得称为历史 S0。                 |
 | **`raw_dsp_mrs_v1` / `tunnel-ventilation-mrs-1`**     | MRS 专用 builder 与 schema 名；数据集 `tv3-mrs-smoke` / `tv3-mrs-6000`；`sim_revision=v8-mrs-dispersion-v1`。旧单频数据与结论不受影响。          |
 
 ---
 
 ## 8.9 当前线：信息效率与可信反演（MRS-EI）
 
-MRS-EI 是 MRS-6 之后形成的新实验计划，正式文档为 `active/tv3_mrs_information_efficient_inversion_experiment_plan.md`。它使用独立的 `MEI-*` 阶段，不是 MRS-3 的恢复或改名。`MEI-0` 已完成版本化重冻结；`MEI-1`=`mei1_inconclusive_forward_model`（F2–F5 未表征，且设计落在 `delta_num` 等价带内），不放行 MEI-2；正式波形、新 benchmark 和硬件试验仍未授权。
+MRS-EI 是 MRS-6 之后形成的新实验计划，上位文档为 `active/tv3_mrs_information_efficient_inversion_experiment_plan.md`，当前执行入口为 `active/tv3_mrs_ei_mei3_execution_plan.md`。它使用独立的 `MEI-*` 阶段，不是 MRS-3 的恢复或改名。`MEI-1`=`mei1_fixed_k4_retained`，固定 D0 K4 并跳过 MEI-2；MEI-3 Phase A=`mei3_phase_a_structure_supported`；B0=`mei3_b0_representation_closed`；B1=`mei3_b1_s1_frozen`；B2=`mei3_solver_core_verified`。B0 保持三列 `raw3` 输出，将干基 `sum=100%` 登记为物理定义约束，并在二维正交 `sum-zero` 切空间联合更新三个组分；它不是 N2 回填或求解后投影。B1 将 S0 冻结为未实例化非运行历史项并冻结 S1。B2 已实现 S2 条件线性投影、S3 显式真值干扰上限、投影雅可比和四项负对照，并证明 S1/S2 在同一合成问题上数值等价。当前进入 B3 数据授权就绪包；正式 test/OOD 求解门尚未执行，四项授权仍未改变。
 
 | 名词 | 说明 |
 | --- | --- |
 | **信息增益 / 估计增益** | 信息增益表示实验设计或噪声结构降低了 CRB；估计增益表示求解器在同一 CRB 下更接近统计下界。二者必须分开报告。 |
 | **RG-cOED** | 稳健目标导向 c 最优实验设计。围绕 O2 目标方向选择频率、功率和观测条件，并把模型不确定性、时间和能量成本纳入目标。 |
-| **VarPro / NP-VPNet** | 变量投影先消去可证明为条件线性或仿射的干扰参数；NP-VPNet 只在确定性变量投影仍有稳定误差时，学习少量阻尼、预条件或权重。 |
+| **VarPro / 投影雅可比 / NP-VPNet** | VarPro 在每次非线性迭代中精确消去公共延迟、对数幅度增益和带独立先验的共享逐频偏移；投影雅可比是在消去线性块后对剩余残差求导。B2 已验证其与独立中心差分一致。NP-VPNet 只在正式确定性比较仍显示稳定可学习误差时，学习少量阻尼、预条件或权重。 |
+| **S1 / S2 / S3** | S1 是冻结的全参数尺度化阻尼高斯--牛顿对照；S2 是条件线性投影后的主候选；S3 显式读取真值干扰参数，只作仿真上限审计，不能成为后续基线。 |
 | **CC-SBI** | 覆盖率校准的基于仿真后验推断。重点是经验覆盖率和拒绝机制，不是用窄区间制造高精度。 |
 | **SIMD-MRS** | 同步多正弦与共模剖面似然。必须先有台架跨频协方差证据，不能在仿真中预设有利相关性。 |
 | **OMD-GreyBox / SMVCI** | 正交模型偏差与共享潜变量多视图方法；前者需要高保真或真实留出数据，后者需要同一 `mixture_id` 的稳定配对视图和错误配对负对照。 |
-| **`delta_num`** | 数值保护带。当前值为 2%，取有限差分步长扰动、两个独立新进程复算和 2% 下限三者的最大值。SVD 容差只用于离散秩敏感性诊断，不进入 CRB-P90 保护带。 |
+| **`delta_numerical` / `delta_practical`** | 数值界与实践界已分离。低成本 K4 与 MRS-2 压力口径的 `delta_numerical` 分别为 `2.8210630817324963e-05` 和 `9.055394884241296e-05`；`delta_practical=0.02` 表示最小有意义改善，不是数值误差。 |
+| **MEI-3 Phase A / B0--B5** | Phase A 证明条件线性块成立；B0 闭合观测算子与 `raw3` 二维物理域；B1 处置非运行 S0 并冻结 S1；B2 已验证 S2/S3 核心。B3 只准备数据授权就绪包；B4/B5 必须在独立授权后做 S1/S2 正式主比较、S3 上限审计与裁决。B2 技术通过不等于 S2 性能通过。 |
 | **跨容差秩报告** | MEI-0 登记 `1e-7 / 1e-6 / 1e-5` 三档相对 SVD 容差。离散秩只有在三档下结论一致时才能作为门，否则报告秩区间、缩放奇异值与有效费舍尔信息。 |
 
 ---
@@ -468,7 +470,7 @@ MRS-EI 是 MRS-6 之后形成的新实验计划，正式文档为 `active/tv3_mr
 | 6   | B 系列            | RawDSP 默认头                                                      | B1、B6、B7、OOF、residual、protocol_pass               |
 | 7   | 模块 C            | 物理早期分组是否有用                                                      | grouped bottleneck、grouped_failed                 |
 | 8   | Identifiability | 物理上限与分流                                                         | 灵敏度、Fisher、CRLB、误差预算、verdict                      |
-| 9   | 当前候选与并行线      | MRS-EI 已进入 MEI-1；静止空气仿真并行；F/COMSOL 暂缓；MRS 已收尾 | MRS-EI、MEI、static-air、G0/G1 COMSOL、F5-wide failed |
+| 9   | 当前候选与并行线      | MRS-EI 已完成 MEI-3 B2，进入 B3；静止空气仿真并行；F/COMSOL 暂缓；MRS 已收尾 | MRS-EI、VarPro、projected Jacobian、data authorization、static-air |
 
 ---
 
@@ -551,9 +553,10 @@ MRS-EI 是 MRS-6 之后形成的新实验计划，正式文档为 `active/tv3_mr
 | [active/tv3_bidirectional_ultrasound_implementation_plan.md](../active/tv3_bidirectional_ultrasound_implementation_plan.md)                           | ⏸ 暂缓：F 线；F4=`coarse_monitoring_only`；F5-wide 正式失败；窄域 F5/F6 不排期 |
 | [archive/completed/tv3_composition_range_widening_plan.md](../archive/completed/tv3_composition_range_widening_plan.md)                               | 组分宽域 `-wide`：F0'–F4-wide 通过；F5-wide 正式失败，不进 F6-wide            |
 | [active/tv3_comsol_multiphysics_dl_implementation_plan.md](../active/tv3_comsol_multiphysics_dl_implementation_plan.md)                               | ⏸ 暂缓：G1 已通过；G2 及以后不排期                                          |
-| [active/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md](../active/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md)   | MRS 线计划；MRS-2=`mrs2_rank_upgraded_p90_fail`；禁止 MRS-3           |
-| [active/tv3_mrs6_hardware_requirements.md](../active/tv3_mrs6_hardware_requirements.md)                                                               | MRS-6 已交付硬件需求说明书；0.4 vol% 已降为参考线，原 MRS 线已收尾                   |
-| [active/tv3_mrs_information_efficient_inversion_experiment_plan.md](../active/tv3_mrs_information_efficient_inversion_experiment_plan.md)               | MRS-EI 当前计划；`MEI-0` 已冻结，下一步 MEI-1；不授权正式波形或恢复 MRS-3            |
+| [archive/completed/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md](../archive/completed/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md) | MRS 线已收尾；MRS-2=`mrs2_rank_upgraded_p90_fail`；禁止 MRS-3 |
+| [archive/completed/tv3_mrs6_hardware_requirements.md](../archive/completed/tv3_mrs6_hardware_requirements.md) | MRS-6 已交付硬件需求说明书；0.4 vol% 已降为参考线 |
+| [active/tv3_mrs_information_efficient_inversion_experiment_plan.md](../active/tv3_mrs_information_efficient_inversion_experiment_plan.md) | MRS-EI 上位计划；固定 D0 K4，MEI-3 Phase A 已通过 |
+| [active/tv3_mrs_ei_mei3_execution_plan.md](../active/tv3_mrs_ei_mei3_execution_plan.md) | MEI-3 B0--B5 当前执行计划 |
 | [deep_research/tv3_mrs_generalizable_algorithm_ideas_20260727.md](../deep_research/tv3_mrs_generalizable_algorithm_ideas_20260727.md)                   | MRS-EI 的六类通用算法、理论依据、负对照和优先级                                      |
 | [../../COMSOL/tunnel_transport/README.md](../../COMSOL/tunnel_transport/README.md)                                                                    | 隧道输运 COMSOL A 构建与 verdict 入口                                   |
 | [archive/completed/tv3_ec_msw_gatednet_implementation_plan.md](../archive/completed/tv3_ec_msw_gatednet_implementation_plan.md)                       | EC-MSW P0 契约与 E1d/attachment/LS 正式结论                           |
