@@ -1,16 +1,27 @@
 {
-  "schema_version": "tunnel-ventilation-mrs-ei-1",
+  "registry_schema_version": "tunnel-ventilation-mrs-ei-registry-2",
+  "reserved_benchmark_schema_version": "tunnel-ventilation-mrs-ei-1",
   "stage": "MEI-1",
   "claim_scope": "registered_simulation_domain_only",
+  "role": "run_config_only_not_results",
   "mei0_prerequisite": {
-    "stage_status": "configs/tv3_mrs_ei/stage_status.json",
-    "expected_verdict": "mei0_registry_frozen"
+    "expected_verdict": "mei0_registry_frozen",
+    "expected_registry_schema": "tunnel-ventilation-mrs-ei-registry-2",
+    "expected_allowed_next_stage": "MEI-1_forward_envelope"
   },
   "arm": "obs-cfreq",
+  "noise_profiles": ["low_cost_k4_primary", "registered_mrs2_stress"],
+  "point_sets": ["ambient_core_216", "pressure_extension_low_rh_216"],
+  "formal_point_union": "formal_mei1_432",
+  "design_count": 15,
+  "primary_metric": "max_p90_o2_percent",
+  "secondary_metric": "median_p90_o2_percent",
+  "numerical_equivalence_source": "delta_numerical",
+  "decision_equivalence_source": "delta_practical",
   "point_sampling": {
-    "mode": "full_narrow_grid",
+    "mode": "named_point_sets",
     "stride": 1,
-    "notes": "正式前向包络门使用完整 216 窄窗点；holdout 若未覆盖则并入"
+    "notes": "正式前向包络门使用 formal_mei1_432；禁止 stride 抽样"
   },
   "design_enumeration": {
     "k": 4,
@@ -18,7 +29,7 @@
     "include_baseline_k4": true,
     "rank_metric": "max_p90_o2_percent",
     "secondary_metric": "median_p90_o2_percent",
-    "rank_tie_rule": "delta_num_relative_equivalence"
+    "rank_tie_rule": "dual_numerical_and_practical_equivalence"
   },
   "families": [
     {"id": "F0_mrs1_baseline", "kind": "baseline"},
@@ -79,17 +90,24 @@
     }
   ],
   "stability_gates": {
-    "delta_num_source": "mei0.delta_num",
+    "numerical_equivalence_source": "delta_numerical",
+    "decision_equivalence_source": "delta_practical",
     "max_principal_angle_deg": 15.0,
     "principal_angle_gate_stat": "max_deg",
     "principal_angle_quantiles": [0.5, 0.9, 0.95],
     "min_spearman_vs_f0": 0.95,
     "top1_must_match_f0": true,
     "bottleneck_flip_fraction_max": 0.25,
-    "require_ranking_resolvable_within_delta_num": true,
+    "require_ranking_resolvable_within_delta_practical": true,
     "unrepresented_blocks_supported": true,
+    "parked_nonblocking_family_ids": [
+      "F2_h2o_relaxation_params",
+      "F3_coupled_relaxation",
+      "F4_diffraction_near_field",
+      "F5_transducer_response"
+    ],
     "inert_family_ids": ["F5_transducer_proxy"],
-    "notes": "inert 只跳过 flip 门；not_represented 与不可分辨排名一律阻止 supported；S_* 不得清除未表征项"
+    "notes": "not_represented 仍阻断；parked_nonblocking 只在登记仿真信息设计范围内非阻断且不等于 represented；排名低于 delta_practical 时固定 D0 K4 并跳过 MEI-2；proxies 不清除未表示项"
   },
   "comsol_holdout": {
     "family_id": "F6_comsol_local_acoustics_holdout",
@@ -104,7 +122,8 @@
     "no_formal_waveform_generation",
     "no_auto_resume_comsol_g2_plus",
     "no_mei2_design_optimization",
-    "no_clear_not_represented_via_proxy_or_commentary"
+    "no_clear_not_represented_via_proxy_or_commentary",
+    "no_auto_authorize_waveform_benchmark_or_hardware"
   ],
   "source": "engineering_scenario"
 }

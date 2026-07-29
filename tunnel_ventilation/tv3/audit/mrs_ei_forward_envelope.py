@@ -21,7 +21,15 @@ from tv3.audit.identifiability_v3_mrs import (
     observation_noise_std,
     single_nuisance_equivalent_o2,
 )
-from tv3.audit.mrs_ei_registry import build_narrow_points, load_json, sha256_file
+from tv3.audit.mrs_ei_registry import (
+    FORBIDDEN_AUTH_VALUE,
+    REGISTRY_SCHEMA_VERSION,
+    build_formal_mei1_points,
+    build_named_point_set,
+    load_json,
+    sha256_file,
+    verify_evidence_manifest,
+)
 from tv3.sim.generation.tunnel_ventilation.relaxation_spectrum import relaxation_spectrum
 
 SpectrumFn = Callable[[MrsPoint, np.ndarray], dict[str, Any]]
@@ -34,6 +42,7 @@ _UNREPRESENTED_BLOCKING_IDS = (
     "F4_diffraction_near_field",
     "F5_transducer_response",
 )
+_HIGH_PRESSURE_MPA = frozenset({0.5, 0.709})
 
 
 @dataclass(frozen=True)
@@ -541,14 +550,25 @@ def design_id(freqs: Sequence[float]) -> str:
 def select_audit_points(
     design_space: dict[str, Any],
     *,
-    mode: str = "full_narrow_grid",
+    mode: str = "named_point_sets",
     stride: int = 1,
+    point_set_id: str | None = None,
 ) -> list[tuple[str, MrsPoint]]:
-    labeled = build_narrow_points(design_space)
-    if mode == "full_narrow_grid":
-        selected = list(labeled)
+    if int(stride) != 1 and mode in {"named_point_sets", "formal_mei1_432", "full_narrow_grid"}:
+        raise ValueError("formal MEI-1 point sampling forbids stride != 1")
+    if mode in {"named_point_sets", "formal_mei1_432"}:
+        if point_set_id is None or point_set_id == "formal_mei1_432":
+            selected = build_formal_mei1_points(design_space)
+        else:
+            selected = build_named_point_set(design_space, point_set_id)
+    elif mode == "full_narrow_grid":
+        selected = build_named_point_set(design_space, "ambient_core_216")
     elif mode == "stride_plus_holdouts":
-        selected = list(labeled[:: max(int(stride), 1)])
+        selected = list(
+            build_named_point_set(design_space, "ambient_core_216")[
+                :: max(int(stride), 1)
+            ]
+        )
     else:
         raise ValueError(f"unsupported point_sampling.mode: {mode}")
 
@@ -598,48 +618,95 @@ def summarize_design(
     }
 
 
+def _rank_with_delta(
+    rows: list[dict[str, Any]],
+    *,
+    delta: float,
+    rank_key: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if not rows:
+        return rows, {
+            "ranking_span_relative": 0.0,
+            "distinguishable_rank_levels": 0,
+            "ranking_resolvable": False,
+        }
+    ordered = sorted(rows, key=lambda r: (r["metric"], r["design_id"]))
+    best = float(ordered[0]["metric"])
+    worst = float(ordered[-1]["metric"])
+    span_rel = (worst - best) / max(abs(best), 1e-30)
+    group_start_metric = best
+    group_rank = 0
+    for row in ordered:
+        m = float(row["metric"])
+        if (m - group_start_metric) / max(abs(group_start_metric), 1e-30) > float(delta):
+            group_rank += 1
+            group_start_metric = m
+        row[rank_key] = group_rank
+        row[f"{rank_key}_group_start_metric"] = group_start_metric
+    n_levels = int(ordered[-1][rank_key]) + 1
+    meta = {
+        "ranking_span_relative": float(span_rel),
+        "distinguishable_rank_levels": n_levels,
+        "ranking_resolvable": bool(span_rel > float(delta)),
+    }
+    return ordered, meta
+
+
 def rank_designs(
     summaries: Mapping[str, Mapping[str, Any]],
     *,
     metric: str = "max_p90_o2_percent",
-    delta_num: float = 0.0,
+    delta_num: float | None = None,
+    delta_numerical: float | None = None,
+    delta_practical: float | None = None,
 ) -> list[dict[str, Any]]:
-    """Rank designs with ``delta_num`` relative equivalence classes (ties)."""
+    """Rank designs with numerical and practical relative equivalence classes."""
     rows = [
         {"design_id": did, "metric": float(summary[metric]), **dict(summary)}
         for did, summary in summaries.items()
     ]
-    rows.sort(key=lambda r: (r["metric"], r["design_id"]))
     if not rows:
         return rows
 
-    best = float(rows[0]["metric"])
-    worst = float(rows[-1]["metric"])
-    span_rel = (worst - best) / max(abs(best), 1e-30)
-    group_start_metric = best
-    group_rank = 0
-    group_members: list[str] = []
-    for row in rows:
-        m = float(row["metric"])
-        # Relative to current group start: within delta_num => same equivalence class.
-        if (m - group_start_metric) / max(abs(group_start_metric), 1e-30) > float(delta_num):
-            group_rank += 1
-            group_start_metric = m
-            group_members = []
-        group_members.append(str(row["design_id"]))
-        row["rank"] = group_rank
-        row["equivalence_group_start_metric"] = group_start_metric
-        row["raw_order"] = None  # filled below
+    numerical = (
+        float(delta_numerical)
+        if delta_numerical is not None
+        else float(delta_num if delta_num is not None else 0.0)
+    )
+    practical = (
+        float(delta_practical)
+        if delta_practical is not None
+        else numerical
+    )
 
-    for i, row in enumerate(rows):
+    ordered, numerical_meta = _rank_with_delta(
+        [dict(row) for row in rows],
+        delta=numerical,
+        rank_key="rank_numerical",
+    )
+    _, practical_meta = _rank_with_delta(
+        ordered,
+        delta=practical,
+        rank_key="rank_practical",
+    )
+    for i, row in enumerate(ordered):
         row["raw_order"] = i
-
-    n_levels = int(rows[-1]["rank"]) + 1 if rows else 0
-    for row in rows:
-        row["ranking_span_relative"] = float(span_rel)
-        row["distinguishable_rank_levels"] = n_levels
-        row["ranking_resolvable"] = bool(span_rel > float(delta_num))
-    return rows
+        # Backward-compatible primary rank uses practical decision threshold.
+        row["rank"] = int(row["rank_practical"])
+        row["ranking_span_relative"] = float(practical_meta["ranking_span_relative"])
+        row["distinguishable_rank_levels"] = int(
+            practical_meta["distinguishable_rank_levels"]
+        )
+        row["ranking_resolvable"] = bool(practical_meta["ranking_resolvable"])
+        row["ranking_resolvable_numerical"] = bool(numerical_meta["ranking_resolvable"])
+        row["ranking_resolvable_practical"] = bool(practical_meta["ranking_resolvable"])
+        row["distinguishable_rank_levels_numerical"] = int(
+            numerical_meta["distinguishable_rank_levels"]
+        )
+        row["distinguishable_rank_levels_practical"] = int(
+            practical_meta["distinguishable_rank_levels"]
+        )
+    return ordered
 
 
 def angle_summary(angles_deg: Sequence[float], quantiles: Sequence[float]) -> dict[str, Any]:
@@ -691,10 +758,80 @@ def collect_unrepresented_blocking(model_registry: Mapping[str, Any]) -> list[st
     fam_by_id = {f["id"]: f for f in model_registry["model_families"]}
     blocking: list[str] = []
     for fid in _UNREPRESENTED_BLOCKING_IDS:
-        status = fam_by_id.get(fid, {}).get("status")
+        family = fam_by_id.get(fid, {})
+        status = family.get("status")
         if status == "not_represented":
             blocking.append(fid)
     return blocking
+
+
+def collect_parked_nonblocking(model_registry: Mapping[str, Any]) -> list[str]:
+    return [
+        str(family["id"])
+        for family in model_registry["model_families"]
+        if family.get("status") == "parked_nonblocking"
+    ]
+
+
+def proxy_never_clears_not_represented(
+    *,
+    family_kind: str,
+    registry_family: Mapping[str, Any] | None,
+) -> bool:
+    """Structural proxies must keep can_clear_not_represented=false."""
+    if family_kind not in {"structural_proxy", "synthetic_bias"}:
+        return True
+    if registry_family is None:
+        return True
+    return registry_family.get("can_clear_not_represented") is False
+
+
+def pressure_domain_validation(
+    labeled_points: Sequence[tuple[str, MrsPoint]],
+    *,
+    model_registry: Mapping[str, Any],
+) -> dict[str, Any]:
+    """High-pressure points stay in the gate; missing evidence blocks supported."""
+    high_pressure_points = [
+        (pid, pt)
+        for pid, pt in labeled_points
+        if float(pt.p_mpa) in _HIGH_PRESSURE_MPA
+    ]
+    evidence = model_registry.get("pressure_domain_evidence") or {}
+    bounds = evidence.get("validated_range_mpa")
+    covers_required = False
+    if isinstance(bounds, list) and len(bounds) == 2:
+        lower, upper = float(bounds[0]), float(bounds[1])
+        covers_required = all(lower <= p <= upper for p in _HIGH_PRESSURE_MPA)
+    parked = evidence.get("status") == "parked_nonblocking"
+    validated = bool(
+        len(high_pressure_points) == 0
+        or (
+            evidence.get("status") == "validated_traceable"
+            and covers_required
+            and isinstance(evidence.get("evidence_path"), str)
+            and bool(evidence.get("evidence_path"))
+            and isinstance(evidence.get("evidence_sha256"), str)
+            and len(evidence.get("evidence_sha256")) == 64
+        )
+    )
+    return {
+        "n_high_pressure_points": len(high_pressure_points),
+        "evidence_status": evidence.get("status"),
+        "validated_range_mpa": bounds,
+        "validated": validated,
+        "decision_scope": evidence.get("decision_scope"),
+        "status": (
+            "ok"
+            if validated
+            else "parked_nonblocking"
+            if parked
+            else "pressure_domain_not_validated"
+        ),
+        "blocker": (
+            None if validated or parked else "pressure_domain_not_validated"
+        ),
+    }
 
 
 def decide_mei1_verdict(
@@ -703,6 +840,9 @@ def decide_mei1_verdict(
     flip_events: Sequence[Mapping[str, Any]],
     unrepresented_blocking: Sequence[str],
     ranking_resolvable: bool,
+    pressure_domain_ok: bool = True,
+    all_profiles_complete: bool = True,
+    formal_point_count_ok: bool = True,
 ) -> dict[str, Any]:
     """Gate MEI-1 pass. Proxies/S_* never clear not_represented families."""
     blockers: list[str] = []
@@ -711,10 +851,14 @@ def decide_mei1_verdict(
             "unrepresented_families_without_flip_proof:"
             + ",".join(unrepresented_blocking)
         )
-    if not ranking_resolvable:
-        blockers.append("design_ranking_not_resolvable_within_delta_num")
     if flip_events:
         blockers.append("family_stability_flip_events")
+    if not pressure_domain_ok:
+        blockers.append("pressure_domain_not_validated")
+    if not all_profiles_complete:
+        blockers.append("noise_profiles_incomplete")
+    if not formal_point_count_ok:
+        blockers.append("formal_mei1_432_incomplete")
 
     if issues:
         return {
@@ -722,6 +866,13 @@ def decide_mei1_verdict(
             "allowed_next_stage": None,
             "passed": False,
             "blockers": list(issues) + blockers,
+            "authorizations": {
+                "registered_sparse_simulation_generation": FORBIDDEN_AUTH_VALUE,
+                "formal_waveform_generation": FORBIDDEN_AUTH_VALUE,
+                "benchmark_packaging": FORBIDDEN_AUTH_VALUE,
+                "hardware_trial": FORBIDDEN_AUTH_VALUE,
+            },
+            "registered_sparse_simulation_generation_review_eligible": False,
         }
     if blockers:
         return {
@@ -729,84 +880,141 @@ def decide_mei1_verdict(
             "allowed_next_stage": None,
             "passed": False,
             "blockers": blockers,
+            "authorizations": {
+                "registered_sparse_simulation_generation": FORBIDDEN_AUTH_VALUE,
+                "formal_waveform_generation": FORBIDDEN_AUTH_VALUE,
+                "benchmark_packaging": FORBIDDEN_AUTH_VALUE,
+                "hardware_trial": FORBIDDEN_AUTH_VALUE,
+            },
+            "registered_sparse_simulation_generation_review_eligible": False,
+        }
+    if not ranking_resolvable:
+        return {
+            "verdict": "mei1_fixed_k4_retained",
+            "allowed_next_stage": "MEI-3_varpro_audit",
+            "passed": True,
+            "blockers": [],
+            "decision_reason": "design_ranking_not_resolvable_within_delta_practical",
+            "frozen_design": "D0_fixed_k4_25_63_100_200_khz",
+            "authorizations": {
+                "registered_sparse_simulation_generation": FORBIDDEN_AUTH_VALUE,
+                "formal_waveform_generation": FORBIDDEN_AUTH_VALUE,
+                "benchmark_packaging": FORBIDDEN_AUTH_VALUE,
+                "hardware_trial": FORBIDDEN_AUTH_VALUE,
+            },
+            "registered_sparse_simulation_generation_review_eligible": False,
         }
     return {
         "verdict": "mei1_forward_envelope_supported",
         "allowed_next_stage": "MEI-2_robust_design",
         "passed": True,
         "blockers": [],
+        "authorizations": {
+            "registered_sparse_simulation_generation": FORBIDDEN_AUTH_VALUE,
+            "formal_waveform_generation": FORBIDDEN_AUTH_VALUE,
+            "benchmark_packaging": FORBIDDEN_AUTH_VALUE,
+            "hardware_trial": FORBIDDEN_AUTH_VALUE,
+        },
+        # Supported only marks review eligibility; never auto-authorizes.
+        "registered_sparse_simulation_generation_review_eligible": True,
     }
 
 
-def run_mei1_audit(
+def registered_domain_rankings_resolvable(
+    profile_results: Mapping[str, Any],
     *,
-    project_root: Path | None = None,
-    config_dir: Path | None = None,
-    mei1_config: dict[str, Any] | None = None,
+    noise_profiles: Sequence[str],
+    point_sets: Sequence[str],
+    formal_union: str,
+) -> bool:
+    required_domains = [*point_sets, formal_union]
+    if set(profile_results) != set(noise_profiles):
+        return False
+    for profile_id in noise_profiles:
+        domains = (profile_results.get(profile_id) or {}).get("domains") or {}
+        if set(domains) != set(required_domains):
+            return False
+        if not all(bool(domains[domain_id].get("ranking_resolvable")) for domain_id in required_domains):
+            return False
+    return True
+
+
+def _load_parent_registries(
+    parent_mei0_freeze_dir: Path,
+    *,
+    project_root: Path,
 ) -> dict[str, Any]:
-    root = Path(project_root) if project_root is not None else _TV3_ROOT
-    cfg_dir = Path(config_dir) if config_dir is not None else root / "configs" / "tv3_mrs_ei"
-    mei1 = mei1_config or load_json(cfg_dir / "mei1_forward_envelope.json")
-    design = load_json(cfg_dir / "design_space.json")
-    metric = load_json(cfg_dir / "metric_registry.json")
-    model = load_json(cfg_dir / "model_family_registry.json")
-    stage = load_json(cfg_dir / "stage_status.json")
+    parent = Path(parent_mei0_freeze_dir)
+    if not parent.is_dir():
+        raise FileNotFoundError(f"parent MEI-0 freeze missing: {parent}")
+    model = load_json(parent / "model_family_registry.json")
+    design = load_json(parent / "design_space.json")
+    metric = load_json(parent / "metric_registry.json")
+    stage = load_json(parent / "stage_status.json")
+    manifest_path = parent / "evidence_manifest.json"
+    issues = verify_evidence_manifest(manifest_path, project_root=project_root)
+    return {
+        "model": model,
+        "design": design,
+        "metric": metric,
+        "stage": stage,
+        "manifest_path": manifest_path,
+        "manifest_sha256": sha256_file(manifest_path),
+        "manifest_issues": issues,
+        "parent_dir": parent,
+    }
 
-    issues: list[str] = []
-    prereq = mei1["mei0_prerequisite"]
-    if (stage.get("mei0") or {}).get("verdict") != prereq["expected_verdict"]:
-        issues.append(
-            f"MEI-0 prerequisite failed: expected {prereq['expected_verdict']}, "
-            f"got {(stage.get('mei0') or {}).get('verdict')}"
-        )
 
-    delta_num = float((stage.get("mei0") or {}).get("delta_num") or metric["delta_num"]["frozen_value"])
-    gates = mei1["stability_gates"]
-    inert_ids = set(gates.get("inert_family_ids") or [])
-    angle_quantiles = [float(q) for q in gates.get("principal_angle_quantiles") or [0.5, 0.9, 0.95]]
-    angle_gate_stat = str(gates.get("principal_angle_gate_stat") or "max_deg")
-
-    fam_by_id = {f["id"]: f for f in model["model_families"]}
-    if fam_by_id.get("F2_h2o_relaxation_params", {}).get("status") != "not_represented":
-        issues.append("F2_h2o_relaxation_params must remain not_represented at MEI-1")
-
-    comsol_status = "unavailable"
-    comsol_cfg = mei1["comsol_holdout"]
-    for pattern in comsol_cfg.get("search_globs") or []:
-        matches = list(root.glob(pattern))
-        if matches:
-            comsol_status = "found_but_not_auto_ingested"
-            break
-
-    obs = design["observation_baselines"]["registered_mrs2"]
+def _profile_eval_kwargs(
+    design: Mapping[str, Any],
+    metric: Mapping[str, Any],
+    profile_id: str,
+) -> dict[str, Any]:
+    profiles = design.get("noise_profiles") or {}
+    if profile_id not in profiles:
+        raise KeyError(f"noise profile missing from parent design_space: {profile_id}")
+    obs = profiles[profile_id]
+    for field in (
+        "jitter_std_s",
+        "relative_amp_std",
+        "prior_std",
+        "fixed_delay_s",
+    ):
+        if field not in obs or obs[field] is None:
+            raise KeyError(f"noise profile {profile_id} missing required field {field}")
     num = metric["numerical_protocol"]
-    eval_kwargs = {
+    return {
         "parameter_steps": {k: float(v) for k, v in num["finite_difference_steps"].items()},
         "parameter_bounds": {k: list(map(float, v)) for k, v in num["parameter_bounds"].items()},
         "prior_std": {k: float(v) for k, v in obs["prior_std"].items()},
         "jitter_std_s": float(obs["jitter_std_s"]),
         "relative_amp_std": float(obs["relative_amp_std"]),
-        "fixed_delay_s": float(design["observation_baselines"]["fixed_delay_s"]),
+        "fixed_delay_s": float(obs["fixed_delay_s"]),
         "window_width_percent": 0.8,
         "max_relative_step_disagreement": float(num["max_relative_step_disagreement"]),
     }
 
-    sampling = mei1["point_sampling"]
-    labeled_points = select_audit_points(
-        design,
-        mode=str(sampling.get("mode") or "full_narrow_grid"),
-        stride=int(sampling.get("stride") or 1),
-    )
-    points = [pt for _, pt in labeled_points]
 
-    pool = design["frequency_band"]["candidate_pool_hz"]
-    baseline = tuple(float(x) for x in design["frequency_band"]["baseline_k4_hz"])
-    designs = enumerate_k4_designs(pool, baseline)
+def _audit_one_profile_domain(
+    *,
+    points: Sequence[MrsPoint],
+    labeled_points: Sequence[tuple[str, MrsPoint]],
+    designs: Sequence[tuple[float, ...]],
+    baseline: tuple[float, ...],
+    family_specs: Sequence[EnvelopeSpec],
+    eval_kwargs: Mapping[str, Any],
+    mei1: Mapping[str, Any],
+    delta_numerical: float,
+    delta_practical: float,
+    model: Mapping[str, Any],
+) -> dict[str, Any]:
+    gates = mei1["stability_gates"]
+    inert_ids = set(gates.get("inert_family_ids") or [])
+    angle_quantiles = [float(q) for q in gates.get("principal_angle_quantiles") or [0.5, 0.9, 0.95]]
+    angle_gate_stat = str(gates.get("principal_angle_gate_stat") or "max_deg")
     baseline_id = design_id(baseline)
+    fam_by_id = {f["id"]: f for f in model["model_families"]}
 
-    family_specs = parse_family_specs(mei1)
-
-    # F0 baseline context for Jacobian-aligned synthetic bias and angle gates.
     f0_spec = next(s for s in family_specs if s.family_id == "F0_mrs1_baseline")
     f0_spectrum = make_spectrum_fn(f0_spec)
     f0_baseline_rows: list[dict[str, Any]] = []
@@ -833,8 +1041,17 @@ def run_mei1_audit(
     f0_ranking_meta: dict[str, Any] = {}
 
     for spec in family_specs:
-        # Non-synthetic families share one spectrum_fn; synthetic families freeze
-        # δc(f) per nominal grid point so FD shifts remain well-defined.
+        registry_family = None
+        if spec.registry_family:
+            registry_family = fam_by_id.get(spec.registry_family)
+            if not proxy_never_clears_not_represented(
+                family_kind=spec.kind,
+                registry_family=registry_family,
+            ):
+                raise ValueError(
+                    f"proxy {spec.family_id} must not clear not_represented"
+                )
+
         shared_fn = None
         if spec.synthetic_direction is None:
             shared_fn = make_spectrum_fn(spec)
@@ -898,25 +1115,28 @@ def run_mei1_audit(
         ranking = rank_designs(
             design_summaries,
             metric=str(mei1["design_enumeration"]["rank_metric"]),
-            delta_num=delta_num,
+            delta_numerical=delta_numerical,
+            delta_practical=delta_practical,
         )
-        rank_by_id = {r["design_id"]: float(r["rank"]) for r in ranking}
-        best_rank = min(float(r["rank"]) for r in ranking)
-        top_class = {r["design_id"] for r in ranking if float(r["rank"]) == best_rank}
-        # Representative top1: lowest raw_order within top class.
+        rank_by_id = {r["design_id"]: float(r["rank_practical"]) for r in ranking}
+        best_rank = min(float(r["rank_practical"]) for r in ranking)
+        top_class = {
+            r["design_id"] for r in ranking if float(r["rank_practical"]) == best_rank
+        }
         top1 = sorted(
             (r for r in ranking if r["design_id"] in top_class),
             key=lambda r: (r["raw_order"], r["design_id"]),
         )[0]["design_id"]
-        ranking_resolvable = bool(ranking[0]["ranking_resolvable"])
+        ranking_resolvable = bool(ranking[0]["ranking_resolvable_practical"])
         span_rel = float(ranking[0]["ranking_span_relative"])
-        n_levels = int(ranking[0]["distinguishable_rank_levels"])
+        n_levels = int(ranking[0]["distinguishable_rank_levels_practical"])
 
-        # Synthetic alignment evidence on baseline geometry (observation delta vs J).
         synthetic_alignment = None
         if spec.synthetic_direction is not None:
             align_angles = []
-            for point, f0_row, fam_row in zip(points, f0_baseline_rows, point_rows_baseline, strict=True):
+            for point, f0_row, fam_row in zip(
+                points, f0_baseline_rows, point_rows_baseline, strict=True
+            ):
                 dy = np.asarray(fam_row["y0"], dtype=np.float64) - np.asarray(
                     f0_row["y0"], dtype=np.float64
                 )
@@ -928,8 +1148,12 @@ def run_mei1_audit(
             }[str(spec.synthetic_direction)]
             synthetic_alignment = {
                 "direction": spec.synthetic_direction,
-                "mean_observation_delta_angle_to_o2_jacobian_deg": float(np.mean(align_angles)),
-                "max_observation_delta_angle_to_o2_jacobian_deg": float(np.max(align_angles)),
+                "mean_observation_delta_angle_to_o2_jacobian_deg": float(
+                    np.mean(align_angles)
+                ),
+                "max_observation_delta_angle_to_o2_jacobian_deg": float(
+                    np.max(align_angles)
+                ),
                 "expected_angle_deg": expected,
                 "n_points": len(align_angles),
             }
@@ -953,13 +1177,18 @@ def run_mei1_audit(
             f0_baseline_summary = design_summaries[baseline_id]
             f0_ranking_meta = {
                 "ranking_resolvable": ranking_resolvable,
+                "ranking_resolvable_numerical": bool(
+                    ranking[0]["ranking_resolvable_numerical"]
+                ),
+                "ranking_resolvable_practical": ranking_resolvable,
                 "ranking_span_relative": span_rel,
                 "distinguishable_rank_levels": n_levels,
                 "baseline_k4_metric": float(f0_baseline_summary["max_p90_o2_percent"]),
                 "best_metric": float(ranking[0]["metric"]),
                 "worst_metric": float(ranking[-1]["metric"]),
                 "best_vs_baseline_improve_relative": (
-                    float(f0_baseline_summary["max_p90_o2_percent"]) - float(ranking[0]["metric"])
+                    float(f0_baseline_summary["max_p90_o2_percent"])
+                    - float(ranking[0]["metric"])
                 )
                 / max(float(f0_baseline_summary["max_p90_o2_percent"]), 1e-30),
             }
@@ -997,7 +1226,6 @@ def run_mei1_audit(
             "o2_jacobian_angle_vs_f0": ang_stats,
             "principal_angle_gate_stat": angle_gate_stat,
             "principal_angle_gate_value_deg": angle_gate_value,
-            # retained for backward-compatible summary readers
             "mean_o2_jacobian_principal_angle_deg_vs_f0": ang_stats["mean_deg"],
             "spearman_vs_f0": spearman,
             "top1_matches_f0": top1_match,
@@ -1030,7 +1258,9 @@ def run_mei1_audit(
             if sp == sp and float(sp) < float(gates["min_spearman_vs_f0"]):
                 reasons.append(f"spearman={sp:.4f}<{gates['min_spearman_vs_f0']}")
         gate_angle = report["principal_angle_gate_value_deg"]
-        if gate_angle is not None and float(gate_angle) > float(gates["max_principal_angle_deg"]):
+        if gate_angle is not None and float(gate_angle) > float(
+            gates["max_principal_angle_deg"]
+        ):
             reasons.append(
                 f"principal_angle_{angle_gate_stat}={float(gate_angle):.3f}"
                 f">{gates['max_principal_angle_deg']}"
@@ -1043,19 +1273,247 @@ def run_mei1_audit(
                 f"{report['bottleneck_flip_fraction_vs_f0']:.3f}"
                 f">{gates['bottleneck_flip_fraction_max']}"
             )
-        report["p90_change_exceeds_delta_num"] = bool(
-            float(report["relative_max_p90_change_vs_f0_on_baseline_k4"]) > delta_num
+        report["p90_change_exceeds_delta_practical"] = bool(
+            float(report["relative_max_p90_change_vs_f0_on_baseline_k4"])
+            > delta_practical
         )
         if reasons:
             flip_events.append({"family_id": fid, "reasons": reasons})
 
+    return {
+        "n_points": len(points),
+        "n_designs": len(designs),
+        "baseline_design_id": baseline_id,
+        "point_labels": [lab for lab, _ in labeled_points],
+        "family_reports": family_reports,
+        "flip_events": flip_events,
+        "f0_ranking_meta": f0_ranking_meta,
+        "ranking_resolvable": ranking_resolvable,
+        "baseline_k4_max_p90": float(
+            family_reports["F0_mrs1_baseline"]["baseline_k4_summary"][
+                "max_p90_o2_percent"
+            ]
+        ),
+        "baseline_k4_median_p90": float(
+            family_reports["F0_mrs1_baseline"]["baseline_k4_summary"][
+                "median_p90_o2_percent"
+            ]
+        ),
+    }
+
+
+def run_mei1_audit(
+    *,
+    project_root: Path | None = None,
+    config_dir: Path | None = None,
+    parent_mei0_freeze_dir: Path | None = None,
+    mei1_config: dict[str, Any] | None = None,
+    current_stage_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    root = Path(project_root) if project_root is not None else _TV3_ROOT
+    cfg_dir = Path(config_dir) if config_dir is not None else root / "configs" / "tv3_mrs_ei"
+    mei1 = mei1_config or load_json(cfg_dir / "mei1_forward_envelope.json")
+    issues: list[str] = []
+
+    if parent_mei0_freeze_dir is None:
+        issues.append("MEI-1 requires explicit --parent-mei0-freeze-dir")
+        decision = decide_mei1_verdict(
+            issues=issues,
+            flip_events=[],
+            unrepresented_blocking=[],
+            ranking_resolvable=False,
+        )
+        return {
+            "registry_schema_version": REGISTRY_SCHEMA_VERSION,
+            "stage": "MEI-1",
+            "passed": False,
+            "verdict": decision["verdict"],
+            "allowed_next_stage": None,
+            "blockers": decision["blockers"],
+            "issues": issues,
+            "exit_code_hint": 3,
+        }
+
+    parent = _load_parent_registries(parent_mei0_freeze_dir, project_root=root)
+    model = parent["model"]
+    design = parent["design"]
+    metric = parent["metric"]
+    parent_stage = parent["stage"]
+    if parent["manifest_issues"]:
+        issues.extend(parent["manifest_issues"])
+
+    for registry in (model, design, metric):
+        if registry.get("registry_schema_version") != REGISTRY_SCHEMA_VERSION:
+            issues.append(
+                "parent registry schema must be "
+                f"{REGISTRY_SCHEMA_VERSION}"
+            )
+            break
+    if "delta_num" in metric:
+        issues.append("parent metric registry must not contain live delta_num")
+
+    prereq = mei1["mei0_prerequisite"]
+    mei0_block = parent_stage.get("mei0") or {}
+    if mei0_block.get("verdict") != prereq["expected_verdict"]:
+        issues.append(
+            f"MEI-0 prerequisite failed: expected {prereq['expected_verdict']}, "
+            f"got {mei0_block.get('verdict')}"
+        )
+    if parent_stage.get("allowed_next_stage") != prereq.get(
+        "expected_allowed_next_stage", "MEI-1_forward_envelope"
+    ):
+        issues.append(
+            "parent allowed_next_stage must be MEI-1_forward_envelope"
+        )
+
+    current_stage = current_stage_status
+    if current_stage is None and (cfg_dir / "stage_status.json").is_file():
+        current_stage = load_json(cfg_dir / "stage_status.json")
+    if current_stage is not None:
+        current_freeze = str(
+            ((current_stage.get("mei0") or {}).get("freeze_dir") or "")
+        ).replace("\\", "/")
+        parent_name = parent["parent_dir"].name
+        if current_freeze and parent_name not in current_freeze:
+            issues.append(
+                "current stage_status mei0 freeze must point at the same parent freeze"
+            )
+
+    thresholds = metric.get("decision_thresholds") or {}
+    delta_numerical = thresholds.get("delta_numerical") or {}
+    delta_practical = thresholds.get("delta_practical") or {}
+    shared_upper = delta_numerical.get("shared_upper_bound")
+    if shared_upper is None:
+        by_profile = delta_numerical.get("by_noise_profile") or {}
+        if by_profile:
+            shared_upper = max(float(v) for v in by_profile.values())
+    if shared_upper is None:
+        issues.append("parent delta_numerical.shared_upper_bound missing")
+        shared_upper = 0.0
+    practical_value = float(delta_practical.get("value", float("nan")))
+    if not math.isfinite(practical_value):
+        issues.append("parent delta_practical.value missing")
+        practical_value = 0.02
+
+    noise_profiles = list(mei1.get("noise_profiles") or [])
+    if noise_profiles != ["low_cost_k4_primary", "registered_mrs2_stress"]:
+        issues.append("mei1 noise_profiles must list both registered profiles")
+    point_sets = list(mei1.get("point_sets") or [])
+    formal_union = str(mei1.get("formal_point_union") or "formal_mei1_432")
+    if int(mei1.get("design_count") or -1) != 15:
+        issues.append("mei1 design_count must be 15")
+    if int((mei1.get("point_sampling") or {}).get("stride", 1)) != 1:
+        issues.append("formal MEI-1 forbids stride sampling")
+
+    fam_by_id = {f["id"]: f for f in model["model_families"]}
+    for fid in _UNREPRESENTED_BLOCKING_IDS:
+        family = fam_by_id.get(fid) or {}
+        status = family.get("status")
+        can_clear = family.get("can_clear_not_represented")
+        if status == "not_represented" and can_clear is not False:
+            issues.append(
+                f"{fid}: not_represented requires can_clear_not_represented=false"
+            )
+        if (
+            status in {"represented_traceable", "independent_holdout_available"}
+            and can_clear is not True
+        ):
+            issues.append(
+                f"{fid}: traceable evidence requires can_clear_not_represented=true"
+            )
+
+    comsol_status = "unavailable"
+    comsol_cfg = mei1["comsol_holdout"]
+    for pattern in comsol_cfg.get("search_globs") or []:
+        matches = list(root.glob(pattern))
+        if matches:
+            comsol_status = "found_but_not_auto_ingested"
+            break
+
+    pool = design["frequency_band"]["candidate_pool_hz"]
+    baseline = tuple(float(x) for x in design["frequency_band"]["baseline_k4_hz"])
+    designs = enumerate_k4_designs(pool, baseline)
+    if len(designs) != 15:
+        issues.append(f"expected 15 K4 designs, got {len(designs)}")
+    family_specs = parse_family_specs(mei1)
+
+    formal_labeled = build_formal_mei1_points(design)
+    pressure_check = pressure_domain_validation(formal_labeled, model_registry=model)
+
+    profile_results: dict[str, Any] = {}
+    all_flip_events: list[dict[str, Any]] = []
+    if not issues:
+        for profile_id in noise_profiles:
+            eval_kwargs = _profile_eval_kwargs(design, metric, profile_id)
+            domain_reports: dict[str, Any] = {}
+            for domain_id in [*point_sets, formal_union]:
+                labeled = (
+                    build_formal_mei1_points(design)
+                    if domain_id == formal_union
+                    else build_named_point_set(design, domain_id)
+                )
+                points = [pt for _, pt in labeled]
+                domain_reports[domain_id] = _audit_one_profile_domain(
+                    points=points,
+                    labeled_points=labeled,
+                    designs=designs,
+                    baseline=baseline,
+                    family_specs=family_specs,
+                    eval_kwargs=eval_kwargs,
+                    mei1=mei1,
+                    delta_numerical=float(shared_upper),
+                    delta_practical=practical_value,
+                    model=model,
+                )
+                for ev in domain_reports[domain_id]["flip_events"]:
+                    all_flip_events.append(
+                        {"noise_profile": profile_id, "point_set": domain_id, **ev}
+                    )
+            formal = domain_reports[formal_union]
+            profile_results[profile_id] = {
+                "domains": domain_reports,
+                "formal_point_set": formal_union,
+                "f0_ranking_meta": formal["f0_ranking_meta"],
+                "baseline_k4_max_p90": formal["baseline_k4_max_p90"],
+                "baseline_k4_median_p90": formal["baseline_k4_median_p90"],
+                "n_points_formal": formal["n_points"],
+                "n_designs": formal["n_designs"],
+            }
+
     unrepresented_blocking = collect_unrepresented_blocking(model)
+    parked_nonblocking = collect_parked_nonblocking(model)
+    all_profiles_complete = (
+        set(profile_results.keys()) == set(noise_profiles) and len(noise_profiles) == 2
+    )
+    ranking_ok_all = registered_domain_rankings_resolvable(
+        profile_results,
+        noise_profiles=noise_profiles,
+        point_sets=point_sets,
+        formal_union=formal_union,
+    )
+    formal_count_ok = all(
+        int(rep.get("n_points_formal", -1)) == 432 for rep in profile_results.values()
+    ) if profile_results else False
+
+    # Prefer formal-domain F0 family reports for summary compatibility.
+    family_reports = {}
+    f0_ranking_meta = {}
+    if profile_results:
+        first_profile = noise_profiles[0]
+        formal = profile_results[first_profile]["domains"][formal_union]
+        family_reports = formal["family_reports"]
+        f0_ranking_meta = formal["f0_ranking_meta"]
+
     decision = decide_mei1_verdict(
         issues=issues,
-        flip_events=flip_events,
+        flip_events=all_flip_events,
         unrepresented_blocking=unrepresented_blocking,
-        ranking_resolvable=ranking_resolvable,
+        ranking_resolvable=ranking_ok_all and bool(profile_results),
+        pressure_domain_ok=pressure_check["blocker"] is None,
+        all_profiles_complete=all_profiles_complete,
+        formal_point_count_ok=formal_count_ok,
     )
+    exit_code_hint = 0 if decision["passed"] else (3 if issues else 2)
 
     f1_status = {
         "registry_id": "F1_humid_air_c_eq",
@@ -1065,32 +1523,56 @@ def run_mei1_audit(
     }
 
     return {
-        "schema_version": "tunnel-ventilation-mrs-ei-1",
+        "registry_schema_version": REGISTRY_SCHEMA_VERSION,
+        "reserved_benchmark_schema_version": "tunnel-ventilation-mrs-ei-1",
         "stage": "MEI-1",
         "passed": decision["passed"],
         "verdict": decision["verdict"],
         "allowed_next_stage": decision["allowed_next_stage"],
         "blockers": decision["blockers"],
+        "decision_reason": decision.get("decision_reason"),
+        "frozen_design": decision.get("frozen_design"),
         "issues": issues,
-        "delta_num": delta_num,
-        "n_points": len(points),
+        "exit_code_hint": exit_code_hint,
+        "delta_numerical_shared_upper_bound": float(shared_upper),
+        "delta_practical": practical_value,
+        "noise_profiles": noise_profiles,
+        "point_sets": point_sets,
+        "formal_point_union": formal_union,
+        "profile_results": profile_results,
+        "n_points": 432 if formal_count_ok else None,
         "n_designs": len(designs),
-        "baseline_design_id": baseline_id,
-        "point_labels": [lab for lab, _ in labeled_points],
+        "baseline_design_id": design_id(baseline),
         "family_reports": family_reports,
-        "flip_events": flip_events,
+        "flip_events": all_flip_events,
         "f0_ranking_meta": f0_ranking_meta,
         "comsol_holdout_status": comsol_status,
         "f1_realization": f1_status,
         "unrepresented_registry_families": unrepresented_blocking,
-        "stability_gates": gates,
+        "parked_nonblocking_families": parked_nonblocking,
+        "pressure_domain": pressure_check,
+        "stability_gates": mei1["stability_gates"],
         "claim_scope": "registered_simulation_domain_only",
-        "formal_waveform_generation": "forbidden_until_authorized",
+        "formal_waveform_generation": FORBIDDEN_AUTH_VALUE,
+        "authorizations": decision["authorizations"],
+        "registered_sparse_simulation_generation_review_eligible": decision[
+            "registered_sparse_simulation_generation_review_eligible"
+        ],
+        "parent_mei0_freeze_dir": str(parent["parent_dir"]),
+        "parent_mei0_manifest_sha256": parent["manifest_sha256"],
         "registry_sha256": {
-            "model_family_registry.json": sha256_file(cfg_dir / "model_family_registry.json"),
-            "design_space.json": sha256_file(cfg_dir / "design_space.json"),
-            "metric_registry.json": sha256_file(cfg_dir / "metric_registry.json"),
-            "mei1_forward_envelope.json": sha256_file(cfg_dir / "mei1_forward_envelope.json"),
+            "model_family_registry.json": sha256_file(
+                parent["parent_dir"] / "model_family_registry.json"
+            ),
+            "design_space.json": sha256_file(parent["parent_dir"] / "design_space.json"),
+            "metric_registry.json": sha256_file(
+                parent["parent_dir"] / "metric_registry.json"
+            ),
+            "mei1_forward_envelope.json": sha256_file(
+                cfg_dir / "mei1_forward_envelope.json"
+            )
+            if (cfg_dir / "mei1_forward_envelope.json").is_file()
+            else sha256_file(Path(__file__)),
         },
     }
 
@@ -1100,6 +1582,7 @@ __all__ = [
     "apply_envelope",
     "apply_frozen_delta_c",
     "build_aligned_delta_tof",
+    "collect_parked_nonblocking",
     "collect_unrepresented_blocking",
     "decide_mei1_verdict",
     "design_id",
@@ -1107,8 +1590,11 @@ __all__ = [
     "evaluate_point_design",
     "make_spectrum_fn",
     "precompute_synthetic_delta_c",
+    "pressure_domain_validation",
     "principal_angle_deg",
+    "proxy_never_clears_not_represented",
     "rank_designs",
+    "registered_domain_rankings_resolvable",
     "run_mei1_audit",
     "select_audit_points",
     "spearman_rank_corr",

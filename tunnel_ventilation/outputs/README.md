@@ -1,13 +1,13 @@
 # tv3 运行产物索引
 
-> 整理日期：2026-07-27。正式组分结论以 clean `tv3-formal-6000` 为准；双向宽域 F5 正式结果已回填，窄域 F5/F6 不排期。MRS-0/1/2/6 证据在 `tv3_mrs/`，MRS-EI 的版本化阶段证据在 `runs/tv3_mrs_ei/`。路径与 [掘进通风项目记忆库](../docs/掘进通风项目记忆库.md) §七 对齐。
+> 整理日期：2026-07-29。正式组分结论以 clean `tv3-formal-6000` 为准；双向宽域 F5 正式结果已回填，窄域 F5/F6 不排期。MRS-0/1/2/6 证据在 `tv3_mrs/`，MRS-EI 的版本化阶段证据在 `runs/tv3_mrs_ei/`。路径与 [掘进通风项目记忆库](../docs/掘进通风项目记忆库.md) §七 对齐。
 
 ## 顶层结构
 
 | 目录 | 用途 | 状态 |
 | --- | --- | --- |
 | `tv3_mrs/` | MRS 线：registry / 弛豫谱物理门 / 前向可辨识性 v3 / 硬件需求扫描 | ✅ MRS-0/1 通过；❌ MRS-2=`mrs2_rank_upgraded_p90_fail`（升秩成立，P90 未过门）；✅ MRS-6=`mrs6_hardware_requirements_delivered`（2026-07-25）；MRS 线收尾 |
-| `runs/tv3_mrs_ei/` | MRS-EI：MEI-0 registry、数值复算和后续 MEI-* 阶段证据 | ▶️ MEI-0=`mei0_registry_frozen`；freeze 目录只追加不覆盖；下一步 MEI-1；正式波形仍禁止 |
+| `runs/tv3_mrs_ei/` | MRS-EI：MEI-0/1 与 MEI-3 各阶段版本化证据 | ▶️ MEI-3 B3=`mei3_registered_data_authorization_ready`；freeze 目录只追加不覆盖；等待独立数据授权；正式数据与波形仍禁止 |
 | `tv3_d0/` | D0 六组特征拆分（Ridge，6000） | 正式 baseline |
 | `tv3_d2/` | D2 TOF-PhaseNet 失败证据 | 已停止 |
 | `tv3_d2b/` | RawDSP fidelity、B1 reference、B6 MLP | ✅ 冻结默认头链路（B7） |
@@ -57,7 +57,9 @@
 | `tv3_mrs/mrs1_physics/` | MRS-1 弛豫谱物理门产物 |
 | `tv3_mrs/identifiability_mrs2/mrs2_verdict.json` | MRS-2 正式 verdict=`mrs2_rank_upgraded_p90_fail` |
 | `tv3_mrs/mrs6_hardware/` | MRS-6 噪声预算扫描 + 饱和层诊断（`mrs6_verdict.json` / `budget_scan.csv` / `k_subset_scan.csv` / `amp_scan.csv` / `floor_diagnosis.csv`） |
-| `runs/tv3_mrs_ei/mei0_registry/freezes/20260727T071921821957Z_f209e893a9e5/` | 当前 MEI-0 verdict、完整 `delta_num` 复算、stage snapshot 与 evidence manifest；manifest SHA256=`4230c8…d862` |
+| `runs/tv3_mrs_ei/mei0_registry/freezes/20260728T063115704201Z_8c02b8635dd7/` | 当前 MEI-0=`mei0_registry_frozen`；manifest SHA256=`8ae387…bda` |
+| `runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260728T064100731550Z_1b55aa2e09cb/` | MEI-1=`mei1_fixed_k4_retained`；固定 D0 K4 并跳过 MEI-2；manifest SHA256=`faf397…396` |
+| `runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T081421139186Z_c0ade3f5df14/` | MEI-3 B2=`mei3_solver_core_verified`；S1/S2 合成等价与负对照证据；manifest SHA256=`ba8bafe…a8eb` |
 | `tv3_ec_msw/e1_s20260704/metrics.json` | EC-MSW E1 正式训练曲线与神经头指标 |
 | `tv3_ec_msw/e1_s20260704/audit/verdict.json` | EC-MSW E1 正式 `frame_fidelity_failed` 判定与 E2 门 |
 | `tv3_ec_msw/e1_s20260704/audit/frame_fidelity.json` | learned frame embedding 的正式 peak-index fidelity 失败证据 |

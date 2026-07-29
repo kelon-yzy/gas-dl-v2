@@ -1,8 +1,9 @@
 {
-  "schema_version": "tunnel-ventilation-mrs-ei-1",
+  "registry_schema_version": "tunnel-ventilation-mrs-ei-registry-2",
+  "reserved_benchmark_schema_version": "tunnel-ventilation-mrs-ei-1",
   "registry_type": "design_space",
   "stage": "MEI-0",
-  "created_at": "2026-07-27",
+  "created_at": "2026-07-28",
   "claim_scope": "registered_simulation_domain_only",
   "target_direction": {
     "primary": "o2_narrow_window_error",
@@ -25,17 +26,46 @@
     "notes": "MEI 候选频带 25–200 kHz；10/16 kHz 仅作 MRS 历史对照，不进新稳健设计默认池（衍射边界）",
     "source": "engineering_scenario"
   },
-  "narrow_context_grid": {
-    "co2_percent": [0.03, 2.515, 5.0],
-    "t_c": [15.0, 25.0, 35.0],
-    "path_length_m": [0.2, 0.25, 0.3],
-    "h_rh": [30.0, 50.0, 70.0],
-    "p_mpa": [0.101325],
-    "rh_filter_rule": "skip_if_h_rh + rh_delta_percent > 80",
-    "rh_delta_percent": 20.0,
-    "expected_n_points": 216,
-    "source": "implemented_physics",
-    "ref": "configs/tv3_mrs_identifiability.json + scripts/run_tv3_identifiability_v3_mrs.py _narrow_points"
+  "point_sets": {
+    "ambient_core_216": {
+      "co2_percent": [0.03, 2.515, 5.0],
+      "t_c": [15.0, 25.0, 35.0],
+      "path_length_m": [0.2, 0.25, 0.3],
+      "h_rh": [30.0, 50.0, 70.0],
+      "p_mpa": [0.101325],
+      "rh_filter_rule": "skip_if_h_rh + rh_delta_percent > 80",
+      "rh_delta_percent": 20.0,
+      "expected_n_points": 216,
+      "source": "implemented_physics",
+      "refs": [
+        "configs/tv3_mrs_identifiability.json",
+        "docs/active/tv3_mrs_ei_versioned_refreeze_execution_guide.md §8.3"
+      ]
+    },
+    "pressure_extension_low_rh_216": {
+      "co2_percent": [0.03, 2.515, 5.0],
+      "t_c": [15.0, 25.0, 35.0],
+      "path_length_m": [0.2, 0.25, 0.3],
+      "h_rh": [30.0],
+      "p_mpa": [0.5, 0.709],
+      "rh_filter_rule": "skip_if_h_rh + rh_delta_percent > 80",
+      "rh_delta_percent": 20.0,
+      "expected_n_points": 216,
+      "source": "engineering_scenario",
+      "refs": [
+        "docs/active/tv3_mrs_ei_versioned_refreeze_execution_guide.md §8.3",
+        "docs/active/tv3_mrs_information_efficient_inversion_experiment_plan.md"
+      ]
+    },
+    "formal_mei1_432": {
+      "union_of": ["ambient_core_216", "pressure_extension_low_rh_216"],
+      "expected_n_points": 432,
+      "expected_unique": true,
+      "source": "engineering_scenario",
+      "refs": [
+        "docs/active/tv3_mrs_ei_versioned_refreeze_execution_guide.md §8.3"
+      ]
+    }
   },
   "holdout_conditions": {
     "rule": "by_context_corner_ids_not_used_in_design_optimization",
@@ -80,12 +110,13 @@
   "cost_function": {
     "terms": [
       "n_frequencies",
-      "total_acoustic_energy",
+      "total_drive_budget",
       "total_measurement_time_s",
       "rh_switch_time_s",
       "pressure_switch_time_s",
       "settle_wait_time_s"
     ],
+    "actual_incident_acoustic_energy_status": "unavailable_without_F5_calibration",
     "baseline_burst_cycles": {
       "10000": 2,
       "16000": 3,
@@ -97,9 +128,10 @@
       "200000": 8
     },
     "energy_model": {
-      "formula": "E_total ∝ sum_k (cycles_k / f_k) * drive_power_relative_k",
+      "formula": "E_drive ∝ sum_k (cycles_k / f_k) * drive_power_relative_k",
       "drive_power_relative_default": 1.0,
       "normalization": "relative_to_baseline_k4_equal_power",
+      "notes": "Drive budget proxy only; not actual incident acoustic energy without F5 calibration",
       "source": "engineering_scenario"
     },
     "time_model": {
@@ -112,11 +144,11 @@
       "source": "engineering_scenario"
     },
     "cost_calculator": {
-      "energy_formula": "sum_k((cycles_k / frequency_hz_k) * drive_power_relative_k)",
+      "drive_budget_formula": "sum_k((cycles_k / frequency_hz_k) * drive_power_relative_k)",
       "time_formula": "n_frequencies*per_frequency_acquire_s + max(n_frequencies-1,0)*inter_frequency_switch_s + control_overhead_s + n_rh_switches*rh_settle_time_s + n_pressure_switches*pressure_settle_time_s",
       "d0_ledger": {
         "n_frequencies": 4,
-        "total_acoustic_energy_relative_s": 0.000375238095238095,
+        "total_drive_budget_relative_s": 0.000375238095238095,
         "total_measurement_time_s": 0.23,
         "control_overhead_s": 0.0,
         "n_rh_switches": 0,
@@ -126,8 +158,8 @@
       "source": "engineering_scenario"
     },
     "cost_balancing_rule": {
-      "id": "equal_total_energy_and_wall_time_vs_d0",
-      "statement": "任何进入信息门的候选设计相对 D0 固定 K4，必须在 total_acoustic_energy 与 total_measurement_time_s（含 RH/P 切换与稳态等待）上同时 ≤ D0×(1+tol)，tol=0；D4/D5 在当前账本下只作诊断，不得声称等成本信息优势。",
+      "id": "equal_input_drive_budget_and_wall_time_vs_d0",
+      "statement": "任何进入信息门的候选设计相对 D0 固定 K4，必须在 total_drive_budget 与 total_measurement_time_s（含 RH/P 切换与稳态等待）上同时 ≤ D0×(1+tol)，tol=0；D4/D5 在当前账本下只作诊断，不得声称等成本信息优势。Drive budget 不是未经 F5 标定的实际入射声能。",
       "d4_includes_pilot_and_control_cost": true,
       "source": "engineering_scenario"
     },
@@ -175,18 +207,18 @@
     },
     {
       "id": "D5",
-      "name": "equal_energy_k8",
+      "name": "equal_drive_budget_k8",
       "role": "redundancy_diagnosis_not_cost_advantage",
       "design": [10000.0, 16000.0, 25000.0, 40000.0, 63000.0, 100000.0, 160000.0, 200000.0],
       "drive_power_relative": 0.400152342262283,
-      "total_acoustic_energy_relative_s": 0.000375238095238095,
+      "total_drive_budget_relative_s": 0.000375238095238095,
       "total_measurement_time_s": 0.47,
       "eligible_for_information_gate": false,
-      "ineligibility_reason": "equal energy is achievable by power scaling, but K8 wall time exceeds the 0.23 s D0 budget"
+      "ineligibility_reason": "equal drive budget is achievable by power scaling, but K8 wall time exceeds the 0.23 s D0 budget"
     }
   ],
   "objective": {
-    "form": "min_d max_xi [c^T I_eff(d, xi)^(-1) c] + lambda_time*Time(d) + lambda_energy*Energy(d)",
+    "form": "min_d max_xi [c^T I_eff(d, xi)^(-1) c] + lambda_time*Time(d) + lambda_drive*DriveBudget(d)",
     "c_vector": {
       "target": "o2_percent",
       "definition": "unit_vector_on_o2_in_theta",
@@ -195,7 +227,7 @@
     "xi_covers": ["operating_conditions", "model_families"],
     "lambdas_provisional": {
       "lambda_time": 0.0,
-      "lambda_energy": 0.0,
+      "lambda_drive": 0.0,
       "notes": "主比较先用硬成本约束配平；lambda 仅作敏感性，MEI-2 运行前若启用须写入 stage 配置摘要"
     },
     "source": "engineering_scenario"
@@ -221,32 +253,50 @@
       "status": "sensitivity_analysis_only"
     }
   },
-  "observation_baselines": {
-    "registered_mrs2": {
+  "noise_profiles": {
+    "low_cost_k4_primary": {
+      "jitter_std_s": 5.0e-7,
+      "relative_amp_std": 0.02,
+      "covariance_model": "per_frequency_independent",
+      "prior_std": {
+        "t_c": 0.1,
+        "path_length_m": 0.0001,
+        "h_rh": 2.0,
+        "co2_percent": 0.05
+      },
+      "fixed_delay_s": 0.000082,
+      "source": "engineering_scenario",
+      "refs": [
+        "outputs/tv3_mrs/mrs6_hardware (low-cost option changes only sigma_TOF and T prior)",
+        "configs/tv3_mrs/parameter_registry.json amplitude_calibration relative_amp_std=0.02",
+        "configs/tv3_mrs_identifiability.json prior_std.path_length_m/h_rh/co2_percent and observation.fixed_delay_s",
+        "configs/tv3_mrs/parameter_registry.json observation_noise covariance_model=per_frequency_independent"
+      ],
+      "notes": "MRS-6 low-cost option changes only jitter and T prior; remaining noise fields stay at registered values and are owned explicitly here (no inheritance)."
+    },
+    "registered_mrs2_stress": {
       "jitter_std_s": 3.0e-6,
       "relative_amp_std": 0.02,
+      "covariance_model": "per_frequency_independent",
       "prior_std": {
         "t_c": 1.0,
         "path_length_m": 0.0001,
         "h_rh": 2.0,
         "co2_percent": 0.05
-      }
-    },
-    "low_cost_k4_reference": {
-      "arm": "obs-cfreq",
-      "k": "K4",
-      "jitter_std_s": 5.0e-7,
-      "t_prior_k": 0.1,
-      "max_p90_o2_percent": 1.51,
-      "median_p90_o2_percent": 1.23,
-      "source": "outputs/tv3_mrs/mrs6_hardware"
-    },
-    "fixed_delay_s": 0.000082,
-    "source": "engineering_scenario"
+      },
+      "fixed_delay_s": 0.000082,
+      "source": "engineering_scenario",
+      "refs": [
+        "configs/tv3_mrs/parameter_registry.json observation_noise",
+        "configs/tv3_mrs_identifiability.json observation.fixed_delay_s and prior_std",
+        "outputs/tv3_mrs/identifiability_mrs2 (registered MRS-2 stress noise)"
+      ],
+      "notes": "Registered MRS-2 stress profile with complete independent field ownership."
+    }
   },
   "review_answers": {
     "q3_cost_balancing": {
-      "answer": "采用可执行 cost_calculator 与冻结 D0 账本：D0 能量 0.000375238095238095 relative-s、墙钟 0.23 s。D1-D3 必须逐臂复算并同时不超 D0。D4 即使复用 pilot 也需 5.23 s，D5 等能量后仍需 0.47 s，因此二者在当前预算下只作诊断，不进入等成本信息门。",
+      "answer": "采用可执行 cost_calculator 与冻结 D0 账本：D0 drive budget 0.000375238095238095 relative-s、墙钟 0.23 s。D1-D3 必须逐臂复算并同时不超 D0。D4 即使复用 pilot 也需 5.23 s，D5 等 drive budget 后仍需 0.47 s，因此二者在当前预算下只作诊断，不进入等成本信息门。actual_incident_acoustic_energy_status=unavailable_without_F5_calibration。",
       "status": "frozen_for_mei0"
     },
     "q5_mei5_without_hardware": {

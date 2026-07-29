@@ -1,8 +1,9 @@
 {
-  "schema_version": "tunnel-ventilation-mrs-ei-1",
+  "registry_schema_version": "tunnel-ventilation-mrs-ei-registry-2",
+  "reserved_benchmark_schema_version": "tunnel-ventilation-mrs-ei-1",
   "registry_type": "metric",
   "stage": "MEI-0",
-  "created_at": "2026-07-27",
+  "created_at": "2026-07-28",
   "claim_scope": "registered_simulation_domain_only",
   "reference_lines": {
     "historical_0p4": {
@@ -29,12 +30,12 @@
     "information_gate": {
       "statistic": "worst_case_p90_o2_percent_on_holdout_and_model_families",
       "compare": "relative_improvement_vs_D0_under_equal_cost",
-      "require_paired_bootstrap_95ci_lower_bound_positive": true
+      "require_exact_paired_difference_gt_delta_practical": true
     },
     "solver_gate": {
       "statistic": "paired_p90_o2_on_test_and_ood",
       "compare": "relative_improvement_vs_frozen_deterministic_baseline",
-      "no_degrade_beyond_delta_num": [
+      "no_degrade_beyond_delta_practical": [
         "mae_o2",
         "mae_co2",
         "mae_n2",
@@ -69,12 +70,28 @@
     "n2": "full_report",
     "closure_sum_abs_error": "monitor_only_not_hard_constraint",
     "output_contract": {
-      "raw3": true,
-      "out_dim": 3,
+      "point_estimate": {
+        "mode": "raw3",
+        "out_dim": 3,
+        "silent_normalization": false
+      },
+      "posterior": {
+        "mode": "joint_over_raw3",
+        "silent_normalization": false
+      },
+      "closure_sum_abs_error": "audit_monitor_only",
+      "simplex_projected_view": "optional_explicit_audit_view_only",
+      "forbidden_for_simplex_projection": [
+        "train_label_rewrite",
+        "primary_metrics",
+        "deployment_output",
+        "n2_closure_backfill"
+      ],
       "forbidden": [
         "n2_closure_backfill",
         "target_transform",
-        "closure_residual_head"
+        "closure_residual_head",
+        "silent_normalization"
       ]
     }
   },
@@ -125,143 +142,257 @@
       ]
     }
   },
-  "delta_num": {
-    "floor": 0.02,
-    "formula": "max(2*rel_change_fd, 2*rel_change_fresh_process_repeat, floor)",
-    "svd_tolerance_policy": "rank_diagnostic_only_not_part_of_crb_p90_delta",
-    "recompute_required_at_freeze": true,
-    "recompute_spec": {
-      "arm": "obs-cfreq",
-      "frequencies_hz": [
-        25000.0,
-        63000.0,
-        100000.0,
-        200000.0
-      ],
-      "noise": "registered_mrs2",
-      "point_set": "full_narrow_216",
-      "fd_step_scales": [
-        0.5,
-        2.0
-      ],
-      "svd_tol_scales": [
-        0.1,
-        10.0
-      ],
-      "repeat_execution": "fresh_process",
-      "metrics": [
-        "max_p90_o2_percent",
-        "median_p90_o2_percent"
-      ],
-      "n_repeat": 2
-    },
-    "frozen_value": 0.02,
-    "recompute_artifact": {
-      "max_relative_change_fd": 4.527697442120648e-05,
-      "max_relative_change_fresh_process_repeat": 0.0,
-      "nominal": {
-        "max_p90_o2_percent": 7.546243869071015,
-        "median_p90_o2_percent": 6.4307343463914535,
-        "min_joint_rank": 3,
-        "max_joint_rank": 4,
-        "median_joint_rank": 3.0,
-        "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
-        "unstable_fd_count": 0,
-        "process_id": 39316
+  "decision_thresholds": {
+    "delta_numerical": {
+      "formula": "max(2*fd_relative_change, 2*fresh_process_relative_change, optimizer_relative_tolerance)",
+      "recompute_required_at_freeze": true,
+      "by_noise_profile": {
+        "low_cost_k4_primary": 2.8210630817324963e-05,
+        "registered_mrs2_stress": 9.055394884241296e-05
       },
-      "fresh_process_repeats": [
-        {
-          "max_p90_o2_percent": 7.546243869071015,
-          "median_p90_o2_percent": 6.4307343463914535,
-          "min_joint_rank": 3,
-          "max_joint_rank": 4,
-          "median_joint_rank": 3.0,
-          "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
-          "unstable_fd_count": 0,
-          "process_id": 18564
-        },
-        {
-          "max_p90_o2_percent": 7.546243869071015,
-          "median_p90_o2_percent": 6.4307343463914535,
-          "min_joint_rank": 3,
-          "max_joint_rank": 4,
-          "median_joint_rank": 3.0,
-          "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
-          "unstable_fd_count": 0,
-          "process_id": 17880
-        }
-      ],
-      "repeat_execution": "fresh_process",
-      "svd_rank_diagnostics": [
-        {
-          "scale": 0.1,
-          "relative_tol": 1e-07,
-          "n_rank_changes_vs_nominal": 81,
-          "summary": {
-            "max_p90_o2_percent": 7.546243869071015,
-            "median_p90_o2_percent": 6.4307343463914535,
-            "min_joint_rank": 3,
-            "max_joint_rank": 4,
-            "median_joint_rank": 4.0,
-            "rank_vector_sha256": "6e38bcce44e2fc00ee100de0a5b822004fd380a65a9ce55e694294492ee84005",
-            "unstable_fd_count": 0,
-            "process_id": 39316
-          }
-        },
-        {
-          "scale": 10.0,
-          "relative_tol": 9.999999999999999e-06,
-          "n_rank_changes_vs_nominal": 97,
-          "summary": {
-            "max_p90_o2_percent": 7.546243869071015,
-            "median_p90_o2_percent": 6.4307343463914535,
-            "min_joint_rank": 2,
-            "max_joint_rank": 3,
-            "median_joint_rank": 3.0,
-            "rank_vector_sha256": "c4e303b8415d2f0f46eb31af4e759ee8a8bfcc5393bc21282aaac37e742415f1",
-            "unstable_fd_count": 0,
-            "process_id": 39316
-          }
-        }
-      ],
+      "shared_upper_bound": 9.055394884241296e-05,
+      "optimizer_relative_tolerance": 0.0,
+      "recompute_spec": {
+        "arm": "obs-cfreq",
+        "frequencies_hz": [
+          25000.0,
+          63000.0,
+          100000.0,
+          200000.0
+        ],
+        "noise_profiles": [
+          "low_cost_k4_primary",
+          "registered_mrs2_stress"
+        ],
+        "point_set": "ambient_core_216",
+        "fd_step_scales": [
+          0.5,
+          2.0
+        ],
+        "svd_tol_scales": [
+          0.1,
+          10.0
+        ],
+        "repeat_execution": "fresh_process",
+        "metrics": [
+          "max_p90_o2_percent",
+          "median_p90_o2_percent"
+        ],
+        "n_repeat": 2
+      },
       "svd_tolerance_policy": "rank_diagnostic_only_not_part_of_crb_p90_delta",
-      "n_points": 216,
-      "arm": "obs-cfreq",
-      "frequencies_hz": [
-        25000.0,
-        63000.0,
-        100000.0,
-        200000.0
-      ],
-      "noise": "registered_mrs2"
+      "recompute_artifact": {
+        "delta_numerical_by_profile": {
+          "low_cost_k4_primary": 2.8210630817324963e-05,
+          "registered_mrs2_stress": 9.055394884241296e-05
+        },
+        "shared_upper_bound": 9.055394884241296e-05,
+        "by_noise_profile": {
+          "low_cost_k4_primary": {
+            "max_relative_change_fd": 1.4105315408662482e-05,
+            "max_relative_change_fresh_process_repeat": 0.0,
+            "nominal": {
+              "max_p90_o2_percent": 1.6852293904506268,
+              "median_p90_o2_percent": 1.3630344349792687,
+              "min_joint_rank": 3,
+              "max_joint_rank": 4,
+              "median_joint_rank": 3.0,
+              "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
+              "unstable_fd_count": 0,
+              "process_id": 34232
+            },
+            "fresh_process_repeats": [
+              {
+                "max_p90_o2_percent": 1.6852293904506268,
+                "median_p90_o2_percent": 1.3630344349792687,
+                "min_joint_rank": 3,
+                "max_joint_rank": 4,
+                "median_joint_rank": 3.0,
+                "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
+                "unstable_fd_count": 0,
+                "process_id": 35940
+              },
+              {
+                "max_p90_o2_percent": 1.6852293904506268,
+                "median_p90_o2_percent": 1.3630344349792687,
+                "min_joint_rank": 3,
+                "max_joint_rank": 4,
+                "median_joint_rank": 3.0,
+                "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
+                "unstable_fd_count": 0,
+                "process_id": 39692
+              }
+            ],
+            "svd_rank_diagnostics": [
+              {
+                "scale": 0.1,
+                "relative_tol": 1e-07,
+                "n_rank_changes_vs_nominal": 81,
+                "summary": {
+                  "max_p90_o2_percent": 1.6852293904506268,
+                  "median_p90_o2_percent": 1.3630344349792687,
+                  "min_joint_rank": 3,
+                  "max_joint_rank": 4,
+                  "median_joint_rank": 4.0,
+                  "rank_vector_sha256": "6e38bcce44e2fc00ee100de0a5b822004fd380a65a9ce55e694294492ee84005",
+                  "unstable_fd_count": 0,
+                  "process_id": 34232
+                }
+              },
+              {
+                "scale": 10.0,
+                "relative_tol": 9.999999999999999e-06,
+                "n_rank_changes_vs_nominal": 97,
+                "summary": {
+                  "max_p90_o2_percent": 1.6852293904506268,
+                  "median_p90_o2_percent": 1.3630344349792687,
+                  "min_joint_rank": 2,
+                  "max_joint_rank": 3,
+                  "median_joint_rank": 3.0,
+                  "rank_vector_sha256": "c4e303b8415d2f0f46eb31af4e759ee8a8bfcc5393bc21282aaac37e742415f1",
+                  "unstable_fd_count": 0,
+                  "process_id": 34232
+                }
+              }
+            ],
+            "n_points": 216
+          },
+          "registered_mrs2_stress": {
+            "max_relative_change_fd": 4.527697442120648e-05,
+            "max_relative_change_fresh_process_repeat": 0.0,
+            "nominal": {
+              "max_p90_o2_percent": 7.546243869071015,
+              "median_p90_o2_percent": 6.4307343463914535,
+              "min_joint_rank": 3,
+              "max_joint_rank": 4,
+              "median_joint_rank": 3.0,
+              "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
+              "unstable_fd_count": 0,
+              "process_id": 34232
+            },
+            "fresh_process_repeats": [
+              {
+                "max_p90_o2_percent": 7.546243869071015,
+                "median_p90_o2_percent": 6.4307343463914535,
+                "min_joint_rank": 3,
+                "max_joint_rank": 4,
+                "median_joint_rank": 3.0,
+                "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
+                "unstable_fd_count": 0,
+                "process_id": 10664
+              },
+              {
+                "max_p90_o2_percent": 7.546243869071015,
+                "median_p90_o2_percent": 6.4307343463914535,
+                "min_joint_rank": 3,
+                "max_joint_rank": 4,
+                "median_joint_rank": 3.0,
+                "rank_vector_sha256": "3100fdf4a491ab762103d67be2753ae7ca3555f179d919cd2e3dcb41e004aea6",
+                "unstable_fd_count": 0,
+                "process_id": 6416
+              }
+            ],
+            "svd_rank_diagnostics": [
+              {
+                "scale": 0.1,
+                "relative_tol": 1e-07,
+                "n_rank_changes_vs_nominal": 81,
+                "summary": {
+                  "max_p90_o2_percent": 7.546243869071015,
+                  "median_p90_o2_percent": 6.4307343463914535,
+                  "min_joint_rank": 3,
+                  "max_joint_rank": 4,
+                  "median_joint_rank": 4.0,
+                  "rank_vector_sha256": "6e38bcce44e2fc00ee100de0a5b822004fd380a65a9ce55e694294492ee84005",
+                  "unstable_fd_count": 0,
+                  "process_id": 34232
+                }
+              },
+              {
+                "scale": 10.0,
+                "relative_tol": 9.999999999999999e-06,
+                "n_rank_changes_vs_nominal": 97,
+                "summary": {
+                  "max_p90_o2_percent": 7.546243869071015,
+                  "median_p90_o2_percent": 6.4307343463914535,
+                  "min_joint_rank": 2,
+                  "max_joint_rank": 3,
+                  "median_joint_rank": 3.0,
+                  "rank_vector_sha256": "c4e303b8415d2f0f46eb31af4e759ee8a8bfcc5393bc21282aaac37e742415f1",
+                  "unstable_fd_count": 0,
+                  "process_id": 34232
+                }
+              }
+            ],
+            "n_points": 216
+          }
+        },
+        "repeat_execution": "fresh_process",
+        "svd_tolerance_policy": "rank_diagnostic_only_not_part_of_crb_p90_delta",
+        "n_points": 216,
+        "arm": "obs-cfreq",
+        "frequencies_hz": [
+          25000.0,
+          63000.0,
+          100000.0,
+          200000.0
+        ],
+        "noise_profiles": [
+          "low_cost_k4_primary",
+          "registered_mrs2_stress"
+        ],
+        "point_set": "ambient_core_216"
+      }
     },
-    "notes": "2% 高于 MRS-6 已观察的 K4 vs K8 <1% 差异；若 FD 或独立进程复算波动更大，按更大值执行。SVD 容差只改变相对秩判定，不进入使用普通逆矩阵的 CRB-P90，故单独报告秩敏感性。冻结脚本写入 frozen_value。"
+    "delta_practical": {
+      "value": 0.02,
+      "role": "minimum_meaningful_relative_improvement",
+      "source": "pre_registered_practical_equivalence_policy",
+      "not_a_numerical_error": true
+    }
   },
-  "statistics_protocol": {
-    "n_data_split_seeds": 3,
-    "n_train_seeds": 3,
-    "bootstrap": {
-      "paired": true,
-      "stratified_by": [
+  "statistics_protocols": {
+    "finite_registry_information_audit": {
+      "estimand": "exact_worst_case_crb_p90_over_frozen_finite_point_and_model_set",
+      "random_unit": "none",
+      "bootstrap": "forbidden",
+      "report": "exact_paired_difference_plus_delta_numerical_bound"
+    },
+    "learning_solver_experiment": {
+      "random_unit": "mixture_id",
+      "strata": [
         "mixture_id",
         "design_condition"
       ],
-      "n_resamples": 2000,
+      "n_data_split_seeds": 3,
+      "n_train_seeds": 3,
+      "n_bootstrap_resamples": 2000,
       "ci_level": 0.95
     },
-    "multiple_testing": "control_within_stage_family_not_cherry_pick_best_of_six_hypotheses",
-    "leakage_negative_control_policy": "freeze_run_and_audit_before_citing_any_metric"
+    "posterior_calibration_experiment": {
+      "nominal_coverages": [
+        0.5,
+        0.8,
+        0.9,
+        0.95
+      ],
+      "report_marginal_coverage": true,
+      "report_group_conditional_coverage": true,
+      "report_selection_conditional_coverage_after_rejection": true,
+      "report_interval_width": true,
+      "report_rejection_rate": true
+    }
   },
   "gates": {
     "information": {
       "id": "information_gate",
-      "require_improvement_gt_delta_num": true,
-      "require_bootstrap_ci_lb_positive": true
+      "require_improvement_gt_delta_practical": true,
+      "bootstrap": "forbidden_for_finite_registry_information_audit"
     },
     "solver": {
       "id": "solver_gate",
-      "require_improvement_gt_delta_num_on_test_and_ood": true,
-      "require_bootstrap_ci_lb_positive": true
+      "require_improvement_gt_delta_practical_on_test_and_ood": true,
+      "require_bootstrap_ci_lb_gt_delta_practical": true
     },
     "calibration": {
       "id": "calibration_gate"
@@ -269,6 +400,25 @@
     "mechanism": {
       "id": "mechanism_gate"
     }
+  },
+  "varpro_observation_contract": {
+    "required_fields": [
+      "raw_tof_s",
+      "log_amplitude_or_amplitude",
+      "phase_rad_or_complex_transfer_real_imag",
+      "observation_covariance",
+      "frequency_hz",
+      "device_profile_id",
+      "view_id",
+      "T_C",
+      "P_MPa",
+      "H_RH",
+      "L_m"
+    ],
+    "per_frequency_offset_hierarchy": "shared_across_samples_at_device_profile_id_x_frequency_hz_with_independent_calibration_prior",
+    "forbid_unconstrained_free_offsets_per_k4_sample": true,
+    "c_observed_only_status": "mei3_varpro_not_applicable_to_c_observed_only",
+    "source": "engineering_scenario"
   },
   "varpro_candidates": {
     "nonlinear_block_beta_default": [
@@ -295,26 +445,80 @@
     "path_length_policy": "keep_in_beta_if_nonlinearly_coupled_to_composition_do_not_force_linearize",
     "source": "engineering_scenario"
   },
+  "stage_transition_policy": {
+    "mei0_registry_frozen": {
+      "condition": "manifest_verified",
+      "allowed_next_stage": "MEI-1_forward_envelope"
+    },
+    "mei1_forward_envelope_supported": {
+      "condition": "all_gates_passed",
+      "allowed_next_stage": "MEI-2_robust_design",
+      "registered_sparse_simulation_generation_review_eligible": true
+    },
+    "mei1_inconclusive_forward_model": {
+      "condition": "any_blocker_present",
+      "allowed_next_stage": null
+    },
+    "mei1_fixed_k4_retained": {
+      "condition": "no_physics_blocker_and_all_k4_designs_within_delta_practical",
+      "allowed_next_stage": "MEI-3_varpro_audit",
+      "frozen_design": "D0_fixed_k4_25_63_100_200_khz",
+      "skip_stage": "MEI-2_robust_design",
+      "registered_sparse_simulation_generation_review_eligible": false
+    },
+    "mei3_varpro_supported": {
+      "condition": "s2_passes_solver_gate",
+      "mei4_baseline": "S2"
+    },
+    "mei3_varpro_not_applicable": {
+      "condition": "linear_structure_unavailable",
+      "mei4_baseline": "S1"
+    },
+    "mei6_eligibility": {
+      "require_stable_learnable_residual_evidence": true,
+      "otherwise": "np_vpnet_forbidden"
+    }
+  },
+  "parked_nonblocking_policy": {
+    "allowed_scope": "registered_simulation_information_design_only",
+    "required_family_fields": [
+      "parking_policy.nonblocking_scope",
+      "parking_policy.still_blocks",
+      "parking_policy.unresolved_reason",
+      "parking_policy.revisit_trigger",
+      "evidence_path",
+      "evidence_sha256"
+    ],
+    "forbidden_interpretation": "parked_nonblocking_is_not_represented_traceable",
+    "hardware_and_waveform_authorizations_remain_forbidden": true
+  },
+  "authorizations": {
+    "registered_sparse_simulation_generation": "forbidden_until_explicit_authorization",
+    "formal_waveform_generation": "forbidden_until_explicit_authorization",
+    "benchmark_packaging": "forbidden_until_explicit_authorization",
+    "hardware_trial": "forbidden_until_explicit_authorization"
+  },
   "data_generation_authorization": {
-    "formal_waveform_generation": "forbidden_until_authorized",
+    "formal_waveform_generation": "forbidden_until_explicit_authorization",
     "new_benchmark_schema": "tunnel-ventilation-mrs-ei-1",
     "authorize_when": [
       "mei0_registry_frozen",
-      "mei1_not_inconclusive_forward_model"
+      "mei1_not_inconclusive_forward_model",
+      "explicit_authorization_recorded"
     ],
-    "notes": "第十三节问题 7：至少 MEI-0 冻结且 MEI-1 非 inconclusive 后，才允许讨论生成新数据；正式授权写入后续 stage_status。"
+    "notes": "MEI-0 freeze 后四类授权全部 forbidden；MEI-1 supported 只设置 review_eligible，不自动授权。"
   },
   "review_answers": {
-    "q1_delta_num": {
-      "answer": "按 recompute_spec 在 obs-cfreq K4 与 216 窄窗点上复算 FD 步长扰动，并用独立新进程复算 P90；delta_num=max(2×FD 相对变化, 2×独立进程相对变化, 2%)。SVD 容差只影响 joint_rank，作为独立秩敏感性诊断报告，不再虚称其进入 CRB-P90。",
+    "q1_delta_numerical": {
+      "answer": "按 recompute_spec 在两个噪声口径与 ambient_core_216 上复算 FD 与独立进程相对变化；delta_numerical=max(2×FD, 2×fresh_process, optimizer_tol)，不含实践 2% floor。delta_practical=0.02 单独作为最小有意义相对改进。",
       "status": "frozen_for_mei0_method_value_filled_at_freeze"
     },
     "q4_varpro_linear_block": {
-      "answer": "公共延迟、对数幅度增益、逐频标定偏移为候选条件线性块；声程 L 若与组分非线性耦合则保留在 beta。最终准入由 MEI-3 推导+数值测试决定，MEI-0 只冻结候选与禁止错误线性化规则。",
+      "answer": "公共延迟、对数幅度增益、逐频标定偏移为候选条件线性块；声程 L 若与组分非线性耦合则保留在 beta。逐频偏移必须在 device_profile_id×frequency_hz 上跨样本共享并带独立标定先验；禁止单次 K4 样本四个无约束自由偏移。仅有 c_observed 时输出 mei3_varpro_not_applicable_to_c_observed_only。",
       "status": "frozen_for_mei0"
     },
     "q7_authorize_new_data": {
-      "answer": "mei0_registry_frozen 且 MEI-1 未输出 mei1_inconclusive_forward_model 后，才允许进入“允许生成新数据”评审；本冻结本身不授权波形生成。",
+      "answer": "mei0_registry_frozen 且 MEI-1 未输出 mei1_inconclusive_forward_model 后，才允许进入“允许生成新数据”评审；本冻结本身不授权波形生成。四类授权字段独立，均为 forbidden_until_explicit_authorization。",
       "status": "frozen_for_mei0"
     }
   },

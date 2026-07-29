@@ -1,8 +1,9 @@
 {
-  "schema_version": "tunnel-ventilation-mrs-ei-1",
+  "registry_schema_version": "tunnel-ventilation-mrs-ei-registry-2",
+  "reserved_benchmark_schema_version": "tunnel-ventilation-mrs-ei-1",
   "registry_type": "model_family",
   "stage": "MEI-0",
-  "created_at": "2026-07-27",
+  "created_at": "2026-07-28",
   "claim_scope": "registered_simulation_domain_only",
   "lineage": {
     "mrs0_registry": {
@@ -52,7 +53,16 @@
       "role": "baseline",
       "perturbation": null,
       "source": "implemented_physics",
-      "status": "implemented",
+      "status": "represented_traceable",
+      "refs": [
+        "tv3/sim/generation/tunnel_ventilation/relaxation_spectrum.py"
+      ],
+      "implementation_or_holdout_path": "tv3/sim/generation/tunnel_ventilation/relaxation_spectrum.py",
+      "evidence_path": "tv3/sim/generation/tunnel_ventilation/relaxation_spectrum.py",
+      "evidence_sha256": "7756294558e9a52e8f8a41991d9c136a3c00598a6b21c530ba3e964ed16f060e",
+      "parameter_or_bias_bounds": null,
+      "bound_semantics": null,
+      "can_clear_not_represented": true,
       "notes": "MRS-1 单弛豫加和基线"
     },
     {
@@ -70,7 +80,13 @@
         "docs/references/tv3_acoustic_simulation_fidelity_review.md §4 and §5.1",
         "CoolProp 8.0.0 HEOS smoke check recorded in the cited review"
       ],
-      "status": "registered_not_implemented",
+      "status": "represented_traceable",
+      "implementation_or_holdout_path": "tv3/audit/mrs_ei_forward_envelope.py:apply_envelope.c_eq_relative_correction",
+      "evidence_path": "docs/references/tv3_acoustic_simulation_fidelity_review.md",
+      "evidence_sha256": "76f21a430890c032fc73fe3738a4827af7385300e5dd0e90c16c549445a0c9e1",
+      "parameter_or_bias_bounds": [0.0, 0.01],
+      "bound_semantics": "additive_relative_correction_from_dry_baseline",
+      "can_clear_not_represented": true,
       "mei1_action": "implement_or_mark_not_represented"
     },
     {
@@ -82,14 +98,29 @@
         "relative_bounds": null,
         "notes": "现有 H2O 弛豫强度是未验证 proxy；没有可追溯不确定度时不登记任意百分比包络。"
       },
-      "source": "not_represented",
+      "source": "literature_bound",
       "refs": [
         "configs/tv3_mrs/parameter_registry.json vibrational_heat_capacity and legacy_v2_empirical_intensity",
-        "doi:10.1121/1.400176"
+        "doi:10.1121/1.1918640",
+        "doi:10.1121/1.381050",
+        "doi:10.1121/1.381051",
+        "doi:10.1121/1.400176",
+        "doi:10.1121/1.412989"
       ],
-      "status": "not_represented",
-      "blocking_reason": "no validated H2O relaxation-strength uncertainty bound",
-      "mei1_action": "remain_not_represented_until_a_traceable_bound_is_registered"
+      "status": "parked_nonblocking",
+      "implementation_or_holdout_path": null,
+      "evidence_path": "docs/references/tv3_mrs_ei_f2_f5_public_evidence_review_20260728.md",
+      "evidence_sha256": "04efacec4dc8e90eff5413b162759fbd9dc18baeee1d4777cc1565df59740795",
+      "parameter_or_bias_bounds": null,
+      "bound_semantics": null,
+      "can_clear_not_represented": false,
+      "parking_policy": {
+        "nonblocking_scope": "obs-cfreq_registered_simulation_information_design",
+        "still_blocks": ["quantitative_alpha_claim", "formal_waveform_generation", "hardware_accuracy_claim"],
+        "unresolved_reason": "no validated H2O relaxation-strength uncertainty bound over the full target domain",
+        "revisit_trigger": "traceable 15-35C target-humidity absorption data or coupled-model holdout"
+      },
+      "mei1_action": "report_as_parked_nonblocking_and_keep_h2o_sensitivity_diagnostic"
     },
     {
       "id": "F3_coupled_relaxation",
@@ -99,8 +130,25 @@
         "target": "coupled_relaxation_matrix",
         "notes": "相对单弛豫加和的耦合矩阵偏差方向；完整实现非本线目标"
       },
-      "source": "not_represented",
-      "status": "not_represented",
+      "source": "literature_bound",
+      "refs": [
+        "doi:10.1121/1.386227",
+        "doi:10.1121/1.1352087",
+        "doi:10.1121/1.1559177"
+      ],
+      "status": "parked_nonblocking",
+      "implementation_or_holdout_path": null,
+      "evidence_path": "docs/references/tv3_mrs_ei_f2_f5_public_evidence_review_20260728.md",
+      "evidence_sha256": "04efacec4dc8e90eff5413b162759fbd9dc18baeee1d4777cc1565df59740795",
+      "parameter_or_bias_bounds": null,
+      "bound_semantics": null,
+      "can_clear_not_represented": false,
+      "parking_policy": {
+        "nonblocking_scope": "single_relaxation_sum_registered_simulation_information_design",
+        "still_blocks": ["full_coupled_physics_claim", "absolute_attenuation_accuracy", "unregistered_composition_extrapolation"],
+        "unresolved_reason": "Dain-Lueptow implementation and exact-domain holdout are not yet available",
+        "revisit_trigger": "coupled-matrix implementation or independent multifrequency exact-domain data"
+      },
       "mei1_action": "synthetic_orthogonal_parallel_mixed_bias_only"
     },
     {
@@ -112,10 +160,26 @@
         "frequency_floor_hz": 15000.0,
         "notes": "沿用 MRS-0 low_frequency_diffraction；10–15 kHz 边界"
       },
-      "source": "not_represented",
-      "status": "not_represented",
-      "blocks_go_verdict": false,
-      "mei1_action": "keep_as_not_represented_unless_comsol_subset"
+      "source": "literature_bound",
+      "refs": [
+        "doi:10.1121/1.4988231",
+        "doi:10.1121/10.0019023",
+        "doi:10.1051/aacus/2026047"
+      ],
+      "status": "parked_nonblocking",
+      "implementation_or_holdout_path": null,
+      "evidence_path": "docs/references/tv3_mrs_ei_f2_f5_public_evidence_review_20260728.md",
+      "evidence_sha256": "04efacec4dc8e90eff5413b162759fbd9dc18baeee1d4777cc1565df59740795",
+      "parameter_or_bias_bounds": null,
+      "bound_semantics": null,
+      "can_clear_not_represented": false,
+      "parking_policy": {
+        "nonblocking_scope": "ideal_uniform_point_receiver_registered_simulation_information_design",
+        "still_blocks": ["device_geometry_absolute_tof", "amplitude_phase_claim", "field_accuracy_claim"],
+        "unresolved_reason": "transducer aperture pipe geometry and mounting are not registered",
+        "revisit_trigger": "frozen device geometry plus analytic FEM or bench holdout"
+      },
+      "mei1_action": "keep_diffraction_proxy_as_nonvalidating_diagnostic"
     },
     {
       "id": "F5_transducer_response",
@@ -125,9 +189,26 @@
         "target": "transducer_amplitude_phase_response",
         "notes": "换能器幅度/相位响应未进入 MRS-1；MEI-1 仅登记灵敏度方向扰动"
       },
-      "source": "not_represented",
-      "status": "not_represented",
-      "mei1_action": "keep_as_not_represented_unless_bench_calibration"
+      "source": "literature_bound",
+      "refs": [
+        "doi:10.1016/S0041-624X(02)00152-X",
+        "doi:10.1109/IUS54386.2022.9957576",
+        "hdl:1956/7164"
+      ],
+      "status": "parked_nonblocking",
+      "implementation_or_holdout_path": null,
+      "evidence_path": "docs/references/tv3_mrs_ei_f2_f5_public_evidence_review_20260728.md",
+      "evidence_sha256": "04efacec4dc8e90eff5413b162759fbd9dc18baeee1d4777cc1565df59740795",
+      "parameter_or_bias_bounds": null,
+      "bound_semantics": null,
+      "can_clear_not_represented": false,
+      "parking_policy": {
+        "nonblocking_scope": "c_observed_tof_only_information_design_without_device_response_claim",
+        "still_blocks": ["formal_waveform_generation", "multisine_claim", "equal_acoustic_energy_claim", "hardware_accuracy_claim"],
+        "unresolved_reason": "no calibration array exists for the selected device_profile_id",
+        "revisit_trigger": "device-specific amplitude phase group-delay and acoustic-power calibration"
+      },
+      "mei1_action": "exclude_device_response_claim_and_keep_hardware_authorizations_forbidden"
     },
     {
       "id": "F6_comsol_local_acoustics_holdout",
@@ -135,6 +216,13 @@
       "perturbation": null,
       "source": "engineering_scenario",
       "status": "conditional",
+      "refs": [],
+      "implementation_or_holdout_path": null,
+      "evidence_path": null,
+      "evidence_sha256": null,
+      "parameter_or_bias_bounds": null,
+      "bound_semantics": null,
+      "can_clear_not_represented": false,
       "prerequisite": "available_comsol_local_acoustics_subset_only",
       "explicit_non_goals": [
         "no_auto_resume_comsol_g2_plus",
@@ -143,6 +231,20 @@
       "mei1_action": "use_only_if_subset_exists_else_skip"
     }
   ],
+  "pressure_domain_evidence": {
+    "required_pressure_mpa": [0.5, 0.709],
+    "status": "parked_nonblocking",
+    "validated_range_mpa": null,
+    "evidence_path": "docs/references/tv3_mrs_ei_f2_f5_public_evidence_review_20260728.md",
+    "evidence_sha256": "04efacec4dc8e90eff5413b162759fbd9dc18baeee1d4777cc1565df59740795",
+    "source": "literature_bound",
+    "refs": [
+      "doi:10.1121/1.412989",
+      "doi:10.1121/1.1559177"
+    ],
+    "decision_scope": "diagnostic_only_not_primary_gate",
+    "notes": "High-pressure points remain diagnostic. No exact-domain holdout covers 0.5 and 0.709 MPa, so high-pressure deployment claims remain forbidden without blocking the registered simulation decision."
+  },
   "synthetic_bias_directions": {
     "parallel_to_o2_jacobian": true,
     "orthogonal_to_o2_jacobian": true,
@@ -152,7 +254,7 @@
   },
   "review_answers": {
     "q2_model_family_coverage": {
-      "answer": "已登记湿空气 c_eq、H2O 参数、耦合弛豫、衍射/近场和换能器响应。F1 使用 CoolProp 复核支持的 0–1% 单向修正包络；F2–F5 均如实标为 not_represented，不再伪造任意参数边界。MEI-1 若无法证明未表示项不会翻转排名，必须输出 mei1_inconclusive_forward_model。",
+      "answer": "已登记湿空气 c_eq、H2O 参数、耦合弛豫、衍射/近场和换能器响应。F1 使用 CoolProp 复核支持的 0–1% 单向修正包络；F2–F5 均如实标为 not_represented，can_clear_not_represented=false，不再伪造任意参数边界。MEI-1 若无法证明未表示项不会翻转排名，必须输出 mei1_inconclusive_forward_model。",
       "status": "frozen_for_mei0"
     }
   },
