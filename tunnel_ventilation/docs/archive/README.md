@@ -31,7 +31,8 @@
 | [completed/tv3_mrs6_hardware_requirements.md](completed/tv3_mrs6_hardware_requirements.md) | MRS-6 硬件需求已交付；K4 和粗精度成本参照已被 MRS-EI 继承 |
 | [completed/tv3_mrs_ei_versioned_refreeze_execution_report.md](completed/tv3_mrs_ei_versioned_refreeze_execution_report.md) | 上一轮 MEI-0/1 重冻结历史报告，后续状态已更新 |
 | [completed/tv3_mrs_ei_f2_f5_disposition_execution_report.md](completed/tv3_mrs_ei_f2_f5_disposition_execution_report.md) | F2--F5 证据处置完成，MEI-1 固定 K4 并放行 MEI-3 |
-| [completed/tv3_mrs_ei_mei3_phase_a_execution_report.md](completed/tv3_mrs_ei_mei3_phase_a_execution_report.md) | MEI-3 Phase A 历史报告；当前 B2 状态与 B3 后续见 active 执行计划 |
+| [completed/tv3_mrs_ei_mei3_phase_a_execution_report.md](completed/tv3_mrs_ei_mei3_phase_a_execution_report.md) | MEI-3 Phase A 历史报告；当前 B5 冻结与 MEI-4 准入边界见 active 执行计划 |
+| [completed/tv3_mrs_ei_mei3_b4_review_and_analysis_report.md](completed/tv3_mrs_ei_mei3_b4_review_and_analysis_report.md) | B4 冻结结果的代码复核与再分析：机制归因（改善全部来自共享 max_iterations 样本）、CI 稳健性、代码问题清单与 B5 注记建议；verdict 不变 |
 
 ## legacy
 

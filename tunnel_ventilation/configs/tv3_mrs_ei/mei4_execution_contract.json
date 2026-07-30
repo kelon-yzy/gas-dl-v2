@@ -1,0 +1,233 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-ei-mei4-contract-1",
+  "stage": "MEI-4",
+  "phase": "c0_execution_contract_freeze",
+  "claim_scope": "registered_simulation_domain_only",
+  "role": "independent_versioned_execution_contract",
+  "parent_freezes": {
+    "b4": {
+      "freeze_dir": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T120958962354Z_cf7ed57312d9",
+      "evidence_manifest_sha256": "604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8",
+      "verdict": "mei3_full_parameter_baseline_retained"
+    },
+    "b5": {
+      "freeze_dir": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260730T011247690033Z_f1246e54ccb0",
+      "evidence_manifest_sha256": "a2b2ce51322e0420971d8503ba61a26c01c179486e5bc6ae15f5af3b22910be5",
+      "verdict": "mei3_full_parameter_baseline_retained",
+      "mei4_baseline": "S1"
+    }
+  },
+  "frozen_design": {
+    "design_id": "D0_fixed_k4_25_63_100_200_khz",
+    "frequencies_hz": [25000.0, 63000.0, 100000.0, 200000.0],
+    "baseline_solver": "S1",
+    "no_s1_retuning": true
+  },
+  "asset_inventory": {
+    "records": [
+      {
+        "asset_id": "registered_observations",
+        "path": "registered_observations.json",
+        "kind": "tables",
+        "expected_rows": {
+          "mixtures": 1944,
+          "observation_rows": 7776,
+          "covariance_blocks": 1944
+        }
+      },
+      {
+        "asset_id": "paired_solutions",
+        "path": "paired_solutions.json",
+        "kind": "rows",
+        "expected_rows": 1296
+      },
+      {
+        "asset_id": "calibration_priors",
+        "path": "calibration_priors.json",
+        "kind": "rows",
+        "expected_rows": 4
+      },
+      {
+        "asset_id": "view_nuisance_calibration_priors",
+        "path": "view_nuisance_calibration_priors.json",
+        "kind": "rows",
+        "expected_rows": 1
+      },
+      {
+        "asset_id": "s3_truth_nuisance",
+        "path": "s3_truth_nuisance.json",
+        "kind": "rows",
+        "expected_rows": 1944
+      },
+      {
+        "asset_id": "mei3_solver_run_config",
+        "path": "mei3_solver_run_config.json",
+        "kind": "object"
+      },
+      {
+        "asset_id": "mei3_solver_data_protocol",
+        "path": "mei3_solver_data_protocol.json",
+        "kind": "object"
+      }
+    ],
+    "b4_artifact_manifest_binding": true
+  },
+  "method_input_policy": {
+    "allowed_assets": {
+      "registered_observations": {
+        "mixtures": ["mixture_id", "split", "design_condition_id"],
+        "observation_rows": ["observation_row_id", "mixture_id", "device_profile_id", "view_id", "frequency_hz", "raw_tof_s", "log_amplitude", "unwrapped_phase_rad", "phase_branch_cycles", "covariance_block_id", "T_C", "P_MPa", "H_RH", "L_m"],
+        "covariance_blocks": ["covariance_block_id", "mixture_id", "view_id", "observation_covariance"]
+      },
+      "paired_solutions": {
+        "row": ["mixture_id", "split", "design_condition_id", "S1", "S2"],
+        "S1": ["method", "frozen_initialization_index", "success", "stop_reason", "objective", "forward_calls", "iterations", "bound_hit", "bound_parameters", "raw3_percent", "parameters"],
+        "S2": ["method", "frozen_initialization_index", "success", "stop_reason", "objective", "forward_calls", "iterations", "bound_hit", "bound_parameters", "raw3_percent", "parameters", "linear_parameters"]
+      },
+      "calibration_priors": ["device_profile_id", "frequency_hz", "log_amplitude_offset_prior_mean", "log_amplitude_offset_prior_std", "calibration_set_id"],
+      "view_nuisance_calibration_priors": ["device_profile_id", "view_id", "common_delay_prior_mean", "common_delay_prior_std", "log_amplitude_gain_prior_mean", "log_amplitude_gain_prior_std", "calibration_set_id"],
+      "mei3_solver_run_config": ["solver_config"],
+      "mei3_solver_data_protocol": ["frozen_design", "split_protocol", "initialization_and_statistics", "runtime_field_whitelists"]
+    },
+    "audit_only_fields": ["x_CO2_percent", "x_O2_percent", "x_N2_percent", "truth_raw3_percent", "crb_o2_std_percent", "s3_truth_nuisance.json"],
+    "forbidden_method_fields": ["sequence_id", "base_condition_id", "noise_seed_index", "noise_seed", "target_transform"]
+  },
+  "posterior_parameterization": {
+    "coordinates": "z = RAW3_TANGENT_BASIS.T @ (raw3_percent - RAW3_SIMPLEX_CENTER)",
+    "affine_map": "raw3_percent = RAW3_SIMPLEX_CENTER + RAW3_TANGENT_BASIS @ z",
+    "tangent_basis": [[0.7071067811865476, 0.4082482904638631], [-0.7071067811865476, 0.4082482904638631], [0.0, -0.8164965809277261]],
+    "simplex_center_percent": [33.333333333333336, 33.333333333333336, 33.333333333333336],
+    "domain": "raw3_percent_components_nonnegative_and_sum_100_percent",
+    "nonnegative_truncation": "part_of_posterior_domain_not_posthoc_projection",
+    "marginal_intervals": {
+      "kind": "equal_tailed",
+      "nominal_levels": [0.5, 0.8, 0.9, 0.95],
+      "numerical_method": "scrambled_sobol_parameter_space_rejection_with_doubled_resolution_check",
+      "initial_candidates": 65536,
+      "verification_candidates": 131072,
+      "minimum_accepted_candidates": 2048,
+      "quantile_atol_percent": 0.002,
+      "normalization_mass_atol": 0.0005
+    }
+  },
+  "curvature_and_marginalization": {
+    "residual": "mrs_varpro.augmented_residual_with_scheme_a_priors",
+    "jacobian": "mrs_varpro.finite_difference_jacobian_in_standardized_solver_coordinates",
+    "gauss_newton_curvature": "J_transpose_J",
+    "composition_marginalization": "Schur_complement_of_nuisance_block_in_standardized_coordinates_then_apply_composition_scales",
+    "positive_definite_rule": {
+      "minimum_eigenvalue": 1e-12,
+      "maximum_condition_number": 1000000000000.0,
+      "regularization": "forbidden_reject_instead"
+    },
+    "complete_hessian_check": {
+      "mixtures_per_domain": 12,
+      "selection": "lexicographically_evenly_spaced_mixture_id",
+      "relative_frobenius_warning_threshold": 0.05,
+      "role": "diagnostic_only_not_a_calibration_gate"
+    }
+  },
+  "s1_replay_check": {
+    "mixtures_per_domain": 12,
+    "selection": "lexicographically_evenly_spaced_mixture_id",
+    "initializations": [0, 1, 2],
+    "raw3_percent_atol": 1e-7,
+    "objective_atol": 1e-10,
+    "objective_rtol": 1e-8,
+    "failure_action": "stop_before_c2"
+  },
+  "calibration_gate": {
+    "domains": ["test", "ood"],
+    "components": ["CO2", "O2", "N2"],
+    "nominal_levels": [0.5, 0.8, 0.9, 0.95],
+    "samples_per_domain": 648,
+    "family_size": 24,
+    "familywise_alpha": 0.05,
+    "sidak_alpha_each": 0.002134938369701578,
+    "exact_binomial_acceptance_counts": {
+      "0.5": {"lower_inclusive": 285, "upper_inclusive": 363},
+      "0.8": {"lower_inclusive": 486, "upper_inclusive": 549},
+      "0.9": {"lower_inclusive": 559, "upper_inclusive": 605},
+      "0.95": {"lower_inclusive": 597, "upper_inclusive": 631}
+    },
+    "rejected_samples_are_uncovered": true,
+    "selection_conditional_coverage": "report_only_never_replaces_primary_coverage"
+  },
+  "method_policy": {
+    "methods": ["M1", "M1b", "M2"],
+    "M1": "S1_full_parameter_MAP_Laplace",
+    "M1b": "S2_profile_likelihood_Laplace_control_only",
+    "M2": {
+      "description": "M1_proposal_penalized_likelihood_importance_sampling",
+      "samples_per_mixture": 4096,
+      "psis_k_hat_threshold": 0.7,
+      "maximum_over_threshold_rate": 0.05,
+      "fallback": "M2b_only_after_mei4_registered_sparse_simulation_generation_authorization"
+    },
+    "baseline_preference": ["M1", "M2_or_M2b", "M3"],
+    "complex_method_replacement": {
+      "delta_practical": 0.02,
+      "bootstrap_resamples": 2000,
+      "ci_level": 0.95,
+      "requires_both_domains": true
+    },
+    "s2_interpretation": "fixed_max_iterations_100_optimizer_progress_only_and_not_a_frozen_posterior_baseline"
+  },
+  "rejection_policy": {
+    "rejected_conditions": ["curvature_not_positive_definite", "curvature_condition_number_exceeded", "truncation_interval_numerical_failure", "psis_k_hat_exceeded_for_M2"],
+    "primary_coverage_value": "uncovered",
+    "must_emit_rejected_flag": true,
+    "no_silent_fallback": true
+  },
+  "mc_protocol": {
+    "required_authorization": "registered_sparse_simulation_generation",
+    "authorization_scope": "mei4_only_new_record_required",
+    "sbc": {
+      "methods": ["M1", "M1b", "M2"],
+      "replicates_per_domain_per_method": 1000,
+      "posterior_draws_per_replicate": 256,
+      "seeds": {"test": 20260819, "ood": 20260820},
+      "uniformity_test": "two_sided_kolmogorov_smirnov_exact",
+      "alpha": 0.05
+    },
+    "ppc": {
+      "methods": ["M1", "M1b", "M2"],
+      "y_rep_per_frozen_mixture": 64,
+      "seeds": {"test": 20260821, "ood": 20260822},
+      "statistics": ["whitened_residual_norm", "per_channel_empirical_quantile"],
+      "systematic_deviation_tail_probability_threshold": 0.01
+    },
+    "m2b": {
+      "only_when": "M2_psis_k_hat_over_threshold_rate_exceeds_maximum",
+      "resamples_per_mixture": 200,
+      "seeds": {"test": 20260823, "ood": 20260824}
+    },
+    "forbidden_uses": ["new_formal_evaluation_set", "benchmark_packaging", "waveform_generation", "hardware_claim"]
+  },
+  "cc_sbi_policy": {
+    "requires_independent_authorization": "mei4_cc_sbi_training_draws",
+    "training_seeds": [20260825, 20260826, 20260827],
+    "trigger_conditions": {
+      "T1": "M1_M1b_and_active_M2_path_all_fail_complete_calibration_gate",
+      "T2": {"mode_split_distance_percent": 0.4},
+      "T3": {"median_truncation_mass_loss": 0.05},
+      "T4": {"m2b_forward_call_budget": 1000000}
+    },
+    "otherwise_status": "mei4_cc_sbi_skipped_not_triggered"
+  },
+  "verdict_state_machine": {
+    "pre_authorization_status": "mei4_waiting_mc_authorization",
+    "cc_sbi_pre_authorization_status": "mei4_waiting_cc_sbi_training_authorization",
+    "mei4_deterministic_posterior_retained": "M1_or_M2_or_M2b_passes_complete_calibration_gate",
+    "mei4_posterior_calibrated": "nonlearning_methods_fail_and_CC_SBI_passes_complete_calibration_gate",
+    "mei4_uncertainty_failed": "all_eligible_methods_fail_complete_calibration_gate",
+    "allowed_next_stage": null
+  },
+  "authorizations": {
+    "registered_sparse_simulation_generation": "forbidden_until_explicit_mei4_authorization",
+    "formal_waveform_generation": "forbidden_until_explicit_authorization",
+    "benchmark_packaging": "forbidden_until_explicit_authorization",
+    "hardware_trial": "forbidden_until_explicit_authorization"
+  },
+  "source": "engineering_scenario"
+}

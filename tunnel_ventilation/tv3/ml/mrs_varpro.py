@@ -398,13 +398,13 @@ def evaluate_varpro(
     )
 
 
-def varpro_projected_jacobian(
+def _varpro_projected_jacobian_with_forward_calls(
     problem: S1Problem,
     nonlinear_parameters: Sequence[float],
     spec: S1Parameterization,
     varpro: VarProParameterization,
-) -> np.ndarray:
-    """Differentiate the augmented base residual, then apply the exact projector."""
+) -> tuple[np.ndarray, int]:
+    """Differentiate the augmented base residual and count physical predictions."""
     nonlinear = np.asarray(nonlinear_parameters, dtype=np.float64)
     chol = _validate_problem(problem)
     design = _linear_design(problem, varpro)
@@ -422,6 +422,8 @@ def varpro_projected_jacobian(
     projector = np.eye(augmented_design.shape[0]) - q @ q.T
     base_jacobian = np.zeros((augmented_design.shape[0], nonlinear.size))
     nonlinear_positions = {int(index): column for column, index in enumerate(varpro.nonlinear_indices)}
+    forward_calls = 0
+    center_prediction: np.ndarray | None = None
     for column, full_index in enumerate(varpro.nonlinear_indices):
         step = spec.finite_difference_steps[int(full_index)]
         plus = nonlinear.copy()
@@ -436,20 +438,28 @@ def varpro_projected_jacobian(
         )
         plus_ok = _is_feasible(plus_probe, spec)
         minus_ok = _is_feasible(minus_probe, spec)
-        center_prediction = _nonlinear_prediction(problem, nonlinear, spec, varpro)
         if plus_ok and minus_ok:
             plus_prediction = _nonlinear_prediction(problem, plus, spec, varpro)
             minus_prediction = _nonlinear_prediction(problem, minus, spec, varpro)
+            forward_calls += 2
             base_jacobian[: problem.observation.size, column] = np.linalg.solve(
                 chol, (plus_prediction - minus_prediction) / (2.0 * step)
             )
         elif plus_ok:
+            if center_prediction is None:
+                center_prediction = _nonlinear_prediction(problem, nonlinear, spec, varpro)
+                forward_calls += 1
             plus_prediction = _nonlinear_prediction(problem, plus, spec, varpro)
+            forward_calls += 1
             base_jacobian[: problem.observation.size, column] = np.linalg.solve(
                 chol, (plus_prediction - center_prediction) / step
             )
         elif minus_ok:
+            if center_prediction is None:
+                center_prediction = _nonlinear_prediction(problem, nonlinear, spec, varpro)
+                forward_calls += 1
             minus_prediction = _nonlinear_prediction(problem, minus, spec, varpro)
+            forward_calls += 1
             base_jacobian[: problem.observation.size, column] = np.linalg.solve(
                 chol, (center_prediction - minus_prediction) / step
             )
@@ -462,7 +472,20 @@ def varpro_projected_jacobian(
         if column is not None:
             base_jacobian[problem.observation.size + row, column] = 1.0 / std
     nonlinear_scales = spec.scales[varpro.nonlinear_indices]
-    return projector @ base_jacobian * nonlinear_scales[np.newaxis, :]
+    return projector @ base_jacobian * nonlinear_scales[np.newaxis, :], forward_calls
+
+
+def varpro_projected_jacobian(
+    problem: S1Problem,
+    nonlinear_parameters: Sequence[float],
+    spec: S1Parameterization,
+    varpro: VarProParameterization,
+) -> np.ndarray:
+    """Differentiate the augmented base residual, then apply the exact projector."""
+    jacobian, _forward_calls = _varpro_projected_jacobian_with_forward_calls(
+        problem, nonlinear_parameters, spec, varpro
+    )
+    return jacobian
 
 
 def pack_s1_parameters(
@@ -562,16 +585,17 @@ def augmented_residual(
     return np.concatenate((data, prior))
 
 
-def finite_difference_jacobian(
+def _finite_difference_jacobian_with_forward_calls(
     problem: S1Problem,
     parameters: Sequence[float],
     spec: S1Parameterization,
     *,
     covariance_cholesky: np.ndarray | None = None,
-) -> np.ndarray:
+) -> tuple[np.ndarray, int]:
     values = np.asarray(parameters, dtype=np.float64)
     chol = _validate_problem(problem) if covariance_cholesky is None else covariance_cholesky
     center = augmented_residual(problem, values, spec, covariance_cholesky=chol)
+    forward_calls = 1
     jacobian = np.empty(
         (problem.observation.size + spec.prior_indices.size, values.size), dtype=np.float64
     )
@@ -587,22 +611,39 @@ def finite_difference_jacobian(
             minus = augmented_residual(
                 problem, values - delta, spec, covariance_cholesky=chol
             )
+            forward_calls += 2
             jacobian[:, column] = (plus - minus) / (2.0 * physical_step)
         elif plus_ok:
             plus = augmented_residual(
                 problem, values + delta, spec, covariance_cholesky=chol
             )
+            forward_calls += 1
             jacobian[:, column] = (plus - center) / physical_step
         elif minus_ok:
             minus = augmented_residual(
                 problem, values - delta, spec, covariance_cholesky=chol
             )
+            forward_calls += 1
             jacobian[:, column] = (center - minus) / physical_step
         else:
             raise SolverDomainError(
                 "finite difference left the registered S1 domain on both sides"
             )
-    return jacobian * spec.scales[np.newaxis, :]
+    return jacobian * spec.scales[np.newaxis, :], forward_calls
+
+
+def finite_difference_jacobian(
+    problem: S1Problem,
+    parameters: Sequence[float],
+    spec: S1Parameterization,
+    *,
+    covariance_cholesky: np.ndarray | None = None,
+) -> np.ndarray:
+    """Finite-difference Jacobian in standardized solver coordinates."""
+    jacobian, _forward_calls = _finite_difference_jacobian_with_forward_calls(
+        problem, parameters, spec, covariance_cholesky=covariance_cholesky
+    )
+    return jacobian
 
 
 def solve_s1(
@@ -625,7 +666,7 @@ def solve_s1(
 
     for iteration in range(settings.max_iterations):
         try:
-            jacobian = finite_difference_jacobian(
+            jacobian, jacobian_forward_calls = _finite_difference_jacobian_with_forward_calls(
                 problem, parameters, spec, covariance_cholesky=chol
             )
         except SolverDomainError:
@@ -638,7 +679,7 @@ def solve_s1(
                 forward_calls,
                 spec,
             )
-        forward_calls += 2 * parameters.size
+        forward_calls += jacobian_forward_calls
         gradient = jacobian.T @ residual
         gradient_norm = float(np.linalg.norm(gradient, ord=np.inf))
         if gradient_norm <= settings.gradient_tolerance:
@@ -723,8 +764,8 @@ def solve_s2(
         result = evaluate_varpro(problem, values, spec, varpro)
         return result.residual, result.linear_parameters
 
-    def jacobian(values: np.ndarray) -> np.ndarray:
-        return varpro_projected_jacobian(problem, values, spec, varpro)
+    def jacobian(values: np.ndarray) -> tuple[np.ndarray, int]:
+        return _varpro_projected_jacobian_with_forward_calls(problem, values, spec, varpro)
 
     return _solve_reduced(
         method="S2",
@@ -774,29 +815,50 @@ def solve_s3(
             problem, full, spec, covariance_cholesky=chol
         ), linear
 
-    def jacobian(values: np.ndarray) -> np.ndarray:
+    def jacobian(values: np.ndarray) -> tuple[np.ndarray, int]:
         matrix = np.empty(
             (problem.observation.size + spec.prior_indices.size, values.size)
         )
+        forward_calls = 0
+        center: np.ndarray | None = None
         for column, full_index in enumerate(varpro.nonlinear_indices):
             step = spec.finite_difference_steps[int(full_index)]
             plus = values.copy()
             minus = values.copy()
             plus[column] += step
             minus[column] -= step
-            try:
+            plus_probe = _assemble_parameters(
+                plus, linear, spec, varpro
+            )
+            minus_probe = _assemble_parameters(
+                minus, linear, spec, varpro
+            )
+            plus_ok = _is_feasible(plus_probe, spec)
+            minus_ok = _is_feasible(minus_probe, spec)
+            if plus_ok and minus_ok:
                 plus_residual = evaluate(plus)[0]
                 minus_residual = evaluate(minus)[0]
+                forward_calls += 2
                 matrix[:, column] = (plus_residual - minus_residual) / (2.0 * step)
-            except SolverDomainError:
-                center = evaluate(values)[0]
-                try:
-                    plus_residual = evaluate(plus)[0]
-                    matrix[:, column] = (plus_residual - center) / step
-                except SolverDomainError:
-                    minus_residual = evaluate(minus)[0]
-                    matrix[:, column] = (center - minus_residual) / step
-        return matrix * spec.scales[varpro.nonlinear_indices][np.newaxis, :]
+            elif plus_ok:
+                if center is None:
+                    center = evaluate(values)[0]
+                    forward_calls += 1
+                plus_residual = evaluate(plus)[0]
+                forward_calls += 1
+                matrix[:, column] = (plus_residual - center) / step
+            elif minus_ok:
+                if center is None:
+                    center = evaluate(values)[0]
+                    forward_calls += 1
+                minus_residual = evaluate(minus)[0]
+                forward_calls += 1
+                matrix[:, column] = (center - minus_residual) / step
+            else:
+                raise SolverDomainError(
+                    "S3 finite difference left the registered domain on both sides"
+                )
+        return matrix * spec.scales[varpro.nonlinear_indices][np.newaxis, :], forward_calls
 
     return _solve_reduced(
         method="S3",
@@ -845,7 +907,7 @@ def _solve_reduced(
     objective = 0.5 * float(residual @ residual)
     for iteration in range(settings.max_iterations):
         try:
-            matrix = jacobian(nonlinear)
+            matrix, jacobian_forward_calls = jacobian(nonlinear)
         except SolverDomainError:
             return _varpro_solution(
                 method,
@@ -859,7 +921,7 @@ def _solve_reduced(
                 objective,
                 forward_calls,
             )
-        forward_calls += 2 * nonlinear.size
+        forward_calls += jacobian_forward_calls
         gradient = matrix.T @ residual
         gradient_norm = float(np.linalg.norm(gradient, ord=np.inf))
         if gradient_norm <= settings.gradient_tolerance:

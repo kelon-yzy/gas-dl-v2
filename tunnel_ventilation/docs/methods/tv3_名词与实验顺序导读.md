@@ -3,7 +3,7 @@
 > 面向初学者的名词说明。按**实验推进顺序**分级，便于对照记忆库与专项计划阅读。  
 > 正式指标与当前状态以 [掘进通风项目记忆库.md](../掘进通风项目记忆库.md) 为准；本文件只解释概念，不重复承担全局结论源责任。  
 > **维护义务**（记忆库 §1.4 / §8.3）：新增或实质变更正式实验、代码模块、算法/builder/头、协议门禁或 verdict 语义时，必须在同一变更批次更新本导读的名词定义、分级位置与索引；未联更不得视为文档齐全。  
-> 编写日期：2026-07-13；2026-07-14 增补 `waveform_preprocess` 工程名词；2026-07-20 增补 COMSOL 隧道多物理场 G0/G1 名词；2026-07-22 增补 F5-S / `bidir_spxy_observed_ab_v1` 与双域（narrow/wide）说明；2026-07-23 回填 F5-wide 正式失败与 reciprocity 审计口径边界；2026-07-24 增补 MRS 线；2026-07-27 增补 MRS-EI；2026-07-28 回填 MEI-1 固定 K4、MEI-3 Phase A 和后续 B0--B5 路径；2026-07-29 回填 MEI-3 B0--B2 结论与 B3 授权边界。
+> 编写日期：2026-07-13；2026-07-14 增补 `waveform_preprocess` 工程名词；2026-07-20 增补 COMSOL 隧道多物理场 G0/G1 名词；2026-07-22 增补 F5-S / `bidir_spxy_observed_ab_v1` 与双域（narrow/wide）说明；2026-07-23 回填 F5-wide 正式失败与 reciprocity 审计口径边界；2026-07-24 增补 MRS 线；2026-07-27 增补 MRS-EI；2026-07-28 回填 MEI-1 固定 K4、MEI-3 Phase A 和后续 B0--B5 路径；2026-07-29 回填 MEI-3 B0--B3、protocol-2 方案 A 与 pre-B4 技术就绪；2026-07-30 回填 B5 裁决冻结与 MEI-4 准入边界。
 
 ---
 
@@ -33,7 +33,7 @@
   → 模块 C：物理分组失败，停止该分支
   → 可辨识性 v1：物理误差预算；P90=0.4 vol%、nuisance=50%、拒绝率=5% 均失败，flow 未表示 → information-source-upgrade
   → MRS-6 已交付：MRS-2 升秩但 P90 未过旧门；MRS-3 未进入；0.4 vol% 已降为参考线
-  → ▶️ MRS-EI 当前主线：固定 D0 K4；MEI-3 Phase A 与 B0--B2 已通过；当前执行 B3 数据授权就绪包
+  → ▶️ MRS-EI 当前主线：固定 D0 K4；B5=`mei3_full_parameter_baseline_retained`；后续确定性基线固定 S1；MEI-4 须先独立登记契约
   → 并行：显式 flow=0 静止空气扰动与 holdout；不阻塞 MRS-EI，不外推到真实现场
   → ⏸ F 线暂缓：F4=`coarse_monitoring_only`；F5-wide 正式失败；窄域 F5/F6 不排期
   → ⏸ COMSOL 隧道线暂缓：G1 smoke 已通过；G2 及以后不排期
@@ -425,7 +425,7 @@
 
 ## 8.9 当前线：信息效率与可信反演（MRS-EI）
 
-MRS-EI 是 MRS-6 之后形成的新实验计划，上位文档为 `active/tv3_mrs_information_efficient_inversion_experiment_plan.md`，当前执行入口为 `active/tv3_mrs_ei_mei3_execution_plan.md`。它使用独立的 `MEI-*` 阶段，不是 MRS-3 的恢复或改名。`MEI-1`=`mei1_fixed_k4_retained`，固定 D0 K4 并跳过 MEI-2；MEI-3 Phase A=`mei3_phase_a_structure_supported`；B0=`mei3_b0_representation_closed`；B1=`mei3_b1_s1_frozen`；B2=`mei3_solver_core_verified`。B0 保持三列 `raw3` 输出，将干基 `sum=100%` 登记为物理定义约束，并在二维正交 `sum-zero` 切空间联合更新三个组分；它不是 N2 回填或求解后投影。B1 将 S0 冻结为未实例化非运行历史项并冻结 S1。B2 已实现 S2 条件线性投影、S3 显式真值干扰上限、投影雅可比和四项负对照，并证明 S1/S2 在同一合成问题上数值等价。当前进入 B3 数据授权就绪包；正式 test/OOD 求解门尚未执行，四项授权仍未改变。
+MRS-EI 是 MRS-6 之后形成的新实验计划，上位文档为 `active/tv3_mrs_information_efficient_inversion_experiment_plan.md`，当前已冻结的 MEI-3 执行记录为 `active/tv3_mrs_ei_mei3_execution_plan.md`。它使用独立的 `MEI-*` 阶段，不是 MRS-3 的恢复或改名。`MEI-1`=`mei1_fixed_k4_retained`，固定 D0 K4 并跳过 MEI-2；MEI-3 Phase A=`mei3_phase_a_structure_supported`；B0=`mei3_b0_representation_closed`；B1=`mei3_b1_s1_frozen`；B2=`mei3_solver_core_verified`；B3=`mei3_registered_data_authorization_ready`；pre-B4=`mei3_pre_b4_technical_ready`；B4/B5=`mei3_full_parameter_baseline_retained`。B0 保持三列 `raw3` 输出，将干基 `sum=100%` 登记为物理定义约束，并在二维正交 `sum-zero` 切空间联合更新三个组分；它不是 N2 回填或求解后投影。B1 将 S0 冻结为未实例化非运行历史项并冻结 S1。B2 已实现 S2 条件线性投影、S3 显式真值干扰上限、投影雅可比和四项负对照，并证明 S1/S2 在同一合成问题上数值等价。B3 protocol-2 登记方案 A（延迟/增益在 `device_profile_id × view_id` 上标定后 join 先验）。pre-B4 已验证方案 A 真值恢复、相对 CRB 与触界可记录失败。B4 已获独立稀疏仿真授权并完成正式 S1/S2/S3 配对比较：test/OOD 点估计相对改善约 2.78%/2.45%，但 bootstrap CI 下界未过 `0.02`，因此 B5 冻结保留 S1 为后续确定性基线。B5 不生成数据或改写 B4，`allowed_next_stage=null`；MEI-4 只能在独立版本化契约建立后启动。波形 / benchmark / 硬件三项授权仍禁止。
 
 | 名词 | 说明 |
 | --- | --- |
@@ -437,7 +437,8 @@ MRS-EI 是 MRS-6 之后形成的新实验计划，上位文档为 `active/tv3_mr
 | **SIMD-MRS** | 同步多正弦与共模剖面似然。必须先有台架跨频协方差证据，不能在仿真中预设有利相关性。 |
 | **OMD-GreyBox / SMVCI** | 正交模型偏差与共享潜变量多视图方法；前者需要高保真或真实留出数据，后者需要同一 `mixture_id` 的稳定配对视图和错误配对负对照。 |
 | **`delta_numerical` / `delta_practical`** | 数值界与实践界已分离。低成本 K4 与 MRS-2 压力口径的 `delta_numerical` 分别为 `2.8210630817324963e-05` 和 `9.055394884241296e-05`；`delta_practical=0.02` 表示最小有意义改善，不是数值误差。 |
-| **MEI-3 Phase A / B0--B5** | Phase A 证明条件线性块成立；B0 闭合观测算子与 `raw3` 二维物理域；B1 处置非运行 S0 并冻结 S1；B2 已验证 S2/S3 核心。B3 只准备数据授权就绪包；B4/B5 必须在独立授权后做 S1/S2 正式主比较、S3 上限审计与裁决。B2 技术通过不等于 S2 性能通过。 |
+| **MEI-3 Phase A / B0--B5** | Phase A 证明条件线性块成立；B0 闭合观测算子与 `raw3` 二维物理域；B1 处置非运行 S0 并冻结 S1；B2 已验证 S2/S3 核心；B3 冻结数据授权就绪包（protocol-2 方案 A）；pre-B4 关闭真值恢复与触界语义；B4 完成 S1/S2 主比较和 S3 上限审计。B5 验证 B4 父 manifest，冻结 `mei3_full_parameter_baseline_retained` 与 S1 后续基线，不生成数据、不重跑 B4，也不隐式启动 MEI-4。技术通过不等于 S2 性能通过。 |
+| **方案 A / view-nuisance 先验** | 公共延迟与对数幅度增益在 `device_profile_id × view_id` 上跨样本共享；由独立标定集估计后验，再 join 为 S1/S2 运行先验。禁止每样本宽先验自由估计；真值只给 S3。 |
 | **跨容差秩报告** | MEI-0 登记 `1e-7 / 1e-6 / 1e-5` 三档相对 SVD 容差。离散秩只有在三档下结论一致时才能作为门，否则报告秩区间、缩放奇异值与有效费舍尔信息。 |
 
 ---
@@ -470,7 +471,7 @@ MRS-EI 是 MRS-6 之后形成的新实验计划，上位文档为 `active/tv3_mr
 | 6   | B 系列            | RawDSP 默认头                                                      | B1、B6、B7、OOF、residual、protocol_pass               |
 | 7   | 模块 C            | 物理早期分组是否有用                                                      | grouped bottleneck、grouped_failed                 |
 | 8   | Identifiability | 物理上限与分流                                                         | 灵敏度、Fisher、CRLB、误差预算、verdict                      |
-| 9   | 当前候选与并行线      | MRS-EI 已完成 MEI-3 B2，进入 B3；静止空气仿真并行；F/COMSOL 暂缓；MRS 已收尾 | MRS-EI、VarPro、projected Jacobian、data authorization、static-air |
+| 9   | 当前候选与并行线      | MRS-EI B5 已关闭 MEI-3 并固定 S1；MEI-4 须先独立登记契约；静止空气仿真并行；F/COMSOL 暂缓；MRS 已收尾 | MRS-EI、VarPro、projected Jacobian、data authorization、static-air |
 
 ---
 
@@ -555,8 +556,8 @@ MRS-EI 是 MRS-6 之后形成的新实验计划，上位文档为 `active/tv3_mr
 | [active/tv3_comsol_multiphysics_dl_implementation_plan.md](../active/tv3_comsol_multiphysics_dl_implementation_plan.md)                               | ⏸ 暂缓：G1 已通过；G2 及以后不排期                                          |
 | [archive/completed/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md](../archive/completed/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md) | MRS 线已收尾；MRS-2=`mrs2_rank_upgraded_p90_fail`；禁止 MRS-3 |
 | [archive/completed/tv3_mrs6_hardware_requirements.md](../archive/completed/tv3_mrs6_hardware_requirements.md) | MRS-6 已交付硬件需求说明书；0.4 vol% 已降为参考线 |
-| [active/tv3_mrs_information_efficient_inversion_experiment_plan.md](../active/tv3_mrs_information_efficient_inversion_experiment_plan.md) | MRS-EI 上位计划；固定 D0 K4，MEI-3 Phase A 已通过 |
-| [active/tv3_mrs_ei_mei3_execution_plan.md](../active/tv3_mrs_ei_mei3_execution_plan.md) | MEI-3 B0--B5 当前执行计划 |
+| [active/tv3_mrs_information_efficient_inversion_experiment_plan.md](../active/tv3_mrs_information_efficient_inversion_experiment_plan.md) | MRS-EI 上位计划；固定 D0 K4，B5 已关闭 MEI-3，MEI-4 须独立登记 |
+| [active/tv3_mrs_ei_mei3_execution_plan.md](../active/tv3_mrs_ei_mei3_execution_plan.md) | MEI-3 B0--B5 冻结执行记录；B5=`mei3_full_parameter_baseline_retained`，后续基线 S1 |
 | [deep_research/tv3_mrs_generalizable_algorithm_ideas_20260727.md](../deep_research/tv3_mrs_generalizable_algorithm_ideas_20260727.md)                   | MRS-EI 的六类通用算法、理论依据、负对照和优先级                                      |
 | [../../COMSOL/tunnel_transport/README.md](../../COMSOL/tunnel_transport/README.md)                                                                    | 隧道输运 COMSOL A 构建与 verdict 入口                                   |
 | [archive/completed/tv3_ec_msw_gatednet_implementation_plan.md](../archive/completed/tv3_ec_msw_gatednet_implementation_plan.md)                       | EC-MSW P0 契约与 E1d/attachment/LS 正式结论                           |

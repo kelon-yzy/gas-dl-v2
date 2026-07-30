@@ -1,0 +1,41 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-ei-mei4-posterior-audit-1",
+  "stage": "MEI-4",
+  "phase": "c1_posterior_core_audit",
+  "claim_scope": "in_memory_synthetic_fixture_only",
+  "fixture_seed": 20260801,
+  "linear_gaussian": {
+    "simulation_count": 2000,
+    "nominal_coverage": 0.9,
+    "binomial_alpha": 0.05,
+    "covariance_atol": 1e-12,
+    "schur_covariance_atol": 1e-12
+  },
+  "truncation": {
+    "interior_mean_raw3_percent": [30.0, 25.0, 45.0],
+    "interior_covariance_z": [[0.01, 0.0], [0.0, 0.01]],
+    "boundary_mean_raw3_percent": [0.05, 20.0, 79.95],
+    "boundary_covariance_z": [[1.0, 0.0], [0.0, 1.0]],
+    "candidates": 65536,
+    "minimum_accepted_candidates": 2048,
+    "interior_quantile_atol_percent": 0.02,
+    "minimum_boundary_mass_loss": 0.01
+  },
+  "sbc": {
+    "posterior_draws": 256,
+    "replicates": 2000,
+    "alpha": 0.05
+  },
+  "estimator_checks": {
+    "nll_atol": 1e-12,
+    "crps_monte_carlo_atol": 0.015,
+    "rejection_coverage_expected": 0.6666666666666666
+  },
+  "psis": {
+    "tail_size": 2048,
+    "required_minimum_k_hat": 0.7
+  },
+  "phase_branch_max_standardized_error": 8.0,
+  "forbidden_method_settings": ["temperature_scaling", "prior_narrowing", "conformal_calibration"],
+  "source": "engineering_scenario"
+}

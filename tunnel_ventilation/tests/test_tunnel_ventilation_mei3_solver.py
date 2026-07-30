@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import tv3.ml.mrs_varpro as mrs_varpro
 from tv3.audit.mrs_ei_registry import (
     AUTHORIZATION_FIELDS,
     FORBIDDEN_AUTH_VALUE,
@@ -370,6 +371,64 @@ def test_b2_projected_jacobian_matches_independent_central_difference():
         ) / (2.0 * step)
     expected *= spec.scales[varpro.nonlinear_indices][np.newaxis, :]
     np.testing.assert_allclose(actual, expected, rtol=5e-5, atol=2e-7)
+
+
+def test_s2_interior_jacobian_uses_two_predictions_per_nonlinear_parameter(monkeypatch):
+    config, _b1, spec, truth, problem = _fixture()
+    varpro = build_varpro_parameterization(config, spec)
+    beta = truth[varpro.nonlinear_indices].copy()
+    beta += np.asarray([0.1, -0.1, 0.02, 1e-5, 0.1])
+    original = mrs_varpro._nonlinear_prediction
+    calls = 0
+
+    def counted_prediction(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(mrs_varpro, "_nonlinear_prediction", counted_prediction)
+    varpro_projected_jacobian(problem, beta, spec, varpro)
+    assert calls == 2 * beta.size
+
+
+def test_s1_forward_call_counter_matches_physical_residual_evaluations(monkeypatch):
+    config, b1, spec, _truth, problem = _fixture()
+    initial = _initial_parameters(b1["frozen_initializations"][0], 4)
+    original = mrs_varpro.augmented_residual
+    calls = 0
+
+    def counted_residual(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(mrs_varpro, "augmented_residual", counted_residual)
+    solution = solve_s1(problem, initial, spec, build_s1_settings(config))
+    assert solution.forward_calls == calls
+
+
+def test_s2_forward_call_counter_matches_physical_predictions(monkeypatch):
+    config, b1, spec, _truth, problem = _fixture()
+    varpro = build_varpro_parameterization(config, spec)
+    initial = _initial_parameters(b1["frozen_initializations"][0], 4)
+    original = mrs_varpro._nonlinear_prediction
+    calls = 0
+
+    def counted_prediction(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(mrs_varpro, "_nonlinear_prediction", counted_prediction)
+    solution = solve_s2(
+        problem,
+        initial,
+        spec,
+        build_s1_settings(config),
+        varpro,
+        max_phase_branch_standardized_error=8.0,
+    )
+    assert solution.forward_calls == calls
 
 
 def test_b2_s1_and_s2_reach_the_same_augmented_solution():

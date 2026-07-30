@@ -1,0 +1,35 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-ei-mei3-b5-contract-1",
+  "stage": "MEI-3",
+  "phase": "b5_verdict_freeze",
+  "claim_scope": "registered_simulation_domain_only",
+  "parent_b4": {
+    "required_phase": "b4_formal_solver_comparison",
+    "require_manifest_verification": true,
+    "require_non_smoke_freeze": true
+  },
+  "verdict_policy": {
+    "mei3_varpro_supported": {
+      "required_b4_passed_solver_gate": true,
+      "mei4_baseline": "S2"
+    },
+    "mei3_full_parameter_baseline_retained": {
+      "required_b4_passed_solver_gate": false,
+      "mei4_baseline": "S1"
+    }
+  },
+  "interpretation_constraints": {
+    "s2_effect_scope": "fixed_max_iterations_100_optimizer_progress_only",
+    "failure_metric_policy": "finite_unsuccessful_estimates_remain_in_primary_metrics",
+    "crb_reporting": "median_or_ratio_of_aggregated_squared_crb_and_error_only",
+    "b4_forward_call_ratio": "physical_s1_to_s2_approximately_1.5_to_1"
+  },
+  "closure": {
+    "b5_data_generated": false,
+    "rerun_or_rewrite_b4_freeze": false,
+    "allowed_next_stage": null,
+    "no_mei4_transition": true,
+    "preserve_authorizations": true
+  },
+  "source": "engineering_scenario"
+}

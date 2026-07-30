@@ -6,8 +6,8 @@
 
 1. [掘进通风项目记忆库.md](掘进通风项目记忆库.md)：当前有效事实、正式结果、硬不变量和执行门。
 2. [methods/tv3_名词与实验顺序导读.md](methods/tv3_名词与实验顺序导读.md)：初学者名词说明，按实验顺序分级检索。
-3. [active/tv3_mrs_ei_mei3_execution_plan.md](active/tv3_mrs_ei_mei3_execution_plan.md)：**当前执行入口**——MEI-3 pre-B4=`mei3_pre_b4_technical_ready`；技术门已通过，B4 仅差独立数据授权。
-4. [active/tv3_mrs_information_efficient_inversion_experiment_plan.md](active/tv3_mrs_information_efficient_inversion_experiment_plan.md)：**MRS-EI 上位主线**——固定 D0 K4，跳过 MEI-2；Phase A、B0--B3 与 pre-B4 已通过，正式比较仍未授权，四项授权仍禁止。
+3. [active/tv3_mrs_ei_mei3_execution_plan.md](active/tv3_mrs_ei_mei3_execution_plan.md)：**已关闭的 MEI-3 执行记录**——B5 已冻结 `mei3_full_parameter_baseline_retained`，并固定后续 MEI-4 确定性基线为 S1。
+4. [active/tv3_mrs_information_efficient_inversion_experiment_plan.md](active/tv3_mrs_information_efficient_inversion_experiment_plan.md)：**MRS-EI 上位主线**——固定 D0 K4，跳过 MEI-2；B0--B5 已完成。MEI-4 尚须独立登记版本化契约；波形 / benchmark / 硬件仍禁止。
 5. [active/tv3_static_air_feasibility_implementation_plan.md](active/tv3_static_air_feasibility_implementation_plan.md)：并行 `flow=0` 静止空气扰动与留出检验；不作现场声明。
 6. [active/tv3_bidirectional_ultrasound_implementation_plan.md](active/tv3_bidirectional_ultrasound_implementation_plan.md)：**暂缓**——F 线：F4=`coarse_monitoring_only`；F5-wide=`f5_model_protocol_failed`；窄域 F5 / F6 不排期。
 7. [active/tv3_comsol_multiphysics_dl_implementation_plan.md](active/tv3_comsol_multiphysics_dl_implementation_plan.md)：**暂缓**——G1 冒烟测试已通过；G2 及后续不排期。

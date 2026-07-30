@@ -1,12 +1,18 @@
 # MEI-3 确定性 VarPro 后续执行计划
 
-> 状态：pre-B4=`mei3_pre_b4_technical_ready`；B4 仅差独立数据授权  
-> 前置：Phase A=`mei3_phase_a_structure_supported`；B3 protocol-2 方案 A 已重冻  
-> 当前阶段：`MEI-3_varpro_audit`  
+> 状态：B5 已完成并关闭 MEI-3，verdict=`mei3_full_parameter_baseline_retained`  
+> 前置：Phase A=`mei3_phase_a_structure_supported`；B3 protocol-2 方案 A 已重冻；pre-B4=`mei3_pre_b4_technical_ready`  
+> 当前阶段：`b5_verdict_freeze` / MEI-3 已关闭  
 > 结论范围：`registered_simulation_domain_only`  
 > 上位计划：[tv3 MRS-EI 实验计划](tv3_mrs_information_efficient_inversion_experiment_plan.md)  
 > Phase A 证据：[MEI-3 Phase A 执行报告](../archive/completed/tv3_mrs_ei_mei3_phase_a_execution_report.md)  
-> B0 结论：本文 §11。无约束三维 `raw3` 依然无效；登记的干基闭包物理域在二维切空间中满秩。
+> B0 结论：本文 §11。无约束三维 `raw3` 依然无效；登记的干基闭包物理域在二维切空间中满秩。  
+> 授权记录：`stage_status.mei3.authorizations.registered_sparse_simulation_generation=authorized`（其余三项仍禁止）。  
+> 当前 B4 freeze：`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T120958962354Z_cf7ed57312d9`；manifest SHA256=`604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8`。  
+> 当前 B5 freeze：`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260730T011247690033Z_f1246e54ccb0`；manifest SHA256=`a2b2ce51322e0420971d8503ba61a26c01c179486e5bc6ae15f5af3b22910be5`；MEI-4 基线=`S1`。  
+> 历史作废 freeze（未 join 已知 T/L/RH 条件先验）：`.../20260729T115530120687Z_4a32b504e5fe`，不得引用其求解门指标。  
+> 并行旁证 freeze（条件先验已修复，但被后完成的有效 freeze 覆盖 stage_status）：`.../20260729T120817575667Z_cf7ed57312d9`，manifest=`fe34a54f51d4a0d922a10bc377540e21064eb80f75ca7a82064c63e3abd10026`；不得替换有效 freeze。`parent_pre_b4_manifest_sha256` 已校正为 `94bdd50d…b2a9`。  
+> B4 复核报告（2026-07-29）：[MEI-3 B4 代码复核与结果再分析](../archive/completed/tv3_mrs_ei_mei3_b4_review_and_analysis_report.md)——独立复算确认主指标与 CI 判定；机制归因：P90 改善全部来自共享 `max_iterations` 样本，S2 为同解省算力优化器；B5 契约注记建议见其 §10。
 
 ---
 
@@ -124,14 +130,19 @@ S0 不属于运行矩阵。旧 MRS-5 H1 只是“弛豫重建 + Ridge”的未�
 
 ### B4：正式 S1--S3 配对比较
 
+> 执行状态（2026-07-29）：**通过执行并冻结**，verdict=`mei3_full_parameter_baseline_retained`。S2 未通过正式求解门；后续基线保留 S1。当前 freeze=`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T120958962354Z_cf7ed57312d9`；manifest SHA256=`604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8`。详见 §15。
+
 1. 生成一次冻结的登记稀疏观测，S1--S3 对每个观测行做精确配对；主比较仅为 S1/S2，S3 只作上限审计。
 2. 先完成并冻结 S1，再运行 S2；S3 最后运行，只用于解释干扰参数造成的可恢复误差。
 3. 确定性求解器不报告“训练种子”；改为报告冻结初值索引与数据划分种子。
 4. 收敛失败保留在主指标中，不允许只对成功样本计算 P90。
+5. 观测表中的 `T_C` / `L_m` / `H_RH` 作为 `solver_allowed_condition`，必须按混合物 join 为先验均值与初值；不得使用 B1 fixture 的全局 25°C / 0.25 m / 50% RH 先验覆盖全网格。
 
 ### B5：裁决与冻结
 
-正式状态必须在 B4 之前写入版本化 MEI-3 执行契约：
+B5 必须将 B4 的冻结裁决写入版本化 MEI-3 执行契约，不重跑或改写 B4 freeze：
+
+> 执行状态（2026-07-30）：**已完成并冻结**。B5 已验证 B4 manifest 后写入独立 freeze `20260730T011247690033Z_f1246e54ccb0`，verdict=`mei3_full_parameter_baseline_retained`，MEI-4 基线=`S1`；B5 未生成数据，`allowed_next_stage=null`，因为 MEI-4 尚无独立的登记执行契约。
 
 | 状态                                           | 条件                      | 后续基线   |
 | -------------------------------------------- | ----------------------- | ------ |
@@ -141,6 +152,13 @@ S0 不属于运行矩阵。旧 MRS-5 H1 只是“弛豫重建 + Ridge”的未�
 | `mei3_waiting_registered_data_authorization` | 核心通过，但正式数据仍未授权          | 不作科学裁决 |
 
 Phase A 已证明结构适用，因此后续“S2 可实现但性能无改善”不得写成 `mei3_varpro_not_applicable`。新增 `mei3_full_parameter_baseline_retained` 前，必须以子阶段契约明确它的条件与 S1 后续语义；不回写历史 MEI-0/1 freeze。
+
+#### B4 结果解释约束
+
+1. S2 的 P90 改善全部来自双方共同 `max_iterations=100` 的样本；它表示固定迭代预算内更快的优化进展，不构成“统计效率更高的估计器”主张。若改变迭代上限或停止判据，必须建立新契约并重新比较。
+2. 收敛失败仍按该次求解得到的有限估计计算主指标；只有估计非有限时才使用 `failure_abs_error_percent`。因此 B4 的失败率表示紧停止判据下的慢收敛，不等于不可用输出比例。
+3. 不得引用 `mean_relative_crb_efficiency_o2`。CRB 诊断仅可引用逐样本相对效率的中位数，或先分别聚合 `crb_o2_std_percent^2` 与 `abs_err_o2^2` 后相除的比值。
+4. 当前 B4 freeze 的 `forward_calls` 漏计 Jacobian 中心预测；该 freeze 的真实物理前向调用比约为 S1:S2 = 1.5:1，而非记录的约 2.1:1。修正后的代码只用于未来新契约复跑，不能回写当前 freeze。
 
 ---
 
@@ -156,7 +174,7 @@ S2 相对冻结 S1 必须同时满足：
 
 ### 6.2 非退化门
 
-以下任一项相对退化超过 `0.02`，S2 均不通过：
+以下任一项的绝对增量超过其 `solver_gate.non_degeneration.thresholds` 阈值，S2 均不通过。组分误差单位为 pp，失败率与边界命中率单位为比例点：
 
 - O2、CO2、N2 MAE；
 - 收敛失败率；
@@ -179,21 +197,24 @@ S2 相对冻结 S1 必须同时满足：
 
 ### 7.1 代码
 
-| 范围          | 计划文件                                                       |
-| ----------- | ---------------------------------------------------------- |
-| 观测算子        | `tv3/sim/generation/tunnel_ventilation/mrs_observation.py` |
-| S1/S2/S3    | `tv3/ml/mrs_varpro.py`                                     |
-| 求解门与统计      | `tv3/audit/mrs_ei_solver_gate.py`                          |
-| 运行契约        | `configs/tv3_mrs_ei/mei3_solver_audit.json`                |
-| 数据授权就绪包     | `configs/tv3_mrs_ei/mei3_solver_data_protocol.json`        |
-| B4 授权门控契约   | `configs/tv3_mrs_ei/mei3_b4_formal_gate.json`              |
-| B0 执行入口     | `scripts/run_tv3_mei3_varpro_audit.py`                     |
-| B1 执行入口     | `scripts/run_tv3_mei3_b1_solver_audit.py`                  |
-| B2 执行入口     | `scripts/run_tv3_mei3_solver_audit.py`（已实现并冻结）          |
-| B3 执行入口     | `scripts/run_tv3_mei3_b3_data_readiness.py`（已实现并冻结）       |
-| pre-B4 执行入口 | `scripts/run_tv3_mei3_pre_b4_technical_audit.py`（已实现并冻结） |
-| B4 执行入口     | `scripts/run_tv3_mei3_b4_formal_comparison.py`（授权门控已实现；正式生成待授权） |
-| 测试          | `tests/test_tunnel_ventilation_mei3_varpro.py`、`tests/test_tunnel_ventilation_mei3_solver.py`、`tests/test_tunnel_ventilation_mei3_b3_readiness.py`、`tests/test_tunnel_ventilation_mei3_pre_b4.py` |
+| 范围          | 计划文件                                                                                                                                                                                                                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 观测算子        | `tv3/sim/generation/tunnel_ventilation/mrs_observation.py`                                                                                                                                                                                                                                             |
+| S1/S2/S3    | `tv3/ml/mrs_varpro.py`                                                                                                                                                                                                                                                                                 |
+| 求解门与统计      | `tv3/audit/mrs_ei_solver_gate.py`                                                                                                                                                                                                                                                                      |
+| B4 正式比较     | `tv3/audit/mrs_ei_b4_formal.py`                                                                                                                                                                                                                                                                        |
+| 运行契约        | `configs/tv3_mrs_ei/mei3_solver_audit.json`                                                                                                                                                                                                                                                            |
+| 数据授权就绪包     | `configs/tv3_mrs_ei/mei3_solver_data_protocol.json`                                                                                                                                                                                                                                                    |
+| B4 授权门控契约   | `configs/tv3_mrs_ei/mei3_b4_formal_gate.json`                                                                                                                                                                                                                                                          |
+| B5 裁决契约     | `configs/tv3_mrs_ei/mei3_b5_verdict_contract.json`                                                                                                                                                                                                                                                     |
+| B0 执行入口     | `scripts/run_tv3_mei3_varpro_audit.py`                                                                                                                                                                                                                                                                 |
+| B1 执行入口     | `scripts/run_tv3_mei3_b1_solver_audit.py`                                                                                                                                                                                                                                                              |
+| B2 执行入口     | `scripts/run_tv3_mei3_solver_audit.py`（已实现并冻结）                                                                                                                                                                                                                                                         |
+| B3 执行入口     | `scripts/run_tv3_mei3_b3_data_readiness.py`（已实现并冻结）                                                                                                                                                                                                                                                    |
+| pre-B4 执行入口 | `scripts/run_tv3_mei3_pre_b4_technical_audit.py`（已实现并冻结）                                                                                                                                                                                                                                               |
+| B4 执行入口     | `scripts/run_tv3_mei3_b4_formal_comparison.py`（已实现；授权后正式生成与配对比较）                                                                                                                                                                                                                                       |
+| B5 执行入口     | `scripts/run_tv3_mei3_b5_verdict_freeze.py`（已实现并冻结 B5 裁决契约）                                                                                                                                                                                                                                            |
+| 测试          | `tests/test_tunnel_ventilation_mei3_varpro.py`、`tests/test_tunnel_ventilation_mei3_solver.py`、`tests/test_tunnel_ventilation_mei3_b3_readiness.py`、`tests/test_tunnel_ventilation_mei3_pre_b4.py`、`tests/test_tunnel_ventilation_mei3_b4_formal.py`、`tests/test_tunnel_ventilation_mei3_b5_verdict.py` |
 
 共享弛豫谱公式仍只存在于现有 `relaxation_spectrum.py`；观测算子、S1 和 S2 不得各自复制一份。
 
@@ -208,12 +229,17 @@ outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/<freeze_id>/
   s1_multi_initialization_report.json
   s1_scale_invariance_report.json
   mei3_b1_verdict.json
-  # B2--B5 后续追加对应阶段 freeze，而不覆盖 B1：
+  # B2--B5 追加对应阶段 freeze，而不覆盖 B1：
   solver_comparison.csv
   convergence_report.json
   crb_efficiency.csv
   bootstrap_report.json
   mei3_verdict.json
+  # B5 only:
+  mei3_b5_verdict_contract.json
+  mei3_b5_verdict.json
+  parent_b4_manifest.json
+  parent_b4_verdict.json
   evidence_manifest.json
   source_snapshots/
 ```
@@ -271,17 +297,19 @@ B0 观测与 raw3 表示审计
 
 ## 10. 当前可立即执行的最小批次
 
-> 更新（2026-07-29）：B0--B3 与 pre-B4 技术就绪已通过；当前唯一 B4 阻塞项是独立 `registered_sparse_simulation_generation` 授权。
+> 更新（2026-07-30）：B0--B5 已完成。B5 已将 `mei3_full_parameter_baseline_retained` 写入版本化契约，MEI-4 基线固定为 S1；不得事后减小样本、更换基线或改写 B4 freeze。
 
-不等待数据授权即可开始：
+已完成：
 
 1. B0 观测算子契约与受约束 `raw3` 前向秩审计 —— 已通过，见 §11；
 2. B1 参数尺度表、S1 残差和多初值框架 —— 已通过并冻结；
 3. B2 投影雅可比与 S1/S2 合成等价测试 —— 已通过并冻结，见 §12；
 4. B3 数据契约、功效计算方法与授权检查器 —— 已通过并冻结，见 §13；
-5. pre-B4：方案 A 真值恢复、相对 CRB、触界可记录失败、200 kHz 相位负对照 —— 已通过并冻结，见 §14。
+5. pre-B4：方案 A 真值恢复、相对 CRB、触界可记录失败、200 kHz 相位负对照 —— 已通过并冻结，见 §14；
+6. B4：独立授权后正式生成与 S1→S2→S3 配对比较 —— 已冻结，见 §15。
+7. B5：验证 B4 父 manifest、冻结裁决契约与 S1 后续基线 —— 已冻结，见 §16。
 
-当前不可执行：B4 正式数据生成和求解门比较（缺独立授权）。B4 入口已存在，未授权时以退出码 `5` 拒绝。
+当前状态：MEI-3 已关闭。MEI-4 只有在建立独立登记契约后才能执行。
 
 ---
 
@@ -296,11 +324,11 @@ B0 观测与 raw3 表示审计
 
 共享 MRS-1 前向 `relaxation_spectrum` 对 `(x_CO2, x_O2, x_N2)` 的**整体缩放精确不变**。把三个组分同时乘 1.03：
 
-| 量 | 变化 |
-| --- | --- |
-| `c_f` 最大绝对差 | `0.0`（精确零，不是小量） |
-| `alpha_f` 最大绝对差 | `2.220446049250313e-16`（浮点舍入量级） |
-| `c_eq` | `344.1377033503531` → `344.1377033503531`，不变 |
+| 量               | 变化                                           |
+| --------------- | -------------------------------------------- |
+| `c_f` 最大绝对差     | `0.0`（精确零，不是小量）                              |
+| `alpha_f` 最大绝对差 | `2.220446049250313e-16`（浮点舍入量级）              |
+| `c_eq`          | `344.1377033503531` → `344.1377033503531`，不变 |
 
 因此把 `raw3` 三个分量当作无约束自由参数时，总量方向不产生任何观测变化。
 
@@ -308,13 +336,13 @@ B0 观测与 raw3 表示审计
 
 观测行取 `raw_tof_s`、`log_amplitude`、`unwrapped_phase_rad` 各 4 个频点（D0 K4 `{25,63,100,200}` kHz），共 12 行；行尺度用 Phase A fixture 的 `observation_std`（`5e-7 s` / `0.02` / `0.1 rad`）。参数为 `raw3` 三个百分数。秩按 `metric_registry.numerical_protocol.rank_reporting_protocol` 要求的三档相对容差 `1e-7 / 1e-6 / 1e-5` 同时报告。
 
-| 登记点 | σ₁ | σ₂ | σ₃ | 秩 @1e-7/1e-6/1e-5 | 零向量与组分向量 \|cos\| |
-| --- | --- | --- | --- | --- | --- |
-| co2=0.030 o2=18.4 T=15 P=0.1013 L=0.20 | 2.535e+01 | 8.073e-01 | 4.584e-09 | 2/2/2 | 1.000000000000 |
-| co2=2.515 o2=19.6 T=25 P=0.1013 L=0.25 | 2.984e+01 | 8.730e-01 | 1.971e-09 | 2/2/2 | 1.000000000000 |
-| co2=5.000 o2=21.2 T=35 P=0.1013 L=0.30 | 3.375e+01 | 9.617e-01 | 4.618e-09 | 2/2/2 | 1.000000000000 |
-| co2=2.515 o2=19.6 T=25 P=0.5000 L=0.25 | 3.357e+01 | 2.090e+00 | 3.947e-09 | 2/2/2 | 1.000000000000 |
-| co2=0.030 o2=21.2 T=15 P=0.7090 L=0.20 | 2.873e+01 | 1.723e+00 | 3.208e-09 | 2/2/2 | 1.000000000000 |
+| 登记点                                    | σ₁        | σ₂        | σ₃        | 秩 @1e-7/1e-6/1e-5 | 零向量与组分向量 \|cos\| |
+| -------------------------------------- | --------- | --------- | --------- | ----------------- | ---------------- |
+| co2=0.030 o2=18.4 T=15 P=0.1013 L=0.20 | 2.535e+01 | 8.073e-01 | 4.584e-09 | 2/2/2             | 1.000000000000   |
+| co2=2.515 o2=19.6 T=25 P=0.1013 L=0.25 | 2.984e+01 | 8.730e-01 | 1.971e-09 | 2/2/2             | 1.000000000000   |
+| co2=5.000 o2=21.2 T=35 P=0.1013 L=0.30 | 3.375e+01 | 9.617e-01 | 4.618e-09 | 2/2/2             | 1.000000000000   |
+| co2=2.515 o2=19.6 T=25 P=0.5000 L=0.25 | 3.357e+01 | 2.090e+00 | 3.947e-09 | 2/2/2             | 1.000000000000   |
+| co2=0.030 o2=21.2 T=15 P=0.7090 L=0.20 | 2.873e+01 | 1.723e+00 | 3.208e-09 | 2/2/2             | 1.000000000000   |
 
 三档容差下秩一致为 2，满足 registry 的"离散秩结论必须在每个登记容差下成立"要求。σ₃ 落在 `2e-9`--`5e-9`，是中心差分步长 `1e-4` 的截断残留，不是弱可辨识信号。最小奇异值对应的右奇异向量与归一化组分向量的 `|cos|` 在全部 5 个点（含两个高压点 `0.5` / `0.709` MPa）上都等于 1，即零方向就是组分向量自身、也就是总量缩放方向。
 
@@ -338,13 +366,13 @@ x_CO2 >= 0, x_O2 >= 0, x_N2 >= 0
 
 ### 11.5 受约束秩审计
 
-| 登记点 | σ₁ | σ₂ | 秩 @1e-7/1e-6/1e-5 |
-| --- | --- | --- | --- |
-| co2=0.030 o2=18.4 T=15 P=0.1013 L=0.20 | 1.919e+01 | 7.364e-01 | 2/2/2 |
-| co2=2.515 o2=19.6 T=25 P=0.1013 L=0.25 | 2.331e+01 | 8.031e-01 | 2/2/2 |
-| co2=5.000 o2=21.2 T=35 P=0.1013 L=0.30 | 2.721e+01 | 8.949e-01 | 2/2/2 |
-| co2=2.515 o2=19.6 T=25 P=0.5000 L=0.25 | 2.650e+01 | 1.902e+00 | 2/2/2 |
-| co2=0.030 o2=21.2 T=15 P=0.7090 L=0.20 | 2.216e+01 | 1.576e+00 | 2/2/2 |
+| 登记点                                    | σ₁        | σ₂        | 秩 @1e-7/1e-6/1e-5 |
+| -------------------------------------- | --------- | --------- | ----------------- |
+| co2=0.030 o2=18.4 T=15 P=0.1013 L=0.20 | 1.919e+01 | 7.364e-01 | 2/2/2             |
+| co2=2.515 o2=19.6 T=25 P=0.1013 L=0.25 | 2.331e+01 | 8.031e-01 | 2/2/2             |
+| co2=5.000 o2=21.2 T=35 P=0.1013 L=0.30 | 2.721e+01 | 8.949e-01 | 2/2/2             |
+| co2=2.515 o2=19.6 T=25 P=0.5000 L=0.25 | 2.650e+01 | 1.902e+00 | 2/2/2             |
+| co2=0.030 o2=21.2 T=15 P=0.7090 L=0.20 | 2.216e+01 | 1.576e+00 | 2/2/2             |
 
 因此无约束三维表示的零方向保留为负对照证据，但它不属于登记物理域的切空间。B0 状态为 `mei3_b0_representation_closed`。
 
@@ -365,13 +393,13 @@ x_CO2 >= 0, x_O2 >= 0, x_N2 >= 0
 
 ### 12.1 数值结果
 
-| 检查 | 结果 |
-| --- | --- |
-| 投影雅可比最大相对误差 | `8.56712878193837e-10` |
-| S1/S2 目标值差 | `3.848310559106949e-14` |
-| S1/S2 最大参数差 | `6.417597475660841e-07` |
+| 检查                   | 结果                      |
+| -------------------- | ----------------------- |
+| 投影雅可比最大相对误差          | `8.56712878193837e-10`  |
+| S1/S2 目标值差           | `3.848310559106949e-14` |
+| S1/S2 最大参数差          | `6.417597475660841e-07` |
 | S1/S2 最大 raw3 差（百分点） | `5.649982028899103e-07` |
-| S3 显式真值干扰入口 | 通过，且不具备正式配对资格 |
+| S3 显式真值干扰入口          | 通过，且不具备正式配对资格           |
 
 错误相位分支、每样本无约束 K4 偏移、非正定协方差和把声程强行放入线性块四项负对照均显式失败。条件线性求解器已迁入 `tv3/ml/mrs_varpro.py`，Phase A 与 B2 共用同一实现，不保留第二来源。
 
@@ -413,7 +441,7 @@ x_CO2 >= 0, x_O2 >= 0, x_N2 >= 0
 
 ### 13.4 方案 A 定案与 B1/B2 偏差诊断的关系
 
-B1/B2 零噪声 fixture 上 S1/S2 相对真值约 +4 pp 的 O2 系统偏差，来自每样本宽先验下的 `log_amplitude_gain`（及延迟）可吸收弛豫幅度特征；该 fixture 未执行方案 A 的标定共享语义，因此不能直接外推为 B4 正式门失败。进入 B4 前仍需在方案 A 语义下补真值恢复诊断，并把相对 CRB 效率提前计算。protocol-2 重冻后，授权依据为当前 B3 freeze，不再使用 protocol-1 历史包。
+B1/B2 零噪声 fixture 上 S1/S2 相对真值约 +4 pp 的 O2 系统偏差，来自每样本宽先验下的 `log_amplitude_gain`（及延迟）可吸收弛豫幅度特征；该 fixture 未执行方案 A 的标定共享语义，因此不能直接外推为 B4 正式门失败。pre-B4 已在方案 A 语义下完成真值恢复与相对 CRB 报告（见 §14）；protocol-2 重冻后，授权依据为当前 B3 freeze，不再使用 protocol-1 历史包。
 
 ---
 
@@ -425,14 +453,14 @@ B1/B2 零噪声 fixture 上 S1/S2 相对真值约 +4 pp 的 O2 系统偏差，�
 
 ### 14.1 已关闭的审查缺口
 
-| 缺口 | 处置 |
-| --- | --- |
-| 方案 A 延迟/增益共享与先验来源 | B3 protocol-2 已登记；pre-B4 用紧标定后验复现 |
-| 零噪声 4 pp O2 偏置 | 宽先验下仍约 `+4.01` pp；方案 A 后降到约 `0.067` pp |
-| 相对 CRB | 已在零噪声 fixture 上报告；方案 A 误差约为 CRB 的 `0.041` 倍 |
-| 触界抛异常 | 改为返回 `success=False` / `bound_hit=True`；S1/S2 线搜索对条件线性越界对称跳过 |
-| Phase A fixture 复制观测算子 | `_build_numerical_fixture` 改为只调用 `ideal_mrs_observation` |
-| 相位负对照只打 25 kHz | B2 负对照改为扰动 200 kHz 分支 |
+| 缺口                     | 处置                                                           |
+| ---------------------- | ------------------------------------------------------------ |
+| 方案 A 延迟/增益共享与先验来源      | B3 protocol-2 已登记；pre-B4 用紧标定后验复现                            |
+| 零噪声 4 pp O2 偏置         | 宽先验下仍约 `+4.01` pp；方案 A 后降到约 `0.067` pp                       |
+| 相对 CRB                 | 已在零噪声 fixture 上报告；方案 A 误差约为 CRB 的 `0.041` 倍                  |
+| 触界抛异常                  | 改为返回 `success=False` / `bound_hit=True`；S1/S2 线搜索对条件线性越界对称跳过 |
+| Phase A fixture 复制观测算子 | `_build_numerical_fixture` 改为只调用 `ideal_mrs_observation`     |
+| 相位负对照只打 25 kHz         | B2 负对照改为扰动 200 kHz 分支                                        |
 
 ### 14.2 B4 入口状态
 
@@ -445,3 +473,57 @@ B1/B2 零噪声 fixture 上 S1/S2 相对真值约 +4 pp 的 O2 系统偏差，�
 ### 14.3 授权后 B4 仍需补齐的实现项
 
 授权通过后，B4 入口还需从“拒绝”切换到正式生成与配对比较实现：一次性冻结登记稀疏观测、S1→S2→S3 精确配对、失败样本保留在主指标中、写出 `solver_comparison.csv` / `crb_efficiency.csv` / `bootstrap_report.json`。这些代码在未授权前故意不启用。
+
+---
+
+## 15. B4 正式配对比较结论
+
+> 执行日期：2026-07-29  
+> 性质：已授权的登记稀疏仿真生成与 S1/S2/S3 正式配对比较；不是波形、benchmark 或硬件声明。  
+> 当前 freeze：`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T120958962354Z_cf7ed57312d9`；manifest SHA256=`604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8`。  
+> 历史作废 freeze：`.../20260729T115530120687Z_4a32b504e5fe`（未把测量 T/L/RH join 为条件先验，O2 P90 约 78%，不得引用）。  
+> 并行旁证 freeze：`.../20260729T120817575667Z_cf7ed57312d9`（条件先验已修复，但不是 `stage_status` 当前指针）。  
+> 复核报告：[MEI-3 B4 代码复核与结果再分析](../archive/completed/tv3_mrs_ei_mei3_b4_review_and_analysis_report.md)——机制归因、CI 稳健性、代码问题清单（P1 效率计数不对称等）与 B5 注记建议。
+
+### 15.1 授权与实现
+
+- 用户显式授权 `registered_sparse_simulation_generation=authorized`；波形 / benchmark / 硬件三项保持禁止。
+- 实现入口：`tv3/audit/mrs_ei_b4_formal.py` + `scripts/run_tv3_mei3_b4_formal_comparison.py`。
+- 一次生成 calibration/test/ood；方案 A 在 calibration 上估计共享延迟/增益/逐频偏移后验，再 join 为 S1/S2 先验。
+- 观测表中的 `T_C` / `L_m` / `H_RH` 作为已知条件，按混合物 join 为先验均值与初值。
+- 评价域各 648 个 `mixture_id`；S1 全部完成后再跑 S2，最后 S3；失败样本保留在主指标中；bootstrap=2000。
+
+### 15.2 主指标
+
+| 域    | S1 O2 P90 | S2 O2 P90 | 相对改善    | bootstrap 95% CI 下界 | 是否过门            |
+| ---- | --------- | --------- | ------- | ------------------- | --------------- |
+| test | 1.6604    | 1.6142    | 0.02783 | 0.01157             | 否（CI 下界 ≤ 0.02） |
+| ood  | 0.7161    | 0.6985    | 0.02453 | 0.00742             | 否（CI 下界 ≤ 0.02） |
+
+点估计在 test 与 OOD 均略高于 `delta_practical=0.02`，但分层配对 bootstrap 置信区间下界均未过界。本 freeze 的否决仅来自 CI 下界。
+
+### 15.3 机制诊断（不替代主指标）
+
+- S3 O2 P90：test `1.5232`，OOD `0.6392`，相对 S2 仍有可恢复干扰误差上限。
+- test/OOD 收敛失败率：S1 与 S2 同为约 `0.137` / `0.128`。
+- 第一轮错误 freeze 已证明：若不把 `T_C`/`L_m`/`H_RH` 作为已知条件先验，求解门指标无物理意义。
+
+### 15.4 裁决含义
+
+- 正式状态：`mei3_full_parameter_baseline_retained`。
+- Phase A 的结构适用结论保持有效；本结果表示“S2 可实现但未通过求解门”，不得回写成 `mei3_varpro_not_applicable`。
+- 后续 MEI-4 学习基线应使用冻结的 S1，而不是 S2。
+- B5 已将该 verdict 写入版本化 MEI-3 执行契约并关闭本阶段；未重跑 B4，见 §16。
+
+---
+
+## 16. B5 裁决契约冻结
+
+> 执行日期：2026-07-30  
+> B5 freeze：`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260730T011247690033Z_f1246e54ccb0`；manifest SHA256=`a2b2ce51322e0420971d8503ba61a26c01c179486e5bc6ae15f5af3b22910be5`。  
+> 上游 B4 manifest SHA256=`604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8`，已在 B5 写入前验证。
+
+- 正式 verdict：`mei3_full_parameter_baseline_retained`。
+- 后续 MEI-4 基线：`S1`；S2 保留为条件线性结构已验证、固定 `max_iterations=100` 预算下进展更快的优化路径，不作为学习基线。
+- B5 不生成观测、波形、benchmark 或硬件数据，也不重跑或改写 B4 freeze。
+- `allowed_next_stage=null`：B5 仅关闭 MEI-3，不能隐式启动尚未登记的 MEI-4。

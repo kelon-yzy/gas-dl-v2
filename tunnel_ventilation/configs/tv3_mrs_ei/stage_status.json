@@ -84,25 +84,38 @@
     "evidence_manifest_sha256": "faf397f9457b8eadc8871c55e488da0d62671826bf724ac3fd66f9c03b029396"
   },
   "mei3": {
-    "phase": "pre_b4_technical_readiness",
-    "verdict": "mei3_pre_b4_technical_ready",
-    "passed": true,
-    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T105306238861Z_464cbb0c1285",
-    "verdict_path": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T105306238861Z_464cbb0c1285/mei3_pre_b4_verdict.json",
-    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T105306238861Z_464cbb0c1285/evidence_manifest.json",
-    "evidence_manifest_sha256": "94bdd50df59222064bc1349b26bf5c2473ec6c2f3ff194da56ef6b7cd5a6b2a9",
-    "completed_at_utc": "2026-07-29T10:53:06.238861+00:00",
+    "phase": "b5_verdict_freeze",
+    "verdict": "mei3_full_parameter_baseline_retained",
+    "passed": false,
+    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260730T011247690033Z_f1246e54ccb0",
+    "verdict_path": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260730T011247690033Z_f1246e54ccb0/mei3_b5_verdict.json",
+    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260730T011247690033Z_f1246e54ccb0/evidence_manifest.json",
+    "evidence_manifest_sha256": "a2b2ce51322e0420971d8503ba61a26c01c179486e5bc6ae15f5af3b22910be5",
+    "completed_at_utc": "2026-07-30T01:12:47.690033+00:00",
     "s0_status": "historical_h1_not_instantiated",
     "s1_frozen": true,
     "s2_core_verified": true,
     "s3_upper_bound_verified": true,
     "b3_authorization_ready_package": true,
     "registered_sparse_simulation_generation_review_eligible": true,
-    "registered_sparse_simulation_generation_authorized": false,
-    "formal_solver_gate_ready": false,
-    "formal_solver_gate_blocker": "registered_sparse_simulation_generation_forbidden_pending_independent_authorization",
+    "registered_sparse_simulation_generation_authorized": true,
+    "formal_solver_gate_ready": true,
+    "formal_solver_gate_blocker": null,
+    "authorization_record": {
+      "field": "registered_sparse_simulation_generation",
+      "value": "authorized",
+      "authorized_at_utc": "2026-07-29T11:13:00+00:00",
+      "authority": "explicit_user_decision",
+      "scope": "registered_sparse_simulation_generation_only",
+      "unchanged_authorizations": [
+        "formal_waveform_generation",
+        "benchmark_packaging",
+        "hardware_trial"
+      ],
+      "note": "user authorized registered_sparse_simulation_generation=authorized and requested B4 entry"
+    },
     "authorizations": {
-      "registered_sparse_simulation_generation": "forbidden_until_explicit_authorization",
+      "registered_sparse_simulation_generation": "authorized",
       "formal_waveform_generation": "forbidden_until_explicit_authorization",
       "benchmark_packaging": "forbidden_until_explicit_authorization",
       "hardware_trial": "forbidden_until_explicit_authorization"
@@ -113,6 +126,39 @@
     "parent_mei1_manifest_sha256": "faf397f9457b8eadc8871c55e488da0d62671826bf724ac3fd66f9c03b029396",
     "config_sha256": "db52258d3ed3d02ec3cee109d069da8809f8818c052078fa5b675c98bde42cea",
     "b4_technical_ready": true,
-    "parent_b3_manifest_sha256": "7badf39329a7b77cffbdaa862dc330add956e262b520ea30e8adc221f0579557"
+    "parent_b3_manifest_sha256": "7badf39329a7b77cffbdaa862dc330add956e262b520ea30e8adc221f0579557",
+    "formal_data_generated": true,
+    "smoke_mode": false,
+    "b4_passed_solver_gate": false,
+    "parent_pre_b4_manifest_sha256": "94bdd50df59222064bc1349b26bf5c2473ec6c2f3ff194da56ef6b7cd5a6b2a9",
+    "b5_contract_frozen": true,
+    "b5_data_generated": false,
+    "mei4_baseline": "S1",
+    "parent_b4_freeze_dir": "outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T120958962354Z_cf7ed57312d9",
+    "parent_b4_manifest_sha256": "604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8",
+    "parent_b4_verdict_sha256": "d1e02ac77ada6f087e3d120623f12a0feec97e5178fa263f59a9f4c318ee36d4"
+  },
+  "mei4": {
+    "phase": "c1_posterior_core_audit",
+    "status": "mei4_posterior_core_verified",
+    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T053939880570Z_d4b88b625f0c",
+    "execution_contract_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T025640042212Z_d3505e1a3e0c/mei4_execution_contract.json",
+    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T053939880570Z_d4b88b625f0c/evidence_manifest.json",
+    "evidence_manifest_sha256": "ec294ad30ba4453b1aa884671ba97b0d7a91f19a2f7858dd4daedba6a7ce1a71",
+    "created_at_utc": "2026-07-30T05:39:39.880570+00:00",
+    "baseline_solver": "S1",
+    "parent_b4_manifest_sha256": "604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8",
+    "parent_b5_manifest_sha256": "a2b2ce51322e0420971d8503ba61a26c01c179486e5bc6ae15f5af3b22910be5",
+    "authorizations": {
+      "registered_sparse_simulation_generation": "forbidden_until_explicit_mei4_authorization",
+      "formal_waveform_generation": "forbidden_until_explicit_authorization",
+      "benchmark_packaging": "forbidden_until_explicit_authorization",
+      "hardware_trial": "forbidden_until_explicit_authorization"
+    },
+    "mc_review_eligible": false,
+    "allowed_next_stage": null,
+    "c1_report_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T053939880570Z_d4b88b625f0c/mei4_posterior_core_report.json",
+    "parent_c0_manifest_sha256": "057a9e249c57e5d5a3224709b3b7b428b6aa393ce3011497bcf3d71a71e1aa61",
+    "parent_c1_manifest_sha256": "e247ffcc2beea41adfc9025921491520d48f362b990958911fd469a2ec63c7ce"
   }
 }

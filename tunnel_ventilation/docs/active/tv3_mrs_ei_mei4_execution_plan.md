@@ -1,0 +1,263 @@
+# MEI-4 后验基线与覆盖率审计执行计划
+
+> 状态：规划中，任何阶段均未执行；C0 契约冻结是唯一允许的第一步  
+> 前置：MEI-3 已由 B5 关闭，verdict=`mei3_full_parameter_baseline_retained`，MEI-4 确定性基线固定为 `S1`  
+> 准入约束：B5 的 `allowed_next_stage=null` 与 `no_mei4_transition=true` 表示 MEI-4 不被隐式启动；必须先冻结本计划对应的独立版本化执行契约（C0）  
+> 结论范围：`registered_simulation_domain_only`  
+> 上位计划：[tv3 MRS-EI 实验计划](tv3_mrs_information_efficient_inversion_experiment_plan.md) §MEI-4  
+> 上游 B4 freeze：`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T120958962354Z_cf7ed57312d9`；manifest SHA256=`604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8`  
+> 上游 B5 freeze：`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260730T011247690033Z_f1246e54ccb0`；manifest SHA256=`a2b2ce51322e0420971d8503ba61a26c01c179486e5bc6ae15f5af3b22910be5`  
+> S2 解释约束：沿用 B5 契约 `interpretation_constraints`（S2 效应仅为固定 `max_iterations=100` 预算内的优化进展；CRB 只允许逐样本中位数或先聚合平方再相除；B4 `forward_calls` 记录失真，物理比约 1.5:1）  
+> B4 复核报告：[MEI-3 B4 代码复核与结果再分析](../archive/completed/tv3_mrs_ei_mei3_b4_review_and_analysis_report.md)
+
+---
+
+## 1. Context：当前已知道什么
+
+MEI-3 已回答确定性点估计问题：S2 结构适用但未通过求解门，S1 是冻结基线。MEI-4 回答的是主计划第四个研究问题：
+
+> 当问题病态或后验多峰时，能否给出覆盖率正确、允许拒绝输出的后验分布？
+
+B4 freeze 中已存在可直接复用、无需任何新数据生成的资产：
+
+| 资产 | 内容 | MEI-4 用途 |
+| --- | --- | --- |
+| `registered_observations.json` | 1944 个 `mixture_id`（calibration/test/ood 各 648）真值组分表；7776 行观测（每混合物 4 频点，`raw_tof_s` / `log_amplitude` / `unwrapped_phase_rad`）；1944 个 `12×12` 协方差块 | 观测与协方差是后验构造输入；真值组分列仅进审计层 |
+| `paired_solutions.json` | 1296 条 test/OOD 逐样本记录：S1/S2/S3 完整参数向量、`raw3_percent`、`success` / `stop_reason` / `bound_hit`、`truth_raw3_percent`、`crb_o2_std_percent` | S1 参数向量是拉普拉斯展开点；真值与 CRB 列仅进审计层 |
+| `calibration_priors.json`、`view_nuisance_calibration_priors.json` | 方案 A 在 calibration 划分估计的逐频偏移与 view-nuisance 先验 | 直接作为后验的干扰参数先验，不重估 |
+| `s3_truth_nuisance.json` | 1944 条干扰参数真值 | 仅审计层；后验方法物理隔离 |
+| `mei3_solver_run_config.json`、`mei3_solver_data_protocol.json` | B4 冻结求解配置、三个冻结初值、划分与 bootstrap 协议 | S1 复解一致性抽查与统计协议沿用 |
+
+与 MEI-4 直接相关的 B4 数值事实：S1 的 O2 P90 为 test `1.6604` / OOD `0.7161`；收敛失败率约 `0.137` / `0.128`（失败样本保留有限估计）；`bound_hit` 存在。这意味着后验方法必须显式处理"估计触界或未收敛时区间怎么给"，不能只在收敛样本上报告覆盖率。
+
+## 2. Task：本计划要回答什么
+
+在 B4 冻结观测、冻结 S1 解与冻结方案 A 先验之上：
+
+1. S1 全参数惩罚似然的拉普拉斯近似，能否在 test 与 OOD 上同时给出覆盖率正确的三组分区间？
+2. 若拉普拉斯不足，参数空间重要性采样修正能否修复覆盖，而不引入观测空间新抽样？
+3. 只有前两类方法表现出多峰、边界偏差或计算成本问题时，才评估 CC-SBI 是否值得训练。
+4. 若覆盖率正确但区间宽，结论只能是"观测信息不足"，不得用任何重标定手段制造高精度。
+
+本计划不优化频点，不改动 S1 求解器与停止条件，不生成正式波形，不做 benchmark 打包或硬件声明。
+
+## 3. 全程不变量
+
+1. 固定 D0 K4 `{25,63,100,200}` kHz；B4/B5 freeze 只读，不重跑、不改写；S1 超参数、边界、初值、停止条件不得为 MEI-4 重新调整——任何改动等于新契约。
+2. 点估计与后验都在 B0 登记的干基物理域内：后验分布定义在二维正交 `sum-zero` 切空间 `z`，经同一仿射映射生成三组分报告；非负截断是 C0 预注册的后验域定义的一部分，不是事后投影；不做 N2 回填、`target_transform` 或静默归一化。
+3. `mixture_id` 是组分主键，不回退为 `sequence_id`。
+4. 组分真值（`x_*_percent`、`truth_raw3_percent`）、干扰真值（`s3_truth_nuisance.json`）与 `crb_o2_std_percent` 只进覆盖率 / SBC / 诊断等审计层；后验构造的读取白名单与 B4 的 S1/S2 白名单一致。
+5. calibration 划分只以 B4 已冻结的方案 A 先验形式进入方法；不得在 test/OOD 上拟合任何方法参数；温度缩放、先验缩窄、conformal 等未登记的重标定一律禁止。
+6. 评价六件套——SBC 秩直方图、经验覆盖率、NLL、CRPS、后验预测检验、OOD 覆盖率——必须在同一冻结划分上完整报告；缺任何一件不得输出通过类 verdict。
+7. 无法构造区间的样本（曲率非正定、数值失败等）按"未覆盖"计入主覆盖率并打 `rejected` 标志；主门样本数固定为每域 648，不允许通过拒绝样本改善覆盖统计。
+8. 计算分两类并区别对待：**参数空间计算**（在冻结观测处求前向 / 雅可比、拉普拉斯曲率、参数空间蒙特卡洛抽样）不需要新授权；**观测空间合成**（SBC 的 `(theta, y)` 抽样、后验预测 `y_rep`、参数自助 `y*`、CC-SBI 训练集）属于 `registered_sparse_simulation_generation` 活动类，必须取得 MEI-4 范围的新授权记录，不得引用 B4 的授权记录。波形 / benchmark / 硬件三项授权继续禁止。
+9. S2 剖面似然路径的任何结果都受 B5 解释约束限制，不得写成 S2 统计效率主张；该路径不能成为冻结后验基线。
+10. 失败必须暴露为异常、非零退出、失败测试或冻结失败 verdict；不吞错，不静默替换方法。
+
+## 4. 后验方法矩阵
+
+| ID | 内容 | 抽样类别 | 启动条件 | 可否成为冻结后验基线 |
+| --- | --- | --- | --- | --- |
+| M1 | S1 全参数惩罚似然的 MAP-拉普拉斯：白化增广系统的高斯--牛顿曲率，Schur 边缘化到 `z`，截断到非负域 | 参数空间 | C0 冻结后即可 | 可（第一优先） |
+| M1b | S2 剖面似然拉普拉斯 | 参数空间 | 与 M1 同批 | 否，仅登记受控比较 |
+| M2 | 重要性采样修正后验：M1 为提议分布，惩罚似然重加权，PSIS 诊断 | 参数空间 | 与 M1 同批 | 可（第二优先） |
+| M2b | 参数自助法后验 | 观测空间 | 仅当 M2 的 PSIS `k_hat` 超过 C0 冻结阈值 | 可（替代 M2） |
+| M3 | CC-SBI：置换不变集合编码器，单纯形约束三组分后验，训练时联合采样组分、干扰参数、设计与模型族 | 观测空间（训练集） | 仅当 §5 C4 触发条件命中且训练抽样获独立授权 | 可（最后顺位） |
+
+主计划中"参数自助法或重要性采样"二选一：本计划选 M2 重要性采样为主路径，理由是它只做参数空间计算、不触发观测空间授权，且逐样本成本远低于按混合物重复求解的自助法；M2b 仅作 PSIS 失效时的登记替代。多方法同时通过校准门时，按 M1 → M2/M2b → M3 的简单优先序冻结基线；更复杂方法要替换已过门的更简单方法，必须两域 O2 区间平均宽度相对改善 `> delta_practical=0.02` 且分层配对 bootstrap 95% CI 下界 `> 0.02`，同时自身全部校准带命中。
+
+## 5. 分阶段执行路径
+
+### C0：执行契约冻结与上游资产盘点
+
+**目标**：建立主计划 §MEI-4 要求的独立版本化执行契约，这是解除 `no_mei4_transition` 的唯一途径。
+
+必须冻结：
+
+1. 父 manifest 绑定：B4 与 B5 的 freeze 路径、`evidence_manifest` SHA256，写入前实际校验；
+2. 资产盘点：逐文件记录 §1 表中 B4 资产的路径、SHA256、行数与字段清单；审计真值白名单（`x_*_percent`、`truth_raw3_percent`、`s3_truth_nuisance.json`、`crb_o2_std_percent`）与方法读取白名单分列；
+3. 后验参数化：切空间 `z` 的高斯族、非负截断规则、三组分边缘区间的构造方法（等尾、4 个名义水平 `50/80/90/95%`）、截断边缘密度的数值方法与容差；
+4. 干扰参数处理：白化增广系统（含方案 A 先验惩罚项）的高斯--牛顿曲率、Schur 边缘化定义；高斯--牛顿近似与完整 Hessian 差异的抽查协议；
+5. 校准门全部数值：每域 648 的精确二项接受区间、检验族定义（3 组分 × 4 水平 × 2 域 = 24 条带为一族）、Šidák 族内校正规则、SBC 均匀性检验方法与显著性水平；
+6. 拒绝语义：`rejected` 判定条件（曲率非正定、区间构造数值失败、PSIS `k_hat` 超阈）、主覆盖率的"未覆盖"计入规则、选择条件覆盖率的报告格式；
+7. 观测空间蒙特卡洛登记表：SBC / PPC / M2b / CC-SBI 训练各自的用途边界、抽样规模、种子表（建议 SBC 每域每方法 1000 次、PPC 每混合物 64 次 `y_rep`、M2b 每混合物 200 次，正式数值以 C0 冻结为准）；
+8. C4 触发条件与阈值（见 C4）；verdict 状态机（见 C5）；append-only 输出目录 `outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/<freeze_id>/`；
+9. S1 复解一致性抽查协议：每域抽 12 个混合物按 B4 冻结配置重跑 S1，`raw3_percent` 与 `objective` 一致性容差。
+
+**产物**：`mei4_execution_contract.json`、`b4_asset_inventory.json`、`parent_b4_manifest.json`、`parent_b5_manifest.json`、`evidence_manifest.json`。
+
+**状态**：`mei4_contract_frozen` 或列出缺口的 `mei4_contract_incomplete`；后者不允许进入 C1。
+
+### C1：后验机制合成审计
+
+**性质**：内存合成数值验证，与 B1/B2 同类，不是正式校准证据，不读取 B4 观测。
+
+1. 线性高斯 fixture：拉普拉斯后验必须等于解析后验（协方差与边缘区间在数值容差内一致），名义覆盖在自洽模拟下命中二项接受带；
+2. 截断一致性：真值远离边界时截断实现与非截断解析结果一致；人为贴边 fixture 中截断质量损失与区间形变可复算；
+3. 估计量对照：覆盖率、NLL、CRPS、SBC 秩统计的实现与已知分布 fixture 的解析值一致；SBC 在自洽模型下秩均匀，检验不拒绝；
+4. M2 机制：对故意错标协方差的 fixture，重要性权重与 PSIS `k_hat` 必须报警；
+5. 负对照（全部必须显式失败）：后验构造读取真值字段；非正定曲率静默继续；错误相位分支；未登记的重标定入口。
+
+**状态**：`mei4_posterior_core_verified` 或 `mei4_posterior_core_invalid`。技术通过不等于校准门通过。
+
+### C2：冻结数据上的确定性后验正式评价（无观测空间抽样）
+
+1. 对 test/OOD 各 648 个混合物，从 B4 冻结 S1 参数向量出发复算白化增广雅可比与曲率，构造 M1 区间；先完成 S1 复解一致性抽查，不一致即停止；
+2. 同批运行 M1b（受控比较）与 M2（PSIS 诊断齐报）；
+3. 报告：三组分 × 4 水平 × 2 域经验覆盖率与二项带判定、O2 边缘 NLL 与 CRPS（CO2/N2 同报，`z` 空间联合 NLL 作诊断）、区间宽度分布、`rejected` 率、选择条件覆盖率、按 `design_condition_id` 与压力 / RH 分组的覆盖率、高斯--牛顿对完整 Hessian 的抽查差异、截断质量损失分布、拉普拉斯标准差与 `crb_o2_std_percent` 的比较（受 B5 CRB 引用限制约束）；
+4. 本阶段不输出通过类 verdict：评价六件套中 SBC 与 PPC 尚缺，只冻结中间报告。
+
+**产物**：`posterior_intervals_test.csv`、`posterior_intervals_ood.csv`、`coverage_report.json`、`nll_crps_report.json`、`group_coverage_report.json`、`laplace_diagnostics.json`。
+
+### C3：观测空间蒙特卡洛就绪包与授权停点
+
+1. 就绪包按 C0 登记表列出全部观测空间抽样：类别、规模、种子、用途边界、禁止用途（不得作为新的正式评价集、不得进入 benchmark）；
+2. 输出 `mei4_mc_review_eligible=true` 后停止——这是与 B3→B4 相同的单向停点；
+3. 只有 `stage_status.mei4.authorizations` 写入 MEI-4 范围的新 `registered_sparse_simulation_generation` 授权记录后，才执行：每域每方法的 SBC（`theta` 从该域登记生成分布抽样，检验语义是登记总体上的平均校准，不主张逐点校准）、冻结观测上的 PPC（白化残差范数与逐通道分位数统计量按 C0 预注册）、以及仅在 PSIS 超阈时的 M2b；
+4. 授权未获时冻结保持状态 `mei4_waiting_mc_authorization`，已有 C2 结果不得单独升格为 verdict。
+
+**产物**：`mei4_mc_protocol.json`、`sbc_rank_histograms.json`、`ppc_report.json`、（条件）`bootstrap_posterior_report.json`。
+
+### C4：条件性 CC-SBI
+
+启动必须同时满足：
+
+- 触发条件命中（C0 冻结阈值）：T1 M1、M1b、M2/M2b 全部未过校准门；或 T2 多峰证据（多初值后验模式分裂超阈）；或 T3 边界偏差（截断质量损失中位数超阈）；或 T4 M2b 必要但成本超出登记预算；
+- `mei4_cc_sbi_training_draws` 获得独立授权记录（训练集是新的观测空间合成，B4 与 C3 的授权都不覆盖它）。
+
+执行要求：3 个训练种子；训练集联合采样组分、干扰参数、实验设计与登记模型族；输出满足单纯形约束的三组分后验；在与 M1/M2 完全相同的冻结划分与评价六件套上评价；训练诊断（loss、SBC 预检）只使用训练与 calibration 资源。
+
+触发条件不满足时整体跳过，记 `mei4_cc_sbi_skipped_not_triggered`；触发但授权未获时记 `mei4_waiting_cc_sbi_training_authorization`。
+
+### C5：裁决与冻结
+
+C5 校验 C2/C3（及条件性 C4）freeze 的 manifest 后写入独立 verdict freeze，不重跑或改写任何上游 freeze：
+
+| verdict | 条件 | 冻结后验基线 |
+| --- | --- | --- |
+| `mei4_deterministic_posterior_retained` | M1 或 M2/M2b 通过完整校准门 | 按序最简通过方法（M1 优先） |
+| `mei4_posterior_calibrated` | 非学习方法全部未过门，CC-SBI 通过 | CC-SBI |
+| `mei4_uncertainty_failed` | 全部方法未过门 | 无；任何后验不得用于拒绝策略或精度声明 |
+
+保持状态 `mei4_waiting_mc_authorization` 与 `mei4_waiting_cc_sbi_training_authorization` 不是科学裁决，与 `mei3_waiting_registered_data_authorization` 同类。任何 verdict 都必须同时给出相对 0.4 vol% 参考线与固定 K4 粗精度参考下的区间宽度语境；覆盖正确但区间宽时，结论固定表述为"观测信息不足"。C5 保持 `allowed_next_stage=null`：MEI-5 需要硬件证据，MEI-6 需要按主计划前置另行评审，均不由 C5 隐式放行。
+
+## 6. 正式校准门
+
+### 6.1 主门
+
+对每个方法：3 组分 × 4 名义水平（50/80/90/95%）× 2 域（test、OOD）共 24 条经验覆盖率，全部落入 C0 冻结的精确二项接受区间。族错误率 5%，Šidák 校正到每条带（`alpha_each = 1 - 0.95^(1/24)`），接受区间以整数临界值形式冻结。示意（正式数值以 C0 冻结为准）：`n=648`、名义 95% 时未校正接受带约 `[93.3%, 96.7%]`，Šidák 校正后约 `[92.4%, 97.6%]`。主覆盖率在每域全部 648 个样本上计算，`rejected` 样本按未覆盖计。
+
+### 6.2 非退化门
+
+- SBC 秩均匀性检验（C0 冻结的 ECDF 检验与显著性水平）在每域不得拒绝；
+- PPC 预注册统计量不得出现 C0 冻结阈值以上的系统偏离；
+- M2 的 PSIS `k_hat` 分布超阈样本率不得高于 C0 冻结上限（超限则改走 M2b）；
+- 选择条件覆盖率与分组覆盖率完整报告；粗分组偏离只记警告与诊断，不单独否门。
+
+### 6.3 机制诊断（不替代主门）
+
+区间宽度分布及其相对两条参考线的语境、`rejected` 率与构成、截断质量损失、高斯--牛顿对完整 Hessian 差异、拉普拉斯标准差与逐样本 CRB 的中位数比较、方法间 NLL / CRPS 配对差（沿用 B4 的 2000 次按 `design_condition_id` 分层配对 bootstrap）、墙钟与前向调用成本（按复核报告修正后的计数口径重新实现，不回写 B4 记录）。
+
+## 7. 计划代码与产物边界
+
+### 7.1 代码
+
+| 范围 | 计划文件 | 创建条件 |
+| --- | --- | --- |
+| M1/M1b/M2 后验构造 | `tv3/ml/mrs_posterior.py` | C1 |
+| 覆盖 / NLL / CRPS / SBC 估计量与二项带 | `tv3/audit/mrs_ei_posterior_gate.py` | C1 |
+| C2/C3 正式运行编排 | `tv3/audit/mrs_ei_mei4_formal.py` | C2 |
+| CC-SBI | `tv3/dl/models/mrs_sbi.py` | 仅 C4 触发后（主计划 §9.2 已预留） |
+| C0 契约 | `configs/tv3_mrs_ei/mei4_execution_contract.json` | C0 |
+| C1 审计配置 | `configs/tv3_mrs_ei/mei4_posterior_audit.json` | C1 |
+| C3 就绪包 | `configs/tv3_mrs_ei/mei4_mc_protocol.json` | C3 |
+| C4 契约 | `configs/tv3_mrs_ei/mei4_cc_sbi_contract.json` | 条件 |
+| C5 裁决契约 | `configs/tv3_mrs_ei/mei4_verdict_contract.json` | C5 |
+| 执行入口 | `scripts/run_tv3_mei4_c0_contract_freeze.py`、`run_tv3_mei4_c1_posterior_audit.py`、`run_tv3_mei4_c2_deterministic_posterior.py`、`run_tv3_mei4_c3_mc_calibration.py`、`run_tv3_mei4_c4_cc_sbi.py`（条件）、`run_tv3_mei4_c5_verdict_freeze.py` | 对应阶段 |
+| 测试 | `tests/test_tunnel_ventilation_mei4_posterior.py`、`tests/test_tunnel_ventilation_mei4_formal.py`、`tests/test_tunnel_ventilation_mei4_verdict.py` | 对应阶段 |
+
+残差、雅可比与前向预测复用 `tv3/ml/mrs_varpro.py` 的 `augmented_residual` / `finite_difference_jacobian` / `predict_s1` 等现有接口；弛豫公式继续只存在于 `relaxation_spectrum.py`，后验模块不得复制第二份。单文件保持 200--400 行，超限即拆分。
+
+### 7.2 产物
+
+```text
+outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/<freeze_id>/
+  mei4_execution_contract.json
+  b4_asset_inventory.json
+  parent_b4_manifest.json
+  parent_b5_manifest.json
+  # C1:
+  mei4_posterior_core_report.json
+  mei4_negative_controls_report.json
+  # C2:
+  posterior_intervals_test.csv
+  posterior_intervals_ood.csv
+  coverage_report.json
+  nll_crps_report.json
+  group_coverage_report.json
+  laplace_diagnostics.json
+  # C3:
+  mei4_mc_protocol.json
+  sbc_rank_histograms.json
+  ppc_report.json
+  bootstrap_posterior_report.json   # 仅 M2b 启动时
+  # C4（条件）:
+  cc_sbi_training_report.json
+  cc_sbi_eval_report.json
+  # C5:
+  mei4_verdict_contract.json
+  mei4_verdict.json
+  evidence_manifest.json
+  source_snapshots/
+```
+
+阶段目录只追加。`outputs/summary/tv3_mrs_ei/calibration_report.json` 只引用 freeze 路径与 manifest SHA256，不手工重录指标。
+
+## 8. 验证矩阵
+
+### 8.1 单元与数值测试
+
+- 切空间仿射映射与截断域判定的往返一致性；
+- 线性高斯 fixture 上拉普拉斯等于解析后验；
+- 覆盖率 / NLL / CRPS / SBC 秩估计量对照已知分布 fixture；
+- 二项接受区间与 Šidák 校正的整数临界值可复算；
+- Schur 边缘化与直接联合协方差求逆一致；
+- 无法构造区间按未覆盖计入且打 `rejected` 标志；
+- 后验构造读取真值字段、非正定曲率静默继续、未登记重标定入口均显式失败；
+- 两个独立新进程复算 C2 主报告数值一致。
+
+### 8.2 回归测试
+
+- MEI-0/1/3 专项回归与三个上游 manifest 独立校验保持通过；
+- B4/B5 freeze 内容不因 MEI-4 运行发生任何字节变化；
+- 四项授权在未写入 MEI-4 范围新记录时始终拒绝观测空间抽样与 CC-SBI 训练。
+
+## 9. 执行顺序与停止条件
+
+```text
+C0 契约冻结与资产盘点
+  → C1 后验机制合成审计
+  → C2 冻结数据正式评价（参数空间）
+  → C3 蒙特卡洛就绪包 → [独立授权决策] → SBC / PPC / 条件 M2b
+  → C4 条件性 CC-SBI（触发 + 独立训练授权）或跳过
+  → C5 裁决与冻结
+```
+
+任一条触发即停止当前分支：
+
+1. 后验构造读取任何审计层真值字段；
+2. 在 test/OOD 上拟合或调整任何方法参数，或引入温度缩放、先验缩窄等未登记重标定；
+3. S1 复解一致性抽查超出冻结容差；
+4. 未获 MEI-4 范围授权而执行观测空间抽样或 CC-SBI 训练；
+5. SBC 显著非均匀或 PPC 系统偏离却宣称通过；
+6. 覆盖率只在单域成立（test 与 OOD 必须同时）；
+7. 试图重跑、改写 B4/B5 freeze，或为 MEI-4 重调 S1；
+8. CC-SBI 触发条件未命中却启动训练。
+
+## 10. 当前可立即执行的最小批次
+
+1. C0：实现契约冻结脚本与资产盘点（校验 B4/B5 manifest、逐文件 SHA256、冻结 §5 C0 的全部数值），输出首个 freeze——不需要任何新授权；
+2. C1：`mrs_posterior.py` 的 M1/M2 机制与估计量合成审计、负对照——纯内存计算；
+3. C2：冻结数据上的 M1/M1b/M2 正式评价——只读 B4 freeze，仍不需要新授权。
+
+C3 之后的每一步都以独立授权决策为前置。四项授权当前状态：`registered_sparse_simulation_generation` 的 B4 授权记录不覆盖 MEI-4；波形、benchmark、硬件继续禁止。

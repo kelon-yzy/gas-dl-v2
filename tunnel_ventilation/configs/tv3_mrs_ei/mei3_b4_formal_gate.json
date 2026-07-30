@@ -21,6 +21,40 @@
     "include_convergence_failures_in_primary_metrics": true,
     "record_bound_hits_without_raising": true
   },
+  "generation": {
+    "device_profile_id": "device_0",
+    "calibration_point_set": "ambient_core_216",
+    "calibration_replicates_per_condition": 3,
+    "phase_branch_cycles": [0, 0, 0, 0],
+    "shared_truth_nuisance": {
+      "common_delay_s": 2.0e-6,
+      "log_amplitude_gain": 0.03,
+      "log_amplitude_offsets": [-0.006, 0.002, -0.003, 0.007]
+    },
+    "known_condition_policy": "join_measured_T_L_RH_as_prior_means_per_mixture",
+    "failure_abs_error_percent": 100.0,
+    "posterior_std_floor": {
+      "common_delay_s": 1.0e-8,
+      "log_amplitude_gain": 1.0e-4,
+      "log_amplitude_offset": 1.0e-4
+    }
+  },
+  "solver_gate": {
+    "delta_practical": 0.02,
+    "primary_estimand": "paired_relative_improvement_of_o2_p90_s2_vs_s1",
+    "non_degeneration": {
+      "semantics": "maximum_absolute_increase",
+      "thresholds": {
+        "mae_o2": 0.02,
+        "mae_co2": 0.02,
+        "mae_n2": 0.02,
+        "convergence_failure_rate": 0.02,
+        "worst_group_error_o2": 0.02,
+        "bound_hit_rate": 0.02
+      }
+    },
+    "domains": ["test", "ood"]
+  },
   "authorizations": {
     "registered_sparse_simulation_generation": "forbidden_until_explicit_authorization",
     "formal_waveform_generation": "forbidden_until_explicit_authorization",
@@ -29,8 +63,11 @@
   },
   "explicit_non_goals": [
     "no_silent_authorization",
-    "no_formal_data_without_authorization",
-    "no_posthoc_baseline_selection"
+    "no_formal_waveform_generation",
+    "no_benchmark_packaging",
+    "no_hardware_trial",
+    "no_posthoc_baseline_selection",
+    "no_posthoc_sample_size_reduction"
   ],
   "source": "engineering_scenario"
 }
