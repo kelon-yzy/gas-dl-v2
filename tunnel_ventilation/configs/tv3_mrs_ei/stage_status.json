@@ -139,18 +139,18 @@
     "parent_b4_verdict_sha256": "d1e02ac77ada6f087e3d120623f12a0feec97e5178fa263f59a9f4c318ee36d4"
   },
   "mei4": {
-    "phase": "c1_posterior_core_audit",
-    "status": "mei4_posterior_core_verified",
-    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T053939880570Z_d4b88b625f0c",
+    "phase": "c3_mc_calibration",
+    "status": "mei4_mc_authorized_pending_execution",
+    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T080818819647Z_6c6b2da21139",
     "execution_contract_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T025640042212Z_d3505e1a3e0c/mei4_execution_contract.json",
-    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T053939880570Z_d4b88b625f0c/evidence_manifest.json",
-    "evidence_manifest_sha256": "ec294ad30ba4453b1aa884671ba97b0d7a91f19a2f7858dd4daedba6a7ce1a71",
-    "created_at_utc": "2026-07-30T05:39:39.880570+00:00",
+    "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T080818819647Z_6c6b2da21139/evidence_manifest.json",
+    "evidence_manifest_sha256": "29054a9a70bc7cd17774f67a3d1a0287c1a7a4c28b3e29fdb38671c0b7626215",
+    "created_at_utc": "2026-07-30T07:16:44.285661+00:00",
     "baseline_solver": "S1",
     "parent_b4_manifest_sha256": "604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8",
     "parent_b5_manifest_sha256": "a2b2ce51322e0420971d8503ba61a26c01c179486e5bc6ae15f5af3b22910be5",
     "authorizations": {
-      "registered_sparse_simulation_generation": "forbidden_until_explicit_mei4_authorization",
+      "registered_sparse_simulation_generation": "authorized",
       "formal_waveform_generation": "forbidden_until_explicit_authorization",
       "benchmark_packaging": "forbidden_until_explicit_authorization",
       "hardware_trial": "forbidden_until_explicit_authorization"
@@ -159,6 +159,55 @@
     "allowed_next_stage": null,
     "c1_report_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T053939880570Z_d4b88b625f0c/mei4_posterior_core_report.json",
     "parent_c0_manifest_sha256": "057a9e249c57e5d5a3224709b3b7b428b6aa393ce3011497bcf3d71a71e1aa61",
-    "parent_c1_manifest_sha256": "e247ffcc2beea41adfc9025921491520d48f362b990958911fd469a2ec63c7ce"
+    "parent_c1_manifest_sha256": "ec294ad30ba4453b1aa884671ba97b0d7a91f19a2f7858dd4daedba6a7ce1a71",
+    "c2_report_paths": {
+      "coverage": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T071532806157Z_76811228bcea/coverage_report.json",
+      "nll_crps": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T071532806157Z_76811228bcea/nll_crps_report.json",
+      "group_coverage": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T071532806157Z_76811228bcea/group_coverage_report.json",
+      "diagnostics": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T071532806157Z_76811228bcea/laplace_diagnostics.json"
+    },
+    "mc_protocol_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T071644285661Z_806e5e05e951/mei4_mc_protocol.json",
+    "authorization_freeze_dir": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T080818819647Z_6c6b2da21139",
+    "authorization_record": {
+      "field": "registered_sparse_simulation_generation",
+      "value": "authorized",
+      "authorized_at_utc": "2026-07-30T08:08:18.819647+00:00",
+      "authority": "explicit_user_decision",
+      "scope": "mei4_registered_sparse_simulation_generation_only",
+      "permitted_activities": [
+        "SBC",
+        "PPC",
+        "M2b_only_when_registered_PSIS_triggered"
+      ],
+      "unchanged_authorizations": [
+        "formal_waveform_generation",
+        "benchmark_packaging",
+        "hardware_trial",
+        "mei4_cc_sbi_training_draws"
+      ],
+      "note": "user explicitly authorized MEI-4 registered_sparse_simulation_generation and requested C3 execution"
+    },
+    "c3_execution_attempt": {
+      "command": "run_tv3_mei4_c3_mc_calibration.py --run-authorized-mc",
+      "status": "stopped_by_explicit_user_request",
+      "recorded_at_utc": "2026-07-30T09:26:18Z",
+      "completed": false,
+      "persisted_c3_freeze": false,
+      "persisted_c3_reports": [],
+      "observed_progress_not_formal_evidence": {
+        "sbc": {
+          "test_replicates": "1000/1000",
+          "ood_replicates": "1000/1000"
+        },
+        "ppc": {
+          "test_frozen_mixtures": "648/648",
+          "ood_frozen_mixtures": "648/648"
+        },
+        "m2b": {
+          "last_logged_mixture_progress": "1/1296"
+        }
+      },
+      "note": "C3 writes aggregate reports and a completion freeze only after SBC, PPC, and M2b all succeed; the terminated in-memory results are not scientific evidence."
+    }
   }
 }

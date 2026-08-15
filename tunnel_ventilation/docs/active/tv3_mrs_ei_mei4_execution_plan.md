@@ -1,6 +1,6 @@
 # MEI-4 后验基线与覆盖率审计执行计划
 
-> 状态：规划中，任何阶段均未执行；C0 契约冻结是唯一允许的第一步  
+> 状态：C0-C2 已冻结；C3 已获 MEI-4 专属授权，但全量观测空间计算于 2026-07-30 按用户要求停止，未形成 C3 完成 freeze 或科学 verdict。详见 [MEI-4 执行进度记录](tv3_mrs_ei_mei4_execution_progress.md)。  
 > 前置：MEI-3 已由 B5 关闭，verdict=`mei3_full_parameter_baseline_retained`，MEI-4 确定性基线固定为 `S1`  
 > 准入约束：B5 的 `allowed_next_stage=null` 与 `no_mei4_transition=true` 表示 MEI-4 不被隐式启动；必须先冻结本计划对应的独立版本化执行契约（C0）  
 > 结论范围：`registered_simulation_domain_only`  
@@ -11,6 +11,31 @@
 > B4 复核报告：[MEI-3 B4 代码复核与结果再分析](../archive/completed/tv3_mrs_ei_mei3_b4_review_and_analysis_report.md)
 
 ---
+
+## 0. 执行进度与停止现状（2026-07-30）
+
+以下完成项均有 append-only freeze 及 manifest 约束；它们是当前唯一可用于研究结论的 MEI-4 证据。
+
+| 阶段 | 冻结状态 | freeze 与 manifest SHA256 | 已完成内容 |
+| --- | --- | --- | --- |
+| C0 | `mei4_contract_frozen` | `20260730T025640042212Z_d3505e1a3e0c`，`057a9e249c57e5d5a3224709b3b7b428b6aa393ce3011497bcf3d71a71e1aa61` | 固定 S1 后验基线、参数化、主覆盖门、M2 PSIS 阈值、C3 抽样规模与 C4 触发阈值。 |
+| C1 | `mei4_posterior_core_verified` | `20260730T053939880570Z_d4b88b625f0c`，`ec294ad30ba4453b1aa884671ba97b0d7a91f19a2f7858dd4daedba6a7ce1a71` | 完成拉普拉斯、截断、覆盖 / NLL / CRPS / SBC 估计量、PSIS 及负对照的合成机制审计。 |
+| C2 | `mei4_c2_deterministic_evaluation_complete` | `20260730T071532806157Z_76811228bcea`，`1375a2bc737d512196eed56d4afdbd7483c7ddac21442eb07cd6ea3c18671dbf` | 完成 B4 冻结数据上的 M1、M1b、M2 评价；24 个 S1 复解探针全部一致。 |
+| C3 就绪与授权 | 已冻结 | 就绪包 `20260730T071644285661Z_806e5e05e951`，`2fbf34d36ca2d952f7215bf4417228f9ed0f4d7eadf560a6e37eafe01aee6ed7`；授权 `20260730T080818819647Z_6c6b2da21139`，`29054a9a70bc7cd17774f67a3d1a0287c1a7a4c28b3e29fdb38671c0b7626215` | 仅授权 SBC、PPC 和 PSIS 触发后的 M2b；未授权 CC-SBI 训练、波形、benchmark 或硬件工作。 |
+
+### C2 已得到的研究事实
+
+1. S1 复解一致性检查通过：test 与 OOD 各 12 个、共 24 个登记混合物的 `raw3_percent` 和 `objective` 均与 B4 冻结解一致。
+2. M1、M1b、M2 均未通过 24 条主覆盖带。拒绝样本按未覆盖计入：M1 的 test / OOD 为 `205 / 42`，M1b 为 `183 / 42`，M2 为 `240 / 71`。
+3. M2 的 PSIS `k_hat` 超阈率为 test `35 / 648 = 5.40%`、OOD `29 / 648 = 4.48%`；test 超过 C0 冻结上限 5%，因此 M2b 被合规触发。
+4. 这些是确定性后验的中间评价结果，不构成通过或失败类 MEI-4 科学 verdict；SBC、PPC 与 M2b 的正式聚合证据尚缺。
+
+### C3 停止前状态
+
+- 已在 MEI-4 专属 `registered_sparse_simulation_generation` 授权范围内开始全量运行，日志确认 SBC 的 test 与 OOD 各完成 `1000 / 1000` 次迭代，PPC 的 test 与 OOD 各完成 `648 / 648` 个冻结混合物。
+- M2b 只记录到 `1 / 1296` 的进度后即按用户要求终止；所有 C3 结果当时仍在进程内存中，未写出 `sbc_rank_histograms.json`、`ppc_report.json`、`bootstrap_posterior_report.json` 或新的 C3 完成 freeze。
+- 因而上述 SBC/PPC 进度不是可复核的正式审计证据，不得用于更新任何覆盖、PPC、C4 触发或 C5 verdict 结论。当前可恢复状态保持为 `mei4_mc_authorized_pending_execution`。
+- C4 仅完成了触发审计与授权停点的代码、契约及单测准备，尚未运行；没有生成 CC-SBI 训练抽样、模型或评价产物。
 
 ## 1. Context：当前已知道什么
 
@@ -254,10 +279,8 @@ C0 契约冻结与资产盘点
 7. 试图重跑、改写 B4/B5 freeze，或为 MEI-4 重调 S1；
 8. CC-SBI 触发条件未命中却启动训练。
 
-## 10. 当前可立即执行的最小批次
+## 10. 当前恢复点
 
-1. C0：实现契约冻结脚本与资产盘点（校验 B4/B5 manifest、逐文件 SHA256、冻结 §5 C0 的全部数值），输出首个 freeze——不需要任何新授权；
-2. C1：`mrs_posterior.py` 的 M1/M2 机制与估计量合成审计、负对照——纯内存计算；
-3. C2：冻结数据上的 M1/M1b/M2 正式评价——只读 B4 freeze，仍不需要新授权。
+下一次恢复从已授权的 C3 全量运行开始：重新执行完整的 SBC、PPC 与 PSIS 触发 M2b，不复用已终止进程的内存结果。只有 C3 写出新的完成 freeze 且 manifest 校验通过，才可读取聚合报告并运行 C4 触发审计。
 
-C3 之后的每一步都以独立授权决策为前置。四项授权当前状态：`registered_sparse_simulation_generation` 的 B4 授权记录不覆盖 MEI-4；波形、benchmark、硬件继续禁止。
+MEI-4 的 `registered_sparse_simulation_generation` 已有独立授权记录，范围仍只覆盖 SBC、PPC 和条件 M2b；波形、benchmark、硬件与 `mei4_cc_sbi_training_draws` 均未获授权。C4/C5 不得在 C3 完成前运行。

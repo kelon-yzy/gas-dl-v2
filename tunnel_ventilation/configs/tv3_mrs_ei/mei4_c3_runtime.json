@@ -1,0 +1,11 @@
+{
+  "schema_version": "tunnel-ventilation-mrs-ei-mei4-c3-runtime-1",
+  "workers": 12,
+  "blas_threads": 1,
+  "max_inflight_per_worker": 2,
+  "shard_sizes": {
+    "sbc": 16,
+    "ppc": 8,
+    "m2b": 1
+  }
+}

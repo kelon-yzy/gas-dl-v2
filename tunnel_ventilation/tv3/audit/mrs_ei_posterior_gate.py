@@ -65,6 +65,37 @@ def crps_from_samples(samples: Sequence[float], truth: float) -> float:
     return float(np.mean(np.abs(values - float(truth))) - pairwise_mean)
 
 
+def weighted_crps_from_samples(
+    samples: Sequence[float], weights: Sequence[float], truth: float
+) -> float:
+    values = np.asarray(samples, dtype=np.float64)
+    probabilities = np.asarray(weights, dtype=np.float64)
+    if (
+        values.ndim != 1
+        or probabilities.shape != values.shape
+        or values.size < 2
+        or not np.all(np.isfinite(values))
+        or not np.all(np.isfinite(probabilities))
+        or np.any(probabilities < 0.0)
+    ):
+        raise ValueError("weighted CRPS inputs are invalid")
+    total = float(np.sum(probabilities))
+    if total <= 0.0:
+        raise ValueError("weighted CRPS weights must have positive mass")
+    weights_normalized = probabilities / total
+    order = np.argsort(values)
+    sorted_values = values[order]
+    sorted_weights = weights_normalized[order]
+    cumulative_weight = np.cumsum(sorted_weights) - sorted_weights
+    cumulative_value = np.cumsum(sorted_weights * sorted_values) - (
+        sorted_weights * sorted_values
+    )
+    pairwise = 2.0 * float(
+        np.sum(sorted_weights * (sorted_values * cumulative_weight - cumulative_value))
+    )
+    return float(np.sum(weights_normalized * np.abs(values - float(truth))) - 0.5 * pairwise)
+
+
 def sbc_uniformity(ranks: Sequence[int], *, posterior_draws: int) -> dict[str, float | bool]:
     values = np.asarray(ranks, dtype=np.int64)
     if values.ndim != 1 or values.size == 0 or np.any(values < 0) or np.any(values > posterior_draws):
@@ -223,4 +254,5 @@ __all__ = [
     "gaussian_nll",
     "run_posterior_core_audit",
     "sbc_uniformity",
+    "weighted_crps_from_samples",
 ]

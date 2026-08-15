@@ -21,6 +21,7 @@ from tv3.ml.mrs_posterior import (
     require_fixed_method_settings,
     require_method_payload,
     sample_nonnegative_tangent_gaussian,
+    standard_normal_quantiles,
     tangent_from_raw3,
 )
 
@@ -80,6 +81,11 @@ def test_metrics_count_rejections_as_uncovered():
     )
     assert report == {"n": 3, "covered": 2, "rejected": 1, "coverage": 2.0 / 3.0}
     assert crps_from_samples([-1.0, 0.0, 1.0], 0.0) >= 0.0
+
+
+def test_sobol_endpoint_quantiles_remain_finite():
+    normal = standard_normal_quantiles(np.asarray([[0.0, 1.0], [0.5, 0.25]]))
+    assert np.all(np.isfinite(normal))
 
 
 def test_c1_core_audit_passes_and_negative_controls_fail_explicitly():

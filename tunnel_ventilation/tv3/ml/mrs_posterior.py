@@ -72,6 +72,16 @@ def tangent_from_raw3(raw3_percent: Sequence[float]) -> np.ndarray:
     return raw3_tangent_coordinates(raw3_percent)
 
 
+def standard_normal_quantiles(unit_hypercube: np.ndarray) -> np.ndarray:
+    """Map Sobol points to finite standard-normal quantiles."""
+    values = np.asarray(unit_hypercube, dtype=np.float64)
+    if not np.all(np.isfinite(values)) or np.any(values < 0.0) or np.any(values > 1.0):
+        raise PosteriorConstructionError("Sobol points must lie in the closed unit hypercube")
+    lower = np.nextafter(0.0, 1.0)
+    upper = np.nextafter(1.0, 0.0)
+    return ndtri(np.clip(values, lower, upper))
+
+
 def _validate_curvature(
     curvature: np.ndarray,
     *,
@@ -173,7 +183,9 @@ def sample_nonnegative_tangent_gaussian(
     if minimum_accepted < 1:
         raise PosteriorConstructionError("minimum accepted sample count must be positive")
     generator = qmc.Sobol(d=2, scramble=True, seed=int(seed))
-    standard_normal = ndtri(generator.random_base2(int(np.log2(candidates))))
+    standard_normal = standard_normal_quantiles(
+        generator.random_base2(int(np.log2(candidates)))
+    )
     transform = np.linalg.cholesky(posterior.covariance_z)
     z = posterior.mean_z + standard_normal @ transform.T
     raw3 = raw3_from_tangent(z)
@@ -201,6 +213,49 @@ def equal_tailed_intervals(
         result[str(float(level))] = np.quantile(
             samples.raw3_percent, [tail, 1.0 - tail], axis=0, method="linear"
         ).T.tolist()
+    return result
+
+
+def weighted_equal_tailed_intervals(
+    raw3_percent: np.ndarray,
+    weights: Sequence[float],
+    *,
+    levels: Sequence[float],
+) -> dict[str, list[list[float]]]:
+    """Construct equal-tailed component intervals from weighted posterior draws."""
+    values = np.asarray(raw3_percent, dtype=np.float64)
+    probabilities = np.asarray(weights, dtype=np.float64)
+    if (
+        values.ndim != 2
+        or values.shape[1] != 3
+        or probabilities.shape != (values.shape[0],)
+        or values.shape[0] < 2
+        or not np.all(np.isfinite(values))
+        or not np.all(np.isfinite(probabilities))
+        or np.any(probabilities < 0.0)
+    ):
+        raise PosteriorConstructionError("weighted interval inputs are invalid")
+    total = float(np.sum(probabilities))
+    if total <= 0.0:
+        raise PosteriorConstructionError("weighted interval weights must have positive mass")
+    normalized = probabilities / total
+    result: dict[str, list[list[float]]] = {}
+    for level in levels:
+        if not 0.0 < float(level) < 1.0:
+            raise PosteriorConstructionError("interval level must lie in (0, 1)")
+        tail = (1.0 - float(level)) / 2.0
+        component_intervals: list[list[float]] = []
+        for component in range(3):
+            order = np.argsort(values[:, component])
+            sorted_values = values[order, component]
+            cumulative = np.cumsum(normalized[order])
+            component_intervals.append(
+                [
+                    float(np.interp(tail, cumulative, sorted_values)),
+                    float(np.interp(1.0 - tail, cumulative, sorted_values)),
+                ]
+            )
+        result[str(float(level))] = component_intervals
     return result
 
 
@@ -260,4 +315,6 @@ __all__ = [
     "sample_nonnegative_tangent_gaussian",
     "schur_marginal_covariance",
     "tangent_from_raw3",
+    "standard_normal_quantiles",
+    "weighted_equal_tailed_intervals",
 ]
