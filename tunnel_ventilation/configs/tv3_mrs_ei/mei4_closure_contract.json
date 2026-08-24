@@ -1,0 +1,539 @@
+{
+  "schema_version": "tunnel-ventilation-mei4-closure-1",
+  "phase": "c6_line_closure",
+  "claim_scope": "registered_simulation_domain_only",
+  "purpose": "Close the tv3 MRS-EI line on frozen C2 evidence for methodology publication, without running C3/C4/C5 and without rewriting any existing freeze.",
+  "decision": {
+    "path": "P-C",
+    "path_source": "docs/active/tv3_mrs_ei_mei4_execution_plan.md §10",
+    "authority": "explicit_user_decision",
+    "rationale": "MEI-4 的科学问题在 C2 已经答完：曲率正确（Laplace/CRB 中位数 1.00035）、过覆盖、区间宽于工作量程、96.9% 切空间质量出域、S1 点估计本身出域，五项互相印证。按现契约执行完整 C3 不能改变该判读，因为 mei4_deterministic_posterior_retained 在 C0 契约下结构上不可达。",
+    "supersedes_state": "mei4_mc_authorized_pending_execution"
+  },
+  "parent_c2": {
+    "freeze_dir": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T071532806157Z_76811228bcea",
+    "manifest_sha256": "1375a2bc737d512196eed56d4afdbd7483c7ddac21442eb07cd6ea3c18671dbf",
+    "required_status": "mei4_c2_intermediate_no_pass_verdict",
+    "require_manifest_verification": true
+  },
+  "invariant_waivers": [
+    {
+      "invariant_id": "mei4_plan_invariant_6",
+      "invariant_text": "评价六件套——SBC 秩直方图、经验覆盖率、NLL、CRPS、后验预测检验、OOD 覆盖率——必须在同一冻结划分上完整报告；缺任何一件不得输出通过类 verdict。",
+      "waived": true,
+      "waiver_scope": "closure_reporting_only",
+      "present_items": ["经验覆盖率", "NLL", "CRPS", "OOD 覆盖率"],
+      "missing_items": ["SBC 秩直方图", "后验预测检验"],
+      "reason": "P-C 路径不执行 C3，因此 SBC 与 PPC 没有可复核产物。豁免只解除报告完整性要求，不解除 verdict 约束。",
+      "consequence": "MEI-4 不输出任何通过类 verdict；终态固定为 mei4_closed_on_c2_evidence，该终态在语义上等价于未通过，且不得被引用为 mei4_uncertainty_failed 或 mei4_posterior_calibrated。"
+    }
+  ],
+  "c0_contradiction_disposition": [
+    {
+      "id": "contradiction_1_m2b_unreachable",
+      "finding": "C0 的 mc_protocol 中 sbc.methods 与 ppc.methods 均为 [M1, M1b, M2]，不含 M2b；verdict_state_machine 却要求 M1_or_M2_or_M2b_passes_complete_calibration_gate。因此 mrs_ei_mei4_c4.py 的 _m2b_gate() 把 M2b 的 complete_calibration_gate_passed 硬编码为 False。",
+      "consequence": "叠加 C2 已确定的 M1/M1b 覆盖失败，T1 在 C2 结束时即注定为 true，mei4_deterministic_posterior_retained 结构上不可达。",
+      "disposition": "record_as_contract_defect",
+      "disposition_detail": "本次收尾不补登记 M2b 的 SBC/PPC（那属于 P-A 路径）。只把该缺陷登记为契约设计问题并写进论文局限，明确它不是实验结果。",
+      "publication_requirement": "论文必须声明：目标 verdict 的不可达来自冻结契约的方法登记遗漏，与后验方法本身的性能无关。"
+    },
+    {
+      "id": "contradiction_2_t4_circular",
+      "finding": "T4 的语义是「M2b 必要但成本超出登记预算」，用途是跳过 M2b；但实现从实测 m2b_report['cost']['forward_calls'] 读值判定，要求 M2b 先完整执行。",
+      "consequence": "按 B4 的 S1 平均 forward_calls=395 事前估算，M2b 登记规模需 1296 × 200 × 395 ≈ 1.02e8 次前向调用，是 C0 登记预算 1.0e6 的约 102 倍，T4 在 C3 启动前即已成立。",
+      "disposition": "record_as_contract_defect",
+      "disposition_detail": "本次收尾不运行 M2b，T4 不触发任何分支。若未来重启，T4 必须改为事前预算估算。",
+      "estimated_forward_calls": 102000000,
+      "registered_budget_forward_calls": 1000000
+    },
+    {
+      "id": "contradiction_3_prior_spec_mismatch",
+      "finding": "C0 的 method_input_policy.allowed_assets 只含干扰参数标定先验，无组分先验，因此 M1/M1b/M2 在单纯形上使用平坦组分先验；而登记观测由受约束 LHS 生成（x_CO2 0.03–5.00%、x_O2 18.00–21.20%）。",
+      "consequence": "§0.1 的区间超量程与 96.9% 切空间质量出域直接由平坦先验产生。跨规格比较绝对区间宽度无效。",
+      "disposition": "record_and_constrain_reporting",
+      "disposition_detail": "本次收尾不做跨规格比较。所有区间宽度数值在报告时必须显式标注「平坦单纯形组分先验规格下」。若未来重启，须先择一处置（把登记 LHS 组分域纳入后验定义域，或把主指标改为先验宽度到后验宽度的收缩比），且必须与主指标定义在同一次契约冻结中完成。",
+      "reporting_constraint": "禁止把本线的绝对区间宽度与任何使用真实生成先验的方法（含 CC-SBI）直接比较。"
+    }
+  ],
+  "evidence_gaps": [
+    {
+      "item": "SBC 秩直方图",
+      "status": "absent",
+      "note": "C3 运行中记录到 test/ood 各 1000/1000 次迭代，但聚合报告与 freeze 写在三项全部成功之后，进程终止时无产物；内存结果不算证据。"
+    },
+    {
+      "item": "后验预测检验（PPC）",
+      "status": "absent",
+      "note": "C3 运行中记录到 test/ood 各 648/648 个冻结混合物，同上无产物。"
+    },
+    {
+      "item": "M2b 参数自助后验",
+      "status": "absent",
+      "note": "仅记录到 1/1296 进度即终止；且按 contradiction_1 其完整校准门结构上不可达。"
+    },
+    {
+      "item": "CC-SBI（M3）",
+      "status": "never_started",
+      "note": "mei4_cc_sbi_training_draws 授权从未开启。"
+    },
+    {
+      "item": "静止空气线 S0–S4",
+      "status": "never_started",
+      "note": "自 2026-07-24 立项至今无产物，已移入 archive/parked。"
+    },
+    {
+      "item": "真实硬件验证",
+      "status": "never_started",
+      "note": "全部结果基于合成数据。真实硬件 OOD、湿空气、设备档案留出、时间漂移、标定批次、Sim2Real 波形统计距离均未验证。"
+    }
+  ],
+  "default_tolerance": 0.0005,
+  "evidence_checklist": [
+    {
+      "id": "A1_c2_manifest_verifies",
+      "claim": "C2 freeze 的 evidence_manifest 可独立校验，全部 artifact SHA256 一致",
+      "check": "parent_manifest",
+      "params": {
+        "manifest_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T071532806157Z_76811228bcea/evidence_manifest.json",
+        "manifest_sha256": "1375a2bc737d512196eed56d4afdbd7483c7ddac21442eb07cd6ea3c18671dbf"
+      },
+      "expected": {"issues": [], "verified": true}
+    },
+    {
+      "id": "A2_c2_status",
+      "claim": "C2 coverage_report 的状态为中间无通过 verdict",
+      "check": "json_field",
+      "params": {
+        "path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T071532806157Z_76811228bcea/coverage_report.json",
+        "pointer": ["status"]
+      },
+      "expected": "mei4_c2_intermediate_no_pass_verdict"
+    },
+    {
+      "id": "B1_reject_m1_test",
+      "claim": "M1 test 拒绝 205/648 = 31.6%，全部为截断数值失败",
+      "check": "c2_rejection",
+      "params": {"method": "M1", "domain": "test"},
+      "expected": {"n": 648, "rejected": 205, "reasons": {"truncation_interval_numerical_failure": 205}}
+    },
+    {
+      "id": "B2_reject_m1_ood",
+      "claim": "M1 ood 拒绝 42/648 = 6.5%，全部为截断数值失败",
+      "check": "c2_rejection",
+      "params": {"method": "M1", "domain": "ood"},
+      "expected": {"n": 648, "rejected": 42, "reasons": {"truncation_interval_numerical_failure": 42}}
+    },
+    {
+      "id": "B3_reject_m1b_test",
+      "claim": "M1b test 拒绝 183/648 = 28.2%，全部为截断数值失败",
+      "check": "c2_rejection",
+      "params": {"method": "M1b", "domain": "test"},
+      "expected": {"n": 648, "rejected": 183, "reasons": {"truncation_interval_numerical_failure": 183}}
+    },
+    {
+      "id": "B4_reject_m1b_ood",
+      "claim": "M1b ood 拒绝 42/648 = 6.5%",
+      "check": "c2_rejection",
+      "params": {"method": "M1b", "domain": "ood"},
+      "expected": {"n": 648, "rejected": 42, "reasons": {"truncation_interval_numerical_failure": 42}}
+    },
+    {
+      "id": "B5_reject_m2_test",
+      "claim": "M2 test 拒绝 240/648 = 37.0%，其中 205 继承自 M1 提议不可用、35 为 PSIS 超阈",
+      "check": "c2_rejection",
+      "params": {"method": "M2", "domain": "test"},
+      "expected": {"n": 648, "rejected": 240, "reasons": {"m1_proposal_unavailable": 205, "psis_k_hat_exceeded_for_M2": 35}}
+    },
+    {
+      "id": "B6_reject_m2_ood",
+      "claim": "M2 ood 拒绝 71/648 = 11.0%，其中 42 继承、29 为 PSIS 超阈",
+      "check": "c2_rejection",
+      "params": {"method": "M2", "domain": "ood"},
+      "expected": {"n": 648, "rejected": 71, "reasons": {"m1_proposal_unavailable": 42, "psis_k_hat_exceeded_for_M2": 29}}
+    },
+    {
+      "id": "B7_curvature_reasons_never_fired",
+      "claim": "曲率非正定与条件数超限两类拒绝在六个方法×域分组中一次都没有出现",
+      "check": "c2_rejection_reason_absent",
+      "params": {"reasons": ["curvature_not_positive_definite", "curvature_condition_number_exceeded"]},
+      "expected": {"curvature_not_positive_definite": 0, "curvature_condition_number_exceeded": 0}
+    },
+    {
+      "id": "C1_laplace_crb_test",
+      "claim": "M1 test 的 Laplace/CRB 中位数为 1.00035，曲率构造正确",
+      "check": "c2_diagnostic",
+      "params": {"method": "M1", "domain": "test", "field": "o2_laplace_to_crb_ratio", "stat": "median"},
+      "expected": 1.00035,
+      "tolerance": 1e-05
+    },
+    {
+      "id": "C2_laplace_crb_ood",
+      "claim": "M1 ood 的 Laplace/CRB 中位数为 1.00004",
+      "check": "c2_diagnostic",
+      "params": {"method": "M1", "domain": "ood", "field": "o2_laplace_to_crb_ratio", "stat": "median"},
+      "expected": 1.00004,
+      "tolerance": 1e-05
+    },
+    {
+      "id": "C3_truncation_mass_loss_median",
+      "claim": "M1 test 的 truncation_mass_loss 中位数为 0.0，C0 的 T3 触发条件（中位数 > 0.05）不成立",
+      "check": "c2_diagnostic",
+      "params": {"method": "M1", "domain": "test", "field": "truncation_mass_loss", "stat": "median"},
+      "expected": 0.0
+    },
+    {
+      "id": "C4_truncation_mass_loss_p90",
+      "claim": "M1 test 的 truncation_mass_loss p90 约 0.4848",
+      "check": "c2_diagnostic",
+      "params": {"method": "M1", "domain": "test", "field": "truncation_mass_loss", "stat": "p90"},
+      "expected": 0.4848
+    },
+    {
+      "id": "C5_truncation_mass_loss_mean",
+      "claim": "M1 test 的 truncation_mass_loss 均值约 0.0962",
+      "check": "c2_diagnostic",
+      "params": {"method": "M1", "domain": "test", "field": "truncation_mass_loss", "stat": "mean"},
+      "expected": 0.0962
+    },
+    {
+      "id": "D1_hessian_probes_out_of_domain",
+      "claim": "24 个 complete_hessian 探针中有 4 个不可用，原因是 S1 点估计落在登记物理域之外",
+      "check": "c2_hessian_probes",
+      "params": {},
+      "expected": {
+        "n_probes": 24,
+        "unavailable": 4,
+        "unavailable_ids": ["M000649", "M001001", "M001297", "M001473"],
+        "errors": ["S1 parameters are outside the registered physical domain"]
+      }
+    },
+    {
+      "id": "D2_s1_replay_consistent",
+      "claim": "S1 复解一致性 24/24 通过；该结果只说明复解可重现，不说明解落在物理域内",
+      "check": "c2_s1_replay",
+      "params": {},
+      "expected": {"passed": true, "n_probes": 24}
+    },
+    {
+      "id": "E1_coverage_m1_test_o2_50",
+      "claim": "M1 test O₂ @0.5：无条件覆盖率 0.4151，选择条件覆盖率 0.6072",
+      "check": "c2_coverage_band",
+      "params": {"method": "M1", "domain": "test", "component": "O2", "nominal_level": 0.5},
+      "expected": {"n": 648, "rejected": 205, "covered": 269, "unconditional": 0.4151, "selection_conditional": 0.6072, "within_acceptance_band": false}
+    },
+    {
+      "id": "E2_coverage_m1_test_o2_80",
+      "claim": "M1 test O₂ @0.8：无条件 0.6235，选择条件 0.9120",
+      "check": "c2_coverage_band",
+      "params": {"method": "M1", "domain": "test", "component": "O2", "nominal_level": 0.8},
+      "expected": {"n": 648, "rejected": 205, "covered": 404, "unconditional": 0.6235, "selection_conditional": 0.9120, "within_acceptance_band": false}
+    },
+    {
+      "id": "E3_coverage_m1_test_o2_90",
+      "claim": "M1 test O₂ @0.9：无条件 0.6728，选择条件 0.9842",
+      "check": "c2_coverage_band",
+      "params": {"method": "M1", "domain": "test", "component": "O2", "nominal_level": 0.9},
+      "expected": {"n": 648, "rejected": 205, "covered": 436, "unconditional": 0.6728, "selection_conditional": 0.9842, "within_acceptance_band": false}
+    },
+    {
+      "id": "E4_coverage_m1_test_o2_95",
+      "claim": "M1 test O₂ @0.95：无条件 0.6821，选择条件 0.9977。只报选择条件会把 31.6% 的拒绝隐掉",
+      "check": "c2_coverage_band",
+      "params": {"method": "M1", "domain": "test", "component": "O2", "nominal_level": 0.95},
+      "expected": {"n": 648, "rejected": 205, "covered": 442, "unconditional": 0.6821, "selection_conditional": 0.9977, "within_acceptance_band": false}
+    },
+    {
+      "id": "E5_m1_o2_bands_pass_count",
+      "claim": "M1 的 8 条 O₂ 主覆盖带中只有 ood @0.95 落在接受带内",
+      "check": "c2_acceptance_band_pass_count",
+      "params": {"method": "M1", "component": "O2"},
+      "expected": {"n_bands": 8, "n_passed": 1, "passed": ["ood@0.95"]}
+    },
+    {
+      "id": "F1_width_m1_test_o2",
+      "claim": "M1 test O₂ 区间宽度中位数 1.9669 / 3.7383 / 4.7971 / 5.7171 pp（平坦单纯形组分先验规格下）",
+      "check": "c2_interval_width_median",
+      "params": {"method": "M1", "domain": "test", "component": "O2"},
+      "expected": [1.9669, 3.7383, 4.7971, 5.7171]
+    },
+    {
+      "id": "F2_width_m1b_test_o2",
+      "claim": "M1b test O₂ 区间宽度中位数 1.9343 / 3.6747 / 4.7170 / 5.6201 pp",
+      "check": "c2_interval_width_median",
+      "params": {"method": "M1b", "domain": "test", "component": "O2"},
+      "expected": [1.9343, 3.6747, 4.7170, 5.6201]
+    },
+    {
+      "id": "F3_width_m2_test_o2",
+      "claim": "M2 test O₂ 区间宽度中位数 1.9808 / 3.7641 / 4.8273 / 5.7504 pp",
+      "check": "c2_interval_width_median",
+      "params": {"method": "M2", "domain": "test", "component": "O2"},
+      "expected": [1.9808, 3.7641, 4.8273, 5.7504]
+    },
+    {
+      "id": "F4_width_m1_ood_o2",
+      "claim": "M1 ood O₂ 区间宽度中位数 1.1033 / 2.0961 / 2.6905 / 3.2061 pp",
+      "check": "c2_interval_width_median",
+      "params": {"method": "M1", "domain": "ood", "component": "O2"},
+      "expected": [1.1033, 2.0961, 2.6905, 3.2061]
+    },
+    {
+      "id": "F5_width_m1b_ood_o2",
+      "claim": "M1b ood O₂ 区间宽度中位数 1.1017 / 2.0937 / 2.6870 / 3.2018 pp",
+      "check": "c2_interval_width_median",
+      "params": {"method": "M1b", "domain": "ood", "component": "O2"},
+      "expected": [1.1017, 2.0937, 2.6870, 3.2018]
+    },
+    {
+      "id": "F6_width_m2_ood_o2",
+      "claim": "M2 ood O₂ 区间宽度中位数 1.1049 / 2.0996 / 2.6943 / 3.2075 pp",
+      "check": "c2_interval_width_median",
+      "params": {"method": "M2", "domain": "ood", "component": "O2"},
+      "expected": [1.1049, 2.0996, 2.6943, 3.2075]
+    },
+    {
+      "id": "F7_lower_min_test_level_50_only",
+      "claim": "只看 50% 名义水平时，test 域 O₂ 区间下界最小为 14.931%",
+      "check": "c2_interval_lower_min",
+      "params": {"domain": "test", "component": "O2", "levels": ["0.5"]},
+      "expected": 14.931,
+      "tolerance": 0.001,
+      "note": "此项仅用于复现旧文档数值的来源，不是最极端值，见 F8。"
+    },
+    {
+      "id": "F8_lower_min_test_all_levels",
+      "claim": "跨四个名义水平，test 域 O₂ 区间下界最小为 12.062%，比 narrow 采样下界 18.00% 低 5.94 pp",
+      "check": "c2_interval_lower_min",
+      "params": {"domain": "test", "component": "O2"},
+      "expected": 12.062,
+      "tolerance": 0.001,
+      "superseded_claim": {
+        "old_text": "posterior_intervals_test.csv 中 O₂ 区间下界最小到 14.931%，比 narrow 采样下界 18.00% 低 3 个百分点以上",
+        "defect": "该值取自 50% 名义水平，是四个水平中下界最不极端的一档，被表述为总体最小值",
+        "direction": "旧值保守，真实值更极端，结论方向不变",
+        "locations": [
+          "docs/掘进通风代码契约事实源.md §10.1 边界 3",
+          "docs/methods/tv3_算法方法论文说明.md §7.5"
+        ]
+      }
+    },
+    {
+      "id": "F9_lower_min_ood_all_levels",
+      "claim": "跨四个名义水平，ood 域 O₂ 区间下界最小为 15.303%",
+      "check": "c2_interval_lower_min",
+      "params": {"domain": "ood", "component": "O2"},
+      "expected": 15.303,
+      "tolerance": 0.001,
+      "superseded_claim": {
+        "old_text": "ood 最小 16.509%",
+        "defect": "同 F8，取自 50% 名义水平",
+        "direction": "旧值保守，结论方向不变",
+        "locations": [
+          "docs/掘进通风代码契约事实源.md §10.1 边界 3",
+          "docs/methods/tv3_算法方法论文说明.md §7.5"
+        ]
+      }
+    },
+    {
+      "id": "G1_d0_oracle",
+      "claim": "D0 oracle Ridge 的 x_O2 R² 为 0.6025 / 0.6389 / 0.5567",
+      "check": "d0_component_r2",
+      "params": {"metrics_path": "outputs/tv3_d0/oracle_ridge/metrics.json", "component": "x_O2", "splits": ["val", "test", "extrapolation"]},
+      "expected": {"val": 0.6025, "test": 0.6389, "extrapolation": 0.5567}
+    },
+    {
+      "id": "G2_d0_observed",
+      "claim": "D0-observed Ridge（测量级线性基线）的 x_O2 R² 为 0.4226 / 0.4571 / 0.3708",
+      "check": "d0_component_r2",
+      "params": {"metrics_path": "outputs/tv3_d0/observed_ridge/metrics.json", "component": "x_O2", "splits": ["val", "test", "extrapolation"]},
+      "expected": {"val": 0.4226, "test": 0.4571, "extrapolation": 0.3708}
+    },
+    {
+      "id": "G3_d0_tof_only",
+      "claim": "D0-tof-only 的 x_O2 R² 为 0.3879 / 0.4236 / 0.3347",
+      "check": "d0_component_r2",
+      "params": {"metrics_path": "outputs/tv3_d0/tof_only_ridge/metrics.json", "component": "x_O2", "splits": ["val", "test", "extrapolation"]},
+      "expected": {"val": 0.3879, "test": 0.4236, "extrapolation": 0.3347}
+    },
+    {
+      "id": "G4_d0_no_tcs",
+      "claim": "D0-no-tcs 的 x_O2 R² 为 0.4297 / 0.4559 / 0.3827，热导通道对 O₂ 的边际贡献为零甚至略负",
+      "check": "d0_component_r2",
+      "params": {"metrics_path": "outputs/tv3_d0/no_tcs_ridge/metrics.json", "component": "x_O2", "splits": ["val", "test", "extrapolation"]},
+      "expected": {"val": 0.4297, "test": 0.4559, "extrapolation": 0.3827}
+    },
+    {
+      "id": "G5_d0_slow_only",
+      "claim": "D0-slow-only 的 x_O2 R² 为 −0.0013 / −0.0026 / −0.0348",
+      "check": "d0_component_r2",
+      "params": {"metrics_path": "outputs/tv3_d0/slow_only_ridge/metrics.json", "component": "x_O2", "splits": ["val", "test", "extrapolation"]},
+      "expected": {"val": -0.0013, "test": -0.0026, "extrapolation": -0.0348}
+    },
+    {
+      "id": "G6_d0_no_tof",
+      "claim": "D0-no-tof 的 x_O2 R² 与 slow-only 完全相同",
+      "check": "d0_component_r2",
+      "params": {"metrics_path": "outputs/tv3_d0/no_tof_ridge/metrics.json", "component": "x_O2", "splits": ["val", "test", "extrapolation"]},
+      "expected": {"val": -0.0013, "test": -0.0026, "extrapolation": -0.0348}
+    },
+    {
+      "id": "G7_d0_no_tof_equals_slow_only",
+      "claim": "tv3_d0_no_tof_ridge.json 与 tv3_d0_slow_only_ridge.json 的特征定义等价（physics_arrays 均为空、include_slow 均为 true、未限制慢通道），两者不是相互独立的消融",
+      "check": "config_equivalence",
+      "params": {
+        "left": "configs/tv3_d0_no_tof_ridge.json",
+        "right": "configs/tv3_d0_slow_only_ridge.json",
+        "fields": ["physics_arrays", "include_slow", "slow_channels"]
+      },
+      "expected": {
+        "equivalent": true,
+        "differing_fields": [],
+        "left_feature_builder": "d0_no_tof_physics_stats_v1",
+        "right_feature_builder": "d0_slow_only_physics_stats_v1"
+      },
+      "superseded_claim": {
+        "old_text": "D0 表格把 slow-only 与 no-tof 并列成一行证据，并写「去掉 TOF 就崩」",
+        "defect": "两个配置的 physics_arrays 都是空列表，移除的是全部五个超声派生数组，不只是 TOF；不存在「保留声速、移除 TOF」的消融",
+        "corrected_statement": "移除全部五个超声派生数组后 O₂ 的 R² 归零；仅保留四个 TOF 相关数组即可恢复到 test 0.4236，为 observed 0.4571 的 93%",
+        "locations": [
+          "docs/掘进通风实验日志.md §2.2",
+          "docs/methods/tv3_算法方法论文说明.md §7.1"
+        ]
+      }
+    },
+    {
+      "id": "G8_d0_oracle_o2_bins",
+      "claim": "oracle 特征下 0.8 vol% O₂ 分箱内 R² 全负，val 域范围 −9.20 ~ −2.60",
+      "check": "d0_bin_r2_range",
+      "params": {"metrics_path": "outputs/tv3_d0/oracle_ridge/metrics.json", "split": "val", "conditional": "o2_bins", "component": "x_O2"},
+      "expected": {"n_bins": 4, "min": -9.20, "max": -2.60},
+      "tolerance": 0.005
+    },
+    {
+      "id": "H1_b7_random",
+      "claim": "B7 划分器 R：test 0.6880、OOD 0.6429，相对 B1 的 Δ 为 +0.2323 / +0.1923",
+      "check": "b7_protocol_cell",
+      "params": {"matrix_path": "outputs/tv3_b7_protocol/result_matrix.csv", "protocol_id": "R", "ddof": 0},
+      "expected": {"n_rows": 9, "test_mean": 0.6880, "test_std": 0.0190, "ood_mean": 0.6429, "ood_std": 0.0256, "delta_test_vs_b1": 0.2323, "delta_ood_vs_b1": 0.1923}
+    },
+    {
+      "id": "H2_b7_lhs",
+      "claim": "B7 划分器 L：test 0.6590、OOD 0.7006，Δ 为 +0.2208 / +0.2606",
+      "check": "b7_protocol_cell",
+      "params": {"matrix_path": "outputs/tv3_b7_protocol/result_matrix.csv", "protocol_id": "L", "ddof": 0},
+      "expected": {"n_rows": 9, "test_mean": 0.6590, "test_std": 0.0198, "ood_mean": 0.7006, "ood_std": 0.0231, "delta_test_vs_b1": 0.2208, "delta_ood_vs_b1": 0.2606}
+    },
+    {
+      "id": "H3_b7_spxy_ymargin",
+      "claim": "B7 划分器 S-Y：test 0.6756、OOD 0.4340，Δ 为 +0.1740 / +0.7009",
+      "check": "b7_protocol_cell",
+      "params": {"matrix_path": "outputs/tv3_b7_protocol/result_matrix.csv", "protocol_id": "S-Y", "ddof": 0},
+      "expected": {"n_rows": 9, "test_mean": 0.6756, "test_std": 0.0119, "ood_mean": 0.4340, "ood_std": 0.0279, "delta_test_vs_b1": 0.1740, "delta_ood_vs_b1": 0.7009}
+    },
+    {
+      "id": "H4_b7_spxy_lhsboundary",
+      "claim": "B7 划分器 S-L：test 0.6975、OOD 0.7002，Δ 为 +0.1895 / +0.2570。S-L 与 S-Y 的 OOD 相差 0.27，不得合并成单一 OOD 数字",
+      "check": "b7_protocol_cell",
+      "params": {"matrix_path": "outputs/tv3_b7_protocol/result_matrix.csv", "protocol_id": "S-L", "ddof": 0},
+      "expected": {"n_rows": 9, "test_mean": 0.6975, "test_std": 0.0100, "ood_mean": 0.7002, "ood_std": 0.0260, "delta_test_vs_b1": 0.1895, "delta_ood_vs_b1": 0.2570}
+    },
+    {
+      "id": "I1_ood_set_hash_sharing",
+      "claim": "S-Y 的三个划分种子共享同一个 ood_set_hash，只能量化划分内方差；S-L、L、R 的三个种子各自独立",
+      "check": "ood_hash_sharing",
+      "params": {"split_hashes_path": "outputs/tv3_baseline_freeze/split_hashes.json"},
+      "expected": {
+        "L": {"n_seeds": 3, "n_unique_ood_sets": 3},
+        "R": {"n_seeds": 3, "n_unique_ood_sets": 3},
+        "S-L": {"n_seeds": 3, "n_unique_ood_sets": 3},
+        "S-Y": {"n_seeds": 3, "n_unique_ood_sets": 1}
+      }
+    },
+    {
+      "id": "J1_identifiability_v1_verdict",
+      "claim": "可辨识性 v1 判定为 information_source_upgrade_required，永不改写",
+      "check": "json_field",
+      "params": {"path": "outputs/tv3_identifiability/verdict.json", "pointer": ["status"]},
+      "expected": "information_source_upgrade_required"
+    },
+    {
+      "id": "J2_identifiability_v1_p90_max",
+      "claim": "单向 TOF 下 0.8 vol% 窄窗 O₂ 联合 P90 最大值为 12.99 vol%",
+      "check": "json_field",
+      "params": {"path": "outputs/tv3_identifiability/verdict.json", "pointer": ["business_gate_assessment", "target_p90_o2_error_percent", "observed_narrow_window_max"]},
+      "expected": 12.9899,
+      "tolerance": 0.001
+    },
+    {
+      "id": "J3_identifiability_v1_rejection",
+      "claim": "flow 未表示导致 189/189 个点全部被拒绝，拒绝率 1.0",
+      "check": "json_field",
+      "params": {"path": "outputs/tv3_identifiability/verdict.json", "pointer": ["business_gate_assessment", "max_rejection_rate", "observed_rejection_rate"]},
+      "expected": 1.0
+    },
+    {
+      "id": "J4_mrs2_verdict",
+      "claim": "MRS-2 判定为升秩成立但 P90 不过门",
+      "check": "json_field",
+      "params": {"path": "outputs/tv3_mrs/identifiability_mrs2/mrs2_verdict.json", "pointer": ["verdict"]},
+      "expected": "mrs2_rank_upgraded_p90_fail"
+    },
+    {
+      "id": "J5_mrs2_single_freq_rank",
+      "claim": "单频 200 kHz 负对照臂的联合秩恒为 1，复现可辨识性 v1",
+      "check": "mrs2_arm_summary",
+      "params": {"verdict_path": "outputs/tv3_mrs/identifiability_mrs2/mrs2_verdict.json", "arm": "obs-single-200k"},
+      "expected": {"min_joint_rank": 1, "max_joint_rank": 1, "median_p90_o2_percent": 10.7603},
+      "tolerance": 0.001
+    },
+    {
+      "id": "J6_mrs2_best_arm",
+      "claim": "最佳多频臂（压力扫描）秩升到 5，但 median P90 仍为 2.40 vol%",
+      "check": "mrs2_arm_summary",
+      "params": {"verdict_path": "outputs/tv3_mrs/identifiability_mrs2/mrs2_verdict.json", "arm": "obs-p-scan"},
+      "expected": {"min_joint_rank": 5, "max_joint_rank": 5, "median_p90_o2_percent": 2.4004},
+      "tolerance": 0.001
+    },
+    {
+      "id": "J7_mrs6_verdict",
+      "claim": "MRS-6 交付硬件需求说明书，MRS-2 verdict 不变",
+      "check": "json_field",
+      "params": {"path": "outputs/tv3_mrs/mrs6_hardware/mrs6_verdict.json", "pointer": ["verdict"]},
+      "expected": "mrs6_hardware_requirements_delivered"
+    },
+    {
+      "id": "J8_mrs6_floor",
+      "claim": "MRS-6 的 floor_base 变体在 jitter 0.01 μs、T 先验 0.1 K 下 max P90 仍为 1.09 vol%，未过 0.4 规格目标",
+      "check": "json_field",
+      "params": {"path": "outputs/tv3_mrs/mrs6_hardware/mrs6_verdict.json", "pointer": ["floor_diagnosis", "0", "max_p90"]},
+      "expected": 1.0908,
+      "tolerance": 0.001
+    }
+  ],
+  "closure": {
+    "verdict": "mei4_closed_on_c2_evidence",
+    "verdict_semantics": "not_passed",
+    "allowed_next_stage": null,
+    "line_status": "mrs_ei_closed_for_publication",
+    "authorizations_unchanged": {
+      "registered_sparse_simulation_generation": "authorized",
+      "formal_waveform_generation": "forbidden_until_explicit_authorization",
+      "benchmark_packaging": "forbidden_until_explicit_authorization",
+      "hardware_trial": "forbidden_until_explicit_authorization",
+      "mei4_cc_sbi_training_draws": "forbidden_until_explicit_authorization"
+    },
+    "authorization_note": "收尾不解除也不新增任何授权。registered_sparse_simulation_generation 保持 2026-07-30 记录的已授权状态，但本次不使用它执行任何抽样。",
+    "forbidden_after_closure": [
+      "在无新立项文档与授权记录的情况下恢复 C3 / C4 / C5",
+      "把 mei4_closed_on_c2_evidence 引用为通过类 verdict",
+      "把本线的绝对区间宽度与使用真实生成先验的方法直接比较",
+      "改写或重跑 C0 / C1 / C2 的任何 freeze",
+      "用缩窄先验、温度缩放或 conformal 校准重新解释区间宽度"
+    ],
+    "reopen_requires": [
+      "新的版本化立项文档",
+      "对 c0_contradiction_disposition 三项的显式处置（P-A 路径）",
+      "新的授权记录"
+    ]
+  }
+}

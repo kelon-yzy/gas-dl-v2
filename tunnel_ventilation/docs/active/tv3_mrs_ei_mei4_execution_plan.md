@@ -1,6 +1,6 @@
 # MEI-4 后验基线与覆盖率审计执行计划
 
-> 状态：C0-C2 已冻结；C3 已获 MEI-4 专属授权，但全量观测空间计算于 2026-07-30 按用户要求停止，未形成 C3 完成 freeze 或科学 verdict。详见 [MEI-4 执行进度记录](tv3_mrs_ei_mei4_execution_progress.md)。  
+> 状态：C0-C2 已冻结；C3 已获 MEI-4 专属授权，但全量观测空间计算于 2026-07-30 按用户要求停止，未形成 C3 完成 freeze 或科学 verdict。2026-08-15 完成一次冻结证据复读与代码契约审查，产出 §0.1 机制分解与 §0.2 三项待处置发现，未运行任何新计算，未改写既有 freeze。详见 [MEI-4 执行进度记录](tv3_mrs_ei_mei4_execution_progress.md)。  
 > 前置：MEI-3 已由 B5 关闭，verdict=`mei3_full_parameter_baseline_retained`，MEI-4 确定性基线固定为 `S1`  
 > 准入约束：B5 的 `allowed_next_stage=null` 与 `no_mei4_transition=true` 表示 MEI-4 不被隐式启动；必须先冻结本计划对应的独立版本化执行契约（C0）  
 > 结论范围：`registered_simulation_domain_only`  
@@ -36,6 +36,88 @@
 - M2b 只记录到 `1 / 1296` 的进度后即按用户要求终止；所有 C3 结果当时仍在进程内存中，未写出 `sbc_rank_histograms.json`、`ppc_report.json`、`bootstrap_posterior_report.json` 或新的 C3 完成 freeze。
 - 因而上述 SBC/PPC 进度不是可复核的正式审计证据，不得用于更新任何覆盖、PPC、C4 触发或 C5 verdict 结论。当前可恢复状态保持为 `mei4_mc_authorized_pending_execution`。
 - C4 仅完成了触发审计与授权停点的代码、契约及单测准备，尚未运行；没有生成 CC-SBI 训练抽样、模型或评价产物。
+
+## 0.1 C2 冻结证据的机制分解（2026-08-15 复读）
+
+本节只重新读取 C2 freeze `20260730T071532806157Z_76811228bcea` 内已存在的 `coverage_report.json`、`laplace_diagnostics.json` 与 `posterior_intervals_{test,ood}.csv`，不新增计算、不改写 freeze、不产生 verdict。C2 原报告只记录了"M1、M1b、M2 均未通过 24 条主覆盖带"，未分解失败构成；以下三项是同一机制的三种表现。
+
+**（1）拒绝率主导 test 域；M1/M1b 的拒绝原因单一，M2 混有 PSIS 拒绝。**
+
+| 方法 | test 拒绝 | OOD 拒绝 | `rejection_reasons` 构成 |
+| --- | ---: | ---: | --- |
+| M1 | `205 / 648 = 31.6%` | `42 / 648 = 6.5%` | 全部为 `truncation_interval_numerical_failure` |
+| M1b | `183 / 648 = 28.2%` | `42 / 648 = 6.5%` | 同上 |
+| M2 | `240 / 648 = 37.0%` | `71 / 648 = 11.0%` | test：`m1_proposal_unavailable` 205 + `psis_k_hat_exceeded_for_M2` 35；OOD：42 + 29 |
+
+M2 的 205 次 `m1_proposal_unavailable` 与 M1 的截断失败数量一致，可归因于同一机制；但另有 35 次（占其拒绝的 14.6%，占 648 的 5.40%）是 PSIS 超阈，与截断无关。**M2 的拒绝不能写成"全部由截断造成"。**
+
+`rejection_policy` 列出的四类拒绝条件中，`curvature_not_positive_definite` 与 `curvature_condition_number_exceeded` 在 C2 的六个方法×域分组中一次都没有出现。截断的实际触发点是 `tv3/ml/mrs_posterior.py` 的 `sample_nonnegative_tangent_gaussian`：`initial_candidates=65536` 个打乱 Sobol 候选中落入非负域的数量低于 `minimum_accepted_candidates=2048`，即**超过 96.9% 的切空间高斯质量位于物理定义域之外**。
+
+**（2）能构造出区间的样本上，经验覆盖率系统性高于名义水平。**
+
+M1 的选择条件覆盖率（`covered / (n - rejected)`）：
+
+| 域 | 组分 | 50% | 80% | 90% | 95% |
+| --- | --- | ---: | ---: | ---: | ---: |
+| test | O₂ | 0.607 | 0.912 | 0.984 | 0.998 |
+| ood | O₂ | 0.789 | 0.990 | 1.000 | 1.000 |
+
+M1b 与 M2 的形态相同。方向是过覆盖，不是过度自信。
+
+注意 `coverage_report.json` 的 `coverage` 字段与 `within_acceptance_band` 判定用的是**无条件**覆盖率（`covered / n`）。M1 test O₂ 的无条件值为 `0.4151 / 0.6235 / 0.6728 / 0.6821`；M1 的 8 条 O₂ 主覆盖带中只有 `ood @ 0.95` 落在接受带内。引用覆盖率时两种统计必须同时给出并标注样本量。
+
+**（3）区间宽度超过组分工作量程。**
+
+M1 的等尾边缘区间宽度中位数，单位为百分点：
+
+| 域 | 组分 | 50% | 90% | 95% | 采样量程 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| test | O₂ | 1.967 | 4.797 | **5.717** | **3.20** |
+| ood | O₂ | 1.103 | 2.690 | 3.206 | 3.20 |
+| test | CO₂ | 0.418 | 1.010 | 1.201 | 4.97 |
+| ood | CO₂ | 0.135 | 0.326 | 0.384 | 4.97 |
+
+test 域的 O₂ 95% 区间是全量程（`18.00–21.20%`）的 1.79 倍，90% 区间同样超量程；OOD 域的 95% 区间恰好等于量程。M2 与 M1 相差在 1% 以内。
+
+**（4）曲率本身正确。** `o2_laplace_to_crb_ratio` 中位数为 test `1.00035`、OOD `1.00004`，即拉普拉斯标准差与逐样本 CRB 一致。`condition_number` 中位数为 test `1.97e7`、OOD `6.59e6`。`truncation_mass_loss` 中位数为 `0.0`、p90 约 `0.485`、均值约 `0.096`，因此 C0 的 T3 触发条件（中位数 `> 0.05`）不成立。
+
+**（5）S1 点估计本身可能位于物理域外。** `laplace_diagnostics.json` 的 `complete_hessian` 审计中，24 个探针有 **4 个**状态为 `unavailable`，错误信息为 `S1 parameters are outside the registered physical domain`（test `M000649` / `M001001`，OOD `M001297` / `M001473`）。同一文件的 `s1_replay` 为 24/24 一致，但那只证明复解可重现，**不证明解落在物理域内**，两者不可互相代替陈述。`posterior_intervals_test.csv` 的 O₂ 区间下界最小到 `14.931%`（OOD 最小 `16.509%`），低于 narrow 采样下界 `18.00%` 三个百分点以上。
+
+**判读。** 曲率正确、区间宽于量程、过覆盖、96.9% 质量出域、S1 解本身出域这五项互相印证，指向同一件事：在冻结 K4 与登记噪声下，单样本 O₂ 后验的信息量不足以支撑比"落在工作量程内"更细的陈述。该判读与 B4 的 S1 test O₂ P90 `1.6604`、MRS-2 最佳臂 median P90 ≈ `2.40 vol%`、MRS-6 的 `1.0–1.3 vol%` 饱和层一致。它是对既有冻结证据的解释，**不是**新的 verdict，也不改写 C2 的 `mei4_c2_intermediate_no_pass_verdict` 状态。
+
+第（5）项对 §0.2 发现 3 的处置方式有直接约束：既然似然的峰有一部分本就在物理域外，把组分先验换成登记 LHS 规格之后后验将由先验主导、测量贡献接近零。**因此先验规格修订与主指标定义必须在同一次契约冻结中完成，主指标用先验宽度到后验宽度的收缩比，不得用绝对区间宽度**，否则会得到符合形式判据的假通过。
+
+## 0.2 C3 恢复前必须处置的三项发现（2026-08-15 代码与契约审查）
+
+以下三项来自对 C0 冻结契约与 C3/C4 实现的一致性审查，不是实验结果。它们都指向同一个后果：**按当前冻结契约执行完整 C3，无法产生 `mei4_deterministic_posterior_retained`**。是否修订契约属于版本化冻结决策，不得在 C3 运行现场调整。
+
+**发现 1：M2b 在结构上无法通过完整校准门。**
+
+C0 的 `mc_protocol` 中 `sbc.methods` 与 `ppc.methods` 均为 `["M1", "M1b", "M2"]`，不含 M2b；`tv3/audit/mrs_ei_mei4_mc.py` 的 `MC_METHODS` 与之一致，M2b 只产出覆盖与 NLL/CRPS，没有 SBC 秩直方图和 PPC 统计量。而 `verdict_state_machine` 要求 `M1_or_M2_or_M2b_passes_complete_calibration_gate`，完整校准门 = 主覆盖门 + §6.2 非退化门。因此 `tv3/audit/mrs_ei_mei4_c4.py` 的 `_m2b_gate()` 将 M2b 的 `complete_calibration_gate_passed` 直接置为 `False`，理由为 `M2b has no registered SBC/PPC evidence in the frozen C3 protocol`。
+
+这是对冻结契约的忠实实现，但与 §4 方法矩阵中"M2b 可否成为冻结后验基线 = 可（替代 M2）"相矛盾。叠加 C2 已确定的 M1/M1b 覆盖失败，**T1 在 C2 结束时即已注定为 `true`**，与 M2b 的实际覆盖结果无关。
+
+**发现 2：T4 触发条件的实现存在循环依赖。**
+
+`mrs_ei_mei4_c4.py` 从 `m2b_report["cost"]["forward_calls"]` 读取实测值判定 `forward_calls > budget`。但 T4 的语义是"M2b 必要但成本超出登记预算"，其用途是**跳过** M2b 直接进入条件性 CC-SBI；实现却要求 M2b 先完整执行。按 B4 `solver_comparison.csv` 的 S1 平均 `forward_calls=395`（含 3 个冻结初值）事前估算，M2b 登记规模需 `1296 × 200 × 395 ≈ 1.02e8` 次前向调用，为 C0 登记预算 `1.0e6` 的约 102 倍。若 T4 改用事前估算，它在 C3 启动前即成立。
+
+**发现 3：确定性方法与 CC-SBI 的组分先验规格不一致。**
+
+C0 的 `posterior_parameterization.domain` 为 `raw3_percent_components_nonnegative_and_sum_100_percent`，`method_input_policy.allowed_assets` 只包含干扰参数标定先验（`calibration_priors`、`view_nuisance_calibration_priors`），**没有组分先验**。因此 M1/M1b/M2 在单纯形上使用平坦组分先验。而登记观测由受约束 LHS 生成（`x_CO2` `0.03–5.00%`、`x_O2` `18.00–21.20%`），§5 C4 又要求 CC-SBI"训练集联合采样组分、干扰参数、实验设计与模型族"，即 CC-SBI 按构造使用真实生成先验。
+
+两者不在同一规格下比较：CC-SBI 的区间收窄会同时包含先验规格差异与方法差异，无法归因。§0.1 的区间超量程与 96.9% 质量出域也直接由平坦先验产生。处置方向有二，须择一预注册：把登记 LHS 组分域纳入 M1/M1b/M2 的后验定义域（它是真实生成分布，不属于 §9 停止条件第 2 条禁止的未登记重标定），或者要求 CC-SBI 的主指标改为**先验宽度到后验宽度的收缩比**而非绝对区间宽度。若两者都不做，CC-SBI 可能在观测信息贡献接近零的情况下通过覆盖门，构成对本计划自身标准的假阳性。
+
+## 0.3 C3 计算成本的本机实测（非正式工程测量）
+
+以下为 2026-08-15 在本机对**已冻结观测**做参数空间复解的计时，属于 [C3 计算效率优化计划](tv3_mrs_ei_mei4_c3_compute_optimization_plan.md) §10 P0 所指的工程基准。未执行任何观测空间抽样，未写入 attempt 分片或 freeze，**不得作为正式 C3 证据**。
+
+| 量 | 实测值 | 测量方式 |
+| --- | ---: | --- |
+| 单次前向 `ideal_mrs_observation` | `73.6 μs` | 2000 次重复，K4 四频 |
+| S1 单初值求解 | `204.6 ms` | 10 个 test 混合物 × 3 冻结初值 |
+| S1 每混合物（3 初值） | `613.9 ms` | 同上 |
+
+按此推算 M2b 登记规模 `1296 × 200 × 3 = 777,600` 次求解器启动：单核约 `44.2 h`，12 worker 理想线性约 `3.7 h`。SBC 的约 12,000 次求解与 PPC 的约 248,832 次前向预测成本远低于 M2b。因此 2026-07-30 中止时"M2b 需数十小时"的判断成立于当时的串行实现；P1/P2 并行改造完成后，全量 C3 的规模已降到单次夜间运行可完成的范围。正式 worker 数仍须按 §10 P3 的固定基准确定，本节数据不替代该基准。
 
 ## 1. Context：当前已知道什么
 
@@ -281,6 +363,14 @@ C0 契约冻结与资产盘点
 
 ## 10. 当前恢复点
 
-下一次恢复从已授权的 C3 全量运行开始：重新执行完整的 SBC、PPC 与 PSIS 触发 M2b，不复用已终止进程的内存结果。只有 C3 写出新的完成 freeze 且 manifest 校验通过，才可读取聚合报告并运行 C4 触发审计。
+技术上，下一次恢复从已授权的 C3 全量运行开始：重新执行完整的 SBC、PPC 与 PSIS 触发 M2b，不复用已终止进程的内存结果。只有 C3 写出新的完成 freeze 且 manifest 校验通过，才可读取聚合报告并运行 C4 触发审计。
 
-MEI-4 的 `registered_sparse_simulation_generation` 已有独立授权记录，范围仍只覆盖 SBC、PPC 和条件 M2b；波形、benchmark、硬件与 `mei4_cc_sbi_training_draws` 均未获授权。C4/C5 不得在 C3 完成前运行。
+但 §0.2 的三项发现意味着恢复前需要先做一次显式决策，因为按现契约执行完整 C3 得到的 verdict 只能是 `mei4_uncertainty_failed`（或在 CC-SBI 通过时为 `mei4_posterior_calibrated`），`mei4_deterministic_posterior_retained` 不可达。三条路径的取舍如下，任选其一都必须在启动 C3 前登记：
+
+| 路径 | 内容 | 代价 | 结果 |
+| --- | --- | --- | --- |
+| P-A | 先冻结 C0′ 版本化契约修订：补齐 M2b 的 SBC/PPC 登记（或明确把 M2b 降级为诊断路径并写明其 verdict 不可达）、把 T4 改为事前预算估算、按 §0.2 发现 3 择一处置组分先验规格；随后执行 C3 全量 | 一次契约冻结工作量 + 约一个夜间的 C3 运行 | 证据链完整，C4 与 C5 的比较可归因 |
+| P-B | 不改契约，按现登记执行 C3 全量，接受 M2b 产出一份结构上不可能过门的覆盖报告 | 约一个夜间的 C3 运行，其中 M2b 约 `3.7 h` 用于不可用于裁决的结果 | 六件套齐备，verdict 为 `mei4_uncertainty_failed` |
+| P-C | 以 §0.1 的机制分解加 MRS-2 / MRS-6 直接进入 MEI-8 收尾 | 需显式契约修订以豁免"六件套完整报告"要求 | 证据链留缺口，不推荐 |
+
+无论选哪条，§9 的停止条件与四类授权边界不变：`registered_sparse_simulation_generation` 的 MEI-4 记录仍只覆盖 SBC、PPC 和条件 M2b；波形、benchmark、硬件与 `mei4_cc_sbi_training_draws` 均未获授权。C4/C5 不得在 C3 完成前运行。§0.2 与 §0.3 都不构成 verdict，也不解除任何授权。

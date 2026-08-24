@@ -1,9 +1,9 @@
 # tv3 多频弛豫谱信息效率与可信反演实验计划（MRS-EI 线）
 
-> 状态：F2--F5 文献与公开数据处置已完成并版本化冻结；MEI-1 输出 `mei1_fixed_k4_retained`，固定 D0 K4 并跳过 MEI-2。MEI-3 Phase A=`mei3_phase_a_structure_supported`，B0=`mei3_b0_representation_closed`，B1=`mei3_b1_s1_frozen`，B2=`mei3_solver_core_verified`，B3=`mei3_registered_data_authorization_ready`，pre-B4=`mei3_pre_b4_technical_ready`，B4/B5=`mei3_full_parameter_baseline_retained`。未执行的旧 MRS-5 H1 已处置为非运行历史项 `historical_h1_not_instantiated`；B5 已冻结后续 MEI-4 确定性基线为 S1，S2 结构适用但未通过正式求解门。B5 freeze=`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260730T011247690033Z_f1246e54ccb0/`，manifest SHA256=`a2b2ce51322e0420971d8503ba61a26c01c179486e5bc6ae15f5af3b22910be5`。B5 未生成数据、未重跑或改写 B4，且 `allowed_next_stage=null`；MEI-4 须先独立登记版本化执行契约。波形 / benchmark / 硬件三项授权继续禁止。
+> 状态：F2--F5 文献与公开数据处置已完成并版本化冻结；MEI-1 输出 `mei1_fixed_k4_retained`，固定 D0 K4 并跳过 MEI-2。MEI-3 Phase A=`mei3_phase_a_structure_supported`，B0=`mei3_b0_representation_closed`，B1=`mei3_b1_s1_frozen`，B2=`mei3_solver_core_verified`，B3=`mei3_registered_data_authorization_ready`，pre-B4=`mei3_pre_b4_technical_ready`，B4/B5=`mei3_full_parameter_baseline_retained`。未执行的旧 MRS-5 H1 已处置为非运行历史项 `historical_h1_not_instantiated`；B5 已冻结后续 MEI-4 确定性基线为 S1，S2 结构适用但未通过正式求解门。B5 freeze=`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260730T011247690033Z_f1246e54ccb0/`，manifest SHA256=`a2b2ce51322e0420971d8503ba61a26c01c179486e5bc6ae15f5af3b22910be5`。B5 未生成数据、未重跑或改写 B4，且 `allowed_next_stage=null`。MEI-4 的独立版本化执行契约已由 C0 建立（`mei4_contract_frozen`），当前阶段为 MEI-4 C3 后验覆盖率审计，状态 `mei4_mc_authorized_pending_execution`，详见 [MEI-4 执行计划](tv3_mrs_ei_mei4_execution_plan.md)。波形 / benchmark / 硬件三项授权继续禁止。
 > 阶段前缀：`MEI-*`。它属于新的 MRS-EI 研究线，不是 MRS-3 的恢复或改名。
 > 理论基础：[稀疏多频物理谱反演的通用算法改进](../deep_research/tv3_mrs_generalizable_algorithm_ideas_20260727.md)。
-> 项目事实源：[掘进通风项目记忆库](../掘进通风项目记忆库.md)。
+> 项目事实源：[代码契约事实源](../掘进通风代码契约事实源.md)（硬约束）与[实验日志](../掘进通风实验日志.md)（经验与时间轴）。
 > 适用范围：`registered_simulation_domain_only`。没有真实或高保真数据时，只能形成登记仿真域内结论。
 > MEI-0 最新冻结产物：`outputs/runs/tv3_mrs_ei/mei0_registry/freezes/20260728T063115704201Z_8c02b8635dd7/`；双噪声 `delta_numerical` 保持 `2.8210630817324963e-05` 与 `9.055394884241296e-05`，`delta_practical=0.02`；证据 manifest SHA256 为 `8ae3874750cccd284dd2a842acd4ff721847ec28ffa2f36fa4926eb80c1e8bda`。
 > MEI-1 最新产物：`outputs/runs/tv3_mrs_ei/mei1_forward_envelope/freezes/20260728T064100731550Z_1b55aa2e09cb/`；432 点、15 个 K4、双噪声与三个排名域均完成。F2--F5 为 `parked_nonblocking`，高压力域为诊断性搁置；blockers 与 issues 均为空。15 个 K4 未越过 2% 实践界，因此固定 D0 `{25,63,100,200}` kHz 并跳过 MEI-2；证据 manifest SHA256 为 `faf397f9457b8eadc8871c55e488da0d62671826bf724ac3fd66f9c03b029396`。
@@ -43,9 +43,9 @@ MRS-2 已经证明，多频声速、衰减、湿度和压力观测能把联合�
 | --------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------- |
 | [MRS 线](../archive/completed/tv3_multifreq_relaxation_spectroscopy_dl_implementation_plan.md) | MRS-1 弛豫前向、MRS-2 雅可比与费舍尔审计、K4 频点、216 个窄窗点     | 不得重启 MRS-3，不得改写 `mrs2_rank_upgraded_p90_fail` |
 | [MRS-6 说明书](../archive/completed/tv3_mrs6_hardware_requirements.md)                           | K4 与 K8 差异、噪声预算、1.51 / 1.23 vol% 粗精度参考、硬件短板排序 | 0.4 vol% 不再是新实验通过门；极端全栈只是理想化下界                |
-| [双向 F 线](tv3_bidirectional_ultrasound_implementation_plan.md)                                 | 流速解耦、延迟标定、共模 / 独立抖动情景、双向质量指标                  | F5-wide 已失败；本计划不自动恢复窄域 F5/F6                  |
-| [静止空气计划](tv3_static_air_feasibility_implementation_plan.md)                                   | 参数来源标签、干扰参数登记、独立参数留出规则                        | `flow=0` 不是现场静止空气证据                           |
-| [COMSOL 计划](tv3_comsol_multiphysics_dl_implementation_plan.md)                                | 多保真、模型差异、局部声学和传感器投影的审计框架                      | G2 及以后仍暂缓；不能把 G1 冒烟结果当高保真 MRS 数据              |
+| [双向 F 线](../archive/parked/tv3_bidirectional_ultrasound_implementation_plan.md)                                 | 流速解耦、延迟标定、共模 / 独立抖动情景、双向质量指标                  | F5-wide 已失败；本计划不自动恢复窄域 F5/F6                  |
+| [静止空气计划](../archive/parked/tv3_static_air_feasibility_implementation_plan.md)                                   | 参数来源标签、干扰参数登记、独立参数留出规则                        | `flow=0` 不是现场静止空气证据                           |
+| [COMSOL 计划](../archive/parked/tv3_comsol_multiphysics_dl_implementation_plan.md)                                | 多保真、模型差异、局部声学和传感器投影的审计框架                      | G2 及以后仍暂缓；不能把 G1 冒烟结果当高保真 MRS 数据              |
 | B1/B7 与 D2b 结论                                                                                | 训练集标定纪律、数据划分和分布外审计、默认 `raw3` 契约               | B7 不因本计划自动被替换；旧单频结果不是新谱学臂的配对对照                |
 
 ## 三、研究问题与可证伪假设
@@ -112,7 +112,7 @@ I_eff
 1. 不改写 v1、F4、F5-wide、MRS-2 或 MRS-6 的历史结论和产物。
 2. 不恢复或重命名 MRS-3；本线使用独立阶段 `MEI-*`、独立配置、独立数据模式和独立输出目录。
 3. 0.4 vol% 只作参考标注。新实验使用相对增益、覆盖率和成本门，所有门在 MEI-0 冻结后才能运行。
-4. 正式模型继续直接输出 `raw3`、`out_dim=3`；不使用 N2 闭包回填、`target_transform` 或闭包残差头。该契约保持不变，但 2026-07-29 的 B0 秩审计已证实 `raw3` 在共享前向下过参数化：总量方向是精确零方向，第三个自由度没有观测支撑。确定性求解器如何处置该方向，见第九节第 6 条与 [MEI-3 后续执行计划](tv3_mrs_ei_mei3_execution_plan.md) §11。
+4. 正式模型继续直接输出 `raw3`、`out_dim=3`；不使用 N2 闭包回填、`target_transform` 或闭包残差头。该契约保持不变，但 2026-07-29 的 B0 秩审计已证实 `raw3` 在共享前向下过参数化：总量方向是精确零方向，第三个自由度没有观测支撑。确定性求解器如何处置该方向，见第九节第 6 条与 [MEI-3 后续执行计划](../archive/completed/tv3_mrs_ei_mei3_execution_plan.md) §11。
 5. `mixture_id` 不得回退或重写为 `sequence_id`。新基准不依赖 `base_condition_id`、`noise_seed_index` 或 `noise_seed`。
 6. 真值声速、真值衰减、真值干扰参数和仿真内部量只用于审计，不进入部署输入。
 7. 所有标定、标准化、频点选择和提议分布只由训练集或独立标定集拟合；测试集和分布外集在实验开始前冻结。
@@ -228,13 +228,13 @@ MEI-0 冻结的 D0 成本为相对声能 `0.000375238095238095 s`、墙钟时间
 
 ### MEI-3：确定性变量投影与数值效率审计
 
-> 当前进度（2026-07-30）：Phase A、B0--B5 已完成。正式数据授权后已执行 S1/S2/S3 配对比较；B5 verdict=`mei3_full_parameter_baseline_retained`。S2 在 test/OOD 的 O2 P90 点估计相对改善分别为约 2.78% / 2.45%，但分层配对 bootstrap 95% CI 下界未同时超过 `delta_practical=0.02`。B5 固定后续 MEI-4 确定性基线为 S1，不生成数据，也不隐式放行 MEI-4。证据见 [MEI-3 后续执行计划](tv3_mrs_ei_mei3_execution_plan.md) §15--§16。
+> 当前进度（2026-07-30）：Phase A、B0--B5 已完成。正式数据授权后已执行 S1/S2/S3 配对比较；B5 verdict=`mei3_full_parameter_baseline_retained`。S2 在 test/OOD 的 O2 P90 点估计相对改善分别为约 2.78% / 2.45%，但分层配对 bootstrap 95% CI 下界未同时超过 `delta_practical=0.02`。B5 固定后续 MEI-4 确定性基线为 S1，不生成数据，也不隐式放行 MEI-4。证据见 [MEI-3 后续执行计划](../archive/completed/tv3_mrs_ei_mei3_execution_plan.md) §15--§16。
 > 
 > 阶段 B 的 B0 已通过：无约束三维 `raw3` 的整体缩放仍是前向精确零方向，因此被保留为负对照；登记的求解域改为干基非负且 `sum=100%` 的物理可行域，三列 `raw3` 输出保持不变，有效物理维数为 2。运行方法 S1--S3 必须从求解开始即在正交 `sum-zero` 切空间联合更新三组分；非闭包输入显式失败，不回填 N2，不做事后投影。5 个登记点在 `1e-7 / 1e-6 / 1e-5` 三档容差下受约束雅可比均满秩 2。该处置不声称观测辨识了总量尺度；总量是干基 schema 定义，不是先验驱动的待估量。
 > 
 > B3 protocol-2 已冻结数据字段、ID、标定层级（含 `device_profile_id × view_id` 延迟/增益）、划分、样本量、bootstrap、字段白名单和全链 SHA256。pre-B4 已关闭审查缺口。`registered_sparse_simulation_generation` 已获独立授权并完成 B4；波形、benchmark、硬件三项授权仍禁止。
 > 
-> 后续执行与数值证据见 [MEI-3 后续执行计划](tv3_mrs_ei_mei3_execution_plan.md) §11--§15；Phase A 已完成证据见 [Phase A 执行报告](../archive/completed/tv3_mrs_ei_mei3_phase_a_execution_report.md)。
+> 后续执行与数值证据见 [MEI-3 后续执行计划](../archive/completed/tv3_mrs_ei_mei3_execution_plan.md) §11--§15；Phase A 已完成证据见 [Phase A 执行报告](../archive/completed/tv3_mrs_ei_mei3_phase_a_execution_report.md)。
 > 先证明问题确实具有可分离结构。非线性参数块记为 `beta`，候选条件线性块记为 `a`：
 
 ```text
@@ -258,8 +258,10 @@ Phase A 已确认可靠的条件线性参数块，因此 `mei3_varpro_not_applic
 ### MEI-4：后验基线与覆盖率审计
 
 > 执行细化：[MEI-4 执行计划](tv3_mrs_ei_mei4_execution_plan.md)（C0 契约冻结 → C1 机制审计 → C2 冻结数据评价 → C3 蒙特卡洛授权停点 → C4 条件性 CC-SBI → C5 裁决）。
+>
+> 当前进度（2026-08-15）：C0=`mei4_contract_frozen`、C1=`mei4_posterior_core_verified`、C2=`mei4_c2_deterministic_evaluation_complete` 已冻结。C2 中 M1、M1b、M2 均未通过完整主覆盖门，M2 的 PSIS `k_hat` 超阈率 test `5.40%` 合规触发 M2b。C3 已获 MEI-4 专属 `registered_sparse_simulation_generation` 授权（范围仅 SBC、PPC 与条件 M2b），但全量运行于 2026-07-30 中止，无 C3 完成 freeze，状态 `mei4_mc_authorized_pending_execution`，尚无 MEI-4 科学 verdict。恢复前须处置三项契约审查发现：M2b 无登记 SBC/PPC 因而结构上不可通过完整校准门、T4 触发实现存在循环依赖、确定性方法与 CC-SBI 的组分先验规格不一致。详见 MEI-4 执行计划 §0.1--§0.3 与 §10。
 
-准入：B5 的 `allowed_next_stage=null` 和 `no_mei4_transition=true` 表示本阶段尚未启动。运行前必须先冻结独立、版本化的 MEI-4 执行契约：记录 B4/B5 父 manifest、可用数据范围与任何新增仿真授权、S1 输入白名单及方案 A 标定先验、划分和随机种子、后验方法顺序、统计门和 append-only 输出目录。该契约不得重写 B4/B5 freeze，也不得把 B4 的稀疏仿真授权推定为新的后验训练数据授权。
+准入：B5 的 `allowed_next_stage=null` 和 `no_mei4_transition=true` 曾表示本阶段未启动；该准入已由 C0 的独立版本化执行契约解除，契约记录了 B4/B5 父 manifest、可用数据范围与新增仿真授权、S1 输入白名单及方案 A 标定先验、划分和随机种子、后验方法顺序、统计门和 append-only 输出目录。该契约不重写 B4/B5 freeze，也不把 B4 的稀疏仿真授权推定为新的后验训练数据授权；任何契约修订必须形成新的版本化冻结，不得在运行现场调整。
 
 本阶段仍使用冻结前向模型和设计，不生成正式波形数据。冻结 S1 是正式确定性基线；S2 只能作为条件线性结构的受控后验比较路径，不能替代 S1 成为学习型后续基线。比较：
 
@@ -487,7 +489,7 @@ MEI-2/3/4 至少一项通过后：MEI-6
 3. **补齐统计估计量和重采样总体。** 对 216 个确定性登记工况、有限模型族上的最坏 CRB-P90，不得直接套用未定义总体的 bootstrap。MEI-0 必须分别冻结信息门与学习型实验的估计量、随机单位、分层单位、样本量、重采样方法、同时置信规则和阶段内多重检验方法；若目标是有限登记集合上的确定性最坏值，应报告精确差值与数值界，不伪造抽样置信区间。校准门还必须报告分组 / 条件覆盖率和拒绝后的选择条件覆盖率。
 4. **把驱动预算与实际声能分开。** 当前成本账本只能证明频点数、墙钟时间和输入驱动代理配平。F5 换能器幅相响应未标定前，任何候选不得声称等入射声能；应将字段改名为驱动预算，或加入逐频实测声功率、工作区间和不确定度后再建立实际声能账本。
 5. **使 VarPro 与观测 schema 一致。** 若 MEI-3 要消去延迟、声程和增益，数据模式必须保留足以表达该结构的原始 TOF、幅度 / 相位或复传递函数及其协方差，不能只保留 `c_observed` 和可选 `alpha_observed`。逐频标定偏移必须定义跨样本、设备和视图的共享层级及独立先验，禁止为单次 K4 配置四个无约束自由偏移。
-6. **消除 `raw3` 与单纯形投影冲突。** 正式点估计当前要求直接 `raw3`、不强制闭包，而 MEI-4 与测试清单又要求三组分后验或输出投影到和为 100% 的单纯形。下一次冻结必须明确点估计与后验各自的参数化、公开输出语义和闭包监控方式；不得在训练、推断或评价中静默重归一化。**2026-07-29 处置**：B0 已关闭该问题。共享前向对组分整体缩放精确不变，`raw3` 缩放雅可比在三档容差下秩恒为 2，零方向与组分向量 `|cos|=1`。当前干基 schema 将非负与 `sum=100%` 登记为物理定义域，总量不再作为第三个待估自由度；S1--S3 在二维正交切空间联合更新三列输出，不回填 N2，不做静默归一化或求解后投影。最终处置见 [MEI-3 后续执行计划](tv3_mrs_ei_mei3_execution_plan.md) §11.4。
+6. **消除 `raw3` 与单纯形投影冲突。** 正式点估计当前要求直接 `raw3`、不强制闭包，而 MEI-4 与测试清单又要求三组分后验或输出投影到和为 100% 的单纯形。下一次冻结必须明确点估计与后验各自的参数化、公开输出语义和闭包监控方式；不得在训练、推断或评价中静默重归一化。**2026-07-29 处置**：B0 已关闭该问题。共享前向对组分整体缩放精确不变，`raw3` 缩放雅可比在三档容差下秩恒为 2，零方向与组分向量 `|cos|=1`。当前干基 schema 将非负与 `sum=100%` 登记为物理定义域，总量不再作为第三个待估自由度；S1--S3 在二维正交切空间联合更新三列输出，不回填 N2，不做静默归一化或求解后投影。最终处置见 [MEI-3 后续执行计划](../archive/completed/tv3_mrs_ei_mei3_execution_plan.md) §11.4。
 7. **建立显式阶段状态转移表。** MEI-3 允许 `mei3_varpro_not_applicable`，因此 MEI-4 和 MEI-6 不能无条件引用 S2 / VarPro。必须冻结“MEI-3 通过则使用 S2，否则使用 S1”的基线选择，并统一 MEI-6 到底要求 MEI-2、MEI-3，还是 MEI-4 中哪些状态。不存在的求解器不得出现在强制比较矩阵中。**2026-07-29 处置**：Phase A 已证明结构适用，B2 已输出 `mei3_solver_core_verified`，所以“不适用”不再是当前后续分支；B4 正式比较已输出 `mei3_full_parameter_baseline_retained`，后续基线保留冻结 S1。
 8. **把高压力域前移到 MEI-1。** 当前 216 点正式网格只有 `0.101325 MPa`，而 MEI-2 要求覆盖最高 `0.709 MPa` 的低 RH、高压力死角。压力扩展域的前向梯度、参数有效性和模型包络必须先经 MEI-1 审计，不能在未经审计的外推域上做稳健设计优化。
 

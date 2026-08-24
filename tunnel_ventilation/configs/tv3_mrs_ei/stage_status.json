@@ -139,8 +139,8 @@
     "parent_b4_verdict_sha256": "d1e02ac77ada6f087e3d120623f12a0feec97e5178fa263f59a9f4c318ee36d4"
   },
   "mei4": {
-    "phase": "c3_mc_calibration",
-    "status": "mei4_mc_authorized_pending_execution",
+    "phase": "c6_line_closure",
+    "status": "mei4_closed_on_c2_evidence",
     "freeze_dir": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T080818819647Z_6c6b2da21139",
     "execution_contract_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T025640042212Z_d3505e1a3e0c/mei4_execution_contract.json",
     "evidence_manifest_path": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260730T080818819647Z_6c6b2da21139/evidence_manifest.json",
@@ -153,7 +153,8 @@
       "registered_sparse_simulation_generation": "authorized",
       "formal_waveform_generation": "forbidden_until_explicit_authorization",
       "benchmark_packaging": "forbidden_until_explicit_authorization",
-      "hardware_trial": "forbidden_until_explicit_authorization"
+      "hardware_trial": "forbidden_until_explicit_authorization",
+      "mei4_cc_sbi_training_draws": "forbidden_until_explicit_authorization"
     },
     "mc_review_eligible": false,
     "allowed_next_stage": null,
@@ -208,6 +209,25 @@
         }
       },
       "note": "C3 writes aggregate reports and a completion freeze only after SBC, PPC, and M2b all succeed; the terminated in-memory results are not scientific evidence."
-    }
+    },
+    "verdict_semantics": "not_passed",
+    "line_status": "mrs_ei_closed_for_publication",
+    "closure_freeze_dir": "outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260820T040953067397Z_7dff9e9ef255",
+    "closure_evidence_manifest_sha256": "fb81deffd83286bdc0b22a6d50856c0e4162b75873987cc0988320074d0ad565",
+    "closure_completed_at_utc": "2026-08-20T04:09:53.067397+00:00",
+    "closure_path": "P-C",
+    "closure_evidence_checks": {
+      "n_checks": 51,
+      "n_match": 51,
+      "n_mismatch": 0,
+      "n_unverifiable": 0,
+      "mismatched_ids": [],
+      "unverifiable_ids": []
+    },
+    "reopen_requires": [
+      "新的版本化立项文档",
+      "对 c0_contradiction_disposition 三项的显式处置（P-A 路径）",
+      "新的授权记录"
+    ]
   }
 }
