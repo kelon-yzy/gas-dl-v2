@@ -1,0 +1,13 @@
+head,check,value,threshold_min,threshold_max,passed,a1_o2_mae,a3_o2_mae,a2_o2_mae,ab_mean_abs_seq_bias,pair_mean_abs_seq_bias,reciprocity_p95_of_seq_p95,paired_bias_reduction,a1_test_o2_r2,a3_test_o2_r2,n_cells,delta_r2_o2_max
+b1_ridge,a_a3_beats_a1_ood,0.11654,0.5,,False,1.236351,1.119811,,,,,,,,,
+b1_ridge,b_a3_near_a2_ood,-0.08502,,0.25,True,,1.119811,1.204827,,,,,,,,
+b1_ridge,c_zero_anchor_noninferior_vs_in_domain_a1,-0.06652,,0.05,True,,,,,,,,,,,
+b1_ridge,e_sound_speed_bias_and_reciprocity,,,,False,,,,1.806706,0.03681,1.659813e-05,0.9796,,,,
+b1_ridge,_head_summary,,,,False,,,,,,,,0.6893,0.7321,,
+b7_residual,a_a3_beats_a1_ood,0.11357,0.5,,False,0.817493,0.703921,,,,,,,,,
+b7_residual,b_a3_near_a2_ood,-0.01411,,0.25,True,,0.703921,0.718026,,,,,,,,
+b7_residual,c_zero_anchor_noninferior_vs_in_domain_a1,-0.09156,,0.05,True,,,,,,,,,,,
+b7_residual,e_sound_speed_bias_and_reciprocity,,,,False,,,,1.806706,0.03681,1.659813e-05,0.9796,,,,
+b7_residual,_head_summary,,,,False,,,,,,,,0.8693,0.8848,,
+_protocol,d_selector_paired_noninferiority,0.02422,-0.01,,True,,,,,,,,,,12,0.06561
+_verdict,f5_model_protocol_failed,,,,False,,,,,,,,,,,

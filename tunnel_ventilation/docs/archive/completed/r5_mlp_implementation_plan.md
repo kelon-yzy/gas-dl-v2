@@ -2,7 +2,7 @@
 
 > 状态：**默认 R5 正式 6000 未通过（2026-07-09）；R5-T 目标标准化正式 6000 通过（2026-07-10）**
 > 日期：2026-07-09  
-> 依据：[掘进通风项目记忆库.md](../../掘进通风项目记忆库.md) §5.4 / §6.8 / §6.9 / §8.4；[r5_tabpfn_implementation_plan.md](./r5_tabpfn_implementation_plan.md)（R5' 已完成）；[rocket_hydra_regression_implementation_plan.md](./rocket_hydra_regression_implementation_plan.md) 阶段 D；[small_sample_dl_strategies.md](../../methods/small_sample_dl_strategies.md) S2/S3；下列表格 MLP 文献。
+> 依据：[掘进通风项目记忆库.md](../legacy/掘进通风项目记忆库.md) §5.4 / §6.8 / §6.9 / §8.4；[r5_tabpfn_implementation_plan.md](./r5_tabpfn_implementation_plan.md)（R5' 已完成）；[rocket_hydra_regression_implementation_plan.md](./rocket_hydra_regression_implementation_plan.md) 阶段 D；[small_sample_dl_strategies.md](../../methods/small_sample_dl_strategies.md) S2/S3；下列表格 MLP 文献。
 
 ## 结论
 

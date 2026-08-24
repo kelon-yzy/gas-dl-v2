@@ -1,0 +1,9 @@
+item,value,unit,note
+pure_component_sound_speed[CO2],270.23,m/s,at 300.0 K
+pure_component_sound_speed[O2],329.72,m/s,at 300.0 K
+pure_component_sound_speed[N2],353.03,m/s,at 300.0 K
+sound_speed_contrast[N2-O2],23.31,m/s,"6.60% of the N2 speed, 7.07% of the O2 speed"
+target_range_sound_speed_span[co2=0.03],0.791,m/s,O2 18.00 -> 21.20 vol% moves the speed 348.444 -> 347.653 m/s (-0.227%)
+target_range_sound_speed_span[co2=5.00],0.7572,m/s,O2 18.00 -> 21.20 vol% moves the speed 342.801 -> 342.044 m/s (-0.221%)
+sound_speed_change_per_kelvin,0.5766,m/s,"at CO2=2.52 vol%, O2=19.60 vol%, 25 -> 26 C"
+one_kelvin_as_fraction_of_full_target_range,0.729,,a 1 K temperature error moves the sound speed by this fraction of the change produced by traversing the entire target working range

@@ -1,6 +1,12 @@
 # Archive 文档
 
-归档文档用于追溯决策，不再作为当前路线入口。
+归档文档用于追溯决策，不再作为当前路线入口。三个子目录的区别：
+
+- **completed/**：已完成、已证伪或已关闭，有正式结论。
+- **parked/**：有正式结论但决定不排期。重开需要新立项文档与授权，不在旧计划上续接。
+- **legacy/**：被当前文档结构替代的旧全局文档，保留原始判断与数值追溯。
+
+当前入口：[代码契约事实源](../掘进通风代码契约事实源.md)（硬约束）、[实验日志](../掘进通风实验日志.md)（经验与时间轴）。
 
 ## completed
 
@@ -8,6 +14,7 @@
 
 | 文档 | 归档原因 |
 | --- | --- |
+| [completed/tv3_mrs_ei_mei3_execution_plan.md](completed/tv3_mrs_ei_mei3_execution_plan.md) | MEI-3 由 B5 关闭为 `mei3_full_parameter_baseline_retained`，S1 固定为确定性基线（2026-08-16 从 active 移入） |
 | [completed/d2_tof_phasenet_implementation_plan.md](completed/d2_tof_phasenet_implementation_plan.md) | D2 正式训练失败，原实现停止 |
 | [completed/r5_tabpfn_implementation_plan.md](completed/r5_tabpfn_implementation_plan.md) | 正式 6000 完成，作为非部署上限探针 |
 | [completed/waveform_normalization_plan.md](completed/waveform_normalization_plan.md) | 三层归一化已实施并完成结论回填 |
@@ -34,16 +41,31 @@
 | [completed/tv3_mrs_ei_mei3_phase_a_execution_report.md](completed/tv3_mrs_ei_mei3_phase_a_execution_report.md) | MEI-3 Phase A 历史报告；当前 B5 冻结与 MEI-4 准入边界见 active 执行计划 |
 | [completed/tv3_mrs_ei_mei3_b4_review_and_analysis_report.md](completed/tv3_mrs_ei_mei3_b4_review_and_analysis_report.md) | B4 冻结结果的代码复核与再分析：机制归因（改善全部来自共享 max_iterations 样本）、CI 稳健性、代码问题清单与 B5 注记建议；verdict 不变 |
 
+## parked
+
+有正式结论但不排期。重开需要新的立项文档与授权：
+
+| 文档 | 状态与归档原因 |
+| --- | --- |
+| [parked/tv3_bidirectional_ultrasound_implementation_plan.md](parked/tv3_bidirectional_ultrasound_implementation_plan.md) | F0–F4 通过（F4=`coarse_monitoring_only`）；F5-wide=`f5_model_protocol_failed`。流速解耦成立但 O₂ 回归收益不足，窄域 F5 / F6 不排期 |
+| [parked/tv3_comsol_multiphysics_dl_implementation_plan.md](parked/tv3_comsol_multiphysics_dl_implementation_plan.md) | G1=`g1_cfd_smoke_passed`；G2 及正式 DOE / DL benchmark 不排期。COMSOL 气室 P0 孪生入口不受影响 |
+| [parked/tv3_static_air_feasibility_implementation_plan.md](parked/tv3_static_air_feasibility_implementation_plan.md) | 2026-07-24 立项至今无任何产物，S0–S4 均未执行，标记为未启动。归档时修正了头部已被撤销的 `mei1_inconclusive_forward_model` 注记 |
+
 ## legacy
 
-已被当前记忆库和 active 专项计划替代的旧综合路线：
+已被当前文档结构替代的旧全局文档：
 
 | 文档 | 归档原因 |
 | --- | --- |
+| [legacy/掘进通风项目记忆库.md](legacy/掘进通风项目记忆库.md) | 曾同时承担契约、结论、排期、索引四种责任，状态多处并行维护。契约 → 事实源，结论 → 实验日志（2026-08-16） |
+| [legacy/掘进通风_统一研究与实施路线.md](legacy/掘进通风_统一研究与实施路线.md) | 契约与报告要求 → 事实源；因果框架与执行顺序 → 实验日志（2026-08-16） |
+| [legacy/tv3_名词与实验顺序导读.md](legacy/tv3_名词与实验顺序导读.md) | 依赖记忆库的强制联更机制，随记忆库归档。契约类名词 → 事实源（2026-08-16） |
+| [legacy/进度审查报告8.15.md](legacy/进度审查报告8.15.md) | 带日期审查快照，结论已进入实验日志 §2.12，待处置项在 MEI-4 执行计划 §0.2（2026-08-16） |
 | [legacy/experiment_roadmap.md](legacy/experiment_roadmap.md) | 旧阶段路线，保留实验历史 |
 | [legacy/dl_training_plan.md](legacy/dl_training_plan.md) | 旧 DL 总计划，多个优先级已变化 |
 | [legacy/三组分检测深度学习新框架方案.md](legacy/三组分检测深度学习新框架方案.md) | D0–D5 历史框架，D2b 已修订 raw 路线 |
 | [legacy/掘进通风_深度学习算法研究方向与文献路线.md](legacy/掘进通风_深度学习算法研究方向与文献路线.md) | 已由统一路线吸收；保留算法结论与文献追溯 |
 | [legacy/tv3_掘进通风项目改进方案.md](legacy/tv3_掘进通风项目改进方案.md) | 已由统一路线吸收；保留测量系统改进与硬件路线追溯 |
 
-当前执行路线统一查看[统一研究与实施路线](../掘进通风_统一研究与实施路线.md)；当前事实和术语查看[项目记忆库](../掘进通风项目记忆库.md)。
+归档文档中的"当前""下一步""待恢复"等表述均指归档时点之前，不得作为现状依据。每份头部注明了内容去向。
+

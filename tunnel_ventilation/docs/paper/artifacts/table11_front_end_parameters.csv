@@ -1,0 +1,15 @@
+group,name,value,unit
+search_window,sound_speed_min,250.0,m/s
+search_window,sound_speed_max,400.0,m/s
+search_window,delay_min,4e-05,s
+search_window,delay_max,0.00013,s
+frame_gate,min_correlation_peak,0.5,
+frame_gate,min_peak_to_sidelobe_ratio,1.1,
+frame_gate,min_snr,10.0,dB
+frame_gate,max_peak_width,12.0,samples
+frame_gate,sidelobe_exclusion,8,samples
+calibration,min_baseline_frames,4,frames
+calibration,fresh_air_composition,"[0.04, 20.9, 79.06]",%
+robust_noise,mad_to_sigma_factor,1.4826,
+feature_builder,n_physics_arrays[observed],5,d0_observed_physics_stats_v1
+feature_builder,n_physics_arrays[raw_dsp],7,d0_raw_dsp_physics_stats_v1

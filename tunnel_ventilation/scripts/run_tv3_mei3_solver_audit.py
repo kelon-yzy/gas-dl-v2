@@ -63,7 +63,7 @@ def _git_relevant_paths_dirty() -> bool:
         "tv3/audit/mrs_ei_varpro.py",
         "scripts/run_tv3_mei3_solver_audit.py",
         "tests/test_tunnel_ventilation_mei3_solver.py",
-        "docs/active/tv3_mrs_ei_mei3_execution_plan.md",
+        "docs/archive/completed/tv3_mrs_ei_mei3_execution_plan.md",
     ]
     result = subprocess.run(
         ["git", "status", "--porcelain", "--", *paths],
@@ -155,7 +155,8 @@ def main() -> int:
         "tests": _TV3_ROOT / "tests" / "test_tunnel_ventilation_mei3_solver.py",
         "execution_plan": _TV3_ROOT
         / "docs"
-        / "active"
+        / "archive"
+        / "completed"
         / "tv3_mrs_ei_mei3_execution_plan.md",
     }
     contract = {

@@ -1,0 +1,6 @@
+item,value,delta_numerical,delta_numerical_this_profile,delta_practical,above_numerical_band,below_practical_band,span_over_delta_numerical,resolvable_numerical,resolvable_practical,distinguishable_rank_levels,gate_max,passed
+design_ranking_span[low_cost_k4_primary],0.004565,9.055394884241296e-05,2.8210630817324963e-05,0.02,True,True,50.41,True,False,1,,
+design_ranking_span[registered_mrs2_stress],0.006725,9.055394884241296e-05,9.055394884241296e-05,0.02,True,True,74.27,True,False,1,,
+mei1_decision_reason,design_ranking_not_resolvable_within_delta_practical,,,,,,,True,False,1,,
+e1r_frame_peak_mae_samples,0.037512,,,,,,,,,,0.15,True
+e1r_frame_peak_p95_samples,0.086426,,,,,,,,,,0.25,True

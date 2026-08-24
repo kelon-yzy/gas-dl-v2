@@ -1,7 +1,7 @@
 # R7 ExtraTrees 观测特征回归实施计划
 
 > 状态：正式 tv3-formal-6000 已完成（2026-07-10），未通过部署候选判据。
-> 文献依据：[observed_o2_algorithm_review.md](../../references/observed_o2_algorithm_review.md)；[掘进通风项目记忆库.md](../../掘进通风项目记忆库.md) §5.4、§6.4、§6.8、§6.9、§7.1。
+> 文献依据：[observed_o2_algorithm_review.md](../../references/observed_o2_algorithm_review.md)；[掘进通风项目记忆库.md](../legacy/掘进通风项目记忆库.md) §5.4、§6.4、§6.8、§6.9、§7.1。
 > 定位：TDLAS O₂ 硬件暂缓期间的可部署非线性回归探针，不宣称突破窄 O₂ 分箱物理极限。
 
 ## 目标

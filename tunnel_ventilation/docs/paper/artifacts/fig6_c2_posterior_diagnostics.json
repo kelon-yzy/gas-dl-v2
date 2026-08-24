@@ -1,0 +1,379 @@
+{
+  "curvature_correctness": {
+    "M1": {
+      "ood": 1.0000438634618285,
+      "test": 1.0003494750592081
+    },
+    "M1b": {
+      "ood": 1.0000409070752758,
+      "test": 1.0003171597718354
+    },
+    "M2": {
+      "ood": null,
+      "test": null
+    }
+  },
+  "estimate_outside_domain": {
+    "mixture_ids": [
+      "M000649",
+      "M001001",
+      "M001297",
+      "M001473"
+    ],
+    "n_probes": 24,
+    "n_unavailable": 4
+  },
+  "o2_coverage_bands": [
+    {
+      "domain": "test",
+      "method": "M1",
+      "n": 648,
+      "n_accepted": 443,
+      "nominal_level": 0.5,
+      "selection_conditional": 0.6072,
+      "unconditional": 0.4151,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "test",
+      "method": "M1",
+      "n": 648,
+      "n_accepted": 443,
+      "nominal_level": 0.8,
+      "selection_conditional": 0.912,
+      "unconditional": 0.6235,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "test",
+      "method": "M1",
+      "n": 648,
+      "n_accepted": 443,
+      "nominal_level": 0.9,
+      "selection_conditional": 0.9842,
+      "unconditional": 0.6728,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "test",
+      "method": "M1",
+      "n": 648,
+      "n_accepted": 443,
+      "nominal_level": 0.95,
+      "selection_conditional": 0.9977,
+      "unconditional": 0.6821,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M1",
+      "n": 648,
+      "n_accepted": 606,
+      "nominal_level": 0.5,
+      "selection_conditional": 0.7888,
+      "unconditional": 0.7377,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M1",
+      "n": 648,
+      "n_accepted": 606,
+      "nominal_level": 0.8,
+      "selection_conditional": 0.9901,
+      "unconditional": 0.9259,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M1",
+      "n": 648,
+      "n_accepted": 606,
+      "nominal_level": 0.9,
+      "selection_conditional": 1.0,
+      "unconditional": 0.9352,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M1",
+      "n": 648,
+      "n_accepted": 606,
+      "nominal_level": 0.95,
+      "selection_conditional": 1.0,
+      "unconditional": 0.9352,
+      "within_acceptance_band": true
+    },
+    {
+      "domain": "test",
+      "method": "M1b",
+      "n": 648,
+      "n_accepted": 465,
+      "nominal_level": 0.5,
+      "selection_conditional": 0.6,
+      "unconditional": 0.4306,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "test",
+      "method": "M1b",
+      "n": 648,
+      "n_accepted": 465,
+      "nominal_level": 0.8,
+      "selection_conditional": 0.9161,
+      "unconditional": 0.6574,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "test",
+      "method": "M1b",
+      "n": 648,
+      "n_accepted": 465,
+      "nominal_level": 0.9,
+      "selection_conditional": 0.9785,
+      "unconditional": 0.7022,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "test",
+      "method": "M1b",
+      "n": 648,
+      "n_accepted": 465,
+      "nominal_level": 0.95,
+      "selection_conditional": 0.9978,
+      "unconditional": 0.716,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M1b",
+      "n": 648,
+      "n_accepted": 606,
+      "nominal_level": 0.5,
+      "selection_conditional": 0.7904,
+      "unconditional": 0.7392,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M1b",
+      "n": 648,
+      "n_accepted": 606,
+      "nominal_level": 0.8,
+      "selection_conditional": 0.9901,
+      "unconditional": 0.9259,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M1b",
+      "n": 648,
+      "n_accepted": 606,
+      "nominal_level": 0.9,
+      "selection_conditional": 1.0,
+      "unconditional": 0.9352,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M1b",
+      "n": 648,
+      "n_accepted": 606,
+      "nominal_level": 0.95,
+      "selection_conditional": 1.0,
+      "unconditional": 0.9352,
+      "within_acceptance_band": true
+    },
+    {
+      "domain": "test",
+      "method": "M2",
+      "n": 648,
+      "n_accepted": 408,
+      "nominal_level": 0.5,
+      "selection_conditional": 0.5858,
+      "unconditional": 0.3688,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "test",
+      "method": "M2",
+      "n": 648,
+      "n_accepted": 408,
+      "nominal_level": 0.8,
+      "selection_conditional": 0.9044,
+      "unconditional": 0.5694,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "test",
+      "method": "M2",
+      "n": 648,
+      "n_accepted": 408,
+      "nominal_level": 0.9,
+      "selection_conditional": 0.9853,
+      "unconditional": 0.6204,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "test",
+      "method": "M2",
+      "n": 648,
+      "n_accepted": 408,
+      "nominal_level": 0.95,
+      "selection_conditional": 0.9975,
+      "unconditional": 0.6281,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M2",
+      "n": 648,
+      "n_accepted": 577,
+      "nominal_level": 0.5,
+      "selection_conditional": 0.7834,
+      "unconditional": 0.6975,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M2",
+      "n": 648,
+      "n_accepted": 577,
+      "nominal_level": 0.8,
+      "selection_conditional": 0.9896,
+      "unconditional": 0.8812,
+      "within_acceptance_band": false
+    },
+    {
+      "domain": "ood",
+      "method": "M2",
+      "n": 648,
+      "n_accepted": 577,
+      "nominal_level": 0.9,
+      "selection_conditional": 1.0,
+      "unconditional": 0.8904,
+      "within_acceptance_band": true
+    },
+    {
+      "domain": "ood",
+      "method": "M2",
+      "n": 648,
+      "n_accepted": 577,
+      "nominal_level": 0.95,
+      "selection_conditional": 1.0,
+      "unconditional": 0.8904,
+      "within_acceptance_band": false
+    }
+  ],
+  "o2_interval_width_medians_pp": {
+    "levels": [
+      "0.5",
+      "0.8",
+      "0.9",
+      "0.95"
+    ],
+    "series": {
+      "M1_ood": [
+        1.1033,
+        2.0961,
+        2.6905,
+        3.2061
+      ],
+      "M1_test": [
+        1.9669,
+        3.7383,
+        4.7971,
+        5.7171
+      ],
+      "M1b_ood": [
+        1.1017,
+        2.0937,
+        2.687,
+        3.2018
+      ],
+      "M1b_test": [
+        1.9343,
+        3.6747,
+        4.717,
+        5.6201
+      ],
+      "M2_ood": [
+        1.1049,
+        2.0996,
+        2.6943,
+        3.2075
+      ],
+      "M2_test": [
+        1.9808,
+        3.7641,
+        4.8273,
+        5.7504
+      ]
+    },
+    "working_range_pp": 3.2
+  },
+  "rejection_composition": [
+    {
+      "domain": "test",
+      "method": "M1",
+      "n": 648,
+      "reasons": {
+        "truncation_interval_numerical_failure": 205
+      },
+      "rejected": 205,
+      "rejection_rate": 0.3164
+    },
+    {
+      "domain": "ood",
+      "method": "M1",
+      "n": 648,
+      "reasons": {
+        "truncation_interval_numerical_failure": 42
+      },
+      "rejected": 42,
+      "rejection_rate": 0.0648
+    },
+    {
+      "domain": "test",
+      "method": "M1b",
+      "n": 648,
+      "reasons": {
+        "truncation_interval_numerical_failure": 183
+      },
+      "rejected": 183,
+      "rejection_rate": 0.2824
+    },
+    {
+      "domain": "ood",
+      "method": "M1b",
+      "n": 648,
+      "reasons": {
+        "truncation_interval_numerical_failure": 42
+      },
+      "rejected": 42,
+      "rejection_rate": 0.0648
+    },
+    {
+      "domain": "test",
+      "method": "M2",
+      "n": 648,
+      "reasons": {
+        "m1_proposal_unavailable": 205,
+        "psis_k_hat_exceeded_for_M2": 35
+      },
+      "rejected": 240,
+      "rejection_rate": 0.3704
+    },
+    {
+      "domain": "ood",
+      "method": "M2",
+      "n": 648,
+      "reasons": {
+        "m1_proposal_unavailable": 42,
+        "psis_k_hat_exceeded_for_M2": 29
+      },
+      "rejected": 71,
+      "rejection_rate": 0.1096
+    }
+  ]
+}

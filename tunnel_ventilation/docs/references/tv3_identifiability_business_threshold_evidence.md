@@ -40,4 +40,4 @@ nuisance_fraction_of_signal
 
 ## 4. 当前执行范围
 
-双向声学和 flow holdout 当前暂停。下一步仅在独立风速核验满足静止条件的受控范围内，校准单向测量链并验证 O₂ 可测性。这个范围收缩不改变本文件的法规、文献和 v1 审计证据：它只是把下一步问题缩小为“静止空气里能否测”，而不是声称已经解决通风现场的 flow 混叠。具体计划见 `docs/active/tv3_static_air_feasibility_implementation_plan.md`。
+双向声学和 flow holdout 当前暂停。下一步仅在独立风速核验满足静止条件的受控范围内，校准单向测量链并验证 O₂ 可测性。这个范围收缩不改变本文件的法规、文献和 v1 审计证据：它只是把下一步问题缩小为“静止空气里能否测”，而不是声称已经解决通风现场的 flow 混叠。具体计划见 `docs/archive/parked/tv3_static_air_feasibility_implementation_plan.md`（该计划自立项至今无产物，已标记为未启动）。

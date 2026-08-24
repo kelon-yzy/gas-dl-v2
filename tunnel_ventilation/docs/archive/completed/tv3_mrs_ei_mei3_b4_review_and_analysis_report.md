@@ -6,7 +6,7 @@
 > 权威数字以 freeze 为准；本文表格是引用与复算，如有出入以 freeze 为准。  
 > 代码版本：工作区四个核心源文件（`mrs_ei_b4_formal.py` / `mrs_varpro.py` / `run_tv3_mei3_b4_formal_comparison.py` / `mrs_observation.py`）与 freeze 内 `source_snapshots/` 逐字节一致（`cmp` 已核对），本文行号同时适用于两者。  
 > 结论范围：`registered_simulation_domain_only`。  
-> 上位计划：[MEI-3 执行计划](../../active/tv3_mrs_ei_mei3_execution_plan.md) §15。
+> 上位计划：[MEI-3 执行计划](tv3_mrs_ei_mei3_execution_plan.md) §15。
 
 ## 0. 三条主结论
 

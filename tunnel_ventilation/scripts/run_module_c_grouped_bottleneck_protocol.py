@@ -1,6 +1,6 @@
 """Module C grouped bottleneck 单变量对照协议编排。
 
-依据：tunnel_ventilation/docs/active/module_c_grouped_bottleneck_implementation_plan.md
+依据：tunnel_ventilation/docs/archive/completed/module_c_grouped_bottleneck_implementation_plan.md
 
 只编排既有入口，不复制训练逻辑：
 1. 复审 B7 protocol 的 12 个派生 split + RawDSP / fidelity / B7 provenance

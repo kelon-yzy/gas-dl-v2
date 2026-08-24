@@ -1,6 +1,6 @@
 """F5-S: bidir secondary selectors (S-Y / S-L) for criterion (d).
 
-Frozen contract: ``docs/active/tv3_bidirectional_ultrasound_implementation_plan.md`` §F5-S.
+Frozen contract: ``docs/archive/parked/tv3_bidirectional_ultrasound_implementation_plan.md`` §F5-S.
 """
 from __future__ import annotations
 

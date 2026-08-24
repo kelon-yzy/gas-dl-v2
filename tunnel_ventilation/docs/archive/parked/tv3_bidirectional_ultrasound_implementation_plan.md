@@ -1,6 +1,8 @@
 # tv3 双向超声（F 线）实施规划
 
-> 状态：**⏸ 暂缓（2026-07-24）**。既有正式结论不变：F0–F4 / F*-wide 已通过；F5-wide 正式 verdict=`f5_model_protocol_failed`（判据 (a) A3−A1 O₂ OOD MAE 改善 `0.1165405 vol% < 0.5`；(b)/(c)/(d) 通过；(e) 须同口径重审，不得据 `16.60 μs` 宣称互易标定失效）。窄域 F5 / F6 **不排期**。MRS-EI 的 MEI-0 没有恢复 F 线；后续恢复需另行决策。当前执行入口见 [MRS-EI 计划](tv3_mrs_information_efficient_inversion_experiment_plan.md)。
+> **［已归档 2026-08-16］** F 线已停在 `f5_model_protocol_failed`，窄域 F5 / F6 不排期，从 `active/` 移入 `archive/parked/`。归档不撤销既有正式结论，也不禁止将来重开——重开需要新的立项文档与授权，不在本计划上续接。禁令与冻结条目见 [代码契约事实源](../../掘进通风代码契约事实源.md) §11，实验过程见 [实验日志](../../掘进通风实验日志.md) §2.9。
+
+> 状态：**⏸ 暂缓（2026-07-24）**。既有正式结论不变：F0–F4 / F*-wide 已通过；F5-wide 正式 verdict=`f5_model_protocol_failed`（判据 (a) A3−A1 O₂ OOD MAE 改善 `0.1165405 vol% < 0.5`；(b)/(c)/(d) 通过；(e) 须同口径重审，不得据 `16.60 μs` 宣称互易标定失效）。窄域 F5 / F6 **不排期**。MRS-EI 的 MEI-0 没有恢复 F 线；后续恢复需另行决策。当前执行入口见 [MRS-EI 计划](../../active/tv3_mrs_information_efficient_inversion_experiment_plan.md)。
 > 
 > 责任：保留双向声学路线的完整实施契约（物理与观测模型、schema、部署级估计器、F0–F6 门与 verdict 分流）。本计划**不**改写 v1 `information_source_upgrade_required`、**不**撤销静止空气并行线、**不**替换 B7 默认头。
 > 

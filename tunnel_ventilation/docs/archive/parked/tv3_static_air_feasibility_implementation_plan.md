@@ -1,6 +1,10 @@
 # tv3 静止空气仿真可辨识性实施计划
 
-> 状态：**并行保留（不阻塞 MRS-EI）**；真实测量与硬件闭环仍暂缓。当前正式执行主线为 [MRS-EI 计划](tv3_mrs_information_efficient_inversion_experiment_plan.md)，MEI-0 已冻结，MEI-1=`mei1_inconclusive_forward_model`，不放行 MEI-2。
+> **［已归档 2026-08-16］** 本计划自 2026-07-24 立项至今没有任何产物，`outputs/tv3_static_air_simulation/` 不存在，S0–S4 一个阶段都未执行。从 `active/` 移入 `archive/parked/`，明确标记为**未启动**而不是进行中。要执行须先重新立项并更新前置状态。
+>
+> 归档时同步修正了一处失效注记：原头部写 `MEI-1=mei1_inconclusive_forward_model`，该判定已于 2026-07-28 被撤销，现为 `mei1_fixed_k4_retained`（固定 D0 K4，跳过 MEI-2）。本文正文其余部分未改动，其中的 MRS-EI 阶段引用同样停在立项时点。
+
+> 状态：**未启动（并行保留，不阻塞 MRS-EI）**；真实测量与硬件闭环仍暂缓。当前正式执行主线为 [MRS-EI 计划](../../active/tv3_mrs_information_efficient_inversion_experiment_plan.md)，MEI-0 已冻结，MEI-1=`mei1_fixed_k4_retained`（固定 D0 K4，跳过 MEI-2），当前阶段为 MEI-4 C3。
 > 
 > 目的：在显式固定 `flow=0` 的仿真边界内，系统量化现有单向声学链路对 O₂ 的信息量、测量链扰动敏感度和独立参数 holdout 表现。本计划的任何通过结论都只表示“在已登记仿真分布内成立”，不能外推为真实静止空气、掘进通风现场或安全联锁能力。
 

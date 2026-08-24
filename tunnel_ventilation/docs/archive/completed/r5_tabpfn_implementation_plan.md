@@ -2,7 +2,7 @@
 
 > 状态：正式 6000 完成（2026-07-09），判据通过。产物 `outputs/tv3_r5/tabpfn_observed/metrics.json`
 > 日期：2026-07-09
-> 依据：[掘进通风项目记忆库.md](../../掘进通风项目记忆库.md) §6.4 D0 结论、§5.4 Rocket 分支、§8.4 路线图；D2 证伪结论（raw waveform 端到端封闭）；TabPFN 官方文档（context7 `/priorlabs/tabpfn`）与 Hollmann et al. 2025 *Nature* 638:319。
+> 依据：[掘进通风项目记忆库.md](../legacy/掘进通风项目记忆库.md) §6.4 D0 结论、§5.4 Rocket 分支、§8.4 路线图；D2 证伪结论（raw waveform 端到端封闭）；TabPFN 官方文档（context7 `/priorlabs/tabpfn`）与 Hollmann et al. 2025 *Nature* 638:319。
 
 ## 结论
 

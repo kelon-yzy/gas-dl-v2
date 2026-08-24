@@ -1,0 +1,6 @@
+arm,is_negative_control,n_points,min_joint_rank,max_joint_rank,median_p90_vol_percent,max_p90_vol_percent,gate_vol_percent,unstable_fd_count
+obs-single-200k,True,216,1,1,10.7603,13.4039,0.4,0
+obs-cfreq,False,216,3,4,5.3889,6.161,0.4,0
+obs-calpha,False,216,4,5,3.7861,5.7029,0.4,180
+obs-rh-diff,False,216,5,5,2.7765,4.4673,0.4,192
+obs-p-scan,False,216,5,5,2.4004,4.0339,0.4,195

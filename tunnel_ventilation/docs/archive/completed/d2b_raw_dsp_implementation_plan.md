@@ -2,7 +2,7 @@
 
 > 状态：**clean 6000 RawDSP cache、B1 Ridge parity、帧级 fidelity、B6 stable_pass 与 B7 residual_pass 均已通过**
 > 日期：2026-07-11  
-> 依据：[掘进通风项目记忆库.md](../../掘进通风项目记忆库.md)、[d2_tof_phasenet_implementation_plan.md](./d2_tof_phasenet_implementation_plan.md)、`tv3-formal-6000` 的 D0、D2、R5' 与 R5 结果，以及本地 raw waveform 只读诊断。
+> 依据：[掘进通风项目记忆库.md](../legacy/掘进通风项目记忆库.md)、[d2_tof_phasenet_implementation_plan.md](./d2_tof_phasenet_implementation_plan.md)、`tv3-formal-6000` 的 D0、D2、R5' 与 R5 结果，以及本地 raw waveform 只读诊断。
 
 ## 1. 结论
 

@@ -1,0 +1,7 @@
+run,label,role,feature_builder,feature_count,o2_r2_val,o2_r2_test,o2_r2_extrapolation,oracle_inflation_val
+oracle_ridge,oracle (ground-truth features),upper bound probe,d0_oracle_physics_stats_v1,1080,0.6025,0.6389,0.5567,0.1799
+observed_ridge,observed (measurement level),linear baseline,d0_observed_physics_stats_v1,864,0.4226,0.4571,0.3708,0.1799
+no_tcs_ridge,observed minus thermal conductivity,ablation,d0_no_tcs_physics_stats_v1,792,0.4297,0.4559,0.3827,0.1799
+tof_only_ridge,observed minus estimated sound speed,ablation,d0_tof_only_physics_stats_v1,792,0.3879,0.4236,0.3347,0.1799
+slow_only_ridge,slow channels only,ablation,d0_slow_only_physics_stats_v1,504,-0.0013,-0.0026,-0.0348,0.1799
+no_tof_ridge,slow channels only (duplicate config),duplicate of previous,d0_no_tof_physics_stats_v1,504,-0.0013,-0.0026,-0.0348,0.1799

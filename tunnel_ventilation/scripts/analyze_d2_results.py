@@ -32,7 +32,7 @@ COMPONENT_COLORS = {
 COMP_LABELS = {"x_CO2": "CO2", "x_O2": "O2", "x_N2": "N2"}
 COMPONENTS = ["x_CO2", "x_O2", "x_N2"]
 
-# D0-observed 基线（clean 6000，来自项目记忆库 §6.4，作为 D2 对比锚点）
+# D0-observed 基线（clean 6000，见 docs/掘进通风实验日志.md §2.2，作为 D2 对比锚点）
 D0_OBSERVED = {
     "val": {"x_CO2": 0.9878, "x_O2": 0.4226, "x_N2": 0.8799},
     "test": {"x_CO2": 0.9863, "x_O2": 0.4571, "x_N2": 0.8719},
@@ -244,7 +244,7 @@ def plot_o2_bins(metrics: dict[str, Any], out_path: Path) -> None:
                     ha="center", va="bottom", color=MUTED, fontsize=7)
         ax.set_ylim(-35, 5)
 
-    fig.text(0.5, 0.01, "分箱区间（O2 %）  |  红色=负 R2，绿色=非负 R2  |  D0-observed 同窗口亦全负（见记忆库 §6.4）",
+    fig.text(0.5, 0.01, "分箱区间（O2 %）  |  红色=负 R2，绿色=非负 R2  |  D0-observed 同窗口亦全负（见实验日志 §2.2）",
              ha="center", fontsize=8, color=MUTED)
     fig.subplots_adjust(left=0.06, right=0.98, top=0.88, bottom=0.16, wspace=0.1)
     fig.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=SURFACE)

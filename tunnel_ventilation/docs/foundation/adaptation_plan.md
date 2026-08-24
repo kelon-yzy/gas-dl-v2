@@ -26,7 +26,7 @@
 - **2026-07-14 训练数据通路**：正式波形配置默认 `waveform_preprocess: "gpu"`（int16+scale 上卡后 dequant/normalize）；见 `docs/operations/server_training_guide.md` §4.5
 - **2026-07-06 固定特征回归分支**：已新增 `tv3/ml/rocket_features.py`、`tv3/ml/rocket_training.py`、`tv3/pipeline/run_tv3_rocket_baseline.py` 与 `configs/tv3_rocket_ridge.json`；阶段 A 先支持 `physics_stats + RidgeCV`，用于把 O₂ / N₂ 物理信号验证与端到端 DL 训练失败解耦
 - **2026-07-07 场景隔离重构**：tv3 子工程自包含化，原 `src/sim|dl|ml|pipeline|common` 全部迁入 `tunnel_ventilation/tv3/` 下，包名 `tv3`，独立 `pyproject.toml`；以下文件清单中的 `tv3/...` 路径为隔离后的实际位置（重构前位于 `src/...`）
-- **2026-07-08 D0 oracle/observed 特征拆分（clean 6000 完成）**：6 组 Ridge 配置（oracle/observed/tof_only/slow_only/no_tof/no_tcs）在服务器 tv3-formal-6000（CLEAN）上完成；新增 `scripts/check_slow_channels.py` 核查工具；oracle 膨胀 0.18、o2_bins 物理极限确认，结论 D2 优先、D1 暂缓，详见 [掘进通风项目记忆库.md §6.4](../掘进通风项目记忆库.md)
+- **2026-07-08 D0 oracle/observed 特征拆分（clean 6000 完成）**：6 组 Ridge 配置（oracle/observed/tof_only/slow_only/no_tof/no_tcs）在服务器 tv3-formal-6000（CLEAN）上完成；新增 `scripts/check_slow_channels.py` 核查工具；oracle 膨胀 0.18、o2_bins 物理极限确认，结论 D2 优先、D1 暂缓，详见 [实验日志 §2.2](../掘进通风实验日志.md)
 
 首轮基线结果（slow-only，600 序列）：
 - Ridge: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌

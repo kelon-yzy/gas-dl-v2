@@ -1,0 +1,4 @@
+check,quantity,value,n_linear_parameters,source
+variable_projection_vs_joint_reference_parameters,max absolute parameter difference,1.0408340855860843e-17,6,outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260728T080522165154Z_7cd8443230fa/mei3_structure_audit.json
+variable_projection_vs_joint_reference_residuals,max projected residual difference,7.105427357601002e-15,6,outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260728T080522165154Z_7cd8443230fa/mei3_structure_audit.json
+projected_jacobian,max relative error against finite differences,8.56712878193837e-10,6,outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T081421139186Z_c0ade3f5df14/projected_jacobian_report.json

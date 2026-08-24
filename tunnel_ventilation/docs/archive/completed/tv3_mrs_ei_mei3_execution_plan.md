@@ -1,18 +1,20 @@
 # MEI-3 确定性 VarPro 后续执行计划
 
+> **［已归档 2026-08-16］** MEI-3 已由 B5 关闭，本计划无剩余待执行阶段，从 `active/` 移入。S1 作为后续确定性基线的约束已进入 [代码契约事实源](../../掘进通风代码契约事实源.md) §10；B0--B5 的过程与结论见 [实验日志](../../掘进通风实验日志.md) §2.11。本文保留完整的阶段门定义、freeze 哈希与负对照记录，用于查证。
+
 > 状态：B5 已完成并关闭 MEI-3，verdict=`mei3_full_parameter_baseline_retained`  
 > 前置：Phase A=`mei3_phase_a_structure_supported`；B3 protocol-2 方案 A 已重冻；pre-B4=`mei3_pre_b4_technical_ready`  
 > 当前阶段：`b5_verdict_freeze` / MEI-3 已关闭  
 > 结论范围：`registered_simulation_domain_only`  
-> 上位计划：[tv3 MRS-EI 实验计划](tv3_mrs_information_efficient_inversion_experiment_plan.md)  
-> Phase A 证据：[MEI-3 Phase A 执行报告](../archive/completed/tv3_mrs_ei_mei3_phase_a_execution_report.md)  
+> 上位计划：[tv3 MRS-EI 实验计划](../../active/tv3_mrs_information_efficient_inversion_experiment_plan.md)  
+> Phase A 证据：[MEI-3 Phase A 执行报告](./tv3_mrs_ei_mei3_phase_a_execution_report.md)  
 > B0 结论：本文 §11。无约束三维 `raw3` 依然无效；登记的干基闭包物理域在二维切空间中满秩。  
 > 授权记录：`stage_status.mei3.authorizations.registered_sparse_simulation_generation=authorized`（其余三项仍禁止）。  
 > 当前 B4 freeze：`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T120958962354Z_cf7ed57312d9`；manifest SHA256=`604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8`。  
 > 当前 B5 freeze：`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260730T011247690033Z_f1246e54ccb0`；manifest SHA256=`a2b2ce51322e0420971d8503ba61a26c01c179486e5bc6ae15f5af3b22910be5`；MEI-4 基线=`S1`。  
 > 历史作废 freeze（未 join 已知 T/L/RH 条件先验）：`.../20260729T115530120687Z_4a32b504e5fe`，不得引用其求解门指标。  
 > 并行旁证 freeze（条件先验已修复，但被后完成的有效 freeze 覆盖 stage_status）：`.../20260729T120817575667Z_cf7ed57312d9`，manifest=`fe34a54f51d4a0d922a10bc377540e21064eb80f75ca7a82064c63e3abd10026`；不得替换有效 freeze。`parent_pre_b4_manifest_sha256` 已校正为 `94bdd50d…b2a9`。  
-> B4 复核报告（2026-07-29）：[MEI-3 B4 代码复核与结果再分析](../archive/completed/tv3_mrs_ei_mei3_b4_review_and_analysis_report.md)——独立复算确认主指标与 CI 判定；机制归因：P90 改善全部来自共享 `max_iterations` 样本，S2 为同解省算力优化器；B5 契约注记建议见其 §10。
+> B4 复核报告（2026-07-29）：[MEI-3 B4 代码复核与结果再分析](./tv3_mrs_ei_mei3_b4_review_and_analysis_report.md)——独立复算确认主指标与 CI 判定；机制归因：P90 改善全部来自共享 `max_iterations` 样本，S2 为同解省算力优化器；B5 契约注记建议见其 §10。
 
 ---
 
@@ -483,7 +485,7 @@ B1/B2 零噪声 fixture 上 S1/S2 相对真值约 +4 pp 的 O2 系统偏差，�
 > 当前 freeze：`outputs/runs/tv3_mrs_ei/mei3_varpro_audit/freezes/20260729T120958962354Z_cf7ed57312d9`；manifest SHA256=`604a5fe6a26c51963b8b5197748002b77ad2177461ff11c3bc5e7cd174f747d8`。  
 > 历史作废 freeze：`.../20260729T115530120687Z_4a32b504e5fe`（未把测量 T/L/RH join 为条件先验，O2 P90 约 78%，不得引用）。  
 > 并行旁证 freeze：`.../20260729T120817575667Z_cf7ed57312d9`（条件先验已修复，但不是 `stage_status` 当前指针）。  
-> 复核报告：[MEI-3 B4 代码复核与结果再分析](../archive/completed/tv3_mrs_ei_mei3_b4_review_and_analysis_report.md)——机制归因、CI 稳健性、代码问题清单（P1 效率计数不对称等）与 B5 注记建议。
+> 复核报告：[MEI-3 B4 代码复核与结果再分析](./tv3_mrs_ei_mei3_b4_review_and_analysis_report.md)——机制归因、CI 稳健性、代码问题清单（P1 效率计数不对称等）与 B5 注记建议。
 
 ### 15.1 授权与实现
 

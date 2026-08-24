@@ -1,0 +1,7 @@
+id,label,family,dataset_dir,modalities,feature_builder,o2_r2_train,o2_r2_val,o2_r2_test,o2_r2_extrapolation,source
+R1a_minirocket_tof,MiniRocket on the TOF scalar sequence,random convolution,data/tv3-formal-6000,,minirocket_scalar_v1,0.6989,0.5152,0.5492,0.5052,outputs/tv3_rocket/r1a/metrics.json
+R1b_minirocket_waveform,MiniRocket on raw waveforms,random convolution,data/tv3-formal-6000,,minirocket_raw_v1,0.2318,-0.1949,-0.154,-0.1768,outputs/tv3_rocket/r1b/metrics.json
+D2_tof_phasenet,fixed I/Q filter bank + TCN,learned front end,data/tv3-formal-6000,"slow,ultrasonic",,,-0.0154,-0.0111,-0.0116,outputs/tv3_d2/tof_phasenet_s20260704/metrics.json
+fusion_v3_l2,CNN1D + TCN multimodal fusion,learned front end,data/tv3-formal-6000,"slow,ultrasonic",,,-0.0614,-0.0498,-0.1177,outputs/archive/legacy_dl/tv3_tcn_multimodal_v3_l2/metrics.json
+E1_ec_msw,multi-scale learned encoder with gating,learned front end,data/tv3-formal-6000,"slow,ultrasonic",,,-0.0115,-0.0061,-0.015,outputs/tv3_ec_msw/e1_s20260704/metrics.json
+E1r_template_anchored,frozen template anchor + learned sequence head,learned sequence head,data/tv3-formal-6000,"slow,ultrasonic",,,-0.0089,-0.0097,-0.0165,outputs/tv3_ec_msw/e1r_s20260704/metrics.json

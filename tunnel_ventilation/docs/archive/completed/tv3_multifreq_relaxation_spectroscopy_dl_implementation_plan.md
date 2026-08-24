@@ -5,7 +5,7 @@
 > 来源综述：[`references/声速法_N2-O2辨识_深度学习突破路径_综述.md`](../../references/声速法_N2-O2辨识_深度学习突破路径_综述.md)（2026-07-24，deep-research，引用逐条经 Crossref/arXiv 验证）。
 > 定位：对 v1 可辨识性 verdict `information_source_upgrade_required` 的第一条**直接升秩**回应线——把观测从"单频 200 kHz TOF 标量"升级为"多频声速色散 c(f) + 弛豫吸收谱 α(f) + 湿度差分"。
 > claim scope：`registered_simulation_domain_only`。不做现场/硬件能力声明，不改写 v1 / F4 / F5-wide verdicts，不替换 B7，不重新生成 `tv3-formal-6000` 与 bidir 数据集。
-> 关联：[`tv3_identifiability_implementation_plan.md`](tv3_identifiability_implementation_plan.md)（v1 审计与冻结门限）、[`tv3_static_air_feasibility_implementation_plan.md`](../../active/tv3_static_air_feasibility_implementation_plan.md)（S 线；flow=0 基线共享，并行不阻塞）、[`tv3_bidirectional_ultrasound_implementation_plan.md`](../../active/tv3_bidirectional_ultrasound_implementation_plan.md)（F 线暂缓；方向维度与本线正交）、[`tv3_comsol_multiphysics_dl_implementation_plan.md`](../../active/tv3_comsol_multiphysics_dl_implementation_plan.md)（COMSOL 线暂缓）、[`references/tv3_identifiability_business_threshold_evidence.md`](../../references/tv3_identifiability_business_threshold_evidence.md)（P90/nuisance/拒绝率三门的证据来源）。
+> 关联：[`tv3_identifiability_implementation_plan.md`](tv3_identifiability_implementation_plan.md)（v1 审计与冻结门限）、[`tv3_static_air_feasibility_implementation_plan.md`](../parked/tv3_static_air_feasibility_implementation_plan.md)（S 线；flow=0 基线共享，并行不阻塞）、[`tv3_bidirectional_ultrasound_implementation_plan.md`](../parked/tv3_bidirectional_ultrasound_implementation_plan.md)（F 线暂缓；方向维度与本线正交）、[`tv3_comsol_multiphysics_dl_implementation_plan.md`](../parked/tv3_comsol_multiphysics_dl_implementation_plan.md)（COMSOL 线暂缓）、[`references/tv3_identifiability_business_threshold_evidence.md`](../../references/tv3_identifiability_business_threshold_evidence.md)（P90/nuisance/拒绝率三门的证据来源）。
 
 ---
 

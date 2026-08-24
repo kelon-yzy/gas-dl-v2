@@ -364,7 +364,7 @@ python scripts/run_tv3_bidir_model_protocol.py \
     --stage all --device cuda
 ```
 
-产物：`outputs/tv3_bidir/model_protocol/`（含 `f5_verdict.json`、`f5s_matrix_index.json`）。不覆盖 `outputs/tv3_d2b/` 或 `outputs/tv3_identifiability/`。说明见 `docs/active/tv3_bidirectional_ultrasound_implementation_plan.md` §F5-S。
+产物：`outputs/tv3_bidir/model_protocol/`（含 `f5_verdict.json`、`f5s_matrix_index.json`）。不覆盖 `outputs/tv3_d2b/` 或 `outputs/tv3_identifiability/`。说明见 `docs/archive/parked/tv3_bidirectional_ultrasound_implementation_plan.md` §F5-S（F 线已暂缓归档）。
 
 #### 6.2.1 双向 F 线宽域正式集（`tv3-bidir-6000-wide`）
 

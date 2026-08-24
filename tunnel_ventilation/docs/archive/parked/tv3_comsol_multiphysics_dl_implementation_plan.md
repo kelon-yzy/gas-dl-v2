@@ -9,7 +9,9 @@ schema_target: tunnel-ventilation-comsol-1
 
 # tv3 COMSOL 多物理场辅助掘进通风 DL 实施计划
 
-> 状态：**⏸ 暂缓（2026-07-24）**。既有正式结论不变：G1 CFD smoke 已通过（2026-07-20），verdict=`g1_cfd_smoke_passed`；三档网格质量守恒与 medium→fine KPI 门通过。G2 及以后、正式 DOE / DL benchmark **不排期**。MRS-EI 的 MEI-0 没有恢复 G 线；后续恢复需另行决策。当前执行入口见 [MRS-EI 计划](tv3_mrs_information_efficient_inversion_experiment_plan.md)。
+> **［已归档 2026-08-16］** G1 冒烟通过后即止，G2 及以后不排期，从 `active/` 移入 `archive/parked/`。重开需要新的立项文档与授权。COMSOL 气室 P0 孪生入口不受影响，仍见 `../../../COMSOL/README.md`。
+
+> 状态：**⏸ 暂缓（2026-07-24）**。既有正式结论不变：G1 CFD smoke 已通过（2026-07-20），verdict=`g1_cfd_smoke_passed`；三档网格质量守恒与 medium→fine KPI 门通过。G2 及以后、正式 DOE / DL benchmark **不排期**。MRS-EI 的 MEI-0 没有恢复 G 线；后续恢复需另行决策。当前执行入口见 [MRS-EI 计划](../../active/tv3_mrs_information_efficient_inversion_experiment_plan.md)。
 > 目标：用 COMSOL 6.3 补齐当前 `tv3` 缺失的通风输运、空间非均匀性和沿声路流速表示，形成可追溯的“隧道多物理场 → 局部传感器状态 → 现有传感器正演 → DL 训练与 OOD 审计”链路。
 > 结论边界：本计划不撤销静止空气 v1 的 `information_source_upgrade_required`，不替换 B1/B7，不把数值仿真写成真实矿井、现场部署或安全联锁能力。
 

@@ -3,7 +3,7 @@
 > 执行日期：2026-07-28  
 > 结论：条件线性结构与数值等价审计通过，输出 `mei3_phase_a_structure_supported`。项目继续留在 `MEI-3_varpro_audit`，不得将本结论写成 S2 已通过正式求解门。
 >
-> 后续状态（2026-07-29）：本报告正文保留 Phase A 完成时的历史截面；B0 后续已以干基等式约束和二维正交切空间闭合，当前 verdict 为 `mei3_b0_representation_closed`。最新契约与 freeze 见 [MEI-3 后续执行计划](../../active/tv3_mrs_ei_mei3_execution_plan.md) §11。
+> 后续状态（2026-07-29）：本报告正文保留 Phase A 完成时的历史截面；B0 后续已以干基等式约束和二维正交切空间闭合，当前 verdict 为 `mei3_b0_representation_closed`。最新契约与 freeze 见 [MEI-3 后续执行计划](tv3_mrs_ei_mei3_execution_plan.md) §11。
 
 ## 1. 执行边界
 
@@ -61,4 +61,4 @@ Phase A 之后可以继续实现 S1 和 S2 的确定性求解器核心、参数�
 
 阶段 B 的 B0 秩审计**未通过**：共享 MRS-1 前向对 `(x_CO2, x_O2, x_N2)` 的整体缩放精确不变，`raw3` 的总量方向是前向精确零空间，5 个登记点在 `1e-7 / 1e-6 / 1e-5` 三档容差下秩一律为 2。这触发后续执行计划的停止条件第 1 条，S1/S2 实现暂停。
 
-本报告的结论**不受影响**：Phase A 只审计条件线性干扰参数块的结构与内层线性求解的数值正确性，与 `raw3` 参数化的零方向是两个独立问题，`mei3_phase_a_structure_supported` 保持有效。完整探针数据与处置候选见 [MEI-3 后续执行计划](../../active/tv3_mrs_ei_mei3_execution_plan.md) §11。
+本报告的结论**不受影响**：Phase A 只审计条件线性干扰参数块的结构与内层线性求解的数值正确性，与 `raw3` 参数化的零方向是两个独立问题，`mei3_phase_a_structure_supported` 保持有效。完整探针数据与处置候选见 [MEI-3 后续执行计划](tv3_mrs_ei_mei3_execution_plan.md) §11。

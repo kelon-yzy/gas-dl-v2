@@ -121,7 +121,7 @@ schema_version = "tunnel-ventilation-1"
 
 ## 实施路线
 
-> 实施状态（2026-07-08）：阶段 1–3 仿真链路 + 阶段 4 DL/ML 适配 + tv3-formal（600 序列）+ Ridge/TCN 首轮基线已落地；固定特征回归分支阶段 A/B（`physics_stats / MiniRocket + RidgeCV`，R0/R1a/R1b）已完成，D0 oracle/observed/tof_only/slow_only 四组特征拆分实验已在本地 600 序列完成并可视化分析（见 `outputs/tv3_d0_local/d0_analysis.png` 与 [掘进通风项目记忆库.md](../掘进通风项目记忆库.md)）。完整 15 runs 基线矩阵、服务器端 `tv3-formal-6000` 重跑与后续 D1/D2 物理引导深度学习方案待继续执行。详见 [adaptation_plan.md](adaptation_plan.md) §实施进度、[rocket_hydra_regression_implementation_plan.md](../archive/completed/rocket_hydra_regression_implementation_plan.md) 与 [三组分检测深度学习新框架方案.md](../archive/legacy/三组分检测深度学习新框架方案.md)。
+> 实施状态（2026-07-08）：阶段 1–3 仿真链路 + 阶段 4 DL/ML 适配 + tv3-formal（600 序列）+ Ridge/TCN 首轮基线已落地；固定特征回归分支阶段 A/B（`physics_stats / MiniRocket + RidgeCV`，R0/R1a/R1b）已完成，D0 oracle/observed/tof_only/slow_only 四组特征拆分实验已在本地 600 序列完成并可视化分析（见 `outputs/tv3_d0_local/d0_analysis.png` 与 [实验日志](../掘进通风实验日志.md)）。完整 15 runs 基线矩阵、服务器端 `tv3-formal-6000` 重跑与后续 D1/D2 物理引导深度学习方案待继续执行。详见 [adaptation_plan.md](adaptation_plan.md) §实施进度、[rocket_hydra_regression_implementation_plan.md](../archive/completed/rocket_hydra_regression_implementation_plan.md) 与 [三组分检测深度学习新框架方案.md](../archive/legacy/三组分检测深度学习新框架方案.md)。
 
 ### 阶段 1：契约与采样 ✅
 

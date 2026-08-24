@@ -1,6 +1,6 @@
 # tv3 可辨识性与误差预算实施计划
 
-> 状态：**首轮 v1 审计已完成；`audit=passed`，P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 已预注册；flow 未表示，verdict=`information_source_upgrade_required`。双向 flow 与真实实验路线暂停，当前执行入口为 [静止空气仿真可辨识性计划](../../active/tv3_static_air_feasibility_implementation_plan.md)**
+> 状态：**首轮 v1 审计已完成；`audit=passed`，P90=`0.4 vol%`、nuisance=`50%`、拒绝率=`5%` 已预注册；flow 未表示，verdict=`information_source_upgrade_required`。双向 flow 与真实实验路线暂停，当前执行入口为 [静止空气仿真可辨识性计划](../parked/tv3_static_air_feasibility_implementation_plan.md)**
 > 
 > 责任：在不新增回归模型、不改正式 RawDSP builder 的条件下，量化 O₂ 声学信息相对 nuisance 不确定度的理论边界，并给出是否继续追求窄区间连续回归的可审计 verdict。
 
@@ -97,7 +97,7 @@ outputs/tv3_identifiability/
 | `inconclusive_missing_business_threshold` | 缺少业务精度或协方差依据                                         | 不做继续 / 停止声明，补齐输入        |
 | `audit_failed`                            | 基线 hash、物理映射、数值稳定性或闭包审计失败                            | 修审计或物理参数，不训练新头          |
 
-若 flow projection 是主导可测误差，通常下一步是 `raw_dsp_bidirectional_v1` 的单向 / 外部风速校正 / 双向解耦对照；该路线已立项为 F 线（见 [tv3_bidirectional_ultrasound_implementation_plan.md](../../active/tv3_bidirectional_ultrasound_implementation_plan.md)；F0 已冻结，F1 起落地）。实际实验暂时无法进行，当前先执行 [静止空气仿真可辨识性计划](../../active/tv3_static_air_feasibility_implementation_plan.md)：显式固定 `flow=0`，登记参数依据，扫描测量链 nuisance 并做独立参数 holdout。若 RH 或设备参数主导，后续以新 physics version 进入 `acoustic_measurement_v2` 仿真，不得在机制尚未量化前同时修改前端、数字孪生和模型头。
+若 flow projection 是主导可测误差，通常下一步是 `raw_dsp_bidirectional_v1` 的单向 / 外部风速校正 / 双向解耦对照；该路线已立项为 F 线（见 [tv3_bidirectional_ultrasound_implementation_plan.md](../parked/tv3_bidirectional_ultrasound_implementation_plan.md)；F0 已冻结，F1 起落地）。实际实验暂时无法进行，当前先执行 [静止空气仿真可辨识性计划](../parked/tv3_static_air_feasibility_implementation_plan.md)：显式固定 `flow=0`，登记参数依据，扫描测量链 nuisance 并做独立参数 holdout。若 RH 或设备参数主导，后续以新 physics version 进入 `acoustic_measurement_v2` 仿真，不得在机制尚未量化前同时修改前端、数字孪生和模型头。
 
 ## Format
 

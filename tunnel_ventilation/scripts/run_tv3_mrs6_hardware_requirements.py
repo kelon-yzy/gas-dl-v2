@@ -360,7 +360,7 @@ def main() -> int:
         "verdict": MRS6_VERDICT,
         "delivered_at": datetime.now(timezone.utc).date().isoformat(),
         "verdict_path": "outputs/tv3_mrs/mrs6_hardware/mrs6_verdict.json",
-        "spec_doc": "docs/active/tv3_mrs6_hardware_requirements.md",
+        "spec_doc": "docs/archive/completed/tv3_mrs6_hardware_requirements.md",
         "quick": bool(args.quick),
     }
     stage["allowed_next_stage"] = "MRS_line_closed"

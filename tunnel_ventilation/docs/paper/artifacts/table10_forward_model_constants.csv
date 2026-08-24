@@ -1,0 +1,47 @@
+group,name,value,unit
+gas_property,molar_mass[CO2],0.04401,kg/mol
+gas_property,heat_capacity[CO2],37.13,J/(mol K)
+gas_property,thermal_conductivity[CO2],0.0166,W/(m K)
+gas_property,viscosity[CO2],1.491e-05,Pa s
+gas_property,conductivity_T_exponent[CO2],0.87,
+gas_property,molar_mass[O2],0.031998,kg/mol
+gas_property,heat_capacity[O2],29.38,J/(mol K)
+gas_property,thermal_conductivity[O2],0.0264,W/(m K)
+gas_property,viscosity[O2],2.058e-05,Pa s
+gas_property,conductivity_T_exponent[O2],0.8,
+gas_property,molar_mass[N2],0.02801,kg/mol
+gas_property,heat_capacity[N2],29.12,J/(mol K)
+gas_property,thermal_conductivity[N2],0.0258,W/(m K)
+gas_property,viscosity[N2],1.781e-05,Pa s
+gas_property,conductivity_T_exponent[N2],0.77,
+relaxation,f_relax[co2],28000.0,Hz/atm
+relaxation,alpha_lambda_max[co2],0.12,
+relaxation,f_relax[n2],9.0,Hz/atm
+relaxation,alpha_lambda_max[n2],0.004,
+relaxation,f_relax[o2],24.0,Hz/atm
+relaxation,alpha_lambda_max[o2],0.0,
+relaxation,f_relax[h2o],100000.0,Hz/atm
+relaxation,alpha_lambda_max[h2o],0.01,
+relaxation,h2o_catalysis_coefficient_co2,0.015,1/%
+relaxation,classical_absorption_K_ref,1.84e-11,
+acquisition,carrier_frequency,200000.0,Hz
+acquisition,burst_cycles,8,
+acquisition,sample_rate,1000000,Hz
+acquisition,measurement_window,0.005,s
+acquisition,daq_bits,20,bit
+acquisition,daq_full_scale,2.5,V
+acquisition,system_delay,8e-05,s
+acquisition,cable_delay,2e-06,s
+acquisition,delay_correction,8.2e-05,s
+acquisition,trigger_jitter_std,3e-06,s
+acquisition,transducer_bandwidth,20000.0,Hz
+acquisition,transducer_ringdown,4.0,cycles
+composition_domain,co2_range,"[0.03, 5.0]",%
+composition_domain,o2_range,"[18.0, 21.2]",%
+composition_domain,n2_range,"[73.8, 81.97]",%
+composition_domain,o2_working_range,3.2,pp
+composition_domain,path_length_base_range,"[0.2, 0.3]",m
+schema,component_fields,"['x_CO2', 'x_O2', 'x_N2']",
+schema,background_fields,[],
+schema,slow_channels,"['V_NDIR_CO2', 'V_TCS', 'T_C', 'P_MPa', 'H_RH', 'L_m', 'piston_position_m']",
+schema,n_slow_channels,7,

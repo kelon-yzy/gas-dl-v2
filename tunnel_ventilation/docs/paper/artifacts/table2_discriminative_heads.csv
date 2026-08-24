@@ -1,0 +1,9 @@
+id,label,role,n_seeds,dataset_dir,modalities,feature_builder,o2_r2_train,o2_r2_val,o2_r2_test,o2_r2_extrapolation,source,o2_r2_val_std,o2_r2_test_std,o2_r2_extrapolation_std
+D0_observed_ridge,"observed features, ridge",measurement-level linear baseline,1,data/tv3-formal-6000,,d0_observed_physics_stats_v1,0.5012,0.4226,0.4571,0.3708,outputs/tv3_d0/observed_ridge/metrics.json,,,
+B1_rawdsp_ridge,"RawDSP features, ridge",deployable linear baseline,1,data/tv3-formal-6000,,d0_raw_dsp_physics_stats_v1,0.5194,0.428,0.4786,0.3695,outputs/tv3_d2b/raw_dsp_ridge_provenance/metrics.json,,,
+R5_mlp,"observed features, MLP without target scaling",fails on the training set,1,data/tv3-formal-6000,,d0_observed_physics_stats_v1,-0.1118,-0.1834,-0.1823,-0.2031,outputs/tv3_r5/mlp_observed/metrics.json,,,
+R5T_mlp_target_scaled,"observed features, MLP with per-target scaling","same model, scaled targets",1,data/tv3-formal-6000,,d0_observed_physics_stats_v1,0.8792,0.6642,0.6462,0.5815,outputs/tv3_r5/mlp_observed_target_scaled/metrics.json,,,
+R5p_tabpfn,"observed features, TabPFN","upper-bound probe, not deployable",1,data/tv3-formal-6000,,d0_observed_physics_stats_v1,0.9811,0.6673,0.6594,0.6279,outputs/tv3_r5/tabpfn_observed/metrics.json,,,
+R7_extratrees,"observed features, ExtraTrees",generalisation gap,1,data/tv3-formal-6000,,d0_observed_physics_stats_v1,0.9969,0.4516,0.4473,0.4211,outputs/tv3_r7/extratrees_observed/metrics.json,,,
+B6_rawdsp_mlp,"RawDSP features, target-scaled MLP",multi-seed stable,3,/home/wuying/gas-dl-v2/tunnel_ventilation/data/tv3-formal-6000,,,,0.5581,0.5356,0.4835,outputs/tv3_r5t_b6_multiseed/summary.json,0.0096,0.017,0.0036
+B7_oof_ridge_residual_mlp,out-of-fold ridge + residual MLP,frozen default head,3,/home/wuying/gas-dl-v2/tunnel_ventilation/data/tv3-formal-6000,,,,0.6964,0.7001,0.6157,outputs/tv3_d2b/b7_oof_ridge_residual_mlp/summary.json,0.0039,0.0073,0.0114

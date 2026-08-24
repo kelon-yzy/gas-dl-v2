@@ -23,7 +23,7 @@ pipeline.generate_tunnel_ventilation_benchmark  →  data/tv3-smoke/   →  链�
 | TCN 50 epochs（seed=42）                      | val R²≈0（CO₂=-0.05, O₂=-0.14, N₂=-0.53），600 序列对 DL 不够                            |
 | Ridge 基线                                    | val: CO₂ R²=0.91 ✅, O₂ R²=-0.05 ❌, N₂ R²=0.65 ❌（见下方分析）                           |
 | Rocket 阶段 A（2026-07-06 落地，2026-07-07 R0 回填） | `physics_stats + RidgeCV` 链路落地；R0 正式集（6000 序列）val O₂ R²=0.603、CO₂=0.993、N₂=0.925 |
-| D0 oracle/observed 特征拆分（2026-07-08 clean 6000 完成） | 6 组 Ridge 配置（oracle/observed/tof_only/slow_only/no_tof/no_tcs）已在服务器 tv3-formal-6000（CLEAN）上完成；oracle 膨胀 0.18，o2_bins 物理极限确认；`scripts/check_slow_channels.py` 核查数据集无 V_NDIR_CH4；结论 D2 优先、D1 暂缓，详见 [记忆库 §6.4](../../掘进通风项目记忆库.md) |
+| D0 oracle/observed 特征拆分（2026-07-08 clean 6000 完成） | 6 组 Ridge 配置（oracle/observed/tof_only/slow_only/no_tof/no_tcs）已在服务器 tv3-formal-6000（CLEAN）上完成；oracle 膨胀 0.18，o2_bins 物理极限确认；`scripts/check_slow_channels.py` 核查数据集无 V_NDIR_CH4；结论 D2 优先、D1 暂缓，详见 [记忆库 §6.4](掘进通风项目记忆库.md) |
 
 ### 初步基线结果分析（2026-07-04）
 
