@@ -29,3 +29,8 @@ nul
 # rcdw_mgda 生成产物（可通过 scripts 重新生成）
 rcdw_mgda/data/
 rcdw_mgda/runs/
+
+# 文档构建与检索的临时中间产物（docx 解包、文献下载暂存）
+.tmp_*/
+**/.tmp_*/
+**/pytest-cache-files-*/
