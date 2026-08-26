@@ -1,0 +1,58 @@
+{
+  "contract_id": "GIB-P2-MANIFEST-v1",
+  "schema_version": "gib-benchmark-1",
+  "contract_status": "contract_frozen",
+  "manifest_type": "artifact_manifest",
+  "required_fields": [
+    "manifest_id",
+    "schema_version",
+    "primary_key",
+    "instance_key",
+    "split_group_field",
+    "files",
+    "source_snapshots"
+  ],
+  "fixed_values": {
+    "primary_key": "mixture_id",
+    "instance_key": "sequence_id",
+    "split_group_field": "mixture_id"
+  },
+  "manifest_id_pattern": "^GIB-MANIFEST-[A-F0-9]{16}$",
+  "id_namespace": {
+    "mixture_id_prefix": "GIB-M-",
+    "sequence_id_prefix": "GIB-Q-"
+  },
+  "files": {
+    "minimum_items": 1,
+    "required_fields": ["path", "artifact_type", "sha256", "schema_version"],
+    "sha256_pattern": "^[A-Fa-f0-9]{64}$",
+    "artifact_types": [
+      "raw_waveform",
+      "slow_channels",
+      "calibration_channels",
+      "dsp_features",
+      "labels",
+      "sample_fisher",
+      "effective_fisher",
+      "crb",
+      "crb_p90",
+      "principal_angle",
+      "incremental_information",
+      "solver_difficulty"
+    ]
+  },
+  "source_snapshots": {
+    "minimum_items": 1,
+    "required_fields": ["source_id", "source_revision", "sha256", "locator"],
+    "sha256_pattern": "^[A-Fa-f0-9]{64}$"
+  },
+  "hash_policy": {
+    "algorithm": "SHA256",
+    "per_file_hash_required": true,
+    "hash_mismatch_policy": "fail_no_reuse"
+  },
+  "data_generation": {
+    "pilot_artifact_present": false,
+    "contract_only": true
+  }
+}

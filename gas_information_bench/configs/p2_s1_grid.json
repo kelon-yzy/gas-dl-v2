@@ -1,0 +1,425 @@
+{
+  "angle_targets_deg": {
+    "high_collinearity": 10.0,
+    "low_collinearity": 80.0,
+    "medium_collinearity": 45.0
+  },
+  "angle_tolerance_deg": 5.0,
+  "candidate_id": "GIB-C4-LR",
+  "cells": [
+    {
+      "accessible": true,
+      "actual_angle_deg": 9.962665860099978,
+      "actual_information_band": "sufficient",
+      "angle_band": "high_collinearity",
+      "condition_number": 29.731558242990182,
+      "config_id": "GIB-S1-SUF-HIG",
+      "coupling_strength": 16.57102825723816,
+      "crb_p90": [
+        0.03254208120301303,
+        0.013078855662739194,
+        0.038281210949707836,
+        0.01976291275602511
+      ],
+      "effective_fisher": [
+        [
+          7783.562369928593,
+          3206.5638474348016,
+          6092.542162522768
+        ],
+        [
+          3206.5638474348016,
+          29860.366421536863,
+          9019.42490108871
+        ],
+        [
+          6092.542162522768,
+          9019.42490108871,
+          8100.195926038708
+        ]
+      ],
+      "information_band": "sufficient",
+      "max_crb_p90_over_tau": 0.43596185542463983,
+      "modalities": [
+        "ndir",
+        "acoustic_raw",
+        "thermal",
+        "slow",
+        "calibration"
+      ],
+      "noise_scale": 0.35,
+      "target_angle_deg": 10.0
+    },
+    {
+      "accessible": true,
+      "actual_angle_deg": 44.95043977285796,
+      "actual_information_band": "sufficient",
+      "angle_band": "medium_collinearity",
+      "condition_number": 83.0536574518702,
+      "config_id": "GIB-S1-SUF-MED",
+      "coupling_strength": 1.61935146157998,
+      "crb_p90": [
+        0.026128367328229967,
+        0.00975489780961318,
+        0.035664731391267475,
+        0.017036027986565824
+      ],
+      "effective_fisher": [
+        [
+          55512.98054651856,
+          -40628.83642245933,
+          32141.796721195642
+        ],
+        [
+          -40628.83642245933,
+          69338.43412252968,
+          -17772.272888433778
+        ],
+        [
+          32141.796721195642,
+          -17772.272888433778,
+          21572.727975951348
+        ]
+      ],
+      "information_band": "sufficient",
+      "max_crb_p90_over_tau": 0.35664731391267473,
+      "modalities": [
+        "ndir",
+        "acoustic_raw",
+        "thermal",
+        "slow",
+        "calibration"
+      ],
+      "noise_scale": 0.35,
+      "target_angle_deg": 45.0
+    },
+    {
+      "accessible": true,
+      "actual_angle_deg": 79.99580713619056,
+      "actual_information_band": "sufficient",
+      "angle_band": "low_collinearity",
+      "condition_number": 136.16327696553057,
+      "config_id": "GIB-S1-SUF-LOW",
+      "coupling_strength": 0.17153864226868826,
+      "crb_p90": [
+        0.025592503999196818,
+        0.009569382690959367,
+        0.03484044329927509,
+        0.015375917411466784
+      ],
+      "effective_fisher": [
+        [
+          100274.74661119144,
+          -71418.13465204388,
+          59264.37178045853
+        ],
+        [
+          -71418.13465204388,
+          94005.0102369271,
+          -35559.44966774974
+        ],
+        [
+          59264.37178045853,
+          -35559.44966774974,
+          38280.84085218206
+        ]
+      ],
+      "information_band": "sufficient",
+      "max_crb_p90_over_tau": 0.34840443299275087,
+      "modalities": [
+        "ndir",
+        "acoustic_raw",
+        "thermal",
+        "slow",
+        "calibration"
+      ],
+      "noise_scale": 0.35,
+      "target_angle_deg": 80.0
+    },
+    {
+      "accessible": true,
+      "actual_angle_deg": 9.962665860100016,
+      "actual_information_band": "critical",
+      "angle_band": "high_collinearity",
+      "condition_number": 37.34672545366633,
+      "config_id": "GIB-S1-CRI-HIG",
+      "coupling_strength": 16.57102825723816,
+      "crb_p90": [
+        0.08784410271330106,
+        0.032459574121309766,
+        0.10693448227957619,
+        0.050105994744264415
+      ],
+      "effective_fisher": [
+        [
+          2035.9689877643887,
+          -866.9994396143038,
+          1330.3298726133157
+        ],
+        [
+          -866.9994396143038,
+          5151.172326782242,
+          421.0983421855399
+        ],
+        [
+          1330.3298726133157,
+          421.0983421855399,
+          1309.8681295355254
+        ]
+      ],
+      "information_band": "critical",
+      "max_crb_p90_over_tau": 1.0980512839162633,
+      "modalities": [
+        "ndir",
+        "acoustic_raw",
+        "thermal",
+        "slow",
+        "calibration"
+      ],
+      "noise_scale": 1.0,
+      "target_angle_deg": 10.0
+    },
+    {
+      "accessible": true,
+      "actual_angle_deg": 44.950439772858,
+      "actual_information_band": "critical",
+      "angle_band": "medium_collinearity",
+      "condition_number": 89.93199793342491,
+      "config_id": "GIB-S1-CRI-MED",
+      "coupling_strength": 1.61935146157998,
+      "crb_p90": [
+        0.07443367983788693,
+        0.02765976586497034,
+        0.10089312745099484,
+        0.04676705345868866
+      ],
+      "effective_fisher": [
+        [
+          7638.655827393998,
+          -5432.3382054541225,
+          4499.808941598514
+        ],
+        [
+          -5432.3382054541225,
+          8869.5610650732,
+          -2456.5762801931005
+        ],
+        [
+          4499.808941598514,
+          -2456.5762801931005,
+          3027.0254258089626
+        ]
+      ],
+      "information_band": "critical",
+      "max_crb_p90_over_tau": 1.0089312745099484,
+      "modalities": [
+        "ndir",
+        "acoustic_raw",
+        "thermal",
+        "slow",
+        "calibration"
+      ],
+      "noise_scale": 1.0,
+      "target_angle_deg": 45.0
+    },
+    {
+      "accessible": true,
+      "actual_angle_deg": 79.99580713619056,
+      "actual_information_band": "critical",
+      "angle_band": "low_collinearity",
+      "condition_number": 136.67773027252102,
+      "config_id": "GIB-S1-CRI-LOW",
+      "coupling_strength": 0.17153864226868826,
+      "crb_p90": [
+        0.0731089495710861,
+        0.027334401376814126,
+        0.09944724503786125,
+        0.043789283828288735
+      ],
+      "effective_fisher": [
+        [
+          12362.045172379552,
+          -8782.066457470126,
+          7315.448055962596
+        ],
+        [
+          -8782.066457470126,
+          11537.05753551864,
+          -4377.740371859613
+        ],
+        [
+          7315.448055962596,
+          -4377.740371859613,
+          4729.319723668944
+        ]
+      ],
+      "information_band": "critical",
+      "max_crb_p90_over_tau": 0.9944724503786124,
+      "modalities": [
+        "ndir",
+        "acoustic_raw",
+        "thermal",
+        "slow",
+        "calibration"
+      ],
+      "noise_scale": 1.0,
+      "target_angle_deg": 80.0
+    },
+    {
+      "accessible": true,
+      "actual_angle_deg": 9.962665860100016,
+      "actual_information_band": "insufficient",
+      "angle_band": "high_collinearity",
+      "condition_number": 55.77431508553457,
+      "config_id": "GIB-S1-INS-HIG",
+      "coupling_strength": 16.57102825723816,
+      "crb_p90": [
+        0.18321806002692928,
+        0.06710900446291747,
+        0.22694539031686914,
+        0.10582144051034832
+      ],
+      "effective_fisher": [
+        [
+          725.3812849807425,
+          -518.4538502628151,
+          437.5575763306289
+        ],
+        [
+          -518.4538502628151,
+          1460.5454224067046,
+          -96.82101956204451
+        ],
+        [
+          437.5575763306289,
+          -96.82101956204451,
+          359.2498916380806
+        ]
+      ],
+      "information_band": "insufficient",
+      "max_crb_p90_over_tau": 2.290225750336616,
+      "modalities": [
+        "ndir",
+        "acoustic_raw",
+        "thermal",
+        "slow",
+        "calibration"
+      ],
+      "noise_scale": 2.2,
+      "target_angle_deg": 10.0
+    },
+    {
+      "accessible": true,
+      "actual_angle_deg": 44.95043977285797,
+      "actual_information_band": "insufficient",
+      "angle_band": "medium_collinearity",
+      "condition_number": 95.40122257219288,
+      "config_id": "GIB-S1-INS-MED",
+      "coupling_strength": 1.61935146157998,
+      "crb_p90": [
+        0.1630902560634729,
+        0.060580466598862105,
+        0.21978714539966065,
+        0.0988970015896423
+      ],
+      "effective_fisher": [
+        [
+          1745.512694324956,
+          -1190.5963007663063,
+          1045.5246895430146
+        ],
+        [
+          -1190.5963007663063,
+          1873.1731758810624,
+          -551.5928943580741
+        ],
+        [
+          1045.5246895430146,
+          -551.5928943580741,
+          706.8605384404137
+        ]
+      ],
+      "information_band": "insufficient",
+      "max_crb_p90_over_tau": 2.197871453996606,
+      "modalities": [
+        "ndir",
+        "acoustic_raw",
+        "thermal",
+        "slow",
+        "calibration"
+      ],
+      "noise_scale": 2.2,
+      "target_angle_deg": 45.0
+    },
+    {
+      "accessible": true,
+      "actual_angle_deg": 79.99580713619056,
+      "actual_information_band": "insufficient",
+      "angle_band": "low_collinearity",
+      "condition_number": 137.11007448569583,
+      "config_id": "GIB-S1-INS-LOW",
+      "coupling_strength": 0.17153864226868826,
+      "crb_p90": [
+        0.16081734176880536,
+        0.060128011610834316,
+        0.21870745969504168,
+        0.09623122546747959
+      ],
+      "effective_fisher": [
+        [
+          2564.31059703102,
+          -1821.0293837478512,
+          1517.8722636436223
+        ],
+        [
+          -1821.0293837478512,
+          2389.02432436795,
+          -908.2896264576341
+        ],
+        [
+          1517.8722636436223,
+          -908.2896264576341,
+          981.2889115665618
+        ]
+      ],
+      "information_band": "insufficient",
+      "max_crb_p90_over_tau": 2.1870745969504166,
+      "modalities": [
+        "ndir",
+        "acoustic_raw",
+        "thermal",
+        "slow",
+        "calibration"
+      ],
+      "noise_scale": 2.2,
+      "target_angle_deg": 80.0
+    }
+  ],
+  "grid_id": "GIB-S1-3x3-v1",
+  "information_bands": {
+    "critical": [
+      0.8,
+      1.2
+    ],
+    "insufficient": [
+      2.0,
+      null
+    ],
+    "sufficient": [
+      null,
+      0.5
+    ]
+  },
+  "target_error_tau": {
+    "Ar": 0.05,
+    "CO2": 0.03,
+    "N2": 0.08,
+    "O2": 0.1
+  },
+  "tau_source": {
+    "Ar": "P2-04 low-concentration screening tolerance; low-concentration requirement is the reference",
+    "CO2": "P2-04 primary composition screening tolerance; TraceGas-NDIR-CO2 hardware profile is the reference",
+    "N2": "P2-04 primary composition screening tolerance; MFC label error is the engineering reference",
+    "O2": "P2-04 primary composition screening tolerance; low-risk four-component bench contract"
+  }
+}

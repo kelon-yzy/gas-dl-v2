@@ -1,0 +1,99 @@
+{
+  "schema_version": "gib-benchmark-1",
+  "plan_id": "GIB-P3-C5B-DATA-EFFICIENCY-v2",
+  "candidate_id": "C5-B-FO-MPLSELM",
+  "plan_status": "frozen_before_fit",
+  "pilot_plan_id": "GIB-P3-PILOT-v2",
+  "claim_scope": "controlled_synthetic_relative_comparison_only",
+  "components": ["N2", "CO2", "O2", "Ar"],
+  "split_ids": ["GIB-SPLIT-01", "GIB-SPLIT-02", "GIB-SPLIT-03", "GIB-SPLIT-04", "GIB-SPLIT-05"],
+  "seeds": [101, 202, 303],
+  "training_group_fractions": [10, 25, 50, 75, 100],
+  "feature_contract": {
+    "source": "gib.pipeline.baseline.deployment_features",
+    "oracle_features_allowed": false,
+    "fisher_source": "effective_fisher_train_groups_only",
+    "validation_and_test_groups_fixed_across_fractions": true,
+    "subset_rule": "pilot_frozen_train_group_prefix"
+  },
+  "models": {
+    "ridge": {"alpha": 1.0},
+    "pls": {"n_components": 4, "scale": true, "max_iter": 500},
+    "elm": {"hidden_units": 64, "alpha": 0.001, "activation": "tanh", "direction": "iid_gaussian"},
+    "plselm": {"pls_components": 4, "hidden_units": 64, "alpha": 0.001, "activation": "tanh", "direction": "iid_gaussian"},
+    "xgboost_strong_table": {"n_estimators": 160, "max_depth": 4, "learning_rate": 0.05, "subsample": 1.0, "colsample_bytree": 1.0, "n_jobs": 1, "tree_method": "hist"},
+    "fo_mplselm": {"pls_components": 4, "hidden_units": 64, "alpha": 0.001, "activation": "tanh", "direction": "fisher_weighted_orthogonal"},
+    "cnn_light": {"channels": 12, "kernel_size": 5, "epochs": 25, "learning_rate": 0.001, "batch_size": 32, "torch_threads": 1}
+  },
+  "selection": {
+    "reference_candidates": ["ridge", "pls", "elm", "plselm", "xgboost_strong_table", "cnn_light"],
+    "reference_rule": "lowest_macro_validation_p90_per_split_seed_fraction",
+    "test_open_policy": "after_all_methods_fit_and_reference_selected",
+    "selection_space_locked": true
+  },
+  "precision_target": {"N2": 0.08, "CO2": 0.03, "O2": 0.10, "Ar": 0.05},
+  "non_inferiority_band": {"N2": 0.008, "CO2": 0.003, "O2": 0.010, "Ar": 0.005},
+  "efficiency": {
+    "minimum_relative_reduction": 0.20,
+    "maximum_other_primary_regression": 0.05,
+    "maximum_first_target_fraction": 75
+  },
+  "statistics": {
+    "confidence_level": 0.95,
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20260824,
+    "resampling_unit": "mixture_id"
+  },
+  "timing": {
+    "independent_repeats": 30,
+    "warmup_batches": 10,
+    "timed_batches_per_repeat": 30,
+    "batch_sizes": [1, 32, 256],
+    "formal_training_fraction": 100,
+    "formal_method_scope": ["fo_mplselm", "validation_selected_reference"],
+    "run_order": "paired_randomized_interleaving_within_grid_split_seed_at_100_percent",
+    "clock": "time.perf_counter_ns",
+    "single_timing_conclusion_allowed": false,
+    "training_wall_clock_phases": ["preprocess", "fit", "validation"]
+  },
+  "negative_controls": {
+    "random_orthogonal_directions": {
+      "action": "replace_fisher_weighted_directions_with_seeded_random_orthogonal_directions",
+      "verdict_role": "mechanism_control"
+    },
+    "without_fisher_weights": {
+      "action": "use_uniform_target_weights",
+      "verdict_role": "mechanism_control"
+    },
+    "random_non_nested_subset": {
+      "action": "train_only_same_size_non_nested_subset",
+      "verdict_role": "leakage_check_only_not_used_for_main_conclusion"
+    }
+  },
+  "mechanism_evidence": {
+    "difference_direction": "control_component_p90_minus_candidate_component_p90",
+    "minimum_ci_lower": 0.0,
+    "resampling_unit": "mixture_id",
+    "required_controls": ["random_orthogonal_directions", "without_fisher_weights"]
+  },
+  "plselm_equivalence": {"rtol": 1e-12, "atol": 1e-12},
+  "execution": {
+    "checkpoint_unit": ["split_id", "seed", "training_fraction"],
+    "resume_requires_exact_identity_hash": true,
+    "completed_unit_hash_required": true,
+    "paired_thread_limit": 1,
+    "device_track": "cpu",
+    "progress_and_eta_required": true
+  },
+  "required_environment": {"PYTHONNOUSERSITE": "1"},
+  "required_runtime": {
+    "python": "3.13.11",
+    "numpy": "2.5.0",
+    "scikit-learn": "1.7.1",
+    "xgboost": "3.2.0",
+    "torch": "2.11.0+cu128",
+    "threadpoolctl": "3.5.0"
+  },
+  "execution_registry_id": "GIB-P3-EXECUTION-20260825",
+  "possible_candidate_verdicts": ["enter_P4", "reject", "inconclusive"]
+}

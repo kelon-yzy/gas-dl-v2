@@ -1,0 +1,71 @@
+{
+  "schema_version": "gib-benchmark-1",
+  "runtime_dependency_policy": "no_historical_private_package_imports",
+  "capabilities": [
+    {
+      "capability_id": "id_primary_keys",
+      "owner": "gib.contract",
+      "implementation_status": "active"
+    },
+    {
+      "capability_id": "schema_manifest",
+      "owner": "gib.contract",
+      "implementation_status": "active"
+    },
+    {
+      "capability_id": "array_storage",
+      "owner": "gib.sim.packaging.arrays",
+      "implementation_status": "reserved"
+    },
+    {
+      "capability_id": "file_io",
+      "owner": "gib.common.io",
+      "implementation_status": "reserved"
+    },
+    {
+      "capability_id": "split_grouping",
+      "owner": "gib.contract",
+      "implementation_status": "active"
+    },
+    {
+      "capability_id": "dataset_validation",
+      "owner": "gib.contract",
+      "implementation_status": "active"
+    },
+    {
+      "capability_id": "fisher_crb_rank",
+      "owner": "gib.audit.forward",
+      "implementation_status": "active"
+    },
+    {
+      "capability_id": "jacobian_angle",
+      "owner": "gib.audit.grid",
+      "implementation_status": "active"
+    },
+    {
+      "capability_id": "varpro_solver",
+      "owner": "gib.audit.solver",
+      "implementation_status": "reserved"
+    },
+    {
+      "capability_id": "raw_dsp_derivation",
+      "owner": "gib.pipeline.raw_dsp",
+      "implementation_status": "reserved"
+    },
+    {
+      "capability_id": "append_only_freeze",
+      "owner": "gib.freeze",
+      "implementation_status": "active"
+    },
+    {
+      "capability_id": "efficiency_statistics",
+      "owner": "gib.audit.metrics",
+      "implementation_status": "reserved"
+    },
+    {
+      "capability_id": "run_reporting",
+      "owner": "gib.pipeline.report",
+      "implementation_status": "reserved"
+    }
+  ]
+}

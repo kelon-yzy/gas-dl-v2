@@ -1,0 +1,152 @@
+{
+  "contract_id": "GIB-S5-DISCREPANCY-v1",
+  "task_id": "P2-10",
+  "schema_version": "gib-benchmark-1",
+  "contract_status": "interface_frozen",
+  "signature": "delta(observation, condition, modality, discrepancy_profile)",
+  "default_profile": "off",
+  "condition_fields": {
+    "T_K": {
+      "unit": "K",
+      "required": true
+    },
+    "P_kPa": {
+      "unit": "kPa",
+      "required": true
+    },
+    "RH_frac": {
+      "unit": "fraction",
+      "required": true
+    },
+    "L_m": {
+      "unit": "m",
+      "required": true
+    },
+    "gain": {
+      "unit": "dimensionless",
+      "required": true
+    },
+    "baseline": {
+      "unit": "declared_observation_unit",
+      "required": true
+    },
+    "delay_s": {
+      "unit": "s",
+      "required": true
+    },
+    "crosstalk": {
+      "unit": "dimensionless",
+      "required": true
+    },
+    "q_flow": {
+      "unit": "L/min",
+      "required": true
+    }
+  },
+  "modalities": [
+    "ndir",
+    "acoustic_raw",
+    "acoustic_dsp",
+    "thermal",
+    "slow",
+    "calibration"
+  ],
+  "profiles": [
+    {
+      "profile_id": "off",
+      "enabled": false,
+      "allowed_stage": "P2",
+      "behavior": "return an elementwise-identical copy of observation",
+      "p2_allowed": true
+    },
+    {
+      "profile_id": "p5_reserved",
+      "enabled": true,
+      "allowed_stage": "P5",
+      "behavior": "reserved interface; implementation is not present in P2",
+      "p2_allowed": false
+    }
+  ],
+  "unit_conversions": [
+    {
+      "from": "C",
+      "to": "K",
+      "scale": 1.0,
+      "offset": 273.15
+    },
+    {
+      "from": "K",
+      "to": "C",
+      "scale": 1.0,
+      "offset": -273.15
+    },
+    {
+      "from": "kPa",
+      "to": "Pa",
+      "scale": 1000.0,
+      "offset": 0.0
+    },
+    {
+      "from": "Pa",
+      "to": "kPa",
+      "scale": 0.001,
+      "offset": 0.0
+    },
+    {
+      "from": "ms",
+      "to": "s",
+      "scale": 0.001,
+      "offset": 0.0
+    },
+    {
+      "from": "s",
+      "to": "ms",
+      "scale": 1000.0,
+      "offset": 0.0
+    },
+    {
+      "from": "mol/mol",
+      "to": "%",
+      "scale": 100.0,
+      "offset": 0.0
+    },
+    {
+      "from": "%",
+      "to": "mol/mol",
+      "scale": 0.01,
+      "offset": 0.0
+    },
+    {
+      "from": "%RH",
+      "to": "fraction",
+      "scale": 0.01,
+      "offset": 0.0
+    },
+    {
+      "from": "fraction",
+      "to": "%RH",
+      "scale": 100.0,
+      "offset": 0.0
+    },
+    {
+      "from": "mW/(m*K)",
+      "to": "W/(m*K)",
+      "scale": 0.001,
+      "offset": 0.0
+    },
+    {
+      "from": "W/(m*K)",
+      "to": "mW/(m*K)",
+      "scale": 1000.0,
+      "offset": 0.0
+    }
+  ],
+  "policy": {
+    "p2_self_injection_allowed": false,
+    "p5_only": true,
+    "unknown_profile": "fail",
+    "missing_profile": "fail",
+    "missing_condition_field": "fail",
+    "unsupported_unit_conversion": "fail"
+  }
+}

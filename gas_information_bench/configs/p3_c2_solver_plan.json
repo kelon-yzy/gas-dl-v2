@@ -1,0 +1,98 @@
+{
+  "schema_version": "gib-benchmark-1",
+  "plan_id": "GIB-P3-C2-S0-SOLVER-v1",
+  "plan_status": "frozen_before_solver_run",
+  "task_id": "P3-06",
+  "input_freeze": {
+    "freeze_id": "GIB-FREEZE-P3-G3-3-20260825-01",
+    "evidence_manifest_sha256": "82B84A6E4FAEF77EB56D7E6B57797270FD9C91C5C384198E83DAF7D4C7711E69"
+  },
+  "components": ["N2", "CO2", "O2", "Ar"],
+  "grid_cell_ids": [
+    "GIB-S1-SUF-HIG", "GIB-S1-SUF-MED", "GIB-S1-SUF-LOW",
+    "GIB-S1-CRI-HIG", "GIB-S1-CRI-MED", "GIB-S1-CRI-LOW",
+    "GIB-S1-INS-HIG", "GIB-S1-INS-MED", "GIB-S1-INS-LOW"
+  ],
+  "split_ids": ["GIB-SPLIT-01", "GIB-SPLIT-02", "GIB-SPLIT-03", "GIB-SPLIT-04", "GIB-SPLIT-05"],
+  "seeds": [101, 202, 303],
+  "method_ids": ["joint_lm", "classical_vp", "vplr", "tsvd_ridge_vp"],
+  "method_contracts": {
+    "joint_lm": "same LM driver over concatenated linear and nonlinear variables",
+    "classical_vp": "ordinary least-squares elimination with projected finite-difference basis Jacobian",
+    "vplr": "ridge-stabilized linear elimination with full reduced-residual finite-difference Jacobian",
+    "tsvd_ridge_vp": "relative singular-value truncation plus ridge filter with full reduced-residual Jacobian"
+  },
+  "solver_budget": {
+    "initialization": "pilot_record_frozen_linear_and_nonlinear_initial_values_shared_by_all_methods",
+    "max_iterations": 50,
+    "function_tolerance": 1e-12,
+    "step_tolerance": 1e-10,
+    "gradient_tolerance": 1e-10,
+    "finite_difference_step": 1e-6,
+    "initial_damping": 0.001,
+    "damping_increase": 10.0,
+    "damping_decrease": 0.3,
+    "ridge_alpha": 1e-8,
+    "tsvd_relative_cutoff": 1e-10,
+    "forward_call_definition": "one_declared_full_forward_model_evaluation_inside_solver",
+    "nonconvergence_policy": "retain_row_and_report_failure_rate"
+  },
+  "statistics": {
+    "type": "paired_group_bootstrap",
+    "resampling_unit": "mixture_id",
+    "stratify_by": ["grid_cell_id", "split_id", "seed"],
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20260824,
+    "confidence_level": 0.95,
+    "precision_difference_direction": "candidate_minus_joint_lm_p90",
+    "cost_reduction_direction": "one_minus_candidate_over_joint_lm_median"
+  },
+  "gates": {
+    "non_inferiority_bands": {"N2": 0.008, "CO2": 0.003, "O2": 0.01, "Ar": 0.005},
+    "e30_minimum_reduction": 0.3,
+    "e20_minimum_reduction": 0.2,
+    "nr5_maximum_regression": 0.05,
+    "combined_rule": "NI AND (E30 OR E20) AND NR5"
+  },
+  "robustness": {
+    "minimum_distinct_passing_cells": 2,
+    "minimum_distinct_passing_seeds": 2,
+    "single_cell_or_single_seed_cannot_pass": true,
+    "failed_rows_are_never_deleted": true
+  },
+  "negative_controls": {
+    "information_label_shuffle_seed": 20260824,
+    "information_label_policy": "information_band_is_metadata_and_never_a_solver_input",
+    "projection_disabled_control": "same_joint_lm_implementation_and_budget"
+  },
+  "runtime_metadata_required_fields": [
+    "logical_cpu_count",
+    "blas_threads",
+    "omp_threads",
+    "mkl_threads",
+    "framework_threads",
+    "os_version",
+    "python_version",
+    "numpy_version",
+    "framework_version",
+    "method_package_versions",
+    "git_commit"
+  ],
+  "timing": {
+    "clock": "time.perf_counter_ns",
+    "formal_repeats": 30,
+    "warmup_solver_runs": 10,
+    "timed_batches_per_repeat": 30,
+    "batch_sizes": [1, 32, 256],
+    "formal_timing_not_started_by_implementation_tests": true
+  },
+  "output_contract": {
+    "verdict_field": "c2_preflight",
+    "verdict_values": ["pass", "fail"],
+    "pass_activates": ["P3-10"],
+    "two_solvers_in_different_regions_also_activate": ["P3-12"],
+    "candidate_verdict_not_issued": true
+  },
+  "claim_scope": "controlled_synthetic_relative_comparison_only",
+  "formal_execution_status": "not_started"
+}

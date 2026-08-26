@@ -1,0 +1,10 @@
+{
+  "attempt_id": "GIB-ATTEMPT-P3-G3-4-20260826-02",
+  "gate_verdict": "fail",
+  "next_allowed_task": "return_to_P1_P2",
+  "p3_verdict": "return_to_P1_P2",
+  "schema_version": "gib-benchmark-1",
+  "status": "complete",
+  "task_id": "P3-13",
+  "task_status": "completed"
+}

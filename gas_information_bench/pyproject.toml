@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gas-information-bench"
+version = "0.0.0"
+description = "P2 gas information benchmark skeleton."
+requires-python = ">=3.10"
+dependencies = [
+  "numpy==2.5.0",
+  "scipy==1.18.0",
+  "scikit-learn==1.7.1",
+  "xgboost==3.2.0",
+  "torch==2.11.0",
+  "threadpoolctl==3.5.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.0.3"]
+
+[project.scripts]
+gib = "gib.cli:main"
+
+[tool.setuptools]
+packages = [
+  "gib",
+  "gib.audit",
+  "gib.common",
+  "gib.pipeline",
+  "gib.sim",
+  "gib.sim.packaging",
+  "configs",
+]
+
+[tool.setuptools.package-data]
+configs = ["*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

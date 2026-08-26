@@ -1,0 +1,93 @@
+{
+  "schema_version": "gib-benchmark-1",
+  "plan_id": "GIB-P3-C5A-SAMPLING-v1",
+  "strategy_id": "GIB-C5A-CRB-DYNAMIC-v1",
+  "task_id": "P3-07",
+  "plan_status": "frozen_before_stage_a",
+  "threshold_selection": "pre_registered_no_result_tuning",
+  "claim_scope": "controlled_synthetic_relative_comparison_only",
+  "components": ["N2", "CO2", "O2", "Ar"],
+  "grid_cells": [
+    "GIB-S1-SUF-HIG",
+    "GIB-S1-SUF-MED",
+    "GIB-S1-SUF-LOW",
+    "GIB-S1-CRI-HIG",
+    "GIB-S1-CRI-MED",
+    "GIB-S1-CRI-LOW",
+    "GIB-S1-INS-HIG",
+    "GIB-S1-INS-MED",
+    "GIB-S1-INS-LOW"
+  ],
+  "split_ids": [
+    "GIB-SPLIT-01",
+    "GIB-SPLIT-02",
+    "GIB-SPLIT-03",
+    "GIB-SPLIT-04",
+    "GIB-SPLIT-05"
+  ],
+  "seeds": [101, 202, 303],
+  "candidate_method": "crb_dynamic_modality",
+  "stage_a": {
+    "methods": [
+      "full_sampling",
+      "fixed_short_window",
+      "uncertainty_early_exit",
+      "crb_early_exit",
+      "crb_dynamic_modality"
+    ],
+    "required_information_bands": ["critical", "insufficient"],
+    "simulation_inputs": [
+      "paired_reference_prediction",
+      "estimated_crb_p90",
+      "incremental_information",
+      "native_measurement_cost"
+    ]
+  },
+  "policies": {
+    "fixed_short_window": {
+      "sample_fraction": 0.75
+    },
+    "uncertainty_early_exit": {
+      "component_thresholds": [0.08, 0.03, 0.10, 0.05]
+    },
+    "crb_early_exit": {
+      "maximum_relative_crb": 1.20
+    },
+    "crb_dynamic_modality": {
+      "maximum_relative_crb": 1.20,
+      "minimum_information_fraction": 0.80
+    }
+  },
+  "negative_controls": {
+    "methods": ["random_stop", "equal_length_fixed", "crb_rank_shuffle"],
+    "random_seed": 20260701,
+    "rank_shuffle_seed": 20260702,
+    "must_fail_joint_gate": true
+  },
+  "gates": {
+    "ni_bands": {
+      "N2": 0.008,
+      "CO2": 0.003,
+      "O2": 0.010,
+      "Ar": 0.005
+    },
+    "minimum_raw_cost_reduction": 0.20,
+    "maximum_other_cost_regression": 0.05,
+    "pre_registered_evidence_cost": "measurement_time_ms"
+  },
+  "statistics": {
+    "confidence_level": 0.95,
+    "bootstrap_type": "paired_group_bootstrap",
+    "resampling_unit": "mixture_id",
+    "resamples": 10000,
+    "seed": 20260824,
+    "stratify_by": ["grid_cell_id", "split_id", "seed"]
+  },
+  "stage_b": {
+    "input_action": "physical_time_axis_truncation_then_rerun",
+    "policy_inputs": ["measurement_features", "declared_forward_profile", "native_measurement_cost"],
+    "oracle_policy_fields_allowed": false,
+    "required_grid_split_seed_combinations": 135,
+    "threshold_refit_allowed": false
+  }
+}

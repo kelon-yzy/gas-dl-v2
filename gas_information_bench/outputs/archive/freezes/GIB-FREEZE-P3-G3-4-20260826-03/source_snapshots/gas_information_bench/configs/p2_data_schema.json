@@ -1,0 +1,308 @@
+{
+  "contract_id": "GIB-P2-DATA-v1",
+  "schema_version": "gib-benchmark-1",
+  "contract_status": "contract_frozen",
+  "entity": "sample_record",
+  "components": ["N2", "CO2", "O2", "Ar"],
+  "required_top_level_fields": [
+    "schema_version",
+    "mixture_id",
+    "sequence_id",
+    "sequence_index",
+    "sequence_profile_id",
+    "candidate_id",
+    "composition",
+    "nuisance",
+    "grade",
+    "modality_profile",
+    "units",
+    "sources",
+    "split_assignment",
+    "arrays",
+    "dsp_provenance"
+  ],
+  "id_namespace": {
+    "mixture_id": {
+      "prefix": "GIB-M-",
+      "pattern": "^GIB-M-[A-F0-9]{16}$",
+      "identity_fields": [
+        "candidate_id",
+        "composition"
+      ],
+      "primary_key": true
+    },
+    "sequence_id": {
+      "prefix": "GIB-Q-",
+      "pattern": "^GIB-Q-[A-F0-9]{16}$",
+      "identity_fields": ["mixture_id", "sequence_index", "sequence_profile_id"],
+      "instance_key": true
+    }
+  },
+  "composition": {
+    "required_fields": ["N2", "CO2", "O2", "Ar"],
+    "unit": "mol/mol",
+    "non_negative": true,
+    "simplex_sum": 1.0,
+    "simplex_sum_tolerance": 1.0e-12
+  },
+  "nuisance": {
+    "required_fields": [
+      "T",
+      "P",
+      "RH",
+      "L",
+      "gain_m",
+      "baseline_m",
+      "delay_m",
+      "crosstalk_mn",
+      "q_flow"
+    ],
+    "units": {
+      "T": "K",
+      "P": "kPa",
+      "RH": "%RH",
+      "L": "m",
+      "gain_m": "dimensionless",
+      "baseline_m": "normalized_signal",
+      "delay_m": "ms",
+      "crosstalk_mn": "dimensionless",
+      "q_flow": "L/min"
+    },
+    "crosstalk_matrix": {
+      "minimum_size": 2,
+      "square": true,
+      "diagonal_value": 0.0,
+      "coefficient_minimum": -0.10,
+      "coefficient_maximum": 0.10
+    }
+  },
+  "grade": {
+    "required_fields": ["grid_id", "grid_cell_id", "information_band", "angle_band"],
+    "grid_source": "configs/p2_s1_grid.json"
+  },
+  "modality_profile": {
+    "required_fields": ["profile_id", "enabled_modalities", "raw_dsp_view"],
+    "allowed_modalities": ["ndir", "acoustic_raw", "acoustic_dsp", "thermal", "slow", "calibration"],
+    "mutually_exclusive_groups": [["acoustic_raw", "acoustic_dsp"]],
+    "raw_dsp_view_values": ["raw", "dsp", "not_applicable"]
+  },
+  "units": {
+    "required_fields": [
+      "composition",
+      "temperature",
+      "pressure",
+      "relative_humidity",
+      "path_length",
+      "flow",
+      "waveform",
+      "label"
+    ],
+    "fixed_values": {
+      "composition": "mol/mol",
+      "temperature": "K",
+      "pressure": "kPa",
+      "relative_humidity": "%RH",
+      "path_length": "m",
+      "flow": "L/min",
+      "label": "mol/mol"
+    }
+  },
+  "source_ref": {
+    "categories": ["composition", "nuisance", "grade", "modality_profile", "units"],
+    "required_fields": ["source_type", "source_id", "source_revision", "source_hash", "locator"],
+    "source_hash_pattern": "^[A-Fa-f0-9]{64}$"
+  },
+  "split_assignment": {
+    "required_fields": ["split_id", "partition"],
+    "partition_values": ["train", "val", "test"]
+  },
+  "array_layers": {
+    "raw_waveform": {
+      "storage": "array_artifact",
+      "rank": 2,
+      "axes": ["channel", "time"],
+      "source": "measured_raw",
+      "derived_from": [],
+      "deployment_allowed": true,
+      "unit_key": "waveform"
+    },
+    "slow_channels": {
+      "storage": "array_artifact",
+      "rank": 2,
+      "axes": ["channel", "time"],
+      "channel_labels": ["T", "P", "RH", "q_flow"],
+      "source": "measured_slow_channels",
+      "derived_from": [],
+      "deployment_allowed": true,
+      "unit_key": "waveform"
+    },
+    "calibration_channels": {
+      "storage": "array_artifact",
+      "rank": 1,
+      "axes": ["calibration_parameter"],
+      "channel_labels": ["L", "gain_m", "baseline_m", "delay_m", "crosstalk_mn"],
+      "source": "measured_or_declared_deployment_calibration",
+      "derived_from": [],
+      "deployment_allowed": true,
+      "unit_key": "waveform"
+    },
+    "dsp_features": {
+      "storage": "array_artifact",
+      "rank": 2,
+      "axes": ["time", "feature"],
+      "source": "derived_from_raw",
+      "derived_from": ["raw_waveform"],
+      "deployment_allowed": true,
+      "unit_key": "waveform",
+      "provenance_ref": "dsp_provenance"
+    },
+    "labels": {
+      "storage": "array_artifact",
+      "rank": 1,
+      "axes": ["component"],
+      "component_order": ["N2", "CO2", "O2", "Ar"],
+      "source": "declared_label",
+      "derived_from": [],
+      "deployment_allowed": false,
+      "unit_key": "label"
+    },
+    "sample_fisher": {
+      "storage": "array_artifact",
+      "rank": 2,
+      "axes": ["parameter", "parameter"],
+      "source": "audit",
+      "derived_from": [],
+      "deployment_allowed": false,
+      "unit_key": "dimensionless"
+    },
+    "effective_fisher": {
+      "storage": "array_artifact",
+      "rank": 2,
+      "axes": ["target_parameter", "target_parameter"],
+      "source": "audit_after_nuisance_marginalization",
+      "derived_from": ["sample_fisher"],
+      "deployment_allowed": false,
+      "unit_key": "dimensionless"
+    },
+    "crb": {
+      "storage": "array_artifact",
+      "rank": 2,
+      "axes": ["component", "component"],
+      "component_order": ["N2", "CO2", "O2", "Ar"],
+      "source": "audit",
+      "derived_from": ["effective_fisher"],
+      "deployment_allowed": false,
+      "unit_key": "label"
+    },
+    "crb_p90": {
+      "storage": "array_artifact",
+      "rank": 1,
+      "axes": ["component"],
+      "component_order": ["N2", "CO2", "O2", "Ar"],
+      "source": "audit",
+      "derived_from": ["crb"],
+      "deployment_allowed": false,
+      "unit_key": "label"
+    },
+    "principal_angle": {
+      "storage": "array_artifact",
+      "rank": 0,
+      "axes": [],
+      "scalar_name": "minimum_principal_angle_deg",
+      "source": "audit",
+      "derived_from": ["sample_fisher"],
+      "deployment_allowed": false,
+      "unit_key": "degree"
+    },
+    "incremental_information": {
+      "storage": "structured_array",
+      "rank": 1,
+      "axes": ["increment"],
+      "record_fields": [
+        "increment_type",
+        "delta_I_vector",
+        "delta_I_trace",
+        "delta_cost",
+        "delta_I_per_delta_cost"
+      ],
+      "source": "audit",
+      "derived_from": ["effective_fisher"],
+      "deployment_allowed": false,
+      "unit_key": "dimensionless"
+    }
+  },
+  "array_descriptor": {
+    "required_fields": ["file_ref", "dtype", "shape_spec", "unit", "storage"],
+    "shape_spec_rule": "symbolic_axis_names_only",
+    "file_ref_must_be_in_manifest": true
+  },
+  "dsp_provenance": {
+    "required_fields": [
+      "source_raw_manifest_id",
+      "raw_manifest_sha256",
+      "dsp_config_sha256",
+      "code_sha256",
+      "derived_from"
+    ],
+    "derived_from_fixed": ["raw_waveform"],
+    "sha256_pattern": "^[A-Fa-f0-9]{64}$",
+    "mismatch_policy": "fail_no_cache_reuse"
+  },
+  "solver_difficulty": {
+    "key_fields": ["sequence_id", "method_id", "split_id", "seed"],
+    "required_fields": [
+      "sequence_id",
+      "method_id",
+      "split_id",
+      "seed",
+      "iterations",
+      "forward_calls",
+      "convergence",
+      "condition_number",
+      "final_residual",
+      "runtime_ns",
+      "hardware_fingerprint",
+      "logical_cpu_count",
+      "blas_threads",
+      "omp_threads",
+      "mkl_threads",
+      "framework_threads",
+      "os_version",
+      "python_version",
+      "numpy_version",
+      "framework_version",
+      "method_package_versions",
+      "git_commit",
+      "repeat_index"
+    ],
+    "runtime_clock": "time.perf_counter_ns",
+    "forward_call_definition": "one_declared_full_forward_model_evaluation_inside_solver",
+    "retain_nonconvergence": true
+  },
+  "deployment_input_fields": [
+    "mixture_id",
+    "sequence_id",
+    "modality_profile",
+    "nuisance",
+    "units",
+    "raw_waveform",
+    "slow_channels",
+    "calibration_channels",
+    "dsp_features",
+    "dsp_provenance"
+  ],
+  "oracle_fields": [
+    "oracle_features",
+    "truth_nuisance",
+    "truth_derived_features",
+    "oracle_results"
+  ],
+  "contract_constraints": {
+    "mixture_id_is_primary_key": true,
+    "mixture_id_identity_is_candidate_and_composition": true,
+    "sequence_id_is_instance_key": true,
+    "mixture_id_is_not_rewritten_from_sequence_id": true,
+    "oracle_is_separate_audit_layer": true,
+    "historical_seed_fields_are_rejected": true
+  }
+}

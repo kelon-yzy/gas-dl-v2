@@ -1,0 +1,25 @@
+{
+  "contract_id": "GIB-P2-SPLIT-v1",
+  "schema_version": "gib-benchmark-1",
+  "contract_status": "contract_frozen",
+  "group_field": "mixture_id",
+  "primary_group_key": true,
+  "partitions": ["train", "val", "test"],
+  "split_ids": [
+    "GIB-SPLIT-01",
+    "GIB-SPLIT-02",
+    "GIB-SPLIT-03",
+    "GIB-SPLIT-04",
+    "GIB-SPLIT-05"
+  ],
+  "seeds": [101, 202, 303],
+  "assignment_required_fields": ["mixture_id", "sequence_id", "split_id", "partition"],
+  "rules": {
+    "one_mixture_id_one_partition_per_split": true,
+    "one_sequence_id_one_mixture_id_per_split": true,
+    "all_partitions_required_per_split": true,
+    "same_mixture_id_may_reappear_in_other_split": true,
+    "historical_seed_fields_allowed": false,
+    "validation_is_group_based": true
+  }
+}

@@ -15,3 +15,6 @@
 *.ckpt binary
 *.pt binary
 *.pth binary
+
+# Frozen evidence is content-addressed; preserve exact bytes on every platform.
+gas_information_bench/outputs/archive/freezes/** -text whitespace=-trailing-space

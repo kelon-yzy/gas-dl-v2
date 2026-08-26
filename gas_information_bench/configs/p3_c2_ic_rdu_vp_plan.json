@@ -1,0 +1,56 @@
+{
+  "schema_version": "gib-benchmark-1",
+  "plan_id": "GIB-P3-C2-IC-RDU-VP-v1",
+  "task_id": "P3-10",
+  "plan_status": "frozen_before_fit",
+  "claim_scope": "controlled_synthetic_relative_comparison_only",
+  "activation_input": {
+    "freeze_id": "GIB-FREEZE-P3-C2-S0-20260826-01",
+    "required_flag": "activated_tasks.P3-10=true"
+  },
+  "solver_plan_id": "GIB-P3-C2-S0-SOLVER-v1",
+  "reference_method": "vplr",
+  "comparison_methods": [
+    "classical_vp",
+    "vplr",
+    "tsvd_ridge_vp",
+    "fixed_depth_vp",
+    "ic_rdu_vp"
+  ],
+  "conditioning": {
+    "information_band": {
+      "sufficient": {"max_iterations": 20, "ridge_alpha": 1e-8},
+      "critical": {"max_iterations": 35, "ridge_alpha": 3e-8},
+      "insufficient": {"max_iterations": 50, "ridge_alpha": 1e-7}
+    },
+    "angle_penalty_iterations": {"HIG": 10, "MED": 5, "LOW": 0},
+    "maximum_iterations": 50
+  },
+  "learned_update": {
+    "scale_candidates": [0.5, 0.75, 1.0, 1.25],
+    "training_mixtures_per_cell": 2,
+    "selection_metric": "mean_component_absolute_error_then_iterations",
+    "training_partition_only": true
+  },
+  "ablations": [
+    "without_information_conditioning",
+    "fixed_regularization",
+    "fixed_update",
+    "fixed_depth",
+    "cell_label_shuffle"
+  ],
+  "gates": {
+    "non_inferiority_bands": {"N2": 0.008, "CO2": 0.003, "O2": 0.010, "Ar": 0.005},
+    "e30_minimum_reduction": 0.30,
+    "e20_minimum_reduction": 0.20,
+    "nr5_maximum_regression": 0.05,
+    "combined_rule": "NI AND (E30 OR E20) AND NR5"
+  },
+  "statistics": {
+    "resampling_unit": "mixture_id",
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20260824,
+    "confidence_level": 0.95
+  },
+  "negative_control_seed": 20260824
+}

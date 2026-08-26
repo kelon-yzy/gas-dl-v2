@@ -1,0 +1,376 @@
+{
+  "attempt_status": "complete",
+  "evidence_files": [
+    {
+      "path": "attempt/attempt_manifest.json",
+      "sha256": "40B8822C818714B54D0C0D594812763F2CADA87697336E2B3B21DEA4C09FA6F5"
+    },
+    {
+      "path": "attempt/checkpoint_identity.json",
+      "sha256": "864481AFB576BA966CDA62BA305D102EB688D35998E54B62F8419DB5AE0815A0"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-101__fraction-010.json",
+      "sha256": "149E3A1C8CF74573B8255E96B827FD2304560534E2AF34859E344C25F0BA0528"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-101__fraction-025.json",
+      "sha256": "6CFCF0815209399F4D16501EE66A4ED94D8CA2FFB0AF36A1FA2C841BB82E6E11"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-101__fraction-050.json",
+      "sha256": "41977C97AEAA5EC1EE6F0CC8F3345A49DC91B2069324DB61B2B4A44C789B64D4"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-101__fraction-075.json",
+      "sha256": "144893EC0BFDA62E0D66E959E8839231146B79F925AF59F556854C180B8F8A54"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-101__fraction-100.json",
+      "sha256": "8334A8D984C258D4D5FD996523D015008AE0F9D33B71D6352631F49C8DC9C9A4"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-202__fraction-010.json",
+      "sha256": "839C90C86385E5C3E64B02213F5992550BE0A7199D7C2131D1E9E8E8B21F2704"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-202__fraction-025.json",
+      "sha256": "D7F8C1EEC5068E4BEC1D3B06779EFDED52EA0B30707EF43811CA5E729F158311"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-202__fraction-050.json",
+      "sha256": "990E04C4342BFFDC2586125BD0420195CB27E08C53E3B3D2AC715AFA5E83CEFC"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-202__fraction-075.json",
+      "sha256": "24C2F950B0B7F8DFC34ABDE5CCDEDC29CB19A1FC2ECBF2C87DE88F1649A10190"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-202__fraction-100.json",
+      "sha256": "4F8EC85F13289C4A53FEE75881EBE1CABB970AEA5707DDB97F19C33EDD4F5DB7"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-303__fraction-010.json",
+      "sha256": "ABD038127D722AFCF45222B5F1462704BB7D43FC47A3DD413BA7DFBBAEB9F6EF"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-303__fraction-025.json",
+      "sha256": "46F12FAC5124D345F23B71DB01C88E309B0734EAAEEA158F2FBFB34C9876E45D"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-303__fraction-050.json",
+      "sha256": "192C252CE926FC0F58214791DA8682ED9749784833E79A7D0776EE05B883639E"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-303__fraction-075.json",
+      "sha256": "007CC91FB4F815EF044C53C05E167E5F52CC95E0D6493B135C7AEAB0AF28441B"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-01__seed-303__fraction-100.json",
+      "sha256": "2731F7BCD9032FF390E2437678FC4B12C842077A08ED77D9C28522742822CA58"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-101__fraction-010.json",
+      "sha256": "31580BE80C4ED3AA17ACBB2347C60531AB80EC48DBABC55EA1955F0F25F41925"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-101__fraction-025.json",
+      "sha256": "9B716E4D01B137EC32FAD5CB1012DFE2E87A4BB9CF8FBCFA50CB571DC2F94E7A"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-101__fraction-050.json",
+      "sha256": "00B2FD7D6856C6F7922A0D50A79A63206B1BC3F64520B4E08596805782C1FE6A"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-101__fraction-075.json",
+      "sha256": "B94D309372A350F74391F3B97C64231BEE6B112DE88ABE91E8DAACF88AA9E535"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-101__fraction-100.json",
+      "sha256": "F1EF2988A6F35ADCC4521AADF0B5C0DB385E1D00B27382B486AEF80F9D6E17D0"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-202__fraction-010.json",
+      "sha256": "19D3675D2A17B432085D190DFFC448364B7EFAEFDFEB98BB5EBA1888662423C2"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-202__fraction-025.json",
+      "sha256": "527D69B328322F79A542D834FCF2AC5F8ADB9481BF424B53569F2D95858F773D"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-202__fraction-050.json",
+      "sha256": "F032968A07EC48278429A11F0413B8D7A3FC12CA47E6144E12EAB6193B9677DC"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-202__fraction-075.json",
+      "sha256": "F632B49BC4FD4A7DCB73C6025769BC7DD1EB08050172CBFCDC8AFD695DF557EE"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-202__fraction-100.json",
+      "sha256": "358D6AAFBE883F74B6AD9276A3C0BF3F0B9BB05C66649BD6D8A08622B22B1D44"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-303__fraction-010.json",
+      "sha256": "8009632EBF9E6D3ED57764F6EE4AB8A31269380A6B49765B990994E06B66B5F3"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-303__fraction-025.json",
+      "sha256": "D434C6F190A03E595B94F868611B70B14086C957F3FA258B0337887C3E3F3B73"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-303__fraction-050.json",
+      "sha256": "837A91F8AFDF614259E246B1EBDA00F7DC168A3F4C7B406AEB41A87A5324BDDC"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-303__fraction-075.json",
+      "sha256": "062ED1E0EEA7C4CA51BAC5D8EDD63411FCF4DA5FA29687C469F3BE976FB232EB"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-02__seed-303__fraction-100.json",
+      "sha256": "9F83B3292F8D780EFC144A2EF4DC4DF308200DD3DE4AA36C5450D724148345C3"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-101__fraction-010.json",
+      "sha256": "19D37A9A9D7BF7651E72C7E7C01D21D93FD98FB19D05A0850B6F12262DEBD706"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-101__fraction-025.json",
+      "sha256": "7A5BA98B1E80832A4D7A099BAC8AE5019FA141642CE7C7E520DEA4FE37EBFB7E"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-101__fraction-050.json",
+      "sha256": "0CECC0DA2DA8C562A3CFDA3FCE457797477DA85D56B5E7908CC358C876AEB6C1"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-101__fraction-075.json",
+      "sha256": "215CD7A12113CEC5477E245793EC69926CE8AB9B4396A9FDB50F15B0A23A7818"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-101__fraction-100.json",
+      "sha256": "6B8D4F7CE40DBC87A9134EABB00A151AB3276A36BC1F283E3FF616DE7B5A6D2D"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-202__fraction-010.json",
+      "sha256": "53D440F850724926923C8191345689929C6EA85CD1ED27043AABD45CE49D0C23"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-202__fraction-025.json",
+      "sha256": "8A7C9E3E32697DF5BAEEB262CBBCB427AFD6C3CF6CF9D49E454DD9D410F96A51"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-202__fraction-050.json",
+      "sha256": "6F4D3BD2EA7607A24B2B93B082238B5E2A6EBDA2534B8E19A104BDE09B147DBA"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-202__fraction-075.json",
+      "sha256": "F974FC3B7418C4BA974405D361166F37EB674A4132868EE396E900C17DDD2A7E"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-202__fraction-100.json",
+      "sha256": "D0A58D68A9F78AE122BC9687398CF900EA587FF98F3B67791BEF9951D23F8027"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-303__fraction-010.json",
+      "sha256": "9CE4BEBFC3727C3AA2F7AFCB003DF2C7F9EBA5C42FC247D55BD758971AE37DFD"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-303__fraction-025.json",
+      "sha256": "FE87C99097B14597095BDE62AE08DBC1B0A603D1C77946684EC2118A66C191C7"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-303__fraction-050.json",
+      "sha256": "8E8948CDDE35E5FDC78AD3104B2A28FC56DEDDCDD8F48F44DC7B1D295A33F142"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-303__fraction-075.json",
+      "sha256": "AB2CDCDE17BB3ED7432CA63E781DEF933B58AD3A5ADC7921E2989D43D8D60F2B"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-03__seed-303__fraction-100.json",
+      "sha256": "292974F3D394D0F7B7EFAEBEA4B8E14A797A3DDE52E70B6E85030F5A31D1A6D3"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-101__fraction-010.json",
+      "sha256": "0C057DDEC049931B4F3177EBB2F69F5C0D4FDD63941D115A2E6BA4AE5A1696AA"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-101__fraction-025.json",
+      "sha256": "FB2F24A54FEBEB72E6D93BA4DC3F8A853A469E3B93C103AD1A6CD20E8CFBC4D9"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-101__fraction-050.json",
+      "sha256": "3EBA73DE55845722CCFB12C231D514D6308FDE884BE7453BC67E37F2BBC4CC1D"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-101__fraction-075.json",
+      "sha256": "7985756C7C4BE0A9501F0B6EEAD6DF69E304AA71C4612A960E0C02CF3B2D033A"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-101__fraction-100.json",
+      "sha256": "C3CC5D02ACE19FFB6D76EEF75FAEF5B2CA6DB70AA1A74199B2567854A4E43BC8"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-202__fraction-010.json",
+      "sha256": "1EFC1FFA8A298C91694432EDD85944EE2927BFA233E696557780C2B5FFDD1E0C"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-202__fraction-025.json",
+      "sha256": "DCBDC3EC00FA0471B0B074C0BA433548DF6AF591C1572B1F9E98078683ECE93F"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-202__fraction-050.json",
+      "sha256": "697F1C1B1B7B89BD37B6886BE656D9E7A806BE81F32D394E12FE18E19596A66F"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-202__fraction-075.json",
+      "sha256": "649F3844DD6C01D55D76798868EB7239A729D0BA404047866BD17F307B3F0BF9"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-202__fraction-100.json",
+      "sha256": "7D6DD347A3DB3FB98BABC3D1DEA0D4B54952889442C019A6E3281876F451015E"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-303__fraction-010.json",
+      "sha256": "7E89D6A89032F51E5BDADF7B71FD3DE9FC02EBAD2B89EDB3637BA1708ABD9218"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-303__fraction-025.json",
+      "sha256": "EA83C9FA83C8C330F22AC16E3D2D2361573229040845460CB5741B52D2DE17AB"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-303__fraction-050.json",
+      "sha256": "FA1DE738C67D7CBE5E2ABF4D6B0F7FD07E371B6B5415CD50F5C2B3850E8C720D"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-303__fraction-075.json",
+      "sha256": "343A00A445C65D13C404672A81A58FE8ED64E887DBCC26910C63FC2262AAE45C"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-04__seed-303__fraction-100.json",
+      "sha256": "22F70E4D389AFBFA918AF4817072AF866C20252EC84BFA0A4FB04F5143E73CB0"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-101__fraction-010.json",
+      "sha256": "DE94EB228A8D70E89906803F76657CCDA96B77DA4B416CFE39D77BF918D7547C"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-101__fraction-025.json",
+      "sha256": "631D634E520E985EF9DCCEB2A719E439AEF91F6A33FD6965B86232E8BEF64B5B"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-101__fraction-050.json",
+      "sha256": "598DD085BA0ADC33C84CB45F4D362067406DE3D860800D9452F0755C80C9A350"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-101__fraction-075.json",
+      "sha256": "DDE9B813E09CED46E86D768B9CA0BA150EDB88053B4A67DBC991FC375B983506"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-101__fraction-100.json",
+      "sha256": "D0420C843F3648FF9AF94ECF229D56B9E5747E10489065AC97D82427F3449FE8"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-202__fraction-010.json",
+      "sha256": "901F5D9E0057EFA188D39C84DE36CD6E1000878E605AB5766984909598B8A175"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-202__fraction-025.json",
+      "sha256": "BDC05ADAF06E20F38DEB62132F84B18B0EB86B4B39CEB9C360353AE92E912E1D"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-202__fraction-050.json",
+      "sha256": "112C8BB08BE78CEC7E97183C55CDFC648E69EAB922D6BC1DC659DD123F764481"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-202__fraction-075.json",
+      "sha256": "C86C61D8ECB152438E8DEE13D053308967D7839A4E7E2F06EDC3E5AAA24794F7"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-202__fraction-100.json",
+      "sha256": "19BD574100ABC24D76117F76E09C0EB4851725ECB64744E65969009986EA51AB"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-303__fraction-010.json",
+      "sha256": "95D107F33709965974FF6251A31CD0AD129F60B7662650CFDD020E5EA08971C8"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-303__fraction-025.json",
+      "sha256": "0D0518900E829CF157E1539424CED8A7B4CAE9F8E9E643BD875131CD5F1089A7"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-303__fraction-050.json",
+      "sha256": "AFAD0B3B5E941AB8FD0622910EF57DB85B9CA7BD522394F60B74098EF8DF8AB6"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-303__fraction-075.json",
+      "sha256": "94726E34CE322B350B8E823561D5F0C919345923D015C8C8D6DE68A0170AB6FD"
+    },
+    {
+      "path": "attempt/checkpoint_units/GIB-SPLIT-05__seed-303__fraction-100.json",
+      "sha256": "F471BAAE6388B18972792B28D3225E6335449FC9B7E689214B4DAF688C588F67"
+    },
+    {
+      "path": "attempt/data_efficiency_results.json",
+      "sha256": "214F785211D2932BA082599570D4493AB05ADAF98B41CBBF43FB08CC694CECF4"
+    }
+  ],
+  "freeze_id": "GIB-FREEZE-P3-C5B-20260826-01",
+  "hash_algorithm": "SHA256",
+  "inputs": [
+    {
+      "logical_path": "gas_information_bench/gib/pipeline/data_efficiency.py",
+      "role": "code",
+      "sha256": "A8B99C07CF84137E97ACDB11C821ABB3D801E04BD68A89C35EEB2BCD58E116C7",
+      "snapshot_path": "source_snapshots/gas_information_bench/gib/pipeline/data_efficiency.py"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p3_c5b_data_efficiency_plan.json",
+      "role": "config",
+      "sha256": "90BB59C25F06D77D56E340B9759B9754F85859944B149B4E70DF5F94C2AD9744",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p3_c5b_data_efficiency_plan.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_s4_metric_registry.json",
+      "role": "gate",
+      "sha256": "C287C9B48A74C420614E617859458E1D750967EF9542AFBB5FBE7918F02A1D5E",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_s4_metric_registry.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_data_schema.json",
+      "role": "schema",
+      "sha256": "6A9B895B57F0000FF0FD24B579DAA7C58FAFBA5CE175097FB2EC924BCCFE87CF",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_data_schema.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p3_execution_registry.json",
+      "role": "source_registry",
+      "sha256": "DF72A89EECA2B06B1414443EC04F6DF59B5663F0E42045081B1623C6554B84D3",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p3_execution_registry.json"
+    }
+  ],
+  "required_input_roles": [
+    "code",
+    "config",
+    "gate",
+    "schema",
+    "source_registry"
+  ],
+  "schema_version": "gib-benchmark-1",
+  "source_snapshots": [
+    {
+      "logical_path": "docs/p2/P2_bench规格书.md",
+      "sha256": "BC3583EA6EAB7AD358214B36B2AFED0B52806DAE50D79C5B9B78ACFCEF237CC7",
+      "snapshot_path": "source_snapshots/docs/p2/P2_bench规格书.md"
+    },
+    {
+      "logical_path": "docs/p3/P3执行计划.md",
+      "sha256": "1DF7C2FD15ECAB03C19C9131FE3D04A78E8B7115E70BC8C1E20A53514C5F604B",
+      "snapshot_path": "source_snapshots/docs/p3/P3执行计划.md"
+    },
+    {
+      "logical_path": "项目总体规划.md",
+      "sha256": "49E674945540D0A9E077C48A2011D29A6A0C6E1DEF62B3C5B33D72ED062CA7E8",
+      "snapshot_path": "source_snapshots/项目总体规划.md"
+    }
+  ]
+}

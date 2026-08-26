@@ -1,0 +1,684 @@
+{
+  "registry_id": "GIB-S5-SOURCE-v1",
+  "task_id": "P2-10",
+  "schema_version": "gib-benchmark-1",
+  "registry_status": "source_complete_for_controlled_synthetic_benchmark",
+  "verdict": "source_complete",
+  "scope": {
+    "candidate_ids": [
+      "GIB-C4-LR",
+      "GIB-C4-CH4"
+    ],
+    "forward_module": "gas_information_bench/gib/audit/forward.py",
+    "benchmark_mode": "controlled_synthetic",
+    "real_hardware_fidelity_claim_allowed": false,
+    "relative_algorithm_comparison_allowed": true,
+    "data_generation_allowed": false,
+    "model_comparison_allowed": false,
+    "training_allowed": false
+  },
+  "source_classes": [
+    "peer_reviewed",
+    "device_manual",
+    "engineering_assumption"
+  ],
+  "source_catalog": [
+    {
+      "source_id": "SRC-P205-FORWARD",
+      "source_type": "engineering_assumption",
+      "title": "P2-05 pure-forward screening implementation",
+      "path": "gas_information_bench/gib/audit/forward.py",
+      "source_hash_sha256": "D7E2B1F44F9AFD97FDAE9450B13B822BC6210C6BD6E63491C372179AFFF0B7CE",
+      "locator": "lines 18-89 and 248-395",
+      "citation": "P2-05 local screening implementation; its proxy coefficients are not external verification evidence",
+      "scope": "Code-value inventory and equation binding for P2 audit only",
+      "source_status": "available_local_implementation"
+    },
+    {
+      "source_id": "SRC-P204-DESIGN",
+      "source_type": "engineering_assumption",
+      "title": "P2 bench parameter and working-domain table",
+      "path": "docs/p2/P2_bench规格书.md",
+      "source_hash_sha256": null,
+      "locator": "§3.2-§3.3",
+      "citation": "P2-04 design envelope; the table explicitly requires later source audit",
+      "scope": "Design ranges, units and nuisance field semantics",
+      "source_status": "design_input_not_hardware_verification"
+    },
+    {
+      "source_id": "SRC-HG-PHYS",
+      "source_type": "engineering_assumption",
+      "title": "Hydrogen natural-gas physical-model strictification plan",
+      "path": "hydrogen_ng/docs/物理模型严格化实施计划.md",
+      "source_hash_sha256": "953887D913D0FF7D9032F0C1D90BFEECA676047D0B206BE0725B56DBA2EE1514",
+      "locator": "§2.2 and §4.2",
+      "citation": "Local technical plan citing NIST WebBook for selected gas constants",
+      "scope": "Ideal-gas acoustic relation and selected N2/CO2/H2/CH4 constants",
+      "source_status": "secondary_local_record"
+    },
+    {
+      "source_id": "SRC-TV-GAS-PROPS",
+      "source_type": "engineering_assumption",
+      "title": "CO2/O2/N2 gas-property reference note",
+      "path": "tunnel_ventilation/docs/references/co2_o2_n2_gas_properties.md",
+      "source_hash_sha256": "1F347722388298F6660FDDB0B8EFF61AD34F4594348EABE733D61AF519391C5E",
+      "locator": "§1-§5 and source index",
+      "citation": "Local reference note citing NIST, NBS Technical Note 350, CRC and related literature",
+      "scope": "Selected N2/CO2/O2 acoustic and thermal properties; no Ar record",
+      "source_status": "secondary_local_record"
+    },
+    {
+      "source_id": "SRC-BASS-1990",
+      "source_type": "peer_reviewed",
+      "title": "Bass et al. gas attenuation reference",
+      "path": "tunnel_ventilation/docs/references/co2_o2_n2_gas_properties.md",
+      "source_hash_sha256": "1F347722388298F6660FDDB0B8EFF61AD34F4594348EABE733D61AF519391C5E",
+      "locator": "§1.2-§1.3 and source index [5]",
+      "citation": "Bass, Sutherland and Zuckerwar, Journal of the Acoustical Society of America 88(4), 1990, DOI 10.1121/1.400176",
+      "scope": "Frequency- and thermodynamic-condition-dependent acoustic attenuation reference",
+      "source_status": "citation_recorded_in_local_summary"
+    },
+    {
+      "source_id": "SRC-WILKE-1950",
+      "source_type": "peer_reviewed",
+      "title": "Wilke gas-mixture transport relation",
+      "path": "tunnel_ventilation/docs/references/co2_o2_n2_gas_properties.md",
+      "source_hash_sha256": "1F347722388298F6660FDDB0B8EFF61AD34F4594348EABE733D61AF519391C5E",
+      "locator": "§2.3 and source index [8]",
+      "citation": "Wilke, Journal of Chemical Physics, 1950, gas-mixture viscosity/transport relation",
+      "scope": "Reference for mixture transport calculation; not a direct source for the current proxy coefficients",
+      "source_status": "citation_recorded_in_local_summary"
+    },
+    {
+      "source_id": "SRC-HARDWARE-HG",
+      "source_type": "device_manual",
+      "title": "Sensor and acquisition hardware summary",
+      "path": "hydrogen_ng/docs/references/传感器硬件资料整理.md",
+      "source_hash_sha256": "D1C44BEF8E463809985570BA40E54CE25B2DCA182D41EBB0FC5BCDD66A438AC9",
+      "locator": "§2-§8 and Appendix A.2-A.4",
+      "citation": "Local summary of named TCS205, TraceGas, SHT45, PSC200K, ADS8684/8688 and NI USB-6453 documents",
+      "scope": "Hardware ranges, response notes and known document gaps",
+      "source_status": "summary_present_original_artifacts_partial"
+    },
+    {
+      "source_id": "SRC-PSC200K",
+      "source_type": "device_manual",
+      "title": "PSC200K ultrasonic transducer record",
+      "path": "https://en.jkelec.com/index.php?a=show&c=content&id=404",
+      "source_hash_sha256": null,
+      "locator": "Product parameter table, resonant frequency; accessed 2026-08-25",
+      "citation": "Jiakang Electronics official PSC200K product page",
+      "scope": "Center frequency 200±10 kHz and stated environmental/test conditions",
+      "source_status": "official_product_page_verified"
+    },
+    {
+      "source_id": "SRC-TRACEGAS-CO2",
+      "source_type": "device_manual",
+      "title": "TraceGas CO2 NDIR record",
+      "path": "https://www.tracegas-sensing.com/ndir/oemsensor",
+      "source_hash_sha256": null,
+      "locator": "OEM NDIR product-family page; accessed 2026-08-25",
+      "citation": "TraceGas official OEM sensor and NDIR product pages; the actual target-module filter datasheet is not published",
+      "scope": "Range and interface notes only; no verified filter center/FWHM response",
+      "source_status": "official_product_family_verified_critical_filter_artifact_missing"
+    },
+    {
+      "source_id": "SRC-TCS205",
+      "source_type": "device_manual",
+      "title": "TCS205 thermal-conductivity sensor record",
+      "path": "hydrogen_ng/docs/references/传感器硬件资料整理.md",
+      "source_hash_sha256": "D1C44BEF8E463809985570BA40E54CE25B2DCA182D41EBB0FC5BCDD66A438AC9",
+      "locator": "§2.1-§2.2",
+      "citation": "TCS205 气体热导传感器 document named by the local hardware summary",
+      "scope": "Environmental range and response-time notes",
+      "source_status": "summary_present_manual_artifact_missing"
+    },
+    {
+      "source_id": "SRC-SHT45",
+      "source_type": "device_manual",
+      "title": "SHT4x/SHT45 temperature-humidity sensor record",
+      "path": "https://sensirion.com/resource/datasheet/sht4x",
+      "source_hash_sha256": null,
+      "locator": "SHT4x datasheet, specifications tables and repeatability footnote; accessed 2026-08-25",
+      "citation": "Sensirion official SHT4x datasheet",
+      "scope": "Temperature/RH range, accuracy, t63 response and high-precision repeatability defined as 3 sigma",
+      "source_status": "official_datasheet_verified"
+    },
+    {
+      "source_id": "SRC-NI6453",
+      "source_type": "device_manual",
+      "title": "NI USB-6453 acquisition specification record",
+      "path": "hydrogen_ng/docs/references/传感器硬件资料整理.md",
+      "source_hash_sha256": "D1C44BEF8E463809985570BA40E54CE25B2DCA182D41EBB0FC5BCDD66A438AC9",
+      "locator": "§8.1",
+      "citation": "NI USB-6453 specifications document named by the local hardware summary",
+      "scope": "Resolution, sample rate, bandwidth and input range notes",
+      "source_status": "summary_present_manual_artifact_missing"
+    },
+    {
+      "source_id": "SRC-IUPAC-AR-2021",
+      "source_type": "peer_reviewed",
+      "title": "Standard atomic weights of the elements 2021 (IUPAC Technical Report)",
+      "path": "https://doi.org/10.1515/pac-2019-0603",
+      "source_hash_sha256": null,
+      "locator": "Table 1, Ar row; accessed 2026-08-25",
+      "citation": "Prohaska et al., Pure and Applied Chemistry 94 (2022) 573-600, DOI 10.1515/pac-2019-0603",
+      "scope": "Argon standard atomic-weight interval and the previous conventional value 39.948 +/- 0.001",
+      "source_status": "primary_external_verified_metadata"
+    },
+    {
+      "source_id": "SRC-SUN-VENART-2005",
+      "source_type": "peer_reviewed",
+      "title": "Thermal Conductivity, Thermal Diffusivity, and Heat Capacity of Gaseous Argon and Nitrogen",
+      "path": "https://doi.org/10.1007/s10765-005-4502-0",
+      "source_hash_sha256": null,
+      "locator": "Argon gas heat-capacity and thermal-conductivity results; 298.15 K dilute-gas basis used by P2 screening; accessed 2026-08-25",
+      "citation": "Sun and Venart, International Journal of Thermophysics 26 (2005) 325-372, DOI 10.1007/s10765-005-4502-0",
+      "scope": "Independent peer-reviewed traceability for gaseous Ar heat capacity and conductivity near ambient conditions",
+      "source_status": "primary_external_verified_metadata"
+    },
+    {
+      "source_id": "SRC-YOUNGLOVE-HANLEY-1986",
+      "source_type": "peer_reviewed",
+      "title": "The Viscosity and Thermal Conductivity Coefficients of Gaseous and Liquid Argon",
+      "path": "https://doi.org/10.1063/1.555765",
+      "source_hash_sha256": null,
+      "locator": "Gaseous-argon thermal-conductivity tables, 90-500 K; ambient dilute-gas point; accessed 2026-08-25",
+      "citation": "Younglove and Hanley, Journal of Physical and Chemical Reference Data 15 (1986) 1323-1337, DOI 10.1063/1.555765",
+      "scope": "Reference-data traceability for Ar thermal conductivity near 300 K",
+      "source_status": "primary_external_verified_metadata"
+    },
+    {
+      "source_id": "SRC-PROJECT-SYNTHETIC-AUTH-20260825",
+      "source_type": "engineering_assumption",
+      "title": "P2 controlled synthetic benchmark authorization",
+      "path": "docs/p2/S5来源检索记录.md",
+      "source_hash_sha256": "A67787702B4263A4D3B6C6CEEFDEFA9CDE85ABCAF7409B3A5502994B17B109B6",
+      "locator": "§3-§5",
+      "citation": "Project-owner authorization dated 2026-08-25: compare algorithms under one frozen synthetic profile without claiming target-device fidelity",
+      "scope": "NDIR proxy coefficients, abstract acoustic proxy and declared per-channel noise used only for controlled relative algorithm comparison",
+      "source_status": "authorized_engineering_profile_not_physical_validation"
+    }
+  ],
+  "forward_inventory": [
+    "IDEAL_GAS_CONSTANT_R",
+    "MOLAR_MASS",
+    "CP_MOLAR",
+    "THERMAL_CONDUCTIVITY",
+    "ATTENUATION_WEIGHT",
+    "PHASE_WEIGHT",
+    "ETA_DEFAULT",
+    "ETA_PRIOR_STD",
+    "ETA_STEPS",
+    "NORMALIZATION_CONSTANTS",
+    "NDIR_ABSORPTION_COEFFICIENTS",
+    "OBSERVATION_NOISE_STD",
+    "MODALITY_FREQUENCY_RESPONSE",
+    "OPERATING_RANGES"
+  ],
+  "parameter_bindings": [
+    {
+      "code_path": "gas_information_bench/gib/audit/forward.py",
+      "code_hash_sha256": "D7E2B1F44F9AFD97FDAE9450B13B822BC6210C6BD6E63491C372179AFFF0B7CE",
+      "locator": "lines 18-89",
+      "inventory_ids": [
+        "IDEAL_GAS_CONSTANT_R",
+        "MOLAR_MASS",
+        "CP_MOLAR",
+        "THERMAL_CONDUCTIVITY",
+        "ATTENUATION_WEIGHT",
+        "PHASE_WEIGHT",
+        "ETA_DEFAULT",
+        "ETA_PRIOR_STD",
+        "ETA_STEPS"
+      ]
+    },
+    {
+      "code_path": "gas_information_bench/gib/audit/forward.py",
+      "code_hash_sha256": "D7E2B1F44F9AFD97FDAE9450B13B822BC6210C6BD6E63491C372179AFFF0B7CE",
+      "locator": "lines 248-395",
+      "inventory_ids": [
+        "NORMALIZATION_CONSTANTS",
+        "NDIR_ABSORPTION_COEFFICIENTS",
+        "OBSERVATION_NOISE_STD",
+        "MODALITY_FREQUENCY_RESPONSE",
+        "OPERATING_RANGES"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "inventory_id": "IDEAL_GAS_CONSTANT_R",
+      "category": "physical_constant",
+      "values": {
+        "R": 8.314462618
+      },
+      "unit": "J/(mol*K)",
+      "source_ids": [
+        "SRC-HG-PHYS",
+        "SRC-P205-FORWARD"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "Ideal-gas relation and R value recorded in the local physical-model plan and bound in P2-05 code",
+      "locator": "hydrogen_ng/docs/物理模型严格化实施计划.md §2.2; forward.py:_mixture_properties",
+      "scope": "P2 acoustic speed calculation",
+      "verification_status": "secondary_local_record"
+    },
+    {
+      "inventory_id": "MOLAR_MASS",
+      "category": "physical_constant",
+      "values": {
+        "N2": 0.0280134,
+        "CO2": 0.0440095,
+        "O2": 0.0319988,
+        "Ar": 0.039948,
+        "CH4": 0.016043
+      },
+      "unit": "kg/mol",
+      "source_ids": [
+        "SRC-IUPAC-AR-2021",
+        "SRC-HG-PHYS",
+        "SRC-TV-GAS-PROPS",
+        "SRC-P205-FORWARD"
+      ],
+      "source_type": "peer_reviewed",
+      "citation": "IUPAC 2021 reports the current natural-Ar interval and identifies 39.948 +/- 0.001 as the preceding conventional standard value; P2 uses 39.948 g/mol as a declared nominal reference-gas composition, not a universal natural-sample exact value",
+      "locator": "DOI 10.1515/pac-2019-0603 Table 1; forward.py:MOLAR_MASS",
+      "scope": "C4-LR and C4-CH4 mixture property calculation",
+      "verification_status": "verified_with_argon_composition_basis"
+    },
+    {
+      "inventory_id": "CP_MOLAR",
+      "category": "physical_constant",
+      "values": {
+        "N2": 29.124,
+        "CO2": 37.135,
+        "O2": 29.376,
+        "Ar": 20.786,
+        "CH4": 35.69
+      },
+      "unit": "J/(mol*K)",
+      "source_ids": [
+        "SRC-SUN-VENART-2005",
+        "SRC-HG-PHYS",
+        "SRC-TV-GAS-PROPS",
+        "SRC-P205-FORWARD"
+      ],
+      "source_type": "peer_reviewed",
+      "citation": "Gaseous-Ar heat-capacity measurements provide the ambient dilute-gas basis; 20.786 J/(mol*K) is the monatomic ideal-gas value used at 298.15 K in P2 screening",
+      "locator": "DOI 10.1007/s10765-005-4502-0; forward.py:CP_MOLAR and ETA_DEFAULT.T_K",
+      "scope": "Mixture gamma and acoustic speed calculation",
+      "verification_status": "verified_for_ambient_dilute_gas_screening"
+    },
+    {
+      "inventory_id": "THERMAL_CONDUCTIVITY",
+      "category": "physical_constant",
+      "values": {
+        "N2": 0.02583,
+        "CO2": 0.01665,
+        "O2": 0.0263,
+        "Ar": 0.01772,
+        "CH4": 0.034
+      },
+      "unit": "W/(m*K)",
+      "source_ids": [
+        "SRC-SUN-VENART-2005",
+        "SRC-YOUNGLOVE-HANLEY-1986",
+        "SRC-HG-PHYS",
+        "SRC-TV-GAS-PROPS",
+        "SRC-P205-FORWARD"
+      ],
+      "source_type": "peer_reviewed",
+      "citation": "Two peer-reviewed gaseous-Ar reference datasets support an ambient dilute-gas conductivity near the P2 screening value 0.01772 W/(m*K)",
+      "locator": "DOI 10.1007/s10765-005-4502-0 and DOI 10.1063/1.555765; forward.py:THERMAL_CONDUCTIVITY",
+      "scope": "Thermal modality mixture conductivity calculation",
+      "verification_status": "verified_for_ambient_dilute_gas_screening"
+    },
+    {
+      "inventory_id": "ATTENUATION_WEIGHT",
+      "category": "model_coefficient",
+      "values": {
+        "N2": 0.1,
+        "CO2": 0.4,
+        "O2": 0.18,
+        "Ar": 0.28,
+        "CH4": 0.55
+      },
+      "unit": "dimensionless_proxy",
+      "source_ids": [
+        "SRC-P205-FORWARD"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "P2-05 screening proxy; no direct measured frequency-conditioned attenuation source is bound to these weights",
+      "locator": "forward.py:63-69 and forward_observation acoustic block",
+      "scope": "P2 screening only",
+      "verification_status": "unverified_engineering_assumption"
+    },
+    {
+      "inventory_id": "PHASE_WEIGHT",
+      "category": "model_coefficient",
+      "values": {
+        "N2": 0.01,
+        "CO2": 0.08,
+        "O2": 0.03,
+        "Ar": -0.05,
+        "CH4": 0.12
+      },
+      "unit": "dimensionless_proxy",
+      "source_ids": [
+        "SRC-P205-FORWARD"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "P2-05 screening proxy; no direct phase-dispersion source is bound to these weights",
+      "locator": "forward.py:71-77 and forward_observation acoustic block",
+      "scope": "P2 screening only",
+      "verification_status": "unverified_engineering_assumption"
+    },
+    {
+      "inventory_id": "ETA_DEFAULT",
+      "category": "nuisance_profile",
+      "values": {
+        "T_K": 298.15,
+        "P_kPa": 101.325,
+        "RH_frac": 0.5,
+        "L_m": 0.2,
+        "gain": 1.0,
+        "baseline": 0.0,
+        "delay_s": 0.0,
+        "crosstalk": 0.03,
+        "q_flow": 1.0
+      },
+      "unit": "mixed_by_field",
+      "source_ids": [
+        "SRC-P204-DESIGN",
+        "SRC-P205-FORWARD"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "P2-04 design center and P2-05 audit default; not a measured deployment calibration",
+      "locator": "P2_bench规格书.md §3.2; forward.py:25-28",
+      "scope": "Pure-forward audit default only",
+      "verification_status": "design_assumption"
+    },
+    {
+      "inventory_id": "ETA_PRIOR_STD",
+      "category": "nuisance_profile",
+      "values": {
+        "T_K": 0.1,
+        "P_kPa": 0.5,
+        "RH_frac": 0.01,
+        "L_m": 0.005,
+        "gain": 0.02,
+        "baseline": 0.005,
+        "delay_s": 0.000002,
+        "crosstalk": 0.02,
+        "q_flow": 0.05
+      },
+      "unit": "mixed_by_field",
+      "source_ids": [
+        "SRC-P204-DESIGN",
+        "SRC-P205-FORWARD"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "P2-05 nuisance prior profile; P2-04 supplies only the design envelope, not these standard deviations",
+      "locator": "forward.py:29-33; P2_bench规格书.md §3.2",
+      "scope": "CRB/effective-information screening only",
+      "verification_status": "unverified_engineering_assumption"
+    },
+    {
+      "inventory_id": "ETA_STEPS",
+      "category": "numerical_parameter",
+      "values": {
+        "T_K": 0.001,
+        "P_kPa": 0.001,
+        "RH_frac": 0.00001,
+        "L_m": 0.00001,
+        "gain": 0.00001,
+        "baseline": 0.00001,
+        "delay_s": 0.00000001,
+        "crosstalk": 0.00001,
+        "q_flow": 0.0001
+      },
+      "unit": "mixed_by_field",
+      "source_ids": [
+        "SRC-P205-FORWARD"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "P2-05 finite-difference step profile; selected for numerical audit stability and not a physical measurement",
+      "locator": "forward.py:34-38",
+      "scope": "Jacobian and Fisher audit only",
+      "verification_status": "unverified_engineering_assumption"
+    },
+    {
+      "inventory_id": "NORMALIZATION_CONSTANTS",
+      "category": "model_constant",
+      "values": {
+        "temperature_reference_K": 298.15,
+        "pressure_reference_kPa": 101.325,
+        "relative_humidity_reference_frac": 0.5,
+        "path_reference_m": 0.2,
+        "speed_reference_m_per_s": 350.0,
+        "conductivity_reference_W_per_m_K": 0.025,
+        "humidity_factor_coefficient": 0.05,
+        "attenuation_cross_coefficient": 0.2,
+        "phase_cross_coefficient": 0.25,
+        "thermal_primary_cross_coefficient": 0.25,
+        "thermal_auxiliary_conductivity_coefficient": 0.5,
+        "thermal_auxiliary_n2_coefficient": 0.2,
+        "conductivity_temperature_exponent": 0.8,
+        "time_reference_ms": 1.0
+      },
+      "unit": "mixed_by_field",
+      "source_ids": [
+        "SRC-P204-DESIGN",
+        "SRC-P205-FORWARD"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "P2-05 normalization and coupling coefficients; design center values originate in P2-04",
+      "locator": "forward.py:258-291 and 309-351; P2_bench规格书.md §3.2",
+      "scope": "P2 screening equations only",
+      "verification_status": "partially_traceable_unverified_coefficients"
+    },
+    {
+      "inventory_id": "NDIR_ABSORPTION_COEFFICIENTS",
+      "category": "model_coefficient",
+      "values": {
+        "co2_absorption": 1.4,
+        "ch4_absorption": 1.0,
+        "ndir_null_o2_ar": 0.02,
+        "ndir_null_n2": 0.005,
+        "ndir_cross_matrix_diagonal": 1.0
+      },
+      "unit": "dimensionless_proxy",
+      "source_ids": [
+        "SRC-P205-FORWARD",
+        "SRC-TRACEGAS-CO2",
+        "SRC-PROJECT-SYNTHETIC-AUTH-20260825"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "Authorized dimensionless Beer-Lambert proxy; it is shared by every method and is not presented as a TraceGas calibration curve",
+      "locator": "forward.py:301-316; docs/p2/S5来源检索记录.md §3-§5",
+      "scope": "Controlled synthetic algorithm benchmark only",
+      "verification_status": "authorized_synthetic_profile_not_hardware_verified"
+    },
+    {
+      "inventory_id": "OBSERVATION_NOISE_STD",
+      "category": "noise_model",
+      "values": {
+        "ndir": [
+          0.03,
+          0.03
+        ],
+        "acoustic_raw": [
+          0.003,
+          0.002,
+          0.004,
+          0.002
+        ],
+        "acoustic_dsp": [
+          0.002,
+          0.004,
+          0.004
+        ],
+        "thermal": [
+          0.01,
+          0.01
+        ],
+        "slow": [
+          0.001,
+          0.001,
+          0.01,
+          0.02
+        ],
+        "calibration": [
+          0.005,
+          0.002,
+          0.01,
+          0.002,
+          0.01
+        ]
+      },
+      "unit": "declared_observation_units",
+      "source_ids": [
+        "SRC-P205-FORWARD",
+        "SRC-HARDWARE-HG",
+        "SRC-PROJECT-SYNTHETIC-AUTH-20260825"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "Authorized per-channel synthetic noise scales; identical values and noise_scale profiles are mandatory for every paired method",
+      "locator": "forward.py:319-378; docs/p2/S5来源检索记录.md §3-§5",
+      "scope": "Controlled synthetic whitening, Fisher audit and relative algorithm comparison only",
+      "verification_status": "authorized_synthetic_profile_not_instrument_calibration"
+    },
+    {
+      "inventory_id": "MODALITY_FREQUENCY_RESPONSE",
+      "category": "hardware_response",
+      "values": {
+        "PSC200K_center_frequency_kHz": 200.0,
+        "PSC200K_tolerance_kHz": 10.0,
+        "TCS205_thin_film_response_ms": 5.0,
+        "TCS205_gas_diffusion_response_ms": 100.0,
+        "SHT45_rh_t63_s": 4.0,
+        "SHT45_temperature_t63_s": 2.0,
+        "NI_USB_6453_sample_rate_MS_per_s_per_channel": 1.0,
+        "NI_USB_6453_bandwidth_MHz": 1.3,
+        "TraceGas_CO2_filter_center_nm": null,
+        "TraceGas_CO2_filter_fwhm_nm": null,
+        "TraceGas_CO2_filter_model_status": "not_modeled_dimensionless_optical_proxy",
+        "forward_acoustic_frequency_hz": null,
+        "forward_acoustic_frequency_status": "not_applicable_dimensionless_attenuation_phase_proxy"
+      },
+      "unit": "mixed_by_field",
+      "source_ids": [
+        "SRC-PSC200K",
+        "SRC-TCS205",
+        "SRC-SHT45",
+        "SRC-NI6453",
+        "SRC-TRACEGAS-CO2",
+        "SRC-P205-FORWARD",
+        "SRC-PROJECT-SYNTHETIC-AUTH-20260825"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "Named-device response values are reference metadata only; the authorized synthetic forward uses dimensionless optical and acoustic proxies and therefore does not bind filter center/FWHM or excitation frequency",
+      "locator": "hardware sources in source_catalog; forward.py acoustic/NDIR blocks; docs/p2/S5来源检索记录.md §3-§5",
+      "scope": "Hardware references are excluded from P2/P3 algorithm verdicts; null modeled fields are explicit not-applicable values, not missing fallbacks",
+      "verification_status": "authorized_model_scope_with_hardware_binding_deferred_to_P5"
+    },
+    {
+      "inventory_id": "OPERATING_RANGES",
+      "category": "operating_range",
+      "values": {
+        "p2_bench_nuisance_envelope": {
+          "T_K": [
+            293.15,
+            333.15
+          ],
+          "P_kPa": [
+            90.0,
+            110.0
+          ],
+          "RH_percent": [
+            10.0,
+            90.0
+          ],
+          "L_m": [
+            0.1,
+            1.0
+          ],
+          "gain": [
+            0.9,
+            1.1
+          ],
+          "baseline": [
+            -0.05,
+            0.05
+          ],
+          "delay_ms": [
+            -2.0,
+            2.0
+          ],
+          "crosstalk": [
+            -0.1,
+            0.1
+          ],
+          "q_flow_L_per_min": [
+            0.1,
+            10.0
+          ]
+        },
+        "hardware_summary_ranges": {
+          "SHT45_temperature_C": [
+            -40.0,
+            125.0
+          ],
+          "SHT45_rh_percent": [
+            0.0,
+            100.0
+          ],
+          "TraceGas_HC_temperature_C": [
+            -40.0,
+            70.0
+          ],
+          "TraceGas_HC_rh_percent": [
+            0.0,
+            98.0
+          ],
+          "TCS205_temperature_C": [
+            -20.0,
+            85.0
+          ],
+          "PSC200K_temperature_C": [
+            -35.0,
+            70.0
+          ]
+        }
+      },
+      "unit": "mixed_by_field",
+      "source_ids": [
+        "SRC-P204-DESIGN",
+        "SRC-HARDWARE-HG",
+        "SRC-SHT45",
+        "SRC-TRACEGAS-CO2",
+        "SRC-TCS205",
+        "SRC-PSC200K"
+      ],
+      "source_type": "engineering_assumption",
+      "citation": "P2-04 bench envelope is a design input; hardware ranges are reported separately from named device summaries",
+      "locator": "P2_bench规格书.md §3.2-§3.3; hardware summary §2, §4, §5, §6 and Appendix A.2",
+      "scope": "Range audit; design envelope must not be described as verified hardware capability",
+      "verification_status": "design_and_summary_ranges_separated"
+    }
+  ],
+  "missing_key_sources": [],
+  "policy": {
+    "engineering_assumptions_not_verified": true,
+    "missing_source_blocks": true,
+    "no_neighbor_substitution": true,
+    "benchmark_mode": "controlled_synthetic",
+    "cross_method_profile_identity_required": true,
+    "hardware_performance_claim_allowed": false,
+    "unmodeled_hardware_fields_must_be_explicit_null": true,
+    "real_hardware_validation_stage": "P5",
+    "discrepancy_allowed_stage": "P5_only",
+    "p2_self_injection_allowed": false
+  }
+}

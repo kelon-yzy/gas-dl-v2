@@ -1,0 +1,78 @@
+{
+  "attempt_status": "complete",
+  "evidence_files": [
+    {
+      "path": "attempt/attempt_manifest.json",
+      "sha256": "AB57EC9240EA41C2B63100C777E8C7CB037BCB27F293AEB111251A1C6298020C"
+    },
+    {
+      "path": "attempt/teacher_preflight_results.json",
+      "sha256": "043AAD7E00D40DBB003AA865E55261BF9ADEFDE92B58AA338084AA1B483F6F1F"
+    }
+  ],
+  "freeze_id": "GIB-FREEZE-P3-C5C-20260826-01",
+  "hash_algorithm": "SHA256",
+  "inputs": [
+    {
+      "logical_path": "gas_information_bench/gib/pipeline/teacher_preflight.py",
+      "role": "code",
+      "sha256": "EEC5D94419413B1FC8034F511E0025ED04401D378F536C477F856571A93E68B6",
+      "snapshot_path": "source_snapshots/gas_information_bench/gib/pipeline/teacher_preflight.py"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p3_c5c_crpkd_plan.json",
+      "role": "config",
+      "sha256": "D9943AD753E96CD90486E41D9BAE5553CFAED3E747001E313ED285A59F115699",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p3_c5c_crpkd_plan.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p3_baseline_plan.json",
+      "role": "config",
+      "sha256": "691A8D7A5989256A0080B7B63D00ABC976E23796DAFBDFBA3D006FA062A11B20",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p3_baseline_plan.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_s4_metric_registry.json",
+      "role": "gate",
+      "sha256": "C287C9B48A74C420614E617859458E1D750967EF9542AFBB5FBE7918F02A1D5E",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_s4_metric_registry.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_data_schema.json",
+      "role": "schema",
+      "sha256": "6A9B895B57F0000FF0FD24B579DAA7C58FAFBA5CE175097FB2EC924BCCFE87CF",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_data_schema.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p3_execution_registry.json",
+      "role": "source_registry",
+      "sha256": "DF72A89EECA2B06B1414443EC04F6DF59B5663F0E42045081B1623C6554B84D3",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p3_execution_registry.json"
+    }
+  ],
+  "required_input_roles": [
+    "code",
+    "config",
+    "gate",
+    "schema",
+    "source_registry"
+  ],
+  "schema_version": "gib-benchmark-1",
+  "source_snapshots": [
+    {
+      "logical_path": "docs/p2/P2_bench规格书.md",
+      "sha256": "BC3583EA6EAB7AD358214B36B2AFED0B52806DAE50D79C5B9B78ACFCEF237CC7",
+      "snapshot_path": "source_snapshots/docs/p2/P2_bench规格书.md"
+    },
+    {
+      "logical_path": "docs/p3/P3执行计划.md",
+      "sha256": "1DF7C2FD15ECAB03C19C9131FE3D04A78E8B7115E70BC8C1E20A53514C5F604B",
+      "snapshot_path": "source_snapshots/docs/p3/P3执行计划.md"
+    },
+    {
+      "logical_path": "项目总体规划.md",
+      "sha256": "49E674945540D0A9E077C48A2011D29A6A0C6E1DEF62B3C5B33D72ED062CA7E8",
+      "snapshot_path": "source_snapshots/项目总体规划.md"
+    }
+  ]
+}

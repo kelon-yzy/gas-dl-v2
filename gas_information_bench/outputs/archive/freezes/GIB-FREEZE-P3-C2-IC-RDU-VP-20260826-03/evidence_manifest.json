@@ -1,0 +1,114 @@
+{
+  "attempt_status": "complete",
+  "evidence_files": [
+    {
+      "path": "attempt/attempt_manifest.json",
+      "sha256": "DA43FD7ED1B49E720DA3F47A3B3DA5A4B8CFB2127DF9E32E820A473231DC3081"
+    },
+    {
+      "path": "attempt/conditional_solver_results.json",
+      "sha256": "E70A91031C1D9417BBA8D22A44D6B34D41AE58FC44C98CAEC6E41CF2EB5A953F"
+    }
+  ],
+  "freeze_id": "GIB-FREEZE-P3-C2-IC-RDU-VP-20260826-03",
+  "hash_algorithm": "SHA256",
+  "inputs": [
+    {
+      "logical_path": "gas_information_bench/gib/pipeline/conditional_solver.py",
+      "role": "code",
+      "sha256": "C32DCBA341C2C507D9345DE5971D3F38368E31320D7988F3A2B64B0088A392E6",
+      "snapshot_path": "source_snapshots/gas_information_bench/gib/pipeline/conditional_solver.py"
+    },
+    {
+      "logical_path": "gas_information_bench/gib/pipeline/solver_preflight.py",
+      "role": "code",
+      "sha256": "02001A6A3FE5C92D37CF2F9E9BFC52CB59BAE5B0138626C755F2DD7576A0015D",
+      "snapshot_path": "source_snapshots/gas_information_bench/gib/pipeline/solver_preflight.py"
+    },
+    {
+      "logical_path": "gas_information_bench/gib/audit/solver.py",
+      "role": "code",
+      "sha256": "DD4B1F8020DE20BD990C33EF73391F3F6D0432D38279C6F59FD101A74858D9C9",
+      "snapshot_path": "source_snapshots/gas_information_bench/gib/audit/solver.py"
+    },
+    {
+      "logical_path": "gas_information_bench/gib/freeze.py",
+      "role": "code",
+      "sha256": "DAE96AF3FD06495032E3914E214D41B54D70C31EA8F77D7A2943F96500064229",
+      "snapshot_path": "source_snapshots/gas_information_bench/gib/freeze.py"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p3_c2_ic_rdu_vp_plan.json",
+      "role": "config",
+      "sha256": "9382A599661CE28029FC5545F8BA0E399EC794D9EE02401940AF085A0018B2D4",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p3_c2_ic_rdu_vp_plan.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p3_c2_solver_plan.json",
+      "role": "config",
+      "sha256": "2858CAD8FF5D20D21A855F52EAC756F966F37AF6F877111C1D46F0BDA55535E8",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p3_c2_solver_plan.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p3_execution_registry.json",
+      "role": "config",
+      "sha256": "DF72A89EECA2B06B1414443EC04F6DF59B5663F0E42045081B1623C6554B84D3",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p3_execution_registry.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_s4_metric_registry.json",
+      "role": "gate",
+      "sha256": "C287C9B48A74C420614E617859458E1D750967EF9542AFBB5FBE7918F02A1D5E",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_s4_metric_registry.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_data_schema.json",
+      "role": "schema",
+      "sha256": "6A9B895B57F0000FF0FD24B579DAA7C58FAFBA5CE175097FB2EC924BCCFE87CF",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_data_schema.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_s5_source_registry.json",
+      "role": "source_registry",
+      "sha256": "7573FC247B490BAC2DB5613E534A37814C558DD7EF2B75E6100F5ABC0BFC6995",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_s5_source_registry.json"
+    },
+    {
+      "logical_path": "gas_information_bench/outputs/archive/freezes/GIB-FREEZE-P3-C2-S0-20260826-01/evidence_manifest.json",
+      "role": "upstream_evidence",
+      "sha256": "B6450C29EFAA58E82DA0B668503D1B6239AB388C405FC7B1503D8A748304817F",
+      "snapshot_path": "source_snapshots/upstream_evidence/GIB-FREEZE-P3-C2-S0-20260826-01-453e710c1f52.json"
+    },
+    {
+      "logical_path": "gas_information_bench/outputs/archive/freezes/GIB-FREEZE-P3-PILOT-20260825-02/evidence_manifest.json",
+      "role": "upstream_evidence",
+      "sha256": "123B2BBA153A64D6E2E3814830F1EBDDBB1588918EB2B4B5AFB2DA5909642B29",
+      "snapshot_path": "source_snapshots/upstream_evidence/GIB-FREEZE-P3-PILOT-20260825-02-1fadc4fe678c.json"
+    }
+  ],
+  "required_input_roles": [
+    "code",
+    "config",
+    "gate",
+    "schema",
+    "source_registry"
+  ],
+  "schema_version": "gib-benchmark-1",
+  "source_snapshots": [
+    {
+      "logical_path": "docs/p2/P2_bench规格书.md",
+      "sha256": "BC3583EA6EAB7AD358214B36B2AFED0B52806DAE50D79C5B9B78ACFCEF237CC7",
+      "snapshot_path": "source_snapshots/docs/p2/P2_bench规格书.md"
+    },
+    {
+      "logical_path": "docs/p3/P3执行计划.md",
+      "sha256": "1DF7C2FD15ECAB03C19C9131FE3D04A78E8B7115E70BC8C1E20A53514C5F604B",
+      "snapshot_path": "source_snapshots/docs/p3/P3执行计划.md"
+    },
+    {
+      "logical_path": "项目总体规划.md",
+      "sha256": "49E674945540D0A9E077C48A2011D29A6A0C6E1DEF62B3C5B33D72ED062CA7E8",
+      "snapshot_path": "source_snapshots/项目总体规划.md"
+    }
+  ]
+}

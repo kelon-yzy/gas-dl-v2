@@ -1,0 +1,72 @@
+{
+  "attempt_status": "complete",
+  "evidence_files": [
+    {
+      "path": "attempt/attempt_manifest.json",
+      "sha256": "0E4E21D74C755462A60C3ED492E5269B894D33DE725B36B3F7C81CA54C7FA7CF"
+    },
+    {
+      "path": "attempt/multiview_results.json",
+      "sha256": "23FADE12D66E4349DB2CAAC208C638DABB689CC38ECEEF465CB0DFA9E409B8F9"
+    }
+  ],
+  "freeze_id": "GIB-FREEZE-P3-C4-20260826-01",
+  "hash_algorithm": "SHA256",
+  "inputs": [
+    {
+      "logical_path": "gas_information_bench/gib/pipeline/multiview.py",
+      "role": "code",
+      "sha256": "B2A2DE3D29F790315C2F0DB387580AD3C49F9BA2B9173A61E6E210F089E95407",
+      "snapshot_path": "source_snapshots/gas_information_bench/gib/pipeline/multiview.py"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p3_c4_multiview_plan.json",
+      "role": "config",
+      "sha256": "EA1B017F23C6F51180011EDDFEEDE3B8EFFEF39B4CD45688F145C8E3526FF9A3",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p3_c4_multiview_plan.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_s4_metric_registry.json",
+      "role": "gate",
+      "sha256": "C287C9B48A74C420614E617859458E1D750967EF9542AFBB5FBE7918F02A1D5E",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_s4_metric_registry.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_data_schema.json",
+      "role": "schema",
+      "sha256": "6A9B895B57F0000FF0FD24B579DAA7C58FAFBA5CE175097FB2EC924BCCFE87CF",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_data_schema.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_s5_source_registry.json",
+      "role": "source_registry",
+      "sha256": "7573FC247B490BAC2DB5613E534A37814C558DD7EF2B75E6100F5ABC0BFC6995",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_s5_source_registry.json"
+    }
+  ],
+  "required_input_roles": [
+    "code",
+    "config",
+    "gate",
+    "schema",
+    "source_registry"
+  ],
+  "schema_version": "gib-benchmark-1",
+  "source_snapshots": [
+    {
+      "logical_path": "docs/p2/P2_bench规格书.md",
+      "sha256": "BC3583EA6EAB7AD358214B36B2AFED0B52806DAE50D79C5B9B78ACFCEF237CC7",
+      "snapshot_path": "source_snapshots/docs/p2/P2_bench规格书.md"
+    },
+    {
+      "logical_path": "docs/p3/P3执行计划.md",
+      "sha256": "1DF7C2FD15ECAB03C19C9131FE3D04A78E8B7115E70BC8C1E20A53514C5F604B",
+      "snapshot_path": "source_snapshots/docs/p3/P3执行计划.md"
+    },
+    {
+      "logical_path": "项目总体规划.md",
+      "sha256": "49E674945540D0A9E077C48A2011D29A6A0C6E1DEF62B3C5B33D72ED062CA7E8",
+      "snapshot_path": "source_snapshots/项目总体规划.md"
+    }
+  ]
+}

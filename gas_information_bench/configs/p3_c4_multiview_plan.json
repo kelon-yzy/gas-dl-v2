@@ -1,0 +1,34 @@
+{
+  "schema_version": "gib-benchmark-1",
+  "plan_id": "GIB-P3-C4-MULTIVIEW-v1",
+  "plan_status": "frozen_before_fit",
+  "candidate_id": "C4-ID-MULTIVIEW",
+  "eligibility": "eligible_for_P3_test",
+  "pilot_plan_id": "GIB-P3-PILOT-v2",
+  "split_ids": ["GIB-SPLIT-01", "GIB-SPLIT-02", "GIB-SPLIT-03", "GIB-SPLIT-04", "GIB-SPLIT-05"],
+  "seeds": [101, 202, 303],
+  "components": ["N2", "CO2", "O2", "Ar"],
+  "encoder": {
+    "kind": "fixed_orthogonal_projection",
+    "output_width": 32,
+    "shared_width": 16,
+    "private_width_per_view": 4,
+    "views": ["ndir", "acoustic", "thermal", "context"],
+    "ridge_alpha": 1.0
+  },
+  "ood": {
+    "masked_view": "acoustic",
+    "masked_fill": "train_mean",
+    "nuisance_distance_quantile": 0.5,
+    "nuisance_features": ["slow_channels", "calibration_channels"]
+  },
+  "gate": {
+    "minimum_ood_mae_reduction": 0.10,
+    "maximum_full_modality_r2_regression": 0.01,
+    "minimum_shared_probe_r2": 0.10,
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20260824,
+    "confidence": 0.95
+  },
+  "claim_scope": "controlled_synthetic_relative_comparison_only"
+}

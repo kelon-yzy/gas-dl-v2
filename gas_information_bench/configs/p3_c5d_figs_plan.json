@@ -1,0 +1,34 @@
+{
+  "schema_version": "gib-benchmark-1",
+  "plan_id": "GIB-P3-C5D-FIGS-v1",
+  "task_id": "P3-12",
+  "plan_status": "frozen_before_fit",
+  "claim_scope": "controlled_synthetic_relative_comparison_only",
+  "activation_input": {
+    "freeze_id": "GIB-FREEZE-P3-C2-S0-20260826-01",
+    "required_flag": "activated_tasks.P3-12=true"
+  },
+  "solver_plan_id": "GIB-P3-C2-S0-SOLVER-v1",
+  "reference_method": "vplr",
+  "route_rules": [
+    {"rule_id": "insufficient_or_high_collinearity", "information_bands": ["insufficient"], "angle_bands": ["HIG", "MED", "LOW"], "method_id": "tsvd_ridge_vp"},
+    {"rule_id": "critical", "information_bands": ["critical"], "angle_bands": ["HIG", "MED", "LOW"], "method_id": "vplr"},
+    {"rule_id": "sufficient_high_collinearity", "information_bands": ["sufficient"], "angle_bands": ["HIG"], "method_id": "tsvd_ridge_vp"},
+    {"rule_id": "sufficient_regular", "information_bands": ["sufficient"], "angle_bands": ["MED", "LOW"], "method_id": "classical_vp"}
+  ],
+  "gates": {
+    "non_inferiority_bands": {"N2": 0.008, "CO2": 0.003, "O2": 0.010, "Ar": 0.005},
+    "e20_minimum_reduction": 0.20,
+    "nr5_maximum_regression": 0.05,
+    "combined_rule": "NI AND E20 AND NR5"
+  },
+  "statistics": {
+    "resampling_unit": "mixture_id",
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20260824,
+    "confidence_level": 0.95
+  },
+  "negative_control_seed": 20260824,
+  "minimum_region_splits": 2,
+  "required_seeds": [101, 202, 303]
+}

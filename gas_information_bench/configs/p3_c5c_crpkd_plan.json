@@ -1,0 +1,30 @@
+{
+  "schema_version": "gib-benchmark-1",
+  "plan_id": "GIB-P3-C5C-CR-PKD-v1",
+  "task_id": "P3-11",
+  "plan_status": "frozen_before_teacher_fit",
+  "claim_scope": "controlled_synthetic_relative_comparison_only",
+  "reference_method": "dsp_strong_baseline",
+  "teacher_method": "raw_teacher",
+  "student_methods": ["ordinary_kd", "physics_fisher_kd", "equal_parameter_student"],
+  "gates": {
+    "teacher_minimum_relative_improvement": 0.10,
+    "student_non_inferiority_bands": {"N2": 0.008, "CO2": 0.003, "O2": 0.010, "Ar": 0.005},
+    "student_e20_minimum_reduction": 0.20,
+    "student_nr5_maximum_regression": 0.05
+  },
+  "statistics": {
+    "resampling_unit": "mixture_id",
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20260824,
+    "confidence_level": 0.95
+  },
+  "negative_controls": ["teacher_prediction_shuffle", "without_fisher_term", "equal_parameter_ordinary_kd"],
+  "student": {
+    "ridge_alpha": 1.0,
+    "input": "deployment_features_only",
+    "teacher_input": "raw_waveform_summary_only",
+    "truth_nuisance_allowed": false,
+    "oracle_fisher_target_allowed": false
+  }
+}

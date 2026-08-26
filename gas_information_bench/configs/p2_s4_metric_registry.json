@@ -1,0 +1,423 @@
+{
+  "registry_id": "GIB-S4-METRIC-v1",
+  "task_id": "P2-08",
+  "schema_version": "gib-benchmark-1",
+  "protocol_status": "protocol_frozen",
+  "authorization_status": "authorized",
+  "scope": {
+    "candidate_id": "GIB-C4-LR",
+    "grid_source": "configs/p2_s1_grid.json",
+    "grid_units": "all 9 GIB-S1 3x3 cells",
+    "comparison_boundary": "protocol_only",
+    "formal_model_comparison_allowed_in_P2_08": false,
+    "pilot_generation_allowed_in_P2_08": false,
+    "training_allowed_in_P2_08": false
+  },
+  "authorization": {
+    "p1_original_c2_gate": {
+      "status": "superseded_by_h1_authorization",
+      "source": "docs/p1/创新点候选集.md §3",
+      "alternatives": [
+        {
+          "gate_id": "p1_c2_p90",
+          "metric": "target_component_p90_reduction",
+          "operator": ">=",
+          "value": 0.1,
+          "unit": "relative"
+        },
+        {
+          "gate_id": "p1_c2_iterations",
+          "metric": "fixed_budget_iterations_reduction",
+          "operator": ">=",
+          "value": 0.3,
+          "unit": "relative"
+        }
+      ],
+      "use_before_h1": false
+    },
+    "p2_proposed_revision": {
+      "status": "authorized",
+      "source": "docs/p2/P1候选修订记录.md §1.3–§4",
+      "authorized_by": "project_owner_delegated_evidence_based_freeze",
+      "authorized_date": "2026-08-25",
+      "verdict": "authorized",
+      "non_inferiority_band": {
+        "status": "authorized",
+        "value": {
+          "N2": 0.008,
+          "CO2": 0.003,
+          "O2": 0.01,
+          "Ar": 0.005
+        },
+        "unit": "mol_per_mol_absolute_candidate_minus_reference_p90",
+        "derivation": "10_percent_of_pre_registered_component_tau"
+      },
+      "efficiency_gate": {
+        "status": "authorized",
+        "value": {
+          "minimum_relative_reduction": {
+            "iterations": 0.3,
+            "forward_calls": 0.3,
+            "solver_wall_clock": 0.2,
+            "single_sample_latency": 0.2
+          },
+          "maximum_relative_regression_for_other_primary_metrics": 0.05,
+          "minimum_cleared_gate_count": 1
+        },
+        "unit": "relative_candidate_vs_paired_reference",
+        "ci_rule": "95_percent_paired_ci_must_clear_the_selected_reduction_gate"
+      },
+      "hardware_profile": {
+        "status": "authorized",
+        "value": {
+          "profile_id": "GIB-HW-WIN-R9-8940HX-RTX5060L-20260825",
+          "cpu": "AMD Ryzen 9 8940HX with Radeon Graphics",
+          "logical_cpu_count": 32,
+          "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+          "gpu_memory_mib": 8151,
+          "gpu_driver": "610.62",
+          "os": "Microsoft Windows NT 10.0.26200.0 64-bit",
+          "python": "3.13.11",
+          "comparison_policy": "paired_methods_must_use_identical_device_thread_and_software_fingerprint",
+          "cpu_and_gpu_tracks": "report_separately_and_never_pool"
+        }
+      },
+      "timing_repetition_policy": {
+        "status": "authorized",
+        "value": {
+          "independent_repeats": 30,
+          "warmup_batches": 10,
+          "timed_batches_per_repeat": 30,
+          "batch_sizes": [1, 32, 256],
+          "summary": "median_and_95_percent_paired_group_bootstrap_ci",
+          "run_order": "paired_randomized_interleaving_within_grid_split_seed",
+          "idle_system_required": true
+        }
+      }
+    }
+  },
+  "precision_layers": [
+    {
+      "layer_id": "crb",
+      "role": "theoretical_lower_bound",
+      "input_policy": "sample_level_effective_fisher_with_nuisance_prior",
+      "output_metrics": ["crb", "crb_p90"],
+      "deployment_result_table": false,
+      "oracle_result_table": false
+    },
+    {
+      "layer_id": "oracle",
+      "role": "truth_feature_upper_reference",
+      "input_policy": "truth_derived_audit_features_only",
+      "deployment_loader_allowed": false,
+      "output_table": "oracle_results",
+      "separate_from_deployment_results": true,
+      "truth_leakage_check_required": true
+    },
+    {
+      "layer_id": "measurement_dsp",
+      "role": "measurement_level_reference",
+      "input_policy": "declared_dsp_features_derived_from_raw",
+      "deployment_loader_allowed": true,
+      "output_table": "deployment_results",
+      "raw_manifest_hash_required": true,
+      "dsp_config_hash_required": true,
+      "code_hash_required": true
+    },
+    {
+      "layer_id": "strong_baseline",
+      "role": "deployment_level_strong_reference",
+      "input_policy": "same_measurement_dsp_features_as_candidates",
+      "deployment_loader_allowed": true,
+      "output_table": "deployment_results",
+      "oracle_features_allowed": false
+    }
+  ],
+  "methods": [
+    {
+      "method_id": "ridge",
+      "family": "linear",
+      "layer_id": "strong_baseline",
+      "capacity_policy": "fixed_pre_registered",
+      "hyperparameter_tuning": "train_groups_only",
+      "primary_baseline": true
+    },
+    {
+      "method_id": "gbdt",
+      "family": "gradient_boosted_trees",
+      "implementation_contract": "fixed_gbdt_configuration",
+      "layer_id": "strong_baseline",
+      "capacity_policy": "fixed_pre_registered",
+      "hyperparameter_tuning": "train_groups_only",
+      "primary_baseline": true
+    },
+    {
+      "method_id": "xgboost_strong_table",
+      "family": "strong_tabular_model",
+      "implementation_contract": "fixed_xgboost_configuration",
+      "layer_id": "strong_baseline",
+      "capacity_policy": "fixed_pre_registered",
+      "hyperparameter_tuning": "train_groups_only",
+      "primary_baseline": true
+    },
+    {
+      "method_id": "mlp_fixed",
+      "family": "deep_tabular",
+      "layer_id": "measurement_dsp",
+      "capacity_policy": "fixed_pre_registered",
+      "architecture_id": "mlp-128-64-relu-v1",
+      "capacity_locked": true,
+      "hyperparameter_tuning": "not_allowed",
+      "primary_baseline": false
+    },
+    {
+      "method_id": "tcn_fixed",
+      "family": "deep_temporal",
+      "layer_id": "measurement_dsp",
+      "capacity_policy": "fixed_pre_registered",
+      "architecture_id": "tcn-32x2-dilation-1-2-4-kernel-5-v1",
+      "capacity_locked": true,
+      "hyperparameter_tuning": "not_allowed",
+      "primary_baseline": false
+    }
+  ],
+  "paired_design": {
+    "group_field": "mixture_id",
+    "pairing_key_fields": [
+      "mixture_id",
+      "grid_cell_id",
+      "split_id",
+      "seed",
+      "hardware_fingerprint",
+      "budget_profile"
+    ],
+    "split_count": 5,
+    "split_ids": [
+      "GIB-SPLIT-01",
+      "GIB-SPLIT-02",
+      "GIB-SPLIT-03",
+      "GIB-SPLIT-04",
+      "GIB-SPLIT-05"
+    ],
+    "seeds": [101, 202, 303],
+    "same_groups_for_all_methods": true,
+    "same_budget_for_all_methods": true,
+    "same_hardware_for_all_methods": true,
+    "test_group_isolation_required": true
+  },
+  "precision_metrics": {
+    "primary_metric": "p90_abs_error_per_component",
+    "secondary_metrics": [
+      "rmse_per_component",
+      "mae_per_component",
+      "r2_per_component"
+    ],
+    "lower_is_better": [
+      "p90_abs_error_per_component",
+      "rmse_per_component",
+      "mae_per_component"
+    ],
+    "higher_is_better": ["r2_per_component"],
+    "reporting_granularity": [
+      "grid_cell_id",
+      "split_id",
+      "seed",
+      "method_id",
+      "component"
+    ],
+    "component_aggregation": "report_each_N2_CO2_O2_Ar_before_macro_summary",
+    "oracle_and_deployment_tables_must_remain_separate": true
+  },
+  "training_timing": {
+    "phases": [
+      "preprocess",
+      "fit",
+      "validation"
+    ],
+    "duration_field": "duration_ns",
+    "clock": "time.perf_counter_ns",
+    "monotonic_clock_required": true,
+    "hardware_fingerprint_required": true,
+    "thread_fields": [
+      "logical_cpu_count",
+      "blas_threads",
+      "omp_threads",
+      "mkl_threads",
+      "framework_threads"
+    ],
+    "software_fields": [
+      "os_version",
+      "python_version",
+      "numpy_version",
+      "framework_version",
+      "method_package_versions",
+      "git_commit"
+    ],
+    "repeat_index_required": true,
+    "single_timing_conclusion_allowed": false,
+    "exact_repeat_count": {
+      "status": "authorized",
+      "value": 30,
+      "minimum_observation_rule": "at_least_two_repeated_runs_before_summary"
+    }
+  },
+  "inference_timing": {
+    "warmup_required": true,
+    "warmup_batches": 10,
+    "timed_batches": 30,
+    "batch_sizes": [1, 32, 256],
+    "metrics": [
+      "batch_throughput_samples_per_second",
+      "single_sample_latency_ms"
+    ],
+    "clock": "time.perf_counter_ns",
+    "repeat_index_required": true,
+    "same_hardware_and_threads_required": true,
+    "single_timing_conclusion_allowed": false
+  },
+  "solver_difficulty": {
+    "key_fields": [
+      "sequence_id",
+      "method_id",
+      "split_id",
+      "seed"
+    ],
+    "required_metrics": [
+      "iterations",
+      "forward_calls",
+      "convergence",
+      "condition_number",
+      "final_residual",
+      "runtime_ns"
+    ],
+    "runtime_clock": "time.perf_counter_ns",
+    "hardware_fingerprint_required": true,
+    "thread_fields": [
+      "logical_cpu_count",
+      "blas_threads",
+      "omp_threads",
+      "mkl_threads",
+      "framework_threads"
+    ],
+    "software_fields": [
+      "os_version",
+      "python_version",
+      "numpy_version",
+      "framework_version",
+      "method_package_versions",
+      "git_commit"
+    ],
+    "repeat_index_required": true,
+    "forward_call_definition": "one declared full forward-model evaluation inside the solver",
+    "failed_runs_retained": true,
+    "convergence_failure_is_not_dropped": true
+  },
+  "data_efficiency": {
+    "training_group_fractions": [0.1, 0.25, 0.5, 0.75, 1.0],
+    "nested": true,
+    "subset_unit": "mixture_id_group",
+    "selection_rule": "frozen_group_order_prefix_within_each_split",
+    "new_random_draw_for_each_fraction": false,
+    "validation_and_test_groups_fixed_across_fractions": true,
+    "required_metrics": [
+      "training_mixture_group_count",
+      "training_sample_count",
+      "p90_abs_error_per_component",
+      "rmse_per_component",
+      "preprocess_duration_ns",
+      "fit_duration_ns",
+      "validation_duration_ns"
+    ],
+    "precision_target_point": {
+      "status": "authorized",
+      "definition": "authorized_primary_precision_target_used_to_identify_first_nested_fraction",
+      "value": {
+        "N2": 0.08,
+        "CO2": 0.03,
+        "O2": 0.1,
+        "Ar": 0.05
+      },
+      "unit": "mol_per_mol_absolute_p90",
+      "source": "configs/p2_s1_grid.json target_error_tau",
+      "must_be_frozen_before_p3": true
+    },
+    "target_precision_gate": {
+      "status": "authorized",
+      "value": "all_component_p90_at_or_below_precision_target_point",
+      "source": "data_efficiency.precision_target_point"
+    }
+  },
+  "incremental_information": {
+    "information_matrix": "sample_level_effective_fisher",
+    "information_scalar": "trace_effective_fisher",
+    "delta_information_fields": [
+      "delta_I_vector",
+      "delta_I_trace"
+    ],
+    "increment_types": [
+      "time_window",
+      "sample_point",
+      "modality"
+    ],
+    "cost_fields": [
+      "delta_time_window_ms",
+      "delta_sample_points",
+      "delta_active_modalities"
+    ],
+    "delta_I_per_delta_cost_required": true,
+    "native_cost_unit_required": true,
+    "cross_unit_cost_scalarization": "not_allowed_without_explicit_authorization",
+    "paired_within_same_grid_split_seed": true
+  },
+  "statistics": {
+    "confidence_level": 0.95,
+    "bootstrap": {
+      "type": "paired_group_bootstrap",
+      "resampling_unit": "mixture_id",
+      "resamples": 10000,
+      "seed": 20260824,
+      "stratify_by": ["grid_cell_id", "split_id", "seed"]
+    },
+    "report_point_estimate_and_ci": true,
+    "do_not_pool_grid_cells_into_one_ood_number": true,
+    "paired_difference_direction": {
+      "loss_metrics": "candidate_minus_reference",
+      "r2": "reference_minus_candidate"
+    }
+  },
+  "joint_verdict": {
+    "authorization_status": "authorized",
+    "precision_non_inferiority": {
+      "rule": "all registered primary precision CI upper bounds stay within the authorized non_inferiority_band",
+      "gate_source": "authorization.p2_proposed_revision.non_inferiority_band"
+    },
+    "efficiency_superiority": {
+      "registered_metrics": [
+        "iterations",
+        "forward_calls",
+        "solver_wall_clock",
+        "single_sample_latency"
+      ],
+      "rule": "at_least_one_authorized_efficiency_gate_cleared_and_no_registered_primary_metric_exceeds_its_authorized_non_regression_limit",
+      "gate_source": "authorization.p2_proposed_revision.efficiency_gate"
+    },
+    "combined_rule": "precision_non_inferiority AND efficiency_superiority",
+    "missing_authorized_value_is_not_pass": true,
+    "possible_outputs": [
+      "pending_authorization",
+      "pass",
+      "fail",
+      "inconclusive"
+    ]
+  },
+  "failure_visibility": {
+    "missing_metric": "fail_run_with_explicit_error",
+    "hardware_mismatch": "invalidate_pair_and_report",
+    "split_leakage": "fail_dataset_validation",
+    "oracle_field_in_deployment_input": "fail_leakage_check",
+    "nonconvergence": "retain_row_and_report_failure_rate",
+    "timing_exception": "retain_error_and_do_not_impute_duration",
+    "silent_fallback": false
+  },
+  "registry_verdict": "protocol_frozen"
+}

@@ -1,0 +1,60 @@
+{
+  "candidates": [
+    {
+      "candidate_id": "C2-S0",
+      "candidate_verdict": "not_applicable",
+      "evidence_manifest_sha256": "B6450C29EFAA58E82DA0B668503D1B6239AB388C405FC7B1503D8A748304817F",
+      "freeze_id": "GIB-FREEZE-P3-C2-S0-20260826-01",
+      "task_id": "P3-06"
+    },
+    {
+      "candidate_id": "C5-A",
+      "candidate_verdict": "reject",
+      "evidence_manifest_sha256": "7281DEABAE41BF4F9C7164ECC7F06C5EA991B2455184C41B0BA21EC02C2BAA58",
+      "freeze_id": "GIB-FREEZE-P3-C5A-20260826-03",
+      "task_id": "P3-07"
+    },
+    {
+      "candidate_id": "C5-B-FO-MPLSELM",
+      "candidate_verdict": "reject",
+      "evidence_manifest_sha256": "C7CDA5AF4364279A5199922DCECD403DC27357CA0A6360C3E43BE98845971F46",
+      "freeze_id": "GIB-FREEZE-P3-C5B-20260826-01",
+      "task_id": "P3-08"
+    },
+    {
+      "candidate_id": "C4-ID-MULTIVIEW",
+      "candidate_verdict": "reject",
+      "evidence_manifest_sha256": "1BD106955344A3912BA5CA45EBF814679D4A74275EFBAEDE3C4C27E00F44F159",
+      "freeze_id": "GIB-FREEZE-P3-C4-20260826-01",
+      "task_id": "P3-09"
+    },
+    {
+      "candidate_id": "C2-IC-RDU-VP",
+      "candidate_verdict": "reject",
+      "evidence_manifest_sha256": "351B2034C73C3E464AC8E8CDA183FDD8D9BCE0FAA6C9DFE90B3A6ADFEA73CC7F",
+      "freeze_id": "GIB-FREEZE-P3-C2-IC-RDU-VP-20260826-03",
+      "task_id": "P3-10"
+    },
+    {
+      "candidate_id": "C5-C-CR-PKD",
+      "candidate_verdict": "not_activated",
+      "evidence_manifest_sha256": "90D4A1AD5BF00CBDB635B42D452A72C88730B46F08DF0B48B3117F4E10663D38",
+      "freeze_id": "GIB-FREEZE-P3-C5C-20260826-01",
+      "task_id": "P3-11"
+    },
+    {
+      "candidate_id": "C5-D-FIGS",
+      "candidate_verdict": "reject",
+      "evidence_manifest_sha256": "F25DDB7E7F0C1A78303399ECF63E4AC8E111C36FEB2337712271E985F92BD098",
+      "freeze_id": "GIB-FREEZE-P3-C5D-FIGS-20260826-01",
+      "task_id": "P3-12"
+    }
+  ],
+  "enter_P4_count": 0,
+  "gate_verdict": "fail",
+  "next_allowed_task": "return_to_P1_P2",
+  "p3_verdict": "return_to_P1_P2",
+  "schema_version": "gib-benchmark-1",
+  "task_id": "P3-13",
+  "task_status": "completed"
+}

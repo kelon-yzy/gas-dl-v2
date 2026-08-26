@@ -1,0 +1,144 @@
+{
+  "audit_id": "GIB-S2-S3-v1",
+  "candidate_id": "GIB-C4-LR",
+  "baseline_modalities": [
+    "ndir",
+    "acoustic_raw",
+    "thermal",
+    "slow",
+    "calibration"
+  ],
+  "probe_eta": [
+    333.15,
+    110.0,
+    0.9,
+    0.5,
+    1.05,
+    0.02,
+    0.0005,
+    0.08,
+    5.0
+  ],
+  "low_concentration_cell_id": "GIB-S1-CRI-LOW",
+  "s2_thresholds": {
+    "optical_row": {
+      "label": "ndir_co2",
+      "target_component": "CO2",
+      "weak_competitors": [
+        "N2",
+        "O2"
+      ],
+      "minimum_whitened_abs_sensitivity": 10.0
+    },
+    "thermal_row": {
+      "label": "thermal_primary",
+      "target_component": "Ar",
+      "competitors": [
+        "N2",
+        "CO2",
+        "O2"
+      ],
+      "minimum_target_to_competitor_ratio": 1.5
+    },
+    "near_degenerate": {
+      "modality": [
+        "ndir"
+      ],
+      "pair": [
+        "CO2",
+        "Ar"
+      ],
+      "minimum_abs_cosine": 0.95
+    },
+    "cross_modal_disambiguation": {
+      "modalities": [
+        "ndir",
+        "acoustic_raw",
+        "thermal"
+      ],
+      "pair": [
+        "CO2",
+        "Ar"
+      ],
+      "maximum_abs_cosine": 0.5
+    },
+    "low_concentration": {
+      "component": "Ar",
+      "minimum_fraction": 0.01,
+      "maximum_fraction": 0.05,
+      "minimum_whitened_sensitivity": 1.0e-8,
+      "maximum_crb_p90_over_tau": 1.2
+    }
+  },
+  "s3_switches": {
+    "fast_waveform": {
+      "on": true,
+      "off": false,
+      "expected_changed_labels": [
+        "us_tof_raw",
+        "us_amplitude_raw",
+        "us_phase_raw",
+        "us_speed_raw",
+        "acoustic_tof_dsp",
+        "acoustic_attenuation_dsp",
+        "acoustic_phase_dsp"
+      ],
+      "invariant_label_prefixes": [
+        "ndir_",
+        "thermal_",
+        "slow_",
+        "calibration_"
+      ]
+    },
+    "nonlinear_nuisance_coupling": {
+      "on": true,
+      "off": false,
+      "expected_changed_labels": [
+        "ndir_co2",
+        "ndir_null",
+        "us_amplitude_raw"
+      ],
+      "expected_invariant_labels": [
+        "us_tof_raw",
+        "us_phase_raw",
+        "us_speed_raw",
+        "thermal_primary",
+        "thermal_auxiliary",
+        "slow_T_K",
+        "slow_P_kPa",
+        "slow_RH_frac",
+        "slow_q_flow",
+        "calibration_L_m",
+        "calibration_gain",
+        "calibration_baseline",
+        "calibration_delay_s",
+        "calibration_crosstalk"
+      ]
+    },
+    "cross_sensitivity": {
+      "on": true,
+      "off": false,
+      "expected_changed_labels": [
+        "ndir_co2",
+        "ndir_null",
+        "us_amplitude_raw",
+        "us_phase_raw",
+        "thermal_primary"
+      ],
+      "expected_invariant_labels": [
+        "us_tof_raw",
+        "us_speed_raw",
+        "thermal_auxiliary",
+        "slow_T_K",
+        "slow_P_kPa",
+        "slow_RH_frac",
+        "slow_q_flow",
+        "calibration_L_m",
+        "calibration_gain",
+        "calibration_baseline",
+        "calibration_delay_s",
+        "calibration_crosstalk"
+      ]
+    }
+  }
+}

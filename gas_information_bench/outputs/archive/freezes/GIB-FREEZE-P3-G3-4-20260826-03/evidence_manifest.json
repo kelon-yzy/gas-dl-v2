@@ -1,0 +1,131 @@
+{
+  "attempt_status": "complete",
+  "evidence_files": [
+    {
+      "path": "attempt/attempt_manifest.json",
+      "sha256": "31176D16F5467B6455677D264B504C19807C99D11FDF0C96270ABE59D7EDC64A"
+    },
+    {
+      "path": "attempt/g3_4_summary.json",
+      "sha256": "F48CF3454760DB76166CD3D799039577F2CF18962E2E6E9937D32449FCBC9368"
+    }
+  ],
+  "freeze_id": "GIB-FREEZE-P3-G3-4-20260826-03",
+  "hash_algorithm": "SHA256",
+  "inputs": [
+    {
+      "logical_path": "gas_information_bench/gib/pipeline/candidate_review.py",
+      "role": "code",
+      "sha256": "F87C107860DAC4C2474E1F46F50C4DB58A76E9A08ACF23E197EF868960FC7C95",
+      "snapshot_path": "source_snapshots/gas_information_bench/gib/pipeline/candidate_review.py"
+    },
+    {
+      "logical_path": "gas_information_bench/gib/freeze.py",
+      "role": "code",
+      "sha256": "DAE96AF3FD06495032E3914E214D41B54D70C31EA8F77D7A2943F96500064229",
+      "snapshot_path": "source_snapshots/gas_information_bench/gib/freeze.py"
+    },
+    {
+      "logical_path": "gas_information_bench/gib/common/io.py",
+      "role": "code",
+      "sha256": "9445235DBCB1DBD5C9DDE995497C2C009EBEC5E4E6B02CD881F1A2FAADBA06CF",
+      "snapshot_path": "source_snapshots/gas_information_bench/gib/common/io.py"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p3_execution_registry.json",
+      "role": "config",
+      "sha256": "DF72A89EECA2B06B1414443EC04F6DF59B5663F0E42045081B1623C6554B84D3",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p3_execution_registry.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_s4_metric_registry.json",
+      "role": "gate",
+      "sha256": "C287C9B48A74C420614E617859458E1D750967EF9542AFBB5FBE7918F02A1D5E",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_s4_metric_registry.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_data_schema.json",
+      "role": "schema",
+      "sha256": "6A9B895B57F0000FF0FD24B579DAA7C58FAFBA5CE175097FB2EC924BCCFE87CF",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_data_schema.json"
+    },
+    {
+      "logical_path": "gas_information_bench/configs/p2_s5_source_registry.json",
+      "role": "source_registry",
+      "sha256": "7573FC247B490BAC2DB5613E534A37814C558DD7EF2B75E6100F5ABC0BFC6995",
+      "snapshot_path": "source_snapshots/gas_information_bench/configs/p2_s5_source_registry.json"
+    },
+    {
+      "logical_path": "gas_information_bench/outputs/archive/freezes/GIB-FREEZE-P3-C2-S0-20260826-01/evidence_manifest.json",
+      "role": "upstream_evidence",
+      "sha256": "B6450C29EFAA58E82DA0B668503D1B6239AB388C405FC7B1503D8A748304817F",
+      "snapshot_path": "source_snapshots/upstream_evidence/GIB-FREEZE-P3-C2-S0-20260826-01-453e710c1f52.json"
+    },
+    {
+      "logical_path": "gas_information_bench/outputs/archive/freezes/GIB-FREEZE-P3-C5A-20260826-03/evidence_manifest.json",
+      "role": "upstream_evidence",
+      "sha256": "7281DEABAE41BF4F9C7164ECC7F06C5EA991B2455184C41B0BA21EC02C2BAA58",
+      "snapshot_path": "source_snapshots/upstream_evidence/GIB-FREEZE-P3-C5A-20260826-03-a850a604101d.json"
+    },
+    {
+      "logical_path": "gas_information_bench/outputs/archive/freezes/GIB-FREEZE-P3-C5B-20260826-01/evidence_manifest.json",
+      "role": "upstream_evidence",
+      "sha256": "C7CDA5AF4364279A5199922DCECD403DC27357CA0A6360C3E43BE98845971F46",
+      "snapshot_path": "source_snapshots/upstream_evidence/GIB-FREEZE-P3-C5B-20260826-01-51176730a244.json"
+    },
+    {
+      "logical_path": "gas_information_bench/outputs/archive/freezes/GIB-FREEZE-P3-C4-20260826-01/evidence_manifest.json",
+      "role": "upstream_evidence",
+      "sha256": "1BD106955344A3912BA5CA45EBF814679D4A74275EFBAEDE3C4C27E00F44F159",
+      "snapshot_path": "source_snapshots/upstream_evidence/GIB-FREEZE-P3-C4-20260826-01-446eb9e43f50.json"
+    },
+    {
+      "logical_path": "gas_information_bench/outputs/archive/freezes/GIB-FREEZE-P3-C2-IC-RDU-VP-20260826-03/evidence_manifest.json",
+      "role": "upstream_evidence",
+      "sha256": "351B2034C73C3E464AC8E8CDA183FDD8D9BCE0FAA6C9DFE90B3A6ADFEA73CC7F",
+      "snapshot_path": "source_snapshots/upstream_evidence/GIB-FREEZE-P3-C2-IC-RDU-VP-20260826-03-bb5b387d2c18.json"
+    },
+    {
+      "logical_path": "gas_information_bench/outputs/archive/freezes/GIB-FREEZE-P3-C5C-20260826-01/evidence_manifest.json",
+      "role": "upstream_evidence",
+      "sha256": "90D4A1AD5BF00CBDB635B42D452A72C88730B46F08DF0B48B3117F4E10663D38",
+      "snapshot_path": "source_snapshots/upstream_evidence/GIB-FREEZE-P3-C5C-20260826-01-dd45b5358971.json"
+    },
+    {
+      "logical_path": "gas_information_bench/outputs/archive/freezes/GIB-FREEZE-P3-C5D-FIGS-20260826-01/evidence_manifest.json",
+      "role": "upstream_evidence",
+      "sha256": "F25DDB7E7F0C1A78303399ECF63E4AC8E111C36FEB2337712271E985F92BD098",
+      "snapshot_path": "source_snapshots/upstream_evidence/GIB-FREEZE-P3-C5D-FIGS-20260826-01-09990ecfbf3d.json"
+    }
+  ],
+  "required_input_roles": [
+    "code",
+    "config",
+    "gate",
+    "schema",
+    "source_registry"
+  ],
+  "schema_version": "gib-benchmark-1",
+  "source_snapshots": [
+    {
+      "logical_path": "docs/p2/P2_bench规格书.md",
+      "sha256": "BC3583EA6EAB7AD358214B36B2AFED0B52806DAE50D79C5B9B78ACFCEF237CC7",
+      "snapshot_path": "source_snapshots/docs/p2/P2_bench规格书.md"
+    },
+    {
+      "logical_path": "docs/p3/P3候选晋级记录.md",
+      "sha256": "C76E4144AD5F6277495369E82937216DC77D66E863DE09EE371BA7F54E06BE3B",
+      "snapshot_path": "source_snapshots/docs/p3/P3候选晋级记录.md"
+    },
+    {
+      "logical_path": "docs/p3/P3执行计划.md",
+      "sha256": "54EAE35D1169231E6977744306C27C06F079A3E183737C3561A2DC6F6FAE3F2C",
+      "snapshot_path": "source_snapshots/docs/p3/P3执行计划.md"
+    },
+    {
+      "logical_path": "项目总体规划.md",
+      "sha256": "49E674945540D0A9E077C48A2011D29A6A0C6E1DEF62B3C5B33D72ED062CA7E8",
+      "snapshot_path": "source_snapshots/项目总体规划.md"
+    }
+  ]
+}

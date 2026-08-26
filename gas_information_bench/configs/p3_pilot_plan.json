@@ -1,0 +1,68 @@
+{
+  "schema_version": "gib-benchmark-1",
+  "plan_id": "GIB-P3-PILOT-v1",
+  "pilot_plan_status": "frozen",
+  "claim_scope": "technical_generation_validation_only",
+  "candidate_id": "GIB-C4-LR",
+  "grid_source": "p2_s1_grid.json",
+  "grid_cell_count": 9,
+  "pilot": {
+    "mixtures_per_cell": 10,
+    "sequences_per_mixture": 2
+  },
+  "dry_run": {
+    "mixtures_per_cell": 3,
+    "sequences_per_mixture": 2
+  },
+  "sequence_profile_id": "GIB-SEQ-P3-PILOT-v1",
+  "raw": {
+    "channel_count": 8,
+    "time_length": 64,
+    "dtype": "float64",
+    "storage": "per_sequence_npy",
+    "compression": "none",
+    "generation_chunk_mixtures": 5
+  },
+  "dsp": {
+    "frame_length": 16,
+    "hop_length": 8,
+    "features": ["mean", "standard_deviation", "slope"],
+    "dtype": "float64"
+  },
+  "sampling": {
+    "composition_concentration": 300.0,
+    "nuisance_bounds": {
+      "T_K": [288.15, 308.15],
+      "P_kPa": [95.0, 107.0],
+      "RH_frac": [0.2, 0.8],
+      "L_m": [0.18, 0.22],
+      "gain": [0.98, 1.02],
+      "baseline": [-0.005, 0.005],
+      "delay_s": [-0.000002, 0.000002],
+      "crosstalk": [0.01, 0.05],
+      "q_flow": [0.8, 1.2]
+    }
+  },
+  "random_state": {
+    "master": 20260825,
+    "composition_stream": 1101,
+    "nuisance_stream": 2202,
+    "temporal_stream": 3303,
+    "measurement_stream": 4404,
+    "split_stream": 5505
+  },
+  "splits": {
+    "split_ids": ["GIB-SPLIT-01", "GIB-SPLIT-02", "GIB-SPLIT-03", "GIB-SPLIT-04", "GIB-SPLIT-05"],
+    "partition_fractions": {"train": 0.7, "val": 0.15, "test": 0.15},
+    "partition_rounding": "floor_train_floor_val_remainder_test",
+    "nested_train_fractions": [10, 25, 50, 75, 100],
+    "nested_rounding": "ceil_minimum_one",
+    "group_field": "mixture_id"
+  },
+  "execution": {
+    "workers": 1,
+    "disk_budget_bytes": 536870912,
+    "atomic_promotion": true,
+    "overwrite_allowed": false
+  }
+}

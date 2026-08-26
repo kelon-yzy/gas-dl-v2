@@ -1,0 +1,41 @@
+{
+  "schema_version": "gib-benchmark-1",
+  "audit_id": "GIB-P3-G3-1-v1",
+  "candidate_id": "GIB-C4-LR",
+  "modalities": ["ndir", "acoustic_raw", "thermal", "slow", "calibration"],
+  "component_delta": 0.0001,
+  "exchange_reference": {
+    "N2": "Ar",
+    "CO2": "Ar",
+    "O2": "Ar",
+    "Ar": "N2"
+  },
+  "primary_response": {
+    "N2": {"label": "thermal_auxiliary", "sign": 1},
+    "CO2": {"label": "ndir_co2", "sign": -1},
+    "O2": {"label": "thermal_primary", "sign": 1},
+    "Ar": {"label": "thermal_auxiliary", "sign": -1}
+  },
+  "responsive_modalities": {
+    "N2": ["ndir", "acoustic_raw", "thermal"],
+    "CO2": ["ndir", "acoustic_raw", "thermal"],
+    "O2": ["acoustic_raw", "thermal"],
+    "Ar": ["ndir", "acoustic_raw", "thermal"]
+  },
+  "invariant_modalities": {
+    "N2": ["slow", "calibration"],
+    "CO2": ["slow", "calibration"],
+    "O2": ["ndir", "slow", "calibration"],
+    "Ar": ["slow", "calibration"]
+  },
+  "minimum_whitened_response_norm": 1e-6,
+  "maximum_invariant_abs_response": 1e-12,
+  "maximum_antisymmetry_relative_error": 0.001,
+  "target_signal_scales": [0.5, 1.0, 1.2],
+  "noise_scales": [1.0, 2.0, 4.0],
+  "required_modality_off_checks": ["ndir", "acoustic_raw", "thermal", "slow"],
+  "s2_s3_config": "p2_s2_s3_audit.json",
+  "source_registry": "p2_s5_source_registry.json",
+  "execution_registry": "p3_execution_registry.json",
+  "p2_freeze_manifest": "outputs/archive/freezes/GIB-FREEZE-P2-20260825-01/evidence_manifest.json"
+}
