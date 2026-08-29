@@ -12,11 +12,11 @@
 
 ## 主线阶段
 
-项目主线自 2026-08-20 起改为「算法先行 + 新建专用 bench」，定义在根目录 [项目总体规划.md](项目总体规划.md)（v5）。
+项目主线自 2026-08-27 起改为「通用多模态融合算法」执行计划（现为 v8），定义在 [general_fusion/项目总体规划.md](general_fusion/项目总体规划.md)，长期方向见 [general_fusion/多模态气体检测通用融合算法_项目指导方向.md](general_fusion/多模态气体检测通用融合算法_项目指导方向.md)。
 
-P0 tv3 收尾成方法学论文（✅ 2026-08-20）→ P1 文献检索与候选确定（✅ 2026-08-23 关闭）→ **P2 bench 规格设计（当前）** → P3 pilot 与候选晋级 → P4 算法开发与信息谱扫描 → P5 应用筛选。
+阶段链：A0 统一契约（2026-08-27）→ A1 Ar-He-CO₂ 仿真 benchmark（2026-08-28）→ A2 通用融合核心（负结果关闭 2026-08-28）→ A2H 高难度压力实验（负结果关闭 2026-08-28）→ A2M 主流架构对照（MLP_RETAINED 2026-08-29，冻结 `A2M-MLP / mlp_lbfgs_width32` 为完整输入参考）→ **A3 xylene-e-nose 外部验证（当前阶段）** → A4 可变传感器集合 → A5 真实混合气验证；A6 论文整合并行。时序对照矩阵冻结在 `general_fusion/configs/experiment/a3_temporal_matrix.json`（TCN/GRU/时序 Transformer 只在 A3 真实时间维上运行，A2M 的 `T=1` 结果不评价时序架构）。
 
-三个已有场景在新主线中的角色：tv3 已收尾，不再排期新实验；hg / sg 保留为 P4 的跨场景复现台。新 bench 是第五个顶层子工程，目录名、包名、schema version 与 ID 命名空间待 P2 冻结后才允许实现。
+旧 P0–P3 主线已全部关闭（P3 于 2026-08-26 在 G3-4 失败停止），不再作为前置执行链；tv3 不再排期新实验，hg / sg 保留为跨场景复现台。
 
 ## 代码结构
 
@@ -40,6 +40,14 @@ P0 tv3 收尾成方法学论文（✅ 2026-08-20）→ P1 文献检索与候选�
 ├── docs/                # 场景专属文档
 ├── outputs/             # 运行产物与 freeze（.gitignore 排除）
 ├── scripts/
+└── tests/
+
+general_fusion/          # 通用融合主线（当前活跃子工程，包名 gf，src 布局）
+├── src/gf/              #   sim/（Ar-He-CO₂ 生成与审计）dl/（契约、适配器、融合核心、训练、主流架构）ml/（基线）pipeline/（各阶段 benchmark 与 smoke 编排）
+├── configs/             #   data/ model/ train/ eval/ experiment/ 五类配置（正式事实源）
+├── docs/algorithm/      #   A0–A2M 契约、分步计划、评审记录与结果记录
+├── docs/history/        #   旧项目历史算法与失败经验复盘（只读）
+├── data/ outputs/       #   benchmark 与运行产物（.gitignore 排除）
 └── tests/
 
 rcdw_mgda/               # 学长算法 RCDW 复现，独立子工程（rcdw/ 包）
@@ -120,7 +128,9 @@ syngas / tunnel_ventilation 场景下闭包类 loss 由 `validate_loss_compositi
 
 | 文档 | 位置 | 内容 |
 |------|------|------|
-| **项目总体规划** | `项目总体规划.md` | **主线入口（v5）**：P0–P5 阶段定义、阶段门与从 tv3 继承的工作纪律 N1–N8 |
+| **项目总体规划** | `general_fusion/项目总体规划.md` | **主线入口（v8）**：A0–A6 阶段定义、阶段门、不可变约束与近期动作 |
+| 项目指导方向 | `general_fusion/多模态气体检测通用融合算法_项目指导方向.md` | 长期方向、数据职责、论文结构论证边界（与总体规划配套） |
+| A0–A2M 阶段记录 | `general_fusion/docs/algorithm/` | 统一契约、评价协议、A1/A2/A2H/A2M 分步计划与评审记录、算法实验结果记录 |
 | P1 阶段产物 | `docs/p1/` | 检索协议、七视角检索结果、创新点候选集、评审记录、正式关闭审查 |
 | 项目级文档导航 | `docs/README.md` | 跨场景文档索引与各场景文档入口 |
 | 场景隔离重构 | `场景隔离重构计划.md` | 子工程拆分的目录归属与迁移记录 |

@@ -12,6 +12,8 @@
 | `syngas/`             | 合成气 / 煤气化制气（H₂/CH₄/CO₂/CO） | `sg`   | N₂ 背景，sum<100%           |
 | `tunnel_ventilation/` | 掘进通风（CO₂/O₂/N₂）            | `tv3`  | 闭包 sum=100%              |
 | `rcdw_mgda/`          | 学长 RCDW 算法                 | `rcdw` | 独立复现                     |
+| `general_fusion/`     | 通用多模态融合主线（Ar-He-CO₂ + xylene） | `gf` | **当前主线**（A0 起），两份指导文档在此目录下 |
+| `gas_information_bench/` | P2 信息量与可辨识性 bench       | `gib`  | 独立契约、审计与 append-only freeze |
 | `shared/`             | —                          | —      | 共享光谱缓存（hitran_cache）+ 归档 |
 
 每个子工程有独立 `pyproject.toml`、独立 CLI、独立 `tests/`，可独立 `pip install -e .[dev]` 并运行。原单仓库结构（`src/`/`docs/`/`configs/`/`scripts/`/`tests/`）已废弃删除。
