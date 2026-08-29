@@ -1,0 +1,33 @@
+{
+  "schema_version": "gf-a2-model-1",
+  "model_id": "C1",
+  "representation": "torch_concat",
+  "sensor_encoder": "scalar_observation",
+  "fusion": "ordered_concat",
+  "head_id": "H0",
+  "capacity_presets": ["small", "large"],
+  "parameter_match_tolerance": 0.1,
+  "concat_dim_by_capacity": {
+    "small": 4,
+    "large": 8
+  },
+  "parameter_match_strategy": "registered_pre_concat_bottleneck",
+  "strong_torch_baseline": {
+    "kind": "raw_scalar_mlp",
+    "hidden_dim": 32
+  },
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage"
+  ],
+  "sensor_types": [
+    "acoustic_tof",
+    "thermal_conductivity",
+    "ndir"
+  ],
+  "uses_quality": false,
+  "uses_time": false,
+  "uses_dataset_id": false,
+  "uses_target_name": false
+}

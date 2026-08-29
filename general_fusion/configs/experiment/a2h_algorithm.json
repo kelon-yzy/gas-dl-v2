@@ -1,0 +1,14 @@
+{
+  "schema_version": "gf-a2h-experiment-2",
+  "stage": "A2H-6",
+  "experiment_id": "a2h-algorithm-comparison",
+  "kind": "matched_algorithm_comparison",
+  "data_config": "configs/data/ar_he_co2_a2h_v2.json",
+  "eval_config": "configs/eval/a2h_eval.json",
+  "train_config": "configs/train/a2h_train.json",
+  "candidate_config": "configs/model/a2h_candidate.json",
+  "baseline_config": "configs/model/a2h_matched_baselines.json",
+  "allowed_read_splits": ["train", "inner_oof", "val", "stress_val"],
+  "hard_test_access": "locked",
+  "output_dir": "outputs/runs/a2h_v2/a2h-6-algorithm-comparison"
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": "gf-a2-experiment-1",
+  "stage": "A2-2",
+  "experiment_id": "a2-head-audit",
+  "data_config": "configs/data/ar_he_co2_a1_v1.json",
+  "data_manifest": "data/a1_formal/manifest.json",
+  "eval_config": "configs/eval/a2_eval.json",
+  "train_config": "configs/train/a2_train.json",
+  "candidate_config": "configs/model/a2_heads.json",
+  "baseline_config": "configs/model/a2_concat.json",
+  "allowed_read_splits": ["train", "inner_oof", "val"],
+  "test_access": {
+    "mode": "locked",
+    "unlock_flag": "--unlock-test"
+  },
+  "output_dir": "outputs/runs/a2/head-audit"
+}

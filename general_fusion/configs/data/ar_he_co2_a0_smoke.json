@@ -1,0 +1,29 @@
+{
+  "schema_version": "gf-a0-data-1",
+  "dataset_id": "ar_he_co2",
+  "timesteps": 32,
+  "dt_s": 1.0,
+  "conditions": [
+    {
+      "mixture_id": "GF-M-000001",
+      "split": "train",
+      "x_Ar_pct": 70.0,
+      "x_He_pct": 20.0,
+      "x_CO2_pct": 10.0
+    },
+    {
+      "mixture_id": "GF-M-000002",
+      "split": "val",
+      "x_Ar_pct": 40.0,
+      "x_He_pct": 50.0,
+      "x_CO2_pct": 10.0
+    },
+    {
+      "mixture_id": "GF-M-000003",
+      "split": "test",
+      "x_Ar_pct": 55.0,
+      "x_He_pct": 15.0,
+      "x_CO2_pct": 30.0
+    }
+  ]
+}

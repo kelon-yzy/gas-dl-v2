@@ -1,0 +1,28 @@
+{
+  "schema_version": "gf-a2-model-1",
+  "model_id": "M1",
+  "representation": "sensor_token",
+  "sensor_encoder": "a2_scalar_token",
+  "fusion": "deepsets",
+  "pool": "masked_mean",
+  "head_id": "H0",
+  "capacity_presets": ["small", "large"],
+  "parameter_match_tolerance": 0.1,
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage"
+  ],
+  "sensor_types": [
+    "acoustic_tof",
+    "thermal_conductivity",
+    "ndir"
+  ],
+  "uses_sensor_id": true,
+  "uses_sensor_type": true,
+  "uses_quality": false,
+  "uses_time": false,
+  "allow_sum_ablation": true,
+  "uses_dataset_id": false,
+  "uses_target_name": false
+}

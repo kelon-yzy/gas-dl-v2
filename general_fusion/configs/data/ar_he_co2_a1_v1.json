@@ -1,0 +1,32 @@
+{
+  "schema_version": "gf-a1-data-1",
+  "dataset_id": "ar_he_co2",
+  "data_version": "gf-a1-v1-20260827-r1",
+  "generation_seed": 20260827,
+  "split_seed": 20260827,
+  "binary_per_pair": 100,
+  "ternary_count": 900,
+  "physics": {
+    "temperature_k": 298.15,
+    "pressure_pa": 101325.0,
+    "acoustic_path_length_m": 0.2,
+    "ndir_optical_path_length_m": 0.01,
+    "timesteps": 1,
+    "dt_s": 1.0,
+    "tof_delay_s": 0.00008,
+    "ndir_baseline_v": 2.5,
+    "ndir_effective_absorbance_per_co2_percent": 0.04269004521460337,
+    "tcs_baseline_v": 1.1,
+    "tcs_response_v_per_w_m_k": 15.0,
+    "tcs_reference_conductivity_w_m_k": 0.026,
+    "tof_resolution_s": 1.0e-8,
+    "thermal_voltage_resolution_v": 0.0000762939453125,
+    "ndir_voltage_noise_std_v": 0.016,
+    "jacobian_step_pct": 0.01,
+    "signal_bounds": {
+      "ultrasonic_tof": [0.0, 0.01],
+      "thermal_conductivity_voltage": [-2.0, 4.0],
+      "ndir_co2_voltage": [0.0, 2.5]
+    }
+  }
+}

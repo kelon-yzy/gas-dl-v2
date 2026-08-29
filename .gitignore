@@ -13,6 +13,11 @@ __pycache__/
 # 场景数据集（各子工程 data/，大文件不进 git）
 syngas/data/sg4-*/
 tunnel_ventilation/data/tv3-*/
+# 通用融合主线（A0 起）：benchmark 数据与运行产物不进 git
+general_fusion/data/
+general_fusion/outputs/
+# 外部数据集（xylene-e-nose 等，1.8G 且含独立 .git，不进 git）
+/数据集/
 # wv4 波形数组（大文件，本地生成不进 git；manifest/metadata/splits 等小文件保留跟踪）
 hydrogen_ng/data/wv4-*/sequences/*.npy
 hydrogen_ng/data/wv4-*/sequences/*.npz

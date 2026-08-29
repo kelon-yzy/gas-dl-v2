@@ -1,0 +1,160 @@
+{
+  "freeze_id": "H0-FREEZE-20260827-01",
+  "registry_type": "history_freeze_manifest",
+  "schema_version": "h0-history-freeze-1",
+  "status": "frozen_with_open_items",
+  "current_role": "historical_pre_quality_repair_snapshot",
+  "superseded_note": "Current source, algorithm, experiment and failure registries use v2 schemas and are validated by general_fusion/tests/test_history_integrity.py; this manifest retains the pre-repair snapshot counts and hashes.",
+  "freeze_date": "2026-08-27",
+  "repository_head": "edd6342046c1755d5ed10f12f4749a6c3b8dee1c",
+  "working_tree": "dirty_existing_changes_preserved",
+  "scope": {
+    "projects": [
+      "hydrogen_ng",
+      "syngas",
+      "tunnel_ventilation",
+      "rcdw_mgda",
+      "gas_information_bench",
+      "xylene_external",
+      "general_fusion"
+    ],
+    "task_contract_count": 6,
+    "algorithm_count": 20,
+    "experiment_count": 11,
+    "failure_count": 13,
+    "source_count": 62,
+    "history_pages": [
+      "00_复盘范围与证据分级.md",
+      "01_项目与数据版本地图.md",
+      "02_历史算法谱系.md",
+      "03_H0-4_证据核验报告.md",
+      "04_失败经验与根因图谱.md",
+      "05_跨项目算法比较矩阵.md",
+      "06_面向general_fusion的可复用约束.md",
+      "07_候选研究入口与杀停条件.md",
+      "08_H0-8_反向审稿与冻结前检查.md"
+    ]
+  },
+  "artifacts": [
+    {
+      "path": "general_fusion/docs/history/00_复盘范围与证据分级.md",
+      "role": "scope_and_evidence_rules",
+      "sha256": "2B891A172AF54BCBD1A9C2E18D9A6B0B6EFA1F0B8922CC5AE215B5236FC1DC7A"
+    },
+    {
+      "path": "general_fusion/docs/history/01_项目与数据版本地图.md",
+      "role": "project_and_data_version_map",
+      "sha256": "58465256B3C8CE1ACF21E7E04AE9A06FF628317715CF04749F5970758CE17360"
+    },
+    {
+      "path": "general_fusion/docs/history/02_历史算法谱系.md",
+      "role": "algorithm_lineage_navigation",
+      "sha256": "603B6380812D24185BBC4208054AEE4946CB3B8D1397B9EE24C7FF237C0B986F"
+    },
+    {
+      "path": "general_fusion/docs/history/03_H0-4_证据核验报告.md",
+      "role": "evidence_verification",
+      "sha256": "D193A3D0A98AE08C5F8D5C1EA2DDA012B79460DA9434DDE7D1FA224EF080A42F"
+    },
+    {
+      "path": "general_fusion/docs/history/04_失败经验与根因图谱.md",
+      "role": "failure_root_cause_map",
+      "sha256": "B88100CC9B8784BF3A90BFEDBDD9816775D6C858AA31FA6561CFD141721A6E31"
+    },
+    {
+      "path": "general_fusion/docs/history/05_跨项目算法比较矩阵.md",
+      "role": "cross_project_comparison",
+      "sha256": "CA26AF4E4F54BF420F21AAB2867FDD7DE80F63BF7C392FFE3F5468301D273CB2"
+    },
+    {
+      "path": "general_fusion/docs/history/06_面向general_fusion的可复用约束.md",
+      "role": "a0_to_a6_reusable_constraints",
+      "sha256": "FD2112646429C104D993C53BC299CBD36FAA6D2917C46D47040F6A04218468B5"
+    },
+    {
+      "path": "general_fusion/docs/history/07_候选研究入口与杀停条件.md",
+      "role": "candidate_entry_and_kill_conditions",
+      "sha256": "8959DA48115AA3FBEEAAA5B78B2B3DA3778525D30741B18B1F43CB7AD5C00A9E"
+    },
+    {
+      "path": "general_fusion/docs/history/08_H0-8_反向审稿与冻结前检查.md",
+      "role": "adversarial_review",
+      "sha256": "702F61716C5FD97FE8B6863590EA74C62CC5856CE289117A7189C376DEEDB18A"
+    },
+    {
+      "path": "general_fusion/docs/history/README.md",
+      "role": "history_navigation",
+      "sha256": "BBFE0941728D4219BEB07CB436C64652DD3DCAE56A63EA99448EC567B0EE5332"
+    },
+    {
+      "path": "general_fusion/docs/history/历史算法与失败经验复盘执行计划.md",
+      "role": "execution_plan",
+      "sha256": "F3594B350A52E078A2E5DA662E1705D283611D8D24891EDA6AAE0026B0441892"
+    },
+    {
+      "path": "general_fusion/docs/history/source_registry.json",
+      "role": "source_registry",
+      "sha256": "4567CF44F74248CB7AA0805C54035EF67F1B04C947D4F02782C44290BA552321"
+    },
+    {
+      "path": "general_fusion/docs/history/task_contract.json",
+      "role": "task_contract",
+      "sha256": "398E07D6EB299273DC4740DA17B5862AD3A2DCD4EDBD9C4AED8F1DEB9DBAF5F8"
+    },
+    {
+      "path": "general_fusion/docs/history/algorithm_ledger.json",
+      "role": "algorithm_ledger",
+      "sha256": "6A9F1EF3DEEE055280C399A3D54DAA76558FA1B591B0E324AB0DE4C7E675F3C8"
+    },
+    {
+      "path": "general_fusion/docs/history/experiment_ledger.json",
+      "role": "experiment_ledger",
+      "sha256": "C210F4586CF0F4577BA8B38243DBF776FD38308972CDE739498BDDD5A9FD1720"
+    },
+    {
+      "path": "general_fusion/docs/history/failure_ledger.json",
+      "role": "failure_ledger",
+      "sha256": "795CC3A616CE57608A4977974EEA932BAF245607E267A5FFBB1BD41487ED08C7"
+    },
+    {
+      "path": "general_fusion/项目总体规划.md",
+      "role": "current_mainline_plan",
+      "sha256": "3DC47F8CC6482665E7CE66780DFD2A9D69769926CCE4F3806778A314884DEBFA"
+    },
+    {
+      "path": "general_fusion/README.md",
+      "role": "package_boundary",
+      "sha256": "2C9A5F5CCB265AABF18C0F416DA7C37A0666DE4A3953938EF832F74985798028"
+    },
+    {
+      "path": "general_fusion/pyproject.toml",
+      "role": "package_configuration",
+      "sha256": "204D4F9C91C097C3728F7B99332D1BEF0F0A8AD31A4FEDB01AB5750E76D7DE1C"
+    },
+    {
+      "path": "general_fusion/tests/test_a0_skeleton.py",
+      "role": "skeleton_contract_test",
+      "sha256": "05B351080A1C53B78B44660F7BF0E5E9E0D588139AC2768E517F487DF7CAB30B"
+    },
+    {
+      "path": "general_fusion/src/gf/__init__.py",
+      "role": "package_entrypoint",
+      "sha256": "7870FD51D34247F5E1C083DA66B1AF89A382A6587DFDA059B269A289AE3D0504"
+    }
+  ],
+  "declared_missing_sources": [
+    "SRC-TV3-CLEAN-FORMAL-MISSING",
+    "SRC-RCDW-DATA-MISSING"
+  ],
+  "open_items": [
+    "hydrogen_ng formal data and head artifact provenance replay",
+    "hydrogen_ng equal evaluation anomaly remains unknown",
+    "syngas historical per-run artifact audit and 512-step formal closure",
+    "tunnel_ventilation clean formal data remains server-side",
+    "rcdw_mgda data/runs/checkpoint recovery and ErrorNet calibration",
+    "no direct transfer of superseded 128-step or conflicted head metrics",
+    "working tree contains preserved pre-existing and current uncommitted changes"
+  ],
+  "review_ref": "general_fusion/docs/history/08_H0-8_反向审稿与冻结前检查.md",
+  "self_hash_excluded": true
+}

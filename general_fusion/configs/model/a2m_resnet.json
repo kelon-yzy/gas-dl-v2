@@ -1,0 +1,19 @@
+{
+  "schema_version": "gf-a2m-model-1",
+  "model_id": "A2M-RESNET",
+  "kind": "tabular_resnet",
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage"
+  ],
+  "sensor_types": ["acoustic_tof", "thermal_conductivity", "ndir"],
+  "input_shape": {"timesteps": 1, "features": 1},
+  "head": {"id": "H0", "output_dim": 3},
+  "recipes": [
+    {"name": "resnet_width16_blocks2", "width": 16, "residual_blocks": 2},
+    {"name": "resnet_width32_blocks2", "width": 32, "residual_blocks": 2}
+  ],
+  "uses_time_position_encoding": false,
+  "uses_context": false
+}

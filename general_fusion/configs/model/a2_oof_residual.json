@@ -1,0 +1,16 @@
+{
+  "schema_version": "gf-a2-oof-residual-1",
+  "model_id": "GF-I07",
+  "base_prediction_source": "grouped_oof_only",
+  "residual_definition": "target_minus_base_prediction_oof",
+  "fold_count": 5,
+  "fold_group_key": "mixture_id",
+  "candidate_order": ["linear_stack", "ridge_residual", "shallow_gbdt_residual", "residual_mlp"],
+  "activation_gate": {
+    "relative_improvement": 0.05,
+    "bootstrap_confidence": 0.95,
+    "requires_positive_oof_explained_variance": true
+  },
+  "in_sample_residual_role": "negative_control",
+  "randomized_residual_role": "negative_control"
+}

@@ -1,0 +1,9 @@
+{
+  "schema_version": "gf-a0-experiment-1",
+  "seed": 20260827,
+  "data_configs": {
+    "ar_he_co2": "configs/data/ar_he_co2_a0_smoke.json",
+    "xylene_e_nose": "configs/data/xylene_e_nose_a0_smoke.json"
+  },
+  "model_config": "configs/model/a0_fusion_core.json"
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": "gf-a2h-baselines-2",
+  "roles": [
+    {"id": "oracle", "kind": "privileged_numerical_inversion", "deployable": false},
+    {"id": "NN", "kind": "nearest_train_composition", "deployable": false},
+    {"id": "B3", "kind": "ridge", "deployable": true},
+    {"id": "B4", "kind": "gbdt", "deployable": true},
+    {"id": "B5", "kind": "torch_raw_scalar_mlp", "seeds": [17, 29, 43, 71, 101], "deployable": true},
+    {"id": "C1", "kind": "ordered_concat_common_head", "deployable": true},
+    {"id": "M1", "kind": "token_deepsets_common_head", "deployable": true},
+    {"id": "H0", "kind": "independent_regression_head", "deployable": true},
+    {"id": "H1", "kind": "deterministic_simplex_projection_head", "deployable": true},
+    {"id": "H2", "kind": "strict_positive_softmax_head", "deployable": false, "status": "conditional"}
+  ],
+  "common": {
+    "scaler": "train_group_only",
+    "loss": "mse",
+    "training_seeds": [17, 29, 43, 71, 101],
+    "selection_splits": ["family.val", "family.stress_val"],
+    "hard_test": "locked"
+  }
+}

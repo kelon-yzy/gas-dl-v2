@@ -1,0 +1,33 @@
+{
+  "schema_version": "gf-a2h-train-2",
+  "seeds": [17, 29, 43, 71, 101],
+  "optimizer": {
+    "name": "LBFGS",
+    "learning_rate": 1.0,
+    "weight_decay": 0.0,
+    "max_iter": 10,
+    "history_size": 50
+  },
+  "loss": {
+    "name": "mse",
+    "target_scale": [100.0, 100.0, 100.0]
+  },
+  "max_epochs": 20,
+  "early_stopping": {
+    "enabled": true,
+    "monitor": "val_macro_RNMAE",
+    "patience": 5,
+    "selection_split": "family.val",
+    "test_access": "forbidden"
+  },
+  "capacity_presets": [
+    {
+      "name": "small",
+      "encoder_hidden_dim": 16,
+      "fusion_hidden_dim": 16,
+      "head_hidden_dim": 16
+    }
+  ],
+  "parameter_match_tolerance": 0.10,
+  "hard_test_access": "forbidden"
+}

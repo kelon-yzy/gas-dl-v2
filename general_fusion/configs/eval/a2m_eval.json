@@ -1,0 +1,61 @@
+{
+  "schema_version": "gf-a2m-eval-1",
+  "parent_schema_version": "gf-eval-1",
+  "metric": "macro_RNMAE",
+  "target_ranges": {
+    "x_Ar_pct": 100.0,
+    "x_He_pct": 100.0,
+    "x_CO2_pct": 100.0
+  },
+  "required_metrics": [
+    "macro_RNMAE",
+    "component_RNMAE",
+    "component_MAE",
+    "component_RMSE",
+    "component_R2",
+    "P90_group_MAE",
+    "worst_group_MAE",
+    "parameter_count",
+    "training_time_s",
+    "inference_time_s",
+    "peak_memory_bytes",
+    "best_epoch",
+    "epochs_completed",
+    "checkpoint_sha256",
+    "runtime_fingerprint"
+  ],
+  "training_seeds": [17, 29, 43, 71, 101],
+  "bootstrap_seed": 20260829,
+  "bootstrap_samples": 2000,
+  "confidence_level": 0.95,
+  "axes": ["iid", "calibration", "environment", "joint", "noise", "composition"],
+  "primary_axes": ["iid", "calibration", "environment", "joint", "noise"],
+  "composition_axis_role": "diagnostic_only",
+  "development_source_splits": ["train", "val", "stress_val"],
+  "formal_split": "formal",
+  "equivalence_band": {"relative_macro_RNMAE": 0.05},
+  "promotion": {
+    "max_iid_relative_degradation": 0.05,
+    "min_stress_axes": 2,
+    "min_relative_improvement": 0.05,
+    "min_seeds_same_direction": 4,
+    "max_component_absolute_degradation": 0.005,
+    "bootstrap_ci_upper_strictly_below_zero": true,
+    "matched_optimizer_audit_required": true
+  },
+  "test_access": {
+    "default": "locked",
+    "unlock_flag": "--unlock-formal",
+    "required_formal_run_status": "FROZEN",
+    "required_evidence": [
+      "data_content_sha256",
+      "split_hash",
+      "profile_hash",
+      "protocol_config_sha256",
+      "checkpoint_sha256",
+      "runtime_fingerprint",
+      "primary_chart_template_sha256",
+      "formal_run_status"
+    ]
+  }
+}

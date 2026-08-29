@@ -1,0 +1,37 @@
+{
+  "schema_version": "gf-a2h-model-2",
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage"
+  ],
+  "sensor_types": [
+    "acoustic_tof",
+    "thermal_conductivity",
+    "ndir"
+  ],
+  "models": {
+    "B5": {
+      "kind": "raw_scalar_mlp",
+      "hidden_dim": 32
+    },
+    "C1": {
+      "kind": "ordered_concat_common_head",
+      "representation": "torch_concat",
+      "capacity_name": "small",
+      "concat_dim": 4
+    },
+    "M1": {
+      "kind": "token_deepsets_common_head",
+      "representation": "sensor_token",
+      "capacity_name": "small",
+      "pool": "masked_mean",
+      "uses_sensor_id": true,
+      "uses_sensor_type": true
+    }
+  },
+  "context_arms": ["ENV-C0", "ENV-C1"],
+  "context_fields": ["temperature_k", "pressure_pa"],
+  "selection_rule": "registered_candidate_gate_only",
+  "hard_test_access": "forbidden_until_formal_unlock"
+}

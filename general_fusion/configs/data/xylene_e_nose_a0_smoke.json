@@ -1,0 +1,20 @@
+{
+  "schema_version": "gf-a0-data-1",
+  "dataset_id": "xylene_e_nose",
+  "dataset_root": "../数据集/xylene-e-nose_三元二甲苯混合物",
+  "window_rows": 64,
+  "workbooks": [
+    {
+      "file": "10 ppm m-o-p=1-1-1.xlsx",
+      "split": "train"
+    },
+    {
+      "file": "100 ppm m-o-p=1-1-2.xlsx",
+      "split": "val"
+    },
+    {
+      "file": "10 ppm m-o=1-1.xlsx",
+      "split": "test"
+    }
+  ]
+}

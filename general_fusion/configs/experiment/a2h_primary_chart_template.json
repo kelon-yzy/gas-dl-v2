@@ -1,0 +1,27 @@
+{
+  "schema_version": "gf-a2h-chart-template-1",
+  "primary_metric": "macro_RNMAE",
+  "primary_comparison": "candidate_minus_matched_baseline",
+  "required_sections": [
+    "difficulty_eligibility",
+    "learning_curve",
+    "noise_response",
+    "environment_ood",
+    "calibration_ood",
+    "composition_ood",
+    "joint_pressure",
+    "component_metrics",
+    "worst_group",
+    "output_constraints",
+    "efficiency"
+  ],
+  "required_stratification": [
+    "condition_family",
+    "environment_id",
+    "calibration_profile_id",
+    "composition_region",
+    "noise_profile_id"
+  ],
+  "test_selection": "frozen_once_after_stress_val_selection",
+  "hard_test_plotting": "one_unlock_after_all_hashes_verified"
+}

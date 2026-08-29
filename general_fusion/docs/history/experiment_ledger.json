@@ -1,0 +1,837 @@
+{
+  "registry_id": "H0-EXP-20260827-01",
+  "registry_type": "experiment_ledger",
+  "schema_version": "h0-experiment-ledger-2",
+  "status": "initial_critical",
+  "generated_at": "2026-08-27",
+  "task_contract": "task_contract.json",
+  "algorithm_ledger": "algorithm_ledger.json",
+  "entries": [
+    {
+      "experiment_id": "EXP-HG-N2-RIDGE-MW",
+      "algorithm_id": "HG-RIDGE-MW",
+      "task_id": "TC-HG-V4",
+      "record_status": "partial_closed",
+      "source_refs": [
+        "SRC-HG-N2-DIAGNOSTIC",
+        "SRC-HG-N2-RIDGE-METRICS"
+      ],
+      "data_version": "wv4-formal-hitran-standard-6000 referenced by historical result/config",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test",
+          "extrapolation"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": "not recovered from current result entry",
+        "repeat": "single result bundle visible; repeat closure pending"
+      },
+      "config_ref": "hydrogen_ng/outputs/runs/multiwindow_n2/ridge_multiwindow_all_modalities/run_config.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "component-wise R2",
+          "split-wise comparison"
+        ],
+        "source_of_metric_semantics": "hydrogen_ng N2 diagnostic document and metrics.json"
+      },
+      "result_ref": "hydrogen_ng/outputs/runs/multiwindow_n2/ridge_multiwindow_all_modalities/metrics.json",
+      "resource": "not recorded in current source",
+      "failure_or_exit": "not recorded",
+      "reproducibility": "partial; result exists but local data/config/hash chain is incomplete",
+      "claim_scope": "hydrogen_ng historical N2 diagnostic regime only",
+      "notes": "Do not use this row as a cross-project ranking or as proof that all four components are equally identifiable."
+    },
+    {
+      "experiment_id": "EXP-HG-N2-HEAD-GAS",
+      "algorithm_id": "HG-PHASEWINDOW-TCN-GAS",
+      "task_id": "TC-HG-V4",
+      "record_status": "conflicted_unverified_artifact",
+      "source_refs": [
+        "SRC-HG-N2-HEAD-GAS",
+        "SRC-HG-HEAD-SWEEP-CONFIG",
+        "SRC-HG-PHASEWINDOW-MODEL",
+        "SRC-HG-HEAD-TRAINING-LOG"
+      ],
+      "data_version": "wv4-formal-hitran-standard-6000 referenced by head sweep config",
+      "split_and_group": {
+        "splits": [
+          "val",
+          "test",
+          "extrapolation"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": 20260615,
+        "repeat": "one configured seed recorded"
+      },
+      "config_ref": "hydrogen_ng/outputs/runs/n2_head_sweep/phase_window_tcn_gas_varweight/run_config.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "component-wise regression metrics",
+          "N2-specific diagnostic"
+        ],
+        "weighting": "inverse_train_var"
+      },
+      "result_ref": "hydrogen_ng/outputs/runs/n2_head_sweep/phase_window_tcn_gas_varweight/metrics.json",
+      "resource": "not recorded in current source",
+      "failure_or_exit": "training.log records FileNotFoundError for the formal dataset root; saved metrics provenance cannot be established",
+      "reproducibility": "blocked; current entry expects waveform_adc_scale but saved model_config contains waveform_int16_scale, and the recorded formal run failed before data resolution",
+      "claim_scope": "gas_head parameterization under the documented PhaseWindowTCN protocol",
+      "notes": "Historical negative-control claim is retained as an unverified artifact. The metrics file has target_transform=null; do not rank this head against the other two until the artifact is recovered or replayed."
+    },
+    {
+      "experiment_id": "EXP-HG-N2-HEAD-RAW4",
+      "algorithm_id": "HG-PHASEWINDOW-TCN-RAW4",
+      "task_id": "TC-HG-V4",
+      "record_status": "conflicted_unverified_artifact",
+      "source_refs": [
+        "SRC-HG-N2-HEAD-RAW4",
+        "SRC-HG-HEAD-SWEEP-CONFIG",
+        "SRC-HG-PHASEWINDOW-MODEL",
+        "SRC-HG-HEAD-TRAINING-LOG"
+      ],
+      "data_version": "wv4-formal-hitran-standard-6000 referenced by head sweep config",
+      "split_and_group": {
+        "splits": [
+          "val",
+          "test",
+          "extrapolation"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": 20260615,
+        "repeat": "one configured seed recorded"
+      },
+      "config_ref": "hydrogen_ng/outputs/runs/n2_head_sweep/phase_window_tcn_raw4/run_config.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "component-wise regression metrics",
+          "N2-specific diagnostic"
+        ],
+        "weighting": "inverse_train_var"
+      },
+      "result_ref": "hydrogen_ng/outputs/runs/n2_head_sweep/phase_window_tcn_raw4/metrics.json",
+      "resource": "not recorded in current source",
+      "failure_or_exit": "training.log records FileNotFoundError for the formal dataset root; saved metrics provenance cannot be established",
+      "reproducibility": "blocked; current entry expects waveform_adc_scale but saved model_config contains waveform_int16_scale, and the recorded formal run failed before data resolution",
+      "claim_scope": "raw4 output-head ablation under the documented PhaseWindowTCN protocol",
+      "notes": "The saved metrics have target_transform=null, but the output bundle conflicts with the current model contract. Exact head comparisons remain blocked; replay must use identical split, seed, scaler and current waveform_adc_scale."
+    },
+    {
+      "experiment_id": "EXP-HG-N2-HEAD-SOFTMAX100",
+      "algorithm_id": "HG-PHASEWINDOW-TCN-SOFTMAX100",
+      "task_id": "TC-HG-V4",
+      "record_status": "conflicted_unverified_artifact",
+      "source_refs": [
+        "SRC-HG-N2-HEAD-SOFTMAX",
+        "SRC-HG-HEAD-SWEEP-CONFIG",
+        "SRC-HG-PHASEWINDOW-MODEL",
+        "SRC-HG-HEAD-TRAINING-LOG"
+      ],
+      "data_version": "wv4-formal-hitran-standard-6000 referenced by head sweep config",
+      "split_and_group": {
+        "splits": [
+          "val",
+          "test",
+          "extrapolation"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": 20260615,
+        "repeat": "one configured seed recorded"
+      },
+      "config_ref": "hydrogen_ng/outputs/runs/n2_head_sweep/phase_window_tcn_softmax100/run_config.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "component-wise regression metrics",
+          "N2-specific diagnostic"
+        ],
+        "weighting": "inverse_train_var"
+      },
+      "result_ref": "hydrogen_ng/outputs/runs/n2_head_sweep/phase_window_tcn_softmax100/metrics.json",
+      "resource": "not recorded in current source",
+      "failure_or_exit": "training.log records FileNotFoundError for the formal dataset root; saved metrics provenance cannot be established",
+      "reproducibility": "blocked; current entry expects waveform_adc_scale but saved model_config contains waveform_int16_scale, and the recorded formal run failed before data resolution",
+      "claim_scope": "softmax100 output-head ablation under the documented PhaseWindowTCN protocol",
+      "notes": "The saved metrics have target_transform=null. Its evaluation objects are exactly equal to gas_head despite different checkpoint hashes; the anomaly is recorded as unknown and cannot support a ranking until artifact provenance is recovered."
+    },
+    {
+      "experiment_id": "EXP-SG-STAGE-I3-128",
+      "algorithm_id": "SG-TCN-128",
+      "task_id": "TC-SG-SG4",
+      "record_status": "superseded_historical",
+      "source_refs": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-TCN-RUNCONFIG-128",
+        "SRC-SG-BASELINE-RUNS",
+        "SRC-SG-BASELINE-OUTPUTS"
+      ],
+      "data_version": "sg4-formal-128",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seeds": [
+          42,
+          123,
+          2026
+        ],
+        "repeat": "three-seed historical summary; per-run artifact audit pending"
+      },
+      "config_ref": "syngas/outputs/sg4_baseline/tcn/seed42/run_config.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "component-wise R2",
+          "mean and standard deviation across seeds"
+        ],
+        "protocol_note": "historical 128-step baseline"
+      },
+      "result_ref": "syngas/docs/stage_i3_baseline_results.md",
+      "resource": "not recorded in current source",
+      "failure_or_exit": "no scientific failure asserted for TCN; 128-step scope is the limiting boundary",
+      "reproducibility": "partial; historical output exists but current data tree lacks matching formal asset",
+      "claim_scope": "syngas sg4-formal-128 only",
+      "notes": "Historical run_config confirms target_timesteps=128. Current syngas/configs/sg4_tcn.json is target_timesteps=512 and must not be used as the historical 128 configuration; a new 512 experiment record is required."
+    },
+    {
+      "experiment_id": "EXP-SG-PATCHTST-FP16-128",
+      "algorithm_id": "SG-PATCHTST-FP16-128",
+      "task_id": "TC-SG-SG4",
+      "record_status": "historical_engineering_fail",
+      "source_refs": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-PATCHTST-CONFIG"
+      ],
+      "data_version": "sg4-formal-128",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": "historical fp16 attempt; exact seed artifact not independently closed",
+        "repeat": "execution-variant evidence only"
+      },
+      "config_ref": "syngas/configs/sg4_patchtst.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "loss finiteness",
+          "NaN/Inf occurrence",
+          "artifact completeness"
+        ],
+        "protocol_note": "fp16 execution identity is separate from the recovered fp32 runs"
+      },
+      "result_ref": "syngas/docs/stage_i3_baseline_results.md",
+      "resource": "historical GPU execution; exact environment not independently recovered",
+      "failure_or_exit": "fp16 AMP path produced NaN or non-convergent behavior",
+      "reproducibility": "partial; report evidence exists, exact failed run bundle is not independently closed",
+      "claim_scope": "syngas PatchTST 128-step fp16 execution variant only",
+      "notes": "This row records a numerical engineering failure and cannot support an architectural failure claim."
+    },
+    {
+      "experiment_id": "EXP-SG-PATCHTST-FP32-128",
+      "algorithm_id": "SG-PATCHTST-FP32-128",
+      "task_id": "TC-SG-SG4",
+      "record_status": "superseded_historical",
+      "source_refs": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-PATCHTST-RUNCONFIG-128",
+        "SRC-SG-BASELINE-OUTPUTS",
+        "SRC-SG-BASELINE-RUNS"
+      ],
+      "data_version": "sg4-formal-128",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seeds": [
+          42,
+          123,
+          2026
+        ],
+        "repeat": "three saved fp32 runs; per-run provenance audit remains pending"
+      },
+      "config_ref": "syngas/outputs/sg4_baseline/patchtst/seed42/run_config.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "component-wise MAE/RMSE/R2",
+          "split-wise regression metrics"
+        ],
+        "protocol_note": "saved run_config records amp.enabled=false"
+      },
+      "result_ref": "syngas/outputs/sg4_baseline/summary.json",
+      "resource": "GPU run; per-run timing remains in saved metrics",
+      "failure_or_exit": "no fp16 numerical failure applies to these amp-disabled runs",
+      "reproducibility": "partial; run configs and metrics exist, matching historical formal data asset is not closed",
+      "claim_scope": "syngas PatchTST sg4-formal-128 fp32 historical protocol",
+      "notes": "The recovered fp32 result separates execution failure from architecture behavior but remains superseded by the 512-step contract."
+    },
+    {
+      "experiment_id": "EXP-SG-LSTM-128",
+      "algorithm_id": "SG-LSTM-128",
+      "task_id": "TC-SG-SG4",
+      "record_status": "historical_artifact_audit_pending",
+      "source_refs": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-LSTM-RUNCONFIG-128",
+        "SRC-SG-BASELINE-OUTPUTS",
+        "SRC-SG-BASELINE-RUNS"
+      ],
+      "data_version": "sg4-formal-128",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seeds": [
+          42,
+          123,
+          2026
+        ],
+        "repeat": "three saved runs; process exit and scientific status require per-seed separation"
+      },
+      "config_ref": "syngas/outputs/sg4_baseline/lstm/seed123/run_config.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "component-wise MAE/RMSE/R2",
+          "checkpoint and final-step completeness",
+          "process exit status"
+        ],
+        "protocol_note": "artifact validity and process exit are independent fields"
+      },
+      "result_ref": "syngas/outputs/sg4_baseline/summary.json",
+      "resource": "GPU run; per-run timing remains in saved metrics",
+      "failure_or_exit": "one Windows process exit conflicted with complete metrics; affected seed scientific status remains under audit",
+      "reproducibility": "partial; configs and metrics exist, exact historical data closure is missing",
+      "claim_scope": "syngas LSTM sg4-formal-128 historical protocol",
+      "notes": "No current 512-step LSTM conclusion is inferred from this record."
+    },
+    {
+      "experiment_id": "EXP-SG-STAGE-I3-128-BASELINES",
+      "algorithm_id": "SG-RIDGE-128",
+      "task_id": "TC-SG-SG4",
+      "record_status": "superseded_historical",
+      "source_refs": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-RIDGE-METRICS-128",
+        "SRC-SG-BASELINE-OUTPUTS"
+      ],
+      "data_version": "sg4-formal-128",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seeds": [
+          42,
+          123,
+          2026
+        ],
+        "repeat": "three-seed historical summary; per-run artifact audit pending"
+      },
+      "config_ref": "syngas/configs/sg4_ridge.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "component-wise R2",
+          "mean and standard deviation across seeds"
+        ],
+        "protocol_note": "historical 128-step baseline"
+      },
+      "result_ref": "syngas/docs/stage_i3_baseline_results.md",
+      "resource": "not recorded in current source",
+      "failure_or_exit": "not recorded",
+      "reproducibility": "partial; historical output exists but current data tree lacks matching formal asset",
+      "claim_scope": "syngas sg4-formal-128 only",
+      "notes": "Ridge is a strong low-capacity historical baseline, not a substitute for a 512-step re-run. The metrics file is present but no matching historical Ridge run_config was found."
+    },
+    {
+      "experiment_id": "EXP-SG-STAGE-II-ABLATIONS-128",
+      "algorithm_id": "SG-INVERSE-TRAIN-VAR-LOSS",
+      "task_id": "TC-SG-SG4",
+      "record_status": "superseded_historical",
+      "source_refs": [
+        "SRC-SG-STAGE-II",
+        "SRC-SG-ABLATION-OUTPUTS"
+      ],
+      "data_version": "sg4-formal-128",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seeds": "historical ablation suite; exact per-cell mapping pending",
+        "repeat": "27 historical result entries reported"
+      },
+      "config_ref": "syngas/outputs/sg4_ablation",
+      "metric_definition": {
+        "reported_metrics": [
+          "component-wise R2",
+          "CO-channel removal",
+          "crosstalk ablation",
+          "weighted versus unweighted loss"
+        ],
+        "protocol_note": "all cells are 128-step historical evidence"
+      },
+      "result_ref": "syngas/docs/stage_ii_ablation_results.md",
+      "resource": "not recorded in current source",
+      "failure_or_exit": "not recorded",
+      "reproducibility": "partial; per-cell config and data manifest closure pending",
+      "claim_scope": "syngas 128-step ablation suite",
+      "notes": "Use as a hypothesis source for 512-step tests, not as a current mainline conclusion."
+    },
+    {
+      "experiment_id": "EXP-TV3-B1-RAW-DSP-FREEZE",
+      "algorithm_id": "TV3-B1-RAW-DSP-RIDGE",
+      "task_id": "TC-TV3-TUNNEL",
+      "record_status": "freeze_verified_formal_pass",
+      "source_refs": [
+        "SRC-TV3-CONTRACT",
+        "SRC-TV3-BASELINE-FREEZE"
+      ],
+      "data_version": "tv3-formal-6000",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test",
+          "extrapolation"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": "freeze-defined baseline run",
+        "repeat": "single frozen B1 baseline; B7 repeated protocol is a separate experiment"
+      },
+      "config_ref": "tunnel_ventilation/configs/tv3_d2b_raw_dsp_ridge.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "global regression metrics",
+          "component-wise metrics",
+          "conditional O2/CO2 bins",
+          "frame fidelity"
+        ],
+        "scope_rule": "B1 task and feature contract only"
+      },
+      "result_ref": "tunnel_ventilation/outputs/tv3_baseline_freeze/metrics.json",
+      "resource": "freeze environment and code commit recorded in manifest",
+      "failure_or_exit": "none; freeze verdict records B1/B7 evidence consistency",
+      "reproducibility": "freeze-backed; local clean formal data availability is governed by the separate source status",
+      "claim_scope": "tunnel_ventilation B1 raw/DSP Ridge protocol",
+      "notes": "Only the interpretable baseline role and observed-feature discipline may be inherited."
+    },
+    {
+      "experiment_id": "EXP-TV3-END2END-WAVEFORM-AUDIT",
+      "algorithm_id": "TV3-END2END-WAVEFORM",
+      "task_id": "TC-TV3-TUNNEL",
+      "record_status": "historical_family_audit",
+      "source_refs": [
+        "SRC-TV3-DEEP-RESEARCH",
+        "SRC-TV3-LOG",
+        "SRC-TV3-CONTRACT"
+      ],
+      "data_version": "multiple tunnel_ventilation historical waveform protocols",
+      "split_and_group": {
+        "splits": "variant-specific historical protocols",
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": "variant-specific",
+        "repeat": "family-level evidence audit; no synthetic aggregate metric"
+      },
+      "config_ref": "exact variant configs remain source-specific in the registered historical report",
+      "metric_definition": {
+        "reported_metrics": [
+          "O2 regression behavior",
+          "absolute timing representation error",
+          "sequence-level comparison with observed-feature baselines"
+        ],
+        "scope_rule": "supports a multi-layer failure analysis, not a single pooled performance value"
+      },
+      "result_ref": "tunnel_ventilation/docs/deep_research/deep_research_end_to_end_dl_consolidated_20260719.md",
+      "resource": "historical family; exact run resources are variant-specific",
+      "failure_or_exit": "generic end-to-end route did not close information, representation, calibration and pooling prerequisites",
+      "reproducibility": "partial; family-level source audit is local, exact run bundles are not represented as one experiment",
+      "claim_scope": "tunnel_ventilation historical generic end-to-end waveform family",
+      "notes": "This audit record prevents the B7 experiment from being used as the experiment identity for an unrelated end-to-end failure."
+    },
+    {
+      "experiment_id": "EXP-TV3-E1-FRAME-AUDIT",
+      "algorithm_id": "TV3-E1-FRAME-REPRESENTATION",
+      "task_id": "TC-TV3-TUNNEL",
+      "record_status": "historical_representation_fail",
+      "source_refs": [
+        "SRC-TV3-LOG",
+        "SRC-TV3-DEEP-RESEARCH"
+      ],
+      "data_version": "tunnel_ventilation E1/E1r historical representation family",
+      "split_and_group": {
+        "splits": "historical sequence evaluation",
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": "not independently closed",
+        "repeat": "representation audit only"
+      },
+      "config_ref": "exact E1/E1r run config not independently recovered in the current registry",
+      "metric_definition": {
+        "reported_metrics": [
+          "frame timing error",
+          "sequence-level regression behavior",
+          "absolute TOF preservation"
+        ],
+        "scope_rule": "frame accuracy cannot substitute for sequence parity"
+      },
+      "result_ref": "tunnel_ventilation/docs/deep_research/deep_research_end_to_end_dl_consolidated_20260719.md",
+      "resource": "not independently recorded",
+      "failure_or_exit": "frame-level recovery did not preserve required absolute timing and sequence slope information",
+      "reproducibility": "partial historical audit",
+      "claim_scope": "tunnel_ventilation E1/E1r frame representation family",
+      "notes": "E1d-SB is recorded separately because it adds observed calibration and quality terms."
+    },
+    {
+      "experiment_id": "EXP-TV3-E1D-SB-AUDIT",
+      "algorithm_id": "TV3-E1D-SB",
+      "task_id": "TC-TV3-TUNNEL",
+      "record_status": "historical_protocol_limited_pass",
+      "source_refs": [
+        "SRC-TV3-LOG",
+        "SRC-TV3-CONTRACT"
+      ],
+      "data_version": "tunnel_ventilation E1d-SB historical sequence protocol",
+      "split_and_group": {
+        "splits": "historical sequence evaluation",
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": "not independently closed",
+        "repeat": "historical protocol summary"
+      },
+      "config_ref": "feature contract e1d_sb_cal_plus_corr_psr_snr_v1",
+      "metric_definition": {
+        "reported_metrics": [
+          "sequence regression metrics",
+          "timing and quality representation checks"
+        ],
+        "scope_rule": "single-carrier and exact protocol limits remain"
+      },
+      "result_ref": "tunnel_ventilation/docs/掘进通风实验日志.md",
+      "resource": "not independently recorded",
+      "failure_or_exit": "no engineering failure asserted; evidence remains protocol-limited",
+      "reproducibility": "partial historical audit",
+      "claim_scope": "tunnel_ventilation E1d-SB sequence representation",
+      "notes": "Only the representation question transfers to general_fusion; no absolute metric transfers."
+    },
+    {
+      "experiment_id": "EXP-TV3-B7-PROTOCOL",
+      "algorithm_id": "TV3-B7-OOF-RESIDUAL",
+      "task_id": "TC-TV3-TUNNEL",
+      "record_status": "historical_protocol_pass",
+      "source_refs": [
+        "SRC-TV3-B7-OUTPUTS",
+        "SRC-TV3-B7-PROTOCOL-MANIFEST",
+        "SRC-TV3-B7-SPLIT-METRICS",
+        "SRC-TV3-FREEZE-MANIFEST",
+        "SRC-TV3-FREEZE-AUDIT"
+      ],
+      "data_version": "tv3-formal-6000 clean server-side contract",
+      "split_and_group": {
+        "splits": [
+          "R",
+          "L",
+          "S-Y",
+          "S-L"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "split_seeds": [
+          20260704,
+          20260712,
+          20260720
+        ],
+        "training_seeds": [
+          42,
+          123,
+          456
+        ],
+        "matrix_rows": 36,
+        "oof_seed": 20260711,
+        "repeat": "four protocols × three split seeds × three training seeds"
+      },
+      "config_ref": "tunnel_ventilation/configs/tv3_d2b_oof_ridge_residual_mlp.json",
+      "metric_definition": {
+        "reported_metrics": [
+          "global regression metrics",
+          "OOD-specific metrics",
+          "protocol pass/fail checks"
+        ],
+        "scope_rule": "narrow-window claims require separate reporting"
+      },
+      "result_ref": "tunnel_ventilation/outputs/tv3_b7_protocol",
+      "resource": "not recorded in current source",
+      "failure_or_exit": "no protocol failure; split_metrics reports protocol_pass=true and matrix_complete=true; statistical significance is not established",
+      "reproducibility": "freeze-backed partial; protocol/config/hash evidence is local, clean formal data is server-side",
+      "claim_scope": "tunnel_ventilation B7 protocol",
+      "notes": "The freeze closes the B7 protocol scope with 36 rows and directional test/OOD consistency. Reuse only baseline-plus-residual structure and OOF discipline, not the absolute metric or a generic end-to-end claim."
+    },
+    {
+      "experiment_id": "EXP-TV3-MRS-EI-CLOSURE",
+      "algorithm_id": "TV3-MRS-EI-MEI4",
+      "task_id": "TC-TV3-TUNNEL",
+      "record_status": "freeze_verified_semantic_not_passed",
+      "source_refs": [
+        "SRC-TV3-MRS-EI-FREEZE",
+        "SRC-TV3-LOG"
+      ],
+      "data_version": "MRS-EI C2 evidence freeze",
+      "split_and_group": {
+        "splits": [
+          "C2"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": "freeze manifest",
+        "repeat": "freeze-defined"
+      },
+      "config_ref": "tunnel_ventilation/outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260820T040953067397Z_7dff9e9ef255",
+      "metric_definition": {
+        "reported_metrics": [
+          "uncertainty calibration",
+          "coverage",
+          "freeze verdict"
+        ],
+        "semantic_boundary": "closed_on_c2_evidence but not_passed"
+      },
+      "result_ref": "tunnel_ventilation/outputs/runs/tv3_mrs_ei/mei4_posterior_calibration/freezes/20260820T040953067397Z_7dff9e9ef255",
+      "resource": "not recorded in current source",
+      "failure_or_exit": "C3 restoration not approved; semantic verdict not_passed",
+      "reproducibility": "hash_verified; manifest sha256 recorded in source registry",
+      "claim_scope": "MRS-EI C2 closure only",
+      "notes": "Evidence completeness E4 and scientific pass status are separate fields."
+    },
+    {
+      "experiment_id": "EXP-RCDW-PHASE6E-DIAGNOSTIC",
+      "algorithm_id": "RCDW-MGDA-6E",
+      "task_id": "TC-RCDW-1",
+      "record_status": "blocked_missing_local_artifacts",
+      "source_refs": [
+        "SRC-RCDW-MODELS",
+        "SRC-RCDW-PHASE6E-CONFIG",
+        "SRC-RCDW-DIAGNOSTIC",
+        "SRC-RCDW-DATA-MISSING",
+        "SRC-RCDW-DATA-CONTRACT",
+        "SRC-RCDW-PERTURB-SCRIPT"
+      ],
+      "data_version": "phase6e-hitran-smoke-128",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": 42,
+        "repeat": "documented diagnostic; exact run manifest missing"
+      },
+      "config_ref": "rcdw_mgda/configs/phase6e-hitran-smoke-128-pressure.yaml",
+      "metric_definition": {
+        "reported_metrics": [
+          "MAE",
+          "RMSE",
+          "modal error correlation",
+          "degradation response"
+        ],
+        "space_note": "documented perturbations were applied after scaler"
+      },
+      "result_ref": "rcdw_mgda/docs/学长算法/RCDW_实验结果问题诊断.md",
+      "resource": "data/checkpoint not present locally",
+      "failure_or_exit": "local reproduction blocked by missing data/runs/checkpoint",
+      "reproducibility": "blocked",
+      "claim_scope": "RCDW Phase6B/D/E diagnostic document",
+      "notes": "The diagnostic is useful for identifying standardized-space perturbation and ErrorNet calibration risks, but its data and checkpoint are absent locally. Do not upgrade the reported numbers to E3/E4 until artifacts are recovered or rerun."
+    },
+    {
+      "experiment_id": "EXP-RCDW-HARD-SUPPRESS-DIAGNOSTIC",
+      "algorithm_id": "RCDW-HARD-SUPPRESS",
+      "task_id": "TC-RCDW-1",
+      "record_status": "smoke_fail_missing_local_artifacts",
+      "source_refs": [
+        "SRC-RCDW-PHASE6E-CONFIG",
+        "SRC-RCDW-DIAGNOSTIC",
+        "SRC-RCDW-DATA-MISSING",
+        "SRC-RCDW-DATA-CONTRACT",
+        "SRC-RCDW-PERTURB-SCRIPT"
+      ],
+      "data_version": "phase6e-hitran-smoke-128",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": 42,
+        "repeat": "documented smoke diagnostic; exact run bundle missing"
+      },
+      "config_ref": "rcdw_mgda/configs/phase6e-hitran-smoke-128-pressure.yaml",
+      "metric_definition": {
+        "reported_metrics": [
+          "clean MAE delta",
+          "suppression trigger rate",
+          "degradation response"
+        ],
+        "space_note": "documented perturbation was applied after scaler"
+      },
+      "result_ref": "rcdw_mgda/docs/学长算法/RCDW_实验结果问题诊断.md",
+      "resource": "data/checkpoint not present locally",
+      "failure_or_exit": "hard suppression increased clean error and triggered without deployment calibration",
+      "reproducibility": "blocked by missing local data, runs and checkpoint",
+      "claim_scope": "RCDW Phase6E hard_suppress documented smoke",
+      "notes": "The record supports a smoke negative control only, not a formal robustness conclusion."
+    },
+    {
+      "experiment_id": "EXP-RCDW-ERRORNET-DIAGNOSTIC",
+      "algorithm_id": "RCDW-ERRORNET-DYNAMIC",
+      "task_id": "TC-RCDW-1",
+      "record_status": "mechanism_unknown_missing_local_artifacts",
+      "source_refs": [
+        "SRC-RCDW-PHASE6E-CONFIG",
+        "SRC-RCDW-DIAGNOSTIC",
+        "SRC-RCDW-DATA-MISSING",
+        "SRC-RCDW-DATA-CONTRACT",
+        "SRC-RCDW-PERTURB-SCRIPT"
+      ],
+      "data_version": "phase6e-hitran-smoke-128",
+      "split_and_group": {
+        "splits": [
+          "train",
+          "val",
+          "test"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seed": 42,
+        "repeat": "documented diagnostic; exact run bundle missing"
+      },
+      "config_ref": "rcdw_mgda/configs/phase6e-hitran-smoke-128-pressure.yaml",
+      "metric_definition": {
+        "reported_metrics": [
+          "component-wise actual error",
+          "ErrorNet Pearson/Spearman relation",
+          "calibration and perturbation ordering"
+        ],
+        "protocol_note": "independent calibration discriminator was not completed"
+      },
+      "result_ref": "rcdw_mgda/docs/学长算法/RCDW_实验结果问题诊断.md",
+      "resource": "data/checkpoint not present locally",
+      "failure_or_exit": "near-zero or negative documented error correlation; mechanism attribution remains unknown",
+      "reproducibility": "blocked by missing local data, runs and checkpoint",
+      "claim_scope": "RCDW ErrorNet Phase6B/D/E historical diagnostics",
+      "notes": "Dynamic weighting remains parked until exact artifact recovery and independent calibration."
+    },
+    {
+      "experiment_id": "EXP-GIB-P3-G3-4",
+      "algorithm_id": "GIB-P3-CANDIDATE-SET",
+      "task_id": "TC-GIB-CONTROLLED",
+      "record_status": "freeze_verified_formal_fail",
+      "source_refs": [
+        "SRC-GIB-P3-REVIEW",
+        "SRC-GIB-P3-PROMOTION",
+        "SRC-GIB-P3-FREEZE",
+        "SRC-GIB-P3-G3-4-SUMMARY"
+      ],
+      "data_version": "GIB P3 controlled_synthetic",
+      "split_and_group": {
+        "splits": [
+          "GIB-SPLIT-01",
+          "GIB-SPLIT-02",
+          "GIB-SPLIT-03",
+          "GIB-SPLIT-04",
+          "GIB-SPLIT-05"
+        ],
+        "group_field": "mixture_id",
+        "instance_field": "sequence_id"
+      },
+      "seed_and_repeat": {
+        "seeds": [
+          101,
+          202,
+          303
+        ],
+        "repeat": "three seeds across the frozen candidate cells"
+      },
+      "config_ref": "gas_information_bench/configs",
+      "metric_definition": {
+        "reported_metrics": [
+          "G3-4 promotion gate",
+          "p90 component absolute error",
+          "paired mixture-group bootstrap"
+        ],
+        "candidate_cells": 9
+      },
+      "result_ref": "gas_information_bench/outputs/archive/freezes/GIB-FREEZE-P3-G3-4-20260826-03",
+      "resource": "freeze manifest and source snapshots",
+      "failure_or_exit": "G3-4 fail; enter_P4_count=0; all seven candidates terminal; next_allowed_task=return_to_P1_P2",
+      "reproducibility": "hash-verified freeze",
+      "claim_scope": "GIB P3 G3-4 candidate set only",
+      "notes": "This is a closed negative candidate result, not a global impossibility theorem."
+    }
+  ]
+}

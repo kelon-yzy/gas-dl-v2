@@ -1,0 +1,96 @@
+"""数据适配器、通用融合核心、任务头、训练与评估。"""
+
+from gf.dl.contracts import ContractError, UnifiedBatch, UnifiedSample, collate_samples
+from gf.dl.evaluation import (
+    TARGET_RANGES,
+    GroupAggregates,
+    aggregate_by_group,
+    evaluate_predictions,
+    evaluate_output_constraints,
+    group_bootstrap_comparison,
+)
+from gf.dl.fusion_core import ConcatFusionCore, FusionCore
+from gf.dl.mainstream_architectures import (
+    A2M_MODEL_IDS,
+    A2M_MODEL_SCHEMA_VERSION,
+    A2MMLP,
+    EXPECTED_SENSOR_IDS,
+    EXPECTED_SENSOR_TYPES,
+    FeatureTokenTransformer,
+    TabularResNet,
+    build_a2m_model,
+    validate_a2m_model_config,
+)
+from gf.dl.sensor_encoders import A2ScalarTokenEncoder, MaskedStatSensorEncoder
+from gf.dl.task_heads import (
+    FixedTotalSoftmaxHead,
+    RegressionHead,
+    SimplexProjectionHead,
+    SparsemaxHead,
+    build_task_head,
+    project_to_simplex,
+    sparsemax,
+)
+from gf.dl.training import (
+    A2FusionModel,
+    TorchTrainingConfig,
+    TrainingResult,
+    TorchConcatMLP,
+    build_a2_model_from_config,
+    parameter_parity_report,
+    prepare_a2_train_val_samples,
+    train_torch_model,
+    trainable_parameter_count,
+)
+from gf.dl.residual import (
+    ResidualFitResult,
+    apply_residual_learner,
+    fit_residual_learner,
+    residual_targets,
+)
+
+__all__ = [
+    "ContractError",
+    "A2ScalarTokenEncoder",
+    "A2FusionModel",
+    "ConcatFusionCore",
+    "A2M_MODEL_IDS",
+    "A2M_MODEL_SCHEMA_VERSION",
+    "A2MMLP",
+    "EXPECTED_SENSOR_IDS",
+    "EXPECTED_SENSOR_TYPES",
+    "FeatureTokenTransformer",
+    "FixedTotalSoftmaxHead",
+    "TARGET_RANGES",
+    "GroupAggregates",
+    "FusionCore",
+    "MaskedStatSensorEncoder",
+    "RegressionHead",
+    "SimplexProjectionHead",
+    "SparsemaxHead",
+    "TabularResNet",
+    "UnifiedBatch",
+    "UnifiedSample",
+    "aggregate_by_group",
+    "collate_samples",
+    "evaluate_predictions",
+    "evaluate_output_constraints",
+    "group_bootstrap_comparison",
+    "build_task_head",
+    "build_a2m_model",
+    "project_to_simplex",
+    "sparsemax",
+    "validate_a2m_model_config",
+    "TorchTrainingConfig",
+    "TrainingResult",
+    "TorchConcatMLP",
+    "build_a2_model_from_config",
+    "parameter_parity_report",
+    "prepare_a2_train_val_samples",
+    "train_torch_model",
+    "trainable_parameter_count",
+    "ResidualFitResult",
+    "apply_residual_learner",
+    "fit_residual_learner",
+    "residual_targets",
+]

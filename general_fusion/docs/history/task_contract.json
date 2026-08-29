@@ -1,0 +1,653 @@
+{
+  "registry_id": "H0-TASK-20260827-01",
+  "registry_type": "task_contract",
+  "schema_version": "h0-task-contract-1",
+  "status": "initial_critical",
+  "generated_at": "2026-08-27",
+  "source_registry": "source_registry.json",
+  "entries": [
+    {
+      "task_id": "TC-HG-V4",
+      "project": "hydrogen_ng",
+      "status": "versioned_historical_contract",
+      "source_refs": [
+        "SRC-HG-SCHEMA",
+        "SRC-HG-SPLITS",
+        "SRC-HG-SMOKE-MANIFEST",
+        "SRC-HG-USABLE-MANIFEST",
+        "SRC-HG-LEGACY-OVERVIEW",
+        "SRC-HG-N2-DIAGNOSTIC"
+      ],
+      "input": {
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "channels": {
+          "slow": 8,
+          "ultrasonic": "version-specific waveform",
+          "fiber_mic": "version-specific waveform"
+        },
+        "optional_or_derived": [
+          "multiwindow statistics",
+          "phase exposure/recovery windows"
+        ]
+      },
+      "output": {
+        "components": [
+          "x_H2",
+          "x_CH4",
+          "x_CO2",
+          "x_N2"
+        ],
+        "unit": "percentage",
+        "closure": "version and output-head specific; raw4 independent, softmax100 soft closure, gas_head residual closure"
+      },
+      "sample_and_window": {
+        "time_step_s": 0.5,
+        "historical_versions": [
+          {
+            "data_version": "wv4-smoke",
+            "sequence_count": 32,
+            "timesteps": 128,
+            "ultrasonic_samples": 5000,
+            "fiber_mic_samples": 10000
+          },
+          {
+            "data_version": "hitran-usable-20260527-seed42",
+            "sequence_count": 32,
+            "timesteps": 8,
+            "ultrasonic_samples": 1000,
+            "fiber_mic_samples": 2000
+          },
+          {
+            "data_version": "wv4-formal-hitran-standard-6000",
+            "sequence_count": "6000 referenced by historical config/docs",
+            "timesteps": "not independently verified in local manifest",
+            "status": "not_locally_closed"
+          }
+        ],
+        "window_rule": "three phase windows are configured in the N2 head sweep; exact window lengths remain version-specific"
+      },
+      "sensor_definition": {
+        "slow_groups": [
+          "optical",
+          "thermal",
+          "environment"
+        ],
+        "waveform_groups": [
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "primary_key": "mixture_id",
+        "instance_key": "sequence_id"
+      },
+      "label_definition": {
+        "fields": [
+          "x_H2",
+          "x_CH4",
+          "x_CO2",
+          "x_N2"
+        ],
+        "n2_is_explicit_target": true
+      },
+      "group_definition": {
+        "split_group_field": "mixture_id",
+        "sequence_id_role": "instance identifier only",
+        "forbidden_legacy_fields": [
+          "base_condition_id",
+          "noise_seed_index",
+          "noise_seed"
+        ]
+      },
+      "split_protocol": {
+        "standard_names": [
+          "train",
+          "val",
+          "test",
+          "extrapolation"
+        ],
+        "required_fields": [
+          "sequence_id",
+          "mixture_id"
+        ],
+        "historical_note": "split files are mapped through sequence IDs but preserve mixture_id grouping semantics"
+      },
+      "preprocessing": {
+        "slow_scaler": "fit on train only",
+        "waveform_scaling": "version-specific integer waveform and per-timestep scale; do not merge legacy int16 and v4 manifest definitions",
+        "feature_engineering": "multiwindow statistics are a separate representation"
+      },
+      "deployment_assumption": {
+        "allowed_inputs": [
+          "observed slow channels",
+          "observed ultrasonic waveform",
+          "observed fiber_mic waveform"
+        ],
+        "oracle_inputs": [],
+        "real_data_role": "not main deep-learning training source in current general_fusion plan"
+      },
+      "identifiability_note": {
+        "status": "partial",
+        "fact": "Ridge can obtain a global N2 signal in the documented hand-crafted-feature regime.",
+        "explanation_scope": "gas_head residual parameterization removes independent N2 freedom and makes N2 error inherit free-component errors.",
+        "hypothesis_to_test": "raw4 and softmax100 should be compared under matched protocol before deciding whether N2 is information-limited.",
+        "source_refs": [
+          "SRC-HG-N2-DIAGNOSTIC",
+          "SRC-HG-N2-RIDGE-METRICS"
+        ]
+      }
+    },
+    {
+      "task_id": "TC-SG-SG4",
+      "project": "syngas",
+      "status": "versioned_historical_contract",
+      "source_refs": [
+        "SRC-SG-SCHEMA",
+        "SRC-SG-SMOKE-MANIFEST",
+        "SRC-SG-ROADMAP",
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-STAGE-II",
+        "SRC-SG-TCN-CONFIG",
+        "SRC-SG-PATCHTST-CONFIG"
+      ],
+      "input": {
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic"
+        ],
+        "channels": {
+          "slow": 9,
+          "ultrasonic": "version-specific waveform",
+          "fiber_mic": "version-specific waveform"
+        },
+        "historical_model_entry": "current configs are slow-channel baselines unless a result bundle states otherwise"
+      },
+      "output": {
+        "components": [
+          "x_H2",
+          "x_CH4",
+          "x_CO2",
+          "x_CO"
+        ],
+        "background": "x_N2",
+        "closure": "target sum is below 100%; N2 is background rather than prediction target"
+      },
+      "sample_and_window": {
+        "time_step_s": 0.5,
+        "historical_versions": [
+          {
+            "data_version": "sg4-smoke",
+            "timesteps": 16,
+            "status": "smoke"
+          },
+          {
+            "data_version": "sg4-formal-128",
+            "timesteps": 128,
+            "status": "deprecated_historical"
+          },
+          {
+            "data_version": "sg4-formal-512",
+            "timesteps": 512,
+            "status": "configured_current_result_not_closed"
+          }
+        ]
+      },
+      "sensor_definition": {
+        "slow_fields": [
+          "V_NDIR_CH4",
+          "V_NDIR_CO2",
+          "V_NDIR_CO",
+          "V_TCS",
+          "T_C",
+          "P_MPa",
+          "H_RH",
+          "L_m",
+          "piston_position_m"
+        ],
+        "co_channel": "V_NDIR_CO is an explicit slow channel",
+        "crosstalk": "configuration-specific; smoke manifest records enable_co_crosstalk=false"
+      },
+      "label_definition": {
+        "fields": [
+          "x_H2",
+          "x_CH4",
+          "x_CO2",
+          "x_CO"
+        ],
+        "background_fields": [
+          "x_N2"
+        ]
+      },
+      "group_definition": {
+        "split_group_field": "mixture_id",
+        "sequence_id_role": "instance identifier",
+        "legacy_seed_fields": "not part of the new benchmark contract"
+      },
+      "split_protocol": {
+        "standard_names": [
+          "train",
+          "val",
+          "test",
+          "extrapolation"
+        ],
+        "version_boundary": "128 and 512 results are separate protocols"
+      },
+      "preprocessing": {
+        "slow_scaler": "fit on train only",
+        "historical_loss": "inverse_train_var weighting is a distinct protocol factor",
+        "amp": "PatchTST fp16 failure and fp32 rerun are separate execution variants"
+      },
+      "deployment_assumption": {
+        "allowed_inputs": [
+          "observed slow channels",
+          "observed waveform channels when present in the version"
+        ],
+        "oracle_inputs": [],
+        "current_mainline": "512-step contract must be frozen before new model comparison"
+      },
+      "identifiability_note": {
+        "status": "partial",
+        "fact": "historical 128-step ablations show CO channel removal and loss weighting change component behavior within that protocol",
+        "explanation_scope": "these observations cannot be transferred as absolute claims to 512 steps without a new formal run",
+        "hypothesis_to_test": "retain component-specific channel and loss ablations after 512 data/config closure",
+        "source_refs": [
+          "SRC-SG-STAGE-II",
+          "SRC-SG-ROADMAP"
+        ]
+      }
+    },
+    {
+      "task_id": "TC-TV3-TUNNEL",
+      "project": "tunnel_ventilation",
+      "status": "contract_frozen_historical",
+      "source_refs": [
+        "SRC-TV3-CONTRACT",
+        "SRC-TV3-LOG",
+        "SRC-TV3-DEEP-RESEARCH",
+        "SRC-TV3-BASELINE-FREEZE",
+        "SRC-TV3-MRS-EI-FREEZE"
+      ],
+      "input": {
+        "modalities": [
+          "slow",
+          "ultrasonic",
+          "fiber_mic",
+          "derived_dsp"
+        ],
+        "channels": {
+          "slow": 7,
+          "sequence_feature_examples": [
+            "d0_observed_physics_stats_v1",
+            "e1d_sb_cal_plus_corr_psr_snr_v1",
+            "raw_dsp_bidirectional_v1",
+            "spxy_observed_stats_v1"
+          ]
+        }
+      },
+      "output": {
+        "components": [
+          "x_CO2",
+          "x_O2",
+          "x_N2"
+        ],
+        "unit": "percentage",
+        "closure": "all three are explicit targets; raw3 output; no N2 closure head"
+      },
+      "sample_and_window": {
+        "sample_rate_hz": 1000000,
+        "ultrasonic_duration_ms": 5,
+        "ultrasonic_samples": 5000,
+        "fiber_duration_ms": 10,
+        "l_sweep": [
+          0.18,
+          0.2,
+          0.22,
+          0.25,
+          0.28
+        ],
+        "delay_us": "80 plus 2 per meter and documented jitter; exact route is version-specific"
+      },
+      "sensor_definition": {
+        "slow_fields": [
+          "V_NDIR_CO2",
+          "V_TCS",
+          "T_C",
+          "P_MPa",
+          "H_RH",
+          "L_m",
+          "piston_position_m"
+        ],
+        "oracle_fields": [
+          "tof_s",
+          "true_speed",
+          "true_alpha"
+        ],
+        "oracle_rule": "audit or auxiliary only; never deployment input"
+      },
+      "label_definition": {
+        "fields": [
+          "x_CO2",
+          "x_O2",
+          "x_N2"
+        ],
+        "sum_rule": "labels sum to 100"
+      },
+      "group_definition": {
+        "split_group_field": "mixture_id",
+        "instance_key": "sequence_id",
+        "id_prefix": "tv3"
+      },
+      "split_protocol": {
+        "standard_names": [
+          "train",
+          "val",
+          "test",
+          "extrapolation"
+        ],
+        "historical_protocol_names": [
+          "R",
+          "L",
+          "S-Y",
+          "S-L"
+        ],
+        "note": "extrapolation random remainder is not automatically physical OOD"
+      },
+      "preprocessing": {
+        "scaler": "fit on train only",
+        "feature_builder": "feature name is part of the contract; changing definition requires a new feature version",
+        "waveform": "formal generation uses per-timestep integer waveform scale"
+      },
+      "deployment_assumption": {
+        "allowed_inputs": [
+          "observed slow channels",
+          "observed acoustic/fiber data",
+          "derived features computable from observed data"
+        ],
+        "forbidden_as_deployment_input": [
+          "tof_s",
+          "true_speed",
+          "true_alpha",
+          "closure/gas_head/ILR/ALR target transforms"
+        ]
+      },
+      "identifiability_note": {
+        "status": "evidence_supported",
+        "fact": "single-carrier TOF information has a rank-one limitation for several composition and nuisance directions",
+        "explanation_scope": "end-to-end failures also include learned representation loss, calibration and pooling limitations; they are not one generic capacity failure",
+        "hypothesis_to_test": "only information-source upgrades that survive deployment and Fisher checks should enter a new model arm",
+        "source_refs": [
+          "SRC-TV3-DEEP-RESEARCH",
+          "SRC-TV3-CONTRACT"
+        ]
+      }
+    },
+    {
+      "task_id": "TC-RCDW-1",
+      "project": "rcdw_mgda",
+      "status": "partial_missing_artifacts",
+      "source_refs": [
+        "SRC-RCDW-SCHEMA",
+        "SRC-RCDW-IDS",
+        "SRC-RCDW-MODELS",
+        "SRC-RCDW-PHASE6E-CONFIG",
+        "SRC-RCDW-DIAGNOSTIC"
+      ],
+      "input": {
+        "modalities": [
+          "NDIR",
+          "TCD",
+          "ultrasonic"
+        ],
+        "feature_vector": "7 slow fields plus observed TOF, estimated sound speed, peak index, TOF quality and accepted flag",
+        "feature_dimension": 12
+      },
+      "output": {
+        "components": [
+          "x_O2",
+          "x_CO2",
+          "x_N2"
+        ],
+        "unit": "benchmark-specific normalized composition",
+        "closure": "explicit three-component output in schema"
+      },
+      "sample_and_window": {
+        "window": 8,
+        "time_step_s": 0.5,
+        "historical_data_version": "phase6e-hitran-smoke-128",
+        "status": "local data and runs not recovered"
+      },
+      "sensor_definition": {
+        "slow_fields": [
+          "V_NDIR_CO2",
+          "V_TCS",
+          "T_C",
+          "P_MPa",
+          "H_RH",
+          "L_m",
+          "piston_position_m"
+        ],
+        "dynamic_fields": [
+          "V_NDIR_CO2",
+          "V_TCS"
+        ]
+      },
+      "label_definition": {
+        "fields": [
+          "x_O2",
+          "x_CO2",
+          "x_N2"
+        ],
+        "background": "none"
+      },
+      "group_definition": {
+        "split_group_field": "mixture_id",
+        "mixture_id_pattern": "RCDW-M",
+        "sequence_id_pattern": "RCDW-Q"
+      },
+      "split_protocol": {
+        "standard_names": [
+          "train",
+          "val",
+          "test"
+        ],
+        "full_simplex_note": "no extrapolation split in schema"
+      },
+      "preprocessing": {
+        "historical_perturbation_space": "standardized space after scaler, not physical sensor space",
+        "dynamic_weighting": "ErrorNet predicts modal/component error and feeds RCDW weights",
+        "hard_suppress": "threshold and maxShift are protocol parameters requiring calibration"
+      },
+      "deployment_assumption": {
+        "allowed_inputs": [
+          "observed sensor values and derived observed TOF features"
+        ],
+        "oracle_inputs": [],
+        "missing_artifact_boundary": "diagnostic document references data/checkpoint not present locally"
+      },
+      "identifiability_note": {
+        "status": "unknown_to_partial",
+        "fact": "pressure_drift perturbation changed only P input in the documented test and produced no physical recomputation",
+        "explanation_scope": "ErrorNet correlation and hard suppression behavior are not reliable evidence of calibrated uncertainty under the documented smoke protocol",
+        "hypothesis_to_test": "rebuild physical perturbations and calibrate modal error before assessing dynamic fusion",
+        "source_refs": [
+          "SRC-RCDW-DIAGNOSTIC"
+        ]
+      }
+    },
+    {
+      "task_id": "TC-GIB-CONTROLLED",
+      "project": "gas_information_bench",
+      "status": "contract_frozen",
+      "source_refs": [
+        "SRC-GIB-README",
+        "SRC-GIB-P2-SCHEMA",
+        "SRC-GIB-P2-SPLIT",
+        "SRC-GIB-P2-METRIC",
+        "SRC-GIB-P3-FREEZE"
+      ],
+      "input": {
+        "modalities": [
+          "ndir",
+          "acoustic_raw",
+          "acoustic_dsp",
+          "thermal",
+          "slow",
+          "calibration"
+        ],
+        "deployment_allowed": [
+          "raw",
+          "dsp",
+          "calibration"
+        ],
+        "audit_only": [
+          "labels",
+          "oracle"
+        ]
+      },
+      "output": {
+        "components": [
+          "N2",
+          "CO2",
+          "O2",
+          "Ar"
+        ],
+        "unit": "mol/mol",
+        "component_order_is_contract": true
+      },
+      "sample_and_window": {
+        "task_kind": "controlled_synthetic",
+        "profile_unit": "mixture candidate plus sequence/profile instance",
+        "historical_p3_cells": 9
+      },
+      "sensor_definition": {
+        "nuisance_fields": [
+          "T",
+          "P",
+          "RH",
+          "L",
+          "gain",
+          "baseline",
+          "delay",
+          "crosstalk",
+          "q_flow"
+        ],
+        "unit_rule": "each nuisance field has an explicit configured unit"
+      },
+      "label_definition": {
+        "fields": [
+          "N2",
+          "CO2",
+          "O2",
+          "Ar"
+        ]
+      },
+      "group_definition": {
+        "split_group_field": "mixture_id",
+        "instance_key": "sequence_id",
+        "id_prefixes": [
+          "GIB-M",
+          "GIB-Q"
+        ],
+        "one_mixture_one_partition": true
+      },
+      "split_protocol": {
+        "split_ids": [
+          "GIB-SPLIT-01",
+          "GIB-SPLIT-02",
+          "GIB-SPLIT-03",
+          "GIB-SPLIT-04",
+          "GIB-SPLIT-05"
+        ],
+        "seeds": [
+          101,
+          202,
+          303
+        ],
+        "bootstrap_group": "mixture_id"
+      },
+      "preprocessing": {
+        "rule": "schema and metric registry define the authorized preprocessing and metric cells",
+        "historical_seed_fields": "rejected"
+      },
+      "deployment_assumption": {
+        "oracle_and_deployment_separate": true,
+        "formal_model_comparison": "not authorized in P2-08; candidate gates are protocol-bound"
+      },
+      "identifiability_note": {
+        "status": "gate_driven",
+        "fact": "P3 G3-4 freeze records seven candidates failing the promotion gate",
+        "explanation_scope": "this rejects the candidate set under the frozen cells; it does not prove general_fusion infeasible",
+        "hypothesis_to_test": "return to P1/P2 only under an explicit new gate or information contract",
+        "source_refs": [
+          "SRC-GIB-P3-REVIEW",
+          "SRC-GIB-P3-PROMOTION",
+          "SRC-GIB-P3-FREEZE"
+        ]
+      }
+    },
+    {
+      "task_id": "TC-XYLENE-EXTERNAL",
+      "project": "xylene_external",
+      "status": "external_validation_context",
+      "source_refs": [
+        "SRC-XYLENE-DATA-DOC",
+        "SRC-XYLENE-SOURCE"
+      ],
+      "input": {
+        "modality": "six-channel QCM sensor array",
+        "physical_modality_note": "six channels share the same QCM principle; do not label them six heterogeneous modalities",
+        "data_unit": "workbook-level experiment"
+      },
+      "output": {
+        "components": [
+          "p-xylene",
+          "m-xylene",
+          "o-xylene"
+        ],
+        "label_boundary": "maximum-concentration workbook has uncertain exact labels"
+      },
+      "sample_and_window": {
+        "workbook_count": 47,
+        "effective_rows_reported": 630134,
+        "time_range_s": "approximately 1.33 to 1.62",
+        "independence_unit": "workbook, not row"
+      },
+      "sensor_definition": {
+        "channels": 6,
+        "sampling_note": "retain missingness, masks, irregular sampling and spikes"
+      },
+      "label_definition": {
+        "task": "three xylene isomer concentration regression",
+        "source_type": "public real dataset"
+      },
+      "group_definition": {
+        "group_field": "workbook/file",
+        "split_rule": "file-level split"
+      },
+      "split_protocol": {
+        "rule": "no row-wise random split",
+        "external_validation": true
+      },
+      "preprocessing": {
+        "scaler": "fit on train files only",
+        "raw_data_rule": "do not silently modify source workbooks"
+      },
+      "deployment_assumption": {
+        "role": "external validation context for general_fusion",
+        "not_main_gas_simulation_task": true
+      },
+      "identifiability_note": {
+        "status": "data_contract_only",
+        "fact": "channel count does not imply heterogeneous multi-modal sensing",
+        "explanation_scope": "no historical general_fusion algorithm conclusion is inferred from the dataset description",
+        "hypothesis_to_test": "define an adapter for array data only after A0 task contract permits it",
+        "source_refs": [
+          "SRC-XYLENE-DATA-DOC"
+        ]
+      }
+    }
+  ]
+}

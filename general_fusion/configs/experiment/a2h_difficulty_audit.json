@@ -1,0 +1,13 @@
+{
+  "schema_version": "gf-a2h-experiment-2",
+  "stage": "A2H-2",
+  "experiment_id": "a2h-difficulty-audit",
+  "kind": "difficulty_audit",
+  "data_config": "configs/data/ar_he_co2_a2h_v2.json",
+  "eval_config": "configs/eval/a2h_eval.json",
+  "train_config": "configs/train/a2h_train.json",
+  "allowed_read_splits": ["train", "val", "stress_val"],
+  "hard_test_access": "locked",
+  "output_dir": "outputs/runs/a2h_v2/a2h-2-difficulty-audit",
+  "required_outputs": ["eligible_axes.json", "oracle", "nearest_neighbor", "concat_baseline"]
+}

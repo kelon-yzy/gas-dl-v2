@@ -1,0 +1,12 @@
+{
+  "schema_version": "gf-a2h-experiment-2",
+  "stage": "A2H-0",
+  "experiment_id": "a2h-protocol",
+  "kind": "protocol",
+  "data_config": "configs/data/ar_he_co2_a2h_v2.json",
+  "eval_config": "configs/eval/a2h_eval.json",
+  "train_config": "configs/train/a2h_train.json",
+  "allowed_read_splits": ["train", "inner_oof", "val", "stress_val"],
+  "hard_test_access": "locked",
+  "output_dir": "outputs/runs/a2h_v2/a2h-0-protocol"
+}

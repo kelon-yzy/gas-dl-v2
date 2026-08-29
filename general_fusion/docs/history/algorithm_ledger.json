@@ -1,0 +1,621 @@
+{
+  "registry_id": "H0-ALG-20260827-01",
+  "registry_type": "algorithm_ledger",
+  "schema_version": "h0-algorithm-ledger-2",
+  "status": "initial_critical",
+  "generated_at": "2026-08-27",
+  "task_contract": "task_contract.json",
+  "entries": [
+    {
+      "algorithm_id": "HG-RIDGE-MW",
+      "lineage_parent": null,
+      "task_id": "TC-HG-V4",
+      "source_refs": [
+        "SRC-HG-N2-DIAGNOSTIC",
+        "SRC-HG-N2-RIDGE-METRICS"
+      ],
+      "input_representation": "multiwindow hand-crafted statistics from slow, ultrasonic and fiber_mic inputs",
+      "fusion_form": "early feature concatenation",
+      "architecture": "Ridge regression",
+      "output_head": "independent four-output raw4; no closure",
+      "objective": "Ridge regression; exact alpha and scaler config require result closure",
+      "claimed_mechanism": "tests whether fixed observed features contain a global composition signal",
+      "required_observable": [
+        "observed slow channels",
+        "observed ultrasonic waveform",
+        "observed fiber_mic waveform"
+      ],
+      "evidence_level": "E2",
+      "conclusion_status": "implemented",
+      "conclusion_detail": "historical_result_requires_contract_revalidation",
+      "limitation": "historical metrics are available, but local data manifest, full config, seed/repeat and hash chain are not yet closed",
+      "disposition": "inherit",
+      "disposition_condition": "after_exact_data_split_config_repeat_closure",
+      "confidence": "medium",
+      "claim_scope": "hydrogen_ng historical N2 diagnostic regime only; no cross-project metric transfer",
+      "reopen_condition": "attach the exact data version, split manifest, config and repeat protocol"
+    },
+    {
+      "algorithm_id": "HG-PHASEWINDOW-TCN-GAS",
+      "lineage_parent": null,
+      "task_id": "TC-HG-V4",
+      "source_refs": [
+        "SRC-HG-N2-DIAGNOSTIC",
+        "SRC-HG-N2-HEAD-GAS",
+        "SRC-HG-HEAD-SWEEP-CONFIG",
+        "SRC-HG-PHASEWINDOW-MODEL",
+        "SRC-HG-HEAD-TRAINING-LOG"
+      ],
+      "input_representation": "three configured phase windows over slow, ultrasonic and fiber_mic inputs",
+      "fusion_form": "phase-window feature fusion",
+      "architecture": "PhaseWindowTCN",
+      "output_head": "gas_head residual closure",
+      "objective": "weighted_component_mse with inverse_train_var weighting",
+      "claimed_mechanism": "enforces composition closure by predicting free components and deriving N2",
+      "required_observable": [
+        "observed slow channels",
+        "observed ultrasonic waveform",
+        "observed fiber_mic waveform"
+      ],
+      "evidence_level": "E1",
+      "conclusion_status": "blocked",
+      "conclusion_detail": "artifact_conflict_unverified",
+      "limitation": "saved model_config uses waveform_int16_scale while the current entry accepts waveform_adc_scale; the sweep training.log also records a formal dataset FileNotFoundError, so the saved metrics cannot be attributed to the current code path",
+      "disposition": "negative_control",
+      "disposition_condition": "pending_artifact_recovery",
+      "confidence": "low",
+      "claim_scope": "historical gas_head PhaseWindowTCN artifact only; not evidence that N2 information is absent or that this head failed",
+      "reopen_condition": "recover a matched run with the current waveform_adc_scale contract, then compare raw predictions and metrics with raw4 and softmax100"
+    },
+    {
+      "algorithm_id": "HG-PHASEWINDOW-TCN-RAW4",
+      "lineage_parent": "HG-PHASEWINDOW-TCN-GAS",
+      "task_id": "TC-HG-V4",
+      "source_refs": [
+        "SRC-HG-N2-HEAD-RAW4",
+        "SRC-HG-N2-DIAGNOSTIC",
+        "SRC-HG-HEAD-SWEEP-CONFIG",
+        "SRC-HG-PHASEWINDOW-MODEL",
+        "SRC-HG-HEAD-TRAINING-LOG"
+      ],
+      "input_representation": "same three phase windows and three input modalities as the gas_head sweep",
+      "fusion_form": "phase-window feature fusion",
+      "architecture": "PhaseWindowTCN",
+      "output_head": "independent raw4",
+      "objective": "weighted_component_mse with inverse_train_var weighting",
+      "claimed_mechanism": "removes residual N2 parameterization while keeping the encoder and protocol family controlled",
+      "required_observable": [
+        "observed slow channels",
+        "observed ultrasonic waveform",
+        "observed fiber_mic waveform"
+      ],
+      "evidence_level": "E1",
+      "conclusion_status": "blocked",
+      "conclusion_detail": "artifact_conflict_unverified",
+      "limitation": "saved model_config uses waveform_int16_scale while the current entry accepts waveform_adc_scale; the sweep training.log also records a formal dataset FileNotFoundError, so the saved metrics cannot be attributed to the current code path",
+      "disposition": "park",
+      "disposition_condition": "targeted_recheck_after_artifact_recovery",
+      "confidence": "low",
+      "claim_scope": "historical raw4 PhaseWindowTCN artifact only",
+      "reopen_condition": "recover a matched run with the current waveform_adc_scale contract, then compare component-wise results and free-component parity"
+    },
+    {
+      "algorithm_id": "HG-PHASEWINDOW-TCN-SOFTMAX100",
+      "lineage_parent": "HG-PHASEWINDOW-TCN-GAS",
+      "task_id": "TC-HG-V4",
+      "source_refs": [
+        "SRC-HG-N2-HEAD-SOFTMAX",
+        "SRC-HG-N2-DIAGNOSTIC",
+        "SRC-HG-HEAD-SWEEP-CONFIG",
+        "SRC-HG-PHASEWINDOW-MODEL",
+        "SRC-HG-HEAD-TRAINING-LOG"
+      ],
+      "input_representation": "same three phase windows and three input modalities as the gas_head sweep",
+      "fusion_form": "phase-window feature fusion",
+      "architecture": "PhaseWindowTCN",
+      "output_head": "four logits with soft closure to 100",
+      "objective": "weighted_component_mse with inverse_train_var weighting",
+      "claimed_mechanism": "keeps all four component logits while imposing a soft compositional closure",
+      "required_observable": [
+        "observed slow channels",
+        "observed ultrasonic waveform",
+        "observed fiber_mic waveform"
+      ],
+      "evidence_level": "E1",
+      "conclusion_status": "blocked",
+      "conclusion_detail": "artifact_conflict_unverified",
+      "limitation": "saved model_config uses waveform_int16_scale while the current entry accepts waveform_adc_scale; the sweep training.log also records a formal dataset FileNotFoundError, so the saved metrics cannot be attributed to the current code path",
+      "disposition": "park",
+      "disposition_condition": "targeted_recheck_after_artifact_recovery",
+      "confidence": "low",
+      "claim_scope": "historical softmax100 PhaseWindowTCN artifact only",
+      "reopen_condition": "recover a matched run with the current waveform_adc_scale contract, then compare N2 and free-component metrics under identical split, seed and scaler rules"
+    },
+    {
+      "algorithm_id": "SG-TCN-128",
+      "lineage_parent": null,
+      "task_id": "TC-SG-SG4",
+      "source_refs": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-TCN-CONFIG",
+        "SRC-SG-BASELINE-OUTPUTS",
+        "SRC-SG-BASELINE-RUNS",
+        "SRC-SG-TCN-RUNCONFIG-128"
+      ],
+      "input_representation": "nine slow channels over the historical 128-step sequence",
+      "fusion_form": "temporal convolution over slow-channel sequence",
+      "architecture": "TCN",
+      "output_head": "independent four-output regression",
+      "objective": "weighted_component_mse with inverse_train_var weighting",
+      "claimed_mechanism": "temporal receptive field captures sequence-level concentration signal",
+      "required_observable": [
+        "observed nine slow channels"
+      ],
+      "evidence_level": "E3",
+      "conclusion_status": "superseded",
+      "conclusion_detail": "historical_128_step_result",
+      "limitation": "all reported result summaries are 128-step historical evidence; current mainline target is 512 steps",
+      "disposition": "rewrite",
+      "disposition_condition": "revalidate_on_512",
+      "confidence": "medium",
+      "claim_scope": "syngas sg4-formal-128 historical protocol",
+      "reopen_condition": "freeze sg4-formal-512 data, split, scaler, metric and repeated seed protocol"
+    },
+    {
+      "algorithm_id": "SG-RIDGE-128",
+      "lineage_parent": null,
+      "task_id": "TC-SG-SG4",
+      "source_refs": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-BASELINE-OUTPUTS",
+        "SRC-SG-RIDGE-METRICS-128"
+      ],
+      "input_representation": "seven sequence statistics from the nine slow channels",
+      "fusion_form": "early concatenation of fixed statistics",
+      "architecture": "Ridge regression",
+      "output_head": "independent four-output regression",
+      "objective": "Ridge regression with historical component weighting protocol",
+      "claimed_mechanism": "strong low-capacity baseline for sequence statistics",
+      "required_observable": [
+        "observed nine slow channels"
+      ],
+      "evidence_level": "E3",
+      "conclusion_status": "superseded",
+      "conclusion_detail": "historical_128_step_result",
+      "limitation": "the strong historical baseline is tied to 128 steps and cannot stand in for a 512-step result",
+      "disposition": "rewrite",
+      "disposition_condition": "revalidate_on_512",
+      "confidence": "medium",
+      "claim_scope": "syngas sg4-formal-128 historical protocol",
+      "reopen_condition": "rebuild the same statistic definition on the frozen 512-step task contract"
+    },
+    {
+      "algorithm_id": "SG-PATCHTST-FP16-128",
+      "lineage_parent": null,
+      "task_id": "TC-SG-SG4",
+      "source_refs": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-PATCHTST-CONFIG",
+        "SRC-SG-PATCHTST-RUNCONFIG-128"
+      ],
+      "input_representation": "nine slow channels with patch tokenization",
+      "fusion_form": "temporal patch embedding and attention",
+      "architecture": "PatchTST",
+      "output_head": "independent four-output regression",
+      "objective": "weighted_component_mse",
+      "claimed_mechanism": "patch attention models longer temporal dependencies",
+      "required_observable": [
+        "observed nine slow channels"
+      ],
+      "evidence_level": "E2",
+      "conclusion_status": "smoke_only",
+      "conclusion_detail": "engineering_fail_fp16_execution",
+      "limitation": "historical fp16 AMP path produced NaN or non-convergent behavior; this is not a scientific statement about PatchTST capacity",
+      "disposition": "negative_control",
+      "disposition_condition": "fp16_execution_variant_only",
+      "confidence": "high",
+      "claim_scope": "syngas 128-step fp16 execution variant",
+      "reopen_condition": "only compare after an explicitly recorded fp32 or otherwise validated numerical protocol"
+    },
+    {
+      "algorithm_id": "SG-PATCHTST-FP32-128",
+      "lineage_parent": "SG-PATCHTST-FP16-128",
+      "task_id": "TC-SG-SG4",
+      "source_refs": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-PATCHTST-CONFIG",
+        "SRC-SG-BASELINE-OUTPUTS",
+        "SRC-SG-PATCHTST-RUNCONFIG-128"
+      ],
+      "input_representation": "nine slow channels with patch tokenization",
+      "fusion_form": "temporal patch embedding and attention",
+      "architecture": "PatchTST",
+      "output_head": "independent four-output regression",
+      "objective": "weighted_component_mse",
+      "claimed_mechanism": "tests the architecture after separating numerical AMP failure",
+      "required_observable": [
+        "observed nine slow channels"
+      ],
+      "evidence_level": "E3",
+      "conclusion_status": "superseded",
+      "conclusion_detail": "historical_fp32_128_step_result",
+      "limitation": "fp32 recovery remains a 128-step historical result and is not a current 512-step comparison",
+      "disposition": "rewrite",
+      "disposition_condition": "revalidate_on_512",
+      "confidence": "medium",
+      "claim_scope": "syngas 128-step fp32 historical protocol",
+      "reopen_condition": "repeat on frozen 512-step data with numerical settings recorded in the manifest"
+    },
+    {
+      "algorithm_id": "SG-LSTM-128",
+      "lineage_parent": null,
+      "task_id": "TC-SG-SG4",
+      "source_refs": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-BASELINE-OUTPUTS",
+        "SRC-SG-LSTM-RUNCONFIG-128"
+      ],
+      "input_representation": "nine slow channels over sequence time",
+      "fusion_form": "recurrent sequence encoding",
+      "architecture": "LSTM",
+      "output_head": "independent four-output regression",
+      "objective": "weighted_component_mse",
+      "claimed_mechanism": "recurrent memory captures temporal dynamics",
+      "required_observable": [
+        "observed nine slow channels"
+      ],
+      "evidence_level": "E3",
+      "conclusion_status": "blocked",
+      "conclusion_detail": "historical_seed_and_exit_status_audit_pending",
+      "limitation": "only part of the historical seed set converged cleanly and one Windows exit code conflicted with complete metrics",
+      "disposition": "rewrite",
+      "disposition_condition": "revalidate_on_512_after_artifact_audit",
+      "confidence": "medium",
+      "claim_scope": "syngas 128-step historical protocol; process exit status and metric artifact must be separate fields",
+      "reopen_condition": "repeat with per-seed artifact validation and explicit process-exit interpretation"
+    },
+    {
+      "algorithm_id": "SG-INVERSE-TRAIN-VAR-LOSS",
+      "lineage_parent": null,
+      "task_id": "TC-SG-SG4",
+      "source_refs": [
+        "SRC-SG-STAGE-II",
+        "SRC-SG-ABLATION-OUTPUTS"
+      ],
+      "input_representation": "shared model input; objective variant only",
+      "fusion_form": "not applicable",
+      "architecture": "loss protocol factor",
+      "output_head": "unchanged by this factor",
+      "objective": "inverse_train_var weighted component loss",
+      "claimed_mechanism": "prevents high-variance components from dominating optimization",
+      "required_observable": [
+        "same observed inputs as the parent algorithm"
+      ],
+      "evidence_level": "E3",
+      "conclusion_status": "implemented",
+      "conclusion_detail": "historical_protocol_effect_128_step",
+      "limitation": "effect is documented only under the 128-step syngas ablation protocol",
+      "disposition": "rewrite",
+      "disposition_condition": "revalidate_on_512",
+      "confidence": "medium",
+      "claim_scope": "syngas component-loss ablation; not a cross-project default",
+      "reopen_condition": "repeat the ablation after 512-step data and metric freeze"
+    },
+    {
+      "algorithm_id": "TV3-B1-RAW-DSP-RIDGE",
+      "lineage_parent": null,
+      "task_id": "TC-TV3-TUNNEL",
+      "source_refs": [
+        "SRC-TV3-CONTRACT",
+        "SRC-TV3-BASELINE-FREEZE"
+      ],
+      "input_representation": "observed raw/DSP physics statistics with calibrated feature definition",
+      "fusion_form": "early fixed-feature concatenation",
+      "architecture": "Ridge regression",
+      "output_head": "raw3 explicit CO2/O2/N2",
+      "objective": "Ridge regression under the B1 protocol",
+      "claimed_mechanism": "uses interpretable observed physics features without learned waveform pooling",
+      "required_observable": [
+        "observed slow channels",
+        "observed acoustic/fiber-derived features"
+      ],
+      "evidence_level": "E3",
+      "conclusion_status": "formal_pass",
+      "conclusion_detail": "scoped_tunnel_b1_protocol",
+      "limitation": "feature definition, task and split protocol are tunnel-specific",
+      "disposition": "inherit",
+      "disposition_condition": "structure_only",
+      "confidence": "high",
+      "claim_scope": "tunnel_ventilation B1 historical protocol; no absolute metric transfer",
+      "reopen_condition": "adapt the representation through a new task contract and revalidate on general_fusion data"
+    },
+    {
+      "algorithm_id": "TV3-B7-OOF-RESIDUAL",
+      "lineage_parent": "TV3-B1-RAW-DSP-RIDGE",
+      "task_id": "TC-TV3-TUNNEL",
+      "source_refs": [
+        "SRC-TV3-CONTRACT",
+        "SRC-TV3-BASELINE-FREEZE",
+        "SRC-TV3-B7-OUTPUTS",
+        "SRC-TV3-B7-PROTOCOL-MANIFEST",
+        "SRC-TV3-B7-SPLIT-METRICS",
+        "SRC-TV3-FREEZE-MANIFEST",
+        "SRC-TV3-FREEZE-AUDIT"
+      ],
+      "input_representation": "e1d_sb_cal_plus_corr_psr_snr_v1 sequence representation",
+      "fusion_form": "OOF Ridge baseline plus residual MLP correction",
+      "architecture": "Ridge plus residual MLP with hidden widths 64,64",
+      "output_head": "raw3 explicit CO2/O2/N2",
+      "objective": "protocol-specific weighted regression",
+      "claimed_mechanism": "lets a strong calibrated baseline absorb the main signal and limits residual capacity",
+      "required_observable": [
+        "observed calibrated sequence representation"
+      ],
+      "evidence_level": "E3",
+      "conclusion_status": "formal_pass",
+      "conclusion_detail": "scoped_tunnel_b7_protocol",
+      "limitation": "OOF construction and feature builder are essential; a generic residual MLP is not the same algorithm",
+      "disposition": "inherit",
+      "disposition_condition": "structure_only",
+      "confidence": "high",
+      "claim_scope": "tunnel_ventilation B7 protocol",
+      "reopen_condition": "rebuild OOF baseline and residual definition under the general_fusion contract"
+    },
+    {
+      "algorithm_id": "TV3-END2END-WAVEFORM",
+      "lineage_parent": null,
+      "task_id": "TC-TV3-TUNNEL",
+      "source_refs": [
+        "SRC-TV3-DEEP-RESEARCH",
+        "SRC-TV3-LOG"
+      ],
+      "input_representation": "raw waveform end-to-end encoder and pooling",
+      "fusion_form": "learned waveform fusion",
+      "architecture": "end-to-end deep waveform network family",
+      "output_head": "raw3 explicit CO2/O2/N2",
+      "objective": "historical regression objective; exact variant is experiment-specific",
+      "claimed_mechanism": "learns sensor representation and concentration mapping jointly",
+      "required_observable": [
+        "observed waveform and slow inputs"
+      ],
+      "evidence_level": "E2",
+      "conclusion_status": "smoke_only",
+      "conclusion_detail": "multiple_information_representation_calibration_pooling_layers",
+      "limitation": "failure combines absolute TOF representation loss, calibration, pooling and information rank issues; cannot be summarized as capacity alone",
+      "disposition": "close",
+      "disposition_condition": "generic_route_only",
+      "confidence": "high",
+      "claim_scope": "tunnel_ventilation historical end-to-end routes",
+      "reopen_condition": "only reopen after an information audit and representation parity check"
+    },
+    {
+      "algorithm_id": "TV3-E1-FRAME-REPRESENTATION",
+      "lineage_parent": "TV3-END2END-WAVEFORM",
+      "task_id": "TC-TV3-TUNNEL",
+      "source_refs": [
+        "SRC-TV3-LOG",
+        "SRC-TV3-DEEP-RESEARCH"
+      ],
+      "input_representation": "learned frame-level peak and timing representation from the historical E1/E1r family",
+      "fusion_form": "frame representation followed by sequence prediction",
+      "architecture": "historical E1/E1r representation family",
+      "output_head": "raw3 explicit CO2/O2/N2",
+      "objective": "frame timing recovery plus historical sequence regression objective",
+      "claimed_mechanism": "local peak recovery should preserve the timing information required by the sequence task",
+      "required_observable": [
+        "observed waveform inputs"
+      ],
+      "evidence_level": "E2",
+      "conclusion_status": "smoke_only",
+      "conclusion_detail": "historical_frame_representation_failure",
+      "limitation": "the exact run bundle is not independently frozen; the registered evidence supports the representation failure mode, not an absolute performance claim",
+      "disposition": "negative_control",
+      "disposition_condition": "frame_only_representation",
+      "confidence": "medium",
+      "claim_scope": "tunnel_ventilation E1/E1r historical representation family",
+      "reopen_condition": "compare sequence-level parity with absolute timing, calibration, correlation, PSR and SNR preserved"
+    },
+    {
+      "algorithm_id": "TV3-E1D-SB",
+      "lineage_parent": "TV3-END2END-WAVEFORM",
+      "task_id": "TC-TV3-TUNNEL",
+      "source_refs": [
+        "SRC-TV3-LOG",
+        "SRC-TV3-CONTRACT"
+      ],
+      "input_representation": "single-carrier observed feature set with calibration/correlation/PSR/SNR terms",
+      "fusion_form": "fixed observed representation",
+      "architecture": "E1d-SB sequence baseline",
+      "output_head": "raw3 explicit CO2/O2/N2",
+      "objective": "historical regression objective",
+      "claimed_mechanism": "restores deployable timing and quality information lost by earlier representations",
+      "required_observable": [
+        "observed TOF-related features",
+        "observed SNR/quality features",
+        "observed slow channels"
+      ],
+      "evidence_level": "E2",
+      "conclusion_status": "smoke_only",
+      "conclusion_detail": "partial_pass_protocol_limited",
+      "limitation": "the representation improves a historical failure mode but remains bounded by the single-carrier information source and exact protocol",
+      "disposition": "inherit",
+      "disposition_condition": "representation_question_only",
+      "confidence": "medium",
+      "claim_scope": "tunnel_ventilation E1d historical sequence protocol",
+      "reopen_condition": "verify feature reproducibility and Fisher/information rank before modeling"
+    },
+    {
+      "algorithm_id": "TV3-MRS-EI-MEI4",
+      "lineage_parent": null,
+      "task_id": "TC-TV3-TUNNEL",
+      "source_refs": [
+        "SRC-TV3-MRS-EI-FREEZE",
+        "SRC-TV3-LOG"
+      ],
+      "input_representation": "MRS-EI posterior calibration inputs under frozen C2 evidence",
+      "fusion_form": "posterior calibration and uncertainty route",
+      "architecture": "MEI4 posterior calibration",
+      "output_head": "point prediction plus uncertainty/coverage outputs",
+      "objective": "posterior calibration and coverage gate",
+      "claimed_mechanism": "delivers deployment-relevant uncertainty under MRS-EI protocol",
+      "required_observable": [
+        "deployment-observable MRS-EI inputs",
+        "calibration data allowed by the freeze"
+      ],
+      "evidence_level": "E4",
+      "conclusion_status": "formal_fail",
+      "conclusion_detail": "closed_not_passed",
+      "limitation": "freeze is complete and hash-verified, but semantic verdict is not_passed and C3 was not restored",
+      "disposition": "close",
+      "disposition_condition": "requires_explicit_new_protocol",
+      "confidence": "high",
+      "claim_scope": "tunnel_ventilation MRS-EI C2 closure only",
+      "reopen_condition": "requires an explicitly approved new protocol; no implicit C3 continuation"
+    },
+    {
+      "algorithm_id": "RCDW-MGDA-6E",
+      "lineage_parent": null,
+      "task_id": "TC-RCDW-1",
+      "source_refs": [
+        "SRC-RCDW-MODELS",
+        "SRC-RCDW-PHASE6E-CONFIG",
+        "SRC-RCDW-DIAGNOSTIC",
+        "SRC-RCDW-DATA-MISSING",
+        "SRC-RCDW-DATA-CONTRACT",
+        "SRC-RCDW-PERTURB-SCRIPT"
+      ],
+      "input_representation": "12-dimensional windowed sensor and derived TOF feature vector",
+      "fusion_form": "three-modal dynamic error-weighted fusion",
+      "architecture": "RCDW_MGDA with ErrorNet",
+      "output_head": "explicit O2/CO2/N2 output",
+      "objective": "component regression plus error prediction and fusion regularization",
+      "claimed_mechanism": "weights modalities by predicted component-wise error",
+      "required_observable": [
+        "observed NDIR/TCD/ultrasonic-derived features"
+      ],
+      "evidence_level": "E2",
+      "conclusion_status": "blocked",
+      "conclusion_detail": "unknown_missing_artifacts",
+      "limitation": "local data, runs and checkpoint referenced by the diagnostic are absent; ErrorNet calibration and physical perturbation semantics are unresolved",
+      "disposition": "park",
+      "disposition_condition": "reproduce_before_inherit",
+      "confidence": "low",
+      "claim_scope": "RCDW Phase6E HITRAN smoke diagnostic",
+      "reopen_condition": "recover exact data/config/checkpoint or rerun from the frozen rcdw-benchmark-1 contract"
+    },
+    {
+      "algorithm_id": "RCDW-HARD-SUPPRESS",
+      "lineage_parent": "RCDW-MGDA-6E",
+      "task_id": "TC-RCDW-1",
+      "source_refs": [
+        "SRC-RCDW-DIAGNOSTIC",
+        "SRC-RCDW-DATA-CONTRACT",
+        "SRC-RCDW-PERTURB-SCRIPT"
+      ],
+      "input_representation": "same RCDW modal features with suppression threshold",
+      "fusion_form": "dynamic fusion plus hard modal suppression",
+      "architecture": "RCDW_MGDA hard_suppress variant",
+      "output_head": "explicit O2/CO2/N2 output",
+      "objective": "parent objective plus thresholded modal suppression",
+      "claimed_mechanism": "removes a modality when predicted error exceeds threshold",
+      "required_observable": [
+        "observed modal features",
+        "calibrated error estimate"
+      ],
+      "evidence_level": "E2",
+      "conclusion_status": "smoke_only",
+      "conclusion_detail": "hard_suppress_failed_documented_smoke",
+      "limitation": "clean suppression rate and clean MAE degradation indicate threshold was not deployment-calibrated; perturbation was standardized-space based",
+      "disposition": "negative_control",
+      "disposition_condition": "documented_smoke_scope",
+      "confidence": "medium",
+      "claim_scope": "RCDW documented Phase6E smoke only",
+      "reopen_condition": "calibrate errors and use physically recomputed perturbations before any new suppression test"
+    },
+    {
+      "algorithm_id": "RCDW-ERRORNET-DYNAMIC",
+      "lineage_parent": "RCDW-MGDA-6E",
+      "task_id": "TC-RCDW-1",
+      "source_refs": [
+        "SRC-RCDW-DIAGNOSTIC",
+        "SRC-RCDW-DATA-CONTRACT",
+        "SRC-RCDW-PERTURB-SCRIPT"
+      ],
+      "input_representation": "RCDW modal features",
+      "fusion_form": "ErrorNet-predicted component-wise dynamic weights",
+      "architecture": "ErrorNet weighting variant",
+      "output_head": "explicit O2/CO2/N2 output",
+      "objective": "joint prediction and modal error objective",
+      "claimed_mechanism": "predicted modal errors should track actual errors and improve fusion",
+      "required_observable": [
+        "observed modal features"
+      ],
+      "evidence_level": "E2",
+      "conclusion_status": "unknown",
+      "conclusion_detail": "mechanism_not_confirmed",
+      "limitation": "documented ErrorNet correlations with actual modal errors were near zero or negative; exact calibration protocol is incomplete",
+      "disposition": "park",
+      "disposition_condition": "pending_calibration_discriminator",
+      "confidence": "medium",
+      "claim_scope": "RCDW Phase6B/D/E historical diagnostics",
+      "reopen_condition": "pre-register calibration metric, actual-error target and independent perturbation discriminator"
+    },
+    {
+      "algorithm_id": "GIB-P2-RIDGE-BASELINE",
+      "lineage_parent": null,
+      "task_id": "TC-GIB-CONTROLLED",
+      "source_refs": [
+        "SRC-GIB-P2-SCHEMA",
+        "SRC-GIB-P2-SPLIT",
+        "SRC-GIB-P2-METRIC"
+      ],
+      "input_representation": "authorized deployment features under P2 metric cells",
+      "fusion_form": "fixed-feature baseline",
+      "architecture": "Ridge regression",
+      "output_head": "four-component GIB target output",
+      "objective": "P2 registered regression metric",
+      "claimed_mechanism": "low-capacity reference for separating information and model effects",
+      "required_observable": [
+        "deployment-authorized raw/DSP/calibration features"
+      ],
+      "evidence_level": "E1",
+      "conclusion_status": "implemented",
+      "conclusion_detail": "protocol_baseline_role_only",
+      "limitation": "P2 baseline is benchmark-specific and is not a formal general_fusion result",
+      "disposition": "inherit",
+      "disposition_condition": "baseline_role_only",
+      "confidence": "medium",
+      "claim_scope": "gas_information_bench P2 authorized cells",
+      "reopen_condition": "map the same role to a general_fusion task contract without reusing GIB labels or IDs"
+    },
+    {
+      "algorithm_id": "GIB-P3-CANDIDATE-SET",
+      "lineage_parent": "GIB-P2-RIDGE-BASELINE",
+      "task_id": "TC-GIB-CONTROLLED",
+      "source_refs": [
+        "SRC-GIB-P3-REVIEW",
+        "SRC-GIB-P3-PROMOTION",
+        "SRC-GIB-P3-FREEZE",
+        "SRC-GIB-P3-G3-4-SUMMARY"
+      ],
+      "input_representation": "candidate-specific authorized input cells",
+      "fusion_form": "candidate-specific; frozen gate compares the complete candidate set",
+      "architecture": "seven P3 candidate routes",
+      "output_head": "GIB four-component target output",
+      "objective": "pre-registered G3-4 gate with mixture-group bootstrap",
+      "claimed_mechanism": "candidate routes should improve the frozen information/accuracy gate",
+      "required_observable": [
+        "deployment-authorized features for each candidate cell"
+      ],
+      "evidence_level": "E4",
+      "conclusion_status": "formal_fail",
+      "conclusion_detail": "candidate_set_closed",
+      "limitation": "the freeze rejects the candidate set under G3-4; it does not prove all future algorithms or general_fusion infeasible",
+      "disposition": "negative_control",
+      "disposition_condition": "frozen_candidate_set_only",
+      "confidence": "high",
+      "claim_scope": "GIB P3 G3-4 freeze only",
+      "reopen_condition": "return to P1/P2 with an explicit new information hypothesis and pre-registered gate"
+    }
+  ]
+}

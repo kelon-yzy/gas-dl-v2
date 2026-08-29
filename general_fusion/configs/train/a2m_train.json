@@ -1,0 +1,44 @@
+{
+  "schema_version": "gf-a2m-train-1",
+  "seeds": [17, 29, 43, 71, 101],
+  "loss": {
+    "name": "mse",
+    "target_scale": [100.0, 100.0, 100.0]
+  },
+  "max_epochs": 20,
+  "early_stopping": {
+    "enabled": true,
+    "monitor": "val_macro_RNMAE",
+    "patience": 5,
+    "selection_split": "a2h.family.val",
+    "test_access": "forbidden"
+  },
+  "recipes": {
+    "A2M-MLP": {
+      "mlp_lbfgs_width32": {
+        "optimizer": {"name": "LBFGS", "learning_rate": 1.0, "weight_decay": 0.0, "max_iter": 10, "history_size": 50}
+      },
+      "mlp_adamw_width32": {
+        "optimizer": {"name": "AdamW", "learning_rate": 0.001, "weight_decay": 0.0001}
+      }
+    },
+    "A2M-RESNET": {
+      "resnet_width16_blocks2": {
+        "optimizer": {"name": "AdamW", "learning_rate": 0.001, "weight_decay": 0.0001}
+      },
+      "resnet_width32_blocks2": {
+        "optimizer": {"name": "AdamW", "learning_rate": 0.001, "weight_decay": 0.0001}
+      }
+    },
+    "A2M-FTT": {
+      "ftt_token8_block1_heads2": {
+        "optimizer": {"name": "AdamW", "learning_rate": 0.001, "weight_decay": 0.0001}
+      },
+      "ftt_token16_block1_heads2": {
+        "optimizer": {"name": "AdamW", "learning_rate": 0.001, "weight_decay": 0.0001}
+      }
+    }
+  },
+  "parameter_match_tolerance": 0.10,
+  "formal_holdout_access": "forbidden"
+}

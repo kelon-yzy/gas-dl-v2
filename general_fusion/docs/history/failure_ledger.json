@@ -1,0 +1,300 @@
+{
+  "registry_id": "H0-FAIL-20260827-01",
+  "registry_type": "failure_ledger",
+  "schema_version": "h0-failure-ledger-2",
+  "status": "initial_critical",
+  "generated_at": "2026-08-27",
+  "experiment_ledger": "experiment_ledger.json",
+  "entries": [
+    {
+      "failure_id": "FAIL-HG-GASHEAD-N2",
+      "algorithm_id": "HG-PHASEWINDOW-TCN-GAS",
+      "experiment_id": "EXP-HG-N2-HEAD-GAS",
+      "observation_type": "fact_plus_explanation",
+      "symptom": "gas_head PhaseWindowTCN regime reports near-zero N2 explanatory power while H2/CH4/CO2 remain nonzero in the same diagnostic comparison",
+      "layer": "output_parameterization",
+      "hypothesis": "N2 is not learnable from the available sensors",
+      "discriminator": "hold encoder, data, split, scaler and loss fixed; compare gas_head, raw4 and softmax100, then check free-component parity",
+      "evidence": [
+        "SRC-HG-N2-DIAGNOSTIC",
+        "SRC-HG-N2-RIDGE-METRICS",
+        "SRC-HG-N2-HEAD-RAW4",
+        "SRC-HG-N2-HEAD-SOFTMAX"
+      ],
+      "root_cause": "within the documented gas_head regime, N2 has no independent output degree of freedom and its error inherits free-component errors",
+      "root_cause_status": "confirmed_within_scope",
+      "residual_ceiling": "numeric information ceiling for N2 remains unknown until matched raw4/softmax100 comparison is closed",
+      "scope": "hydrogen_ng gas_head output parameterization; not a global N2 impossibility claim",
+      "corrective_action": "treat output heads as separate algorithms and close the controlled head sweep before changing the encoder",
+      "stop_condition": "do not declare N2 unlearnable from gas_head-only evidence",
+      "general_fusion_impact": "A0 must freeze output semantics and closure policy before architecture search"
+    },
+    {
+      "failure_id": "FAIL-SG-128-VS-512",
+      "algorithm_id": "SG-TCN-128",
+      "experiment_id": "EXP-SG-STAGE-I3-128",
+      "observation_type": "fact",
+      "symptom": "historical syngas result reports and output bundles use 128 timesteps, while current model configs use target_timesteps=512",
+      "layer": "data_version_and_protocol",
+      "hypothesis": "128-step baseline metrics can be cited as current 512-step performance",
+      "discriminator": "require matching manifest, target_timesteps, split, scaler, config and result_ref for every metric claim",
+      "evidence": [
+        "SRC-SG-ROADMAP",
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-TCN-CONFIG",
+        "SRC-SG-BASELINE-OUTPUTS"
+      ],
+      "root_cause": "confirmed version boundary after the sequence-length migration",
+      "root_cause_status": "confirmed",
+      "residual_ceiling": "no valid 512-step performance inference from 128-step evidence",
+      "scope": "syngas historical baseline and ablation suite",
+      "corrective_action": "keep sg4-formal-128 deprecated historical and create a new sg4-formal-512 experiment record",
+      "stop_condition": "block any 128-to-512 metric transfer or ranking",
+      "general_fusion_impact": "data_version and temporal contract are mandatory fields for current mainline evidence"
+    },
+    {
+      "failure_id": "FAIL-SG-PATCHTST-FP16",
+      "algorithm_id": "SG-PATCHTST-FP16-128",
+      "experiment_id": "EXP-SG-PATCHTST-FP16-128",
+      "observation_type": "fact_plus_explanation",
+      "symptom": "historical PatchTST fp16 AMP path produced NaN or non-convergent behavior",
+      "layer": "numerical_engineering",
+      "hypothesis": "PatchTST architecture is intrinsically unsuitable",
+      "discriminator": "rerun the same 128-step architecture under validated fp32 and compare artifact validity before interpreting model quality",
+      "evidence": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-PATCHTST-CONFIG"
+      ],
+      "root_cause": "the documented failure belongs to the fp16 execution variant; fp32 recovery separates numerical failure from architecture behavior",
+      "root_cause_status": "confirmed_for_execution_variant",
+      "residual_ceiling": "no architectural conclusion is allowed from the failed fp16 run",
+      "scope": "syngas PatchTST historical 128-step execution",
+      "corrective_action": "record AMP mode in the experiment identity and validate metrics plus loss finiteness",
+      "stop_condition": "do not label PatchTST as a model failure without the fp32 control",
+      "general_fusion_impact": "numerical settings and artifact validity belong in the run manifest, not in informal notes"
+    },
+    {
+      "failure_id": "FAIL-SG-LSTM-EXIT-CODE",
+      "algorithm_id": "SG-LSTM-128",
+      "experiment_id": "EXP-SG-LSTM-128",
+      "observation_type": "fact_plus_explanation",
+      "symptom": "a Windows LSTM process returned a nonzero exit code even though metrics artifacts were complete",
+      "layer": "execution_and_artifact_validation",
+      "hypothesis": "the model run failed and all metrics are invalid",
+      "discriminator": "validate checkpoint, metrics completeness, final-step consistency and process exit separately",
+      "evidence": [
+        "SRC-SG-STAGE-I3",
+        "SRC-SG-BASELINE-OUTPUTS"
+      ],
+      "root_cause": "documented engineering false negative or process teardown, not automatically a scientific model failure",
+      "root_cause_status": "supported_by_historical_log",
+      "residual_ceiling": "the affected seed remains invalid until per-run artifact checks are complete",
+      "scope": "syngas historical Windows LSTM execution",
+      "corrective_action": "store process_exit, artifact_validity and scientific_status as separate fields",
+      "stop_condition": "never infer scientific failure from exit code alone",
+      "general_fusion_impact": "formal evidence needs an artifact-level acceptance rule"
+    },
+    {
+      "failure_id": "FAIL-TV3-END2END-TOF",
+      "algorithm_id": "TV3-END2END-WAVEFORM",
+      "experiment_id": "EXP-TV3-END2END-WAVEFORM-AUDIT",
+      "observation_type": "fact_plus_multilayer_explanation",
+      "symptom": "end-to-end waveform routes show poor O2 behavior while calibrated observed-feature baselines are substantially stronger in the historical tunnel protocol",
+      "layer": "information_representation_calibration_pooling",
+      "hypothesis": "a larger end-to-end network will solve the failure",
+      "discriminator": "separate absolute TOF representation error, calibration/quality features, pooling behavior and Fisher rank before changing capacity",
+      "evidence": [
+        "SRC-TV3-DEEP-RESEARCH",
+        "SRC-TV3-LOG",
+        "SRC-TV3-CONTRACT"
+      ],
+      "root_cause": "multiple supported layers: early representation loses absolute timing, deployment-relevant calibration/quality is missing, pooling cannot express the L-sweep slope, and single-carrier information has rank limitations",
+      "root_cause_status": "supported_multilayer_not_single_cause",
+      "residual_ceiling": "single-carrier information and deployment observability impose a task-specific ceiling; exact ceiling depends on the frozen feature contract",
+      "scope": "tunnel_ventilation historical end-to-end routes",
+      "corrective_action": "run information and representation parity checks first; retain B7 baseline-plus-residual as a bounded structural pattern",
+      "stop_condition": "do not launch a bigger generic waveform model as the first response",
+      "general_fusion_impact": "A0 must expose observable timing/quality assumptions and permit an information audit before model comparison"
+    },
+    {
+      "failure_id": "FAIL-TV3-E1-REPRESENTATION",
+      "algorithm_id": "TV3-E1-FRAME-REPRESENTATION",
+      "experiment_id": "EXP-TV3-E1-FRAME-AUDIT",
+      "observation_type": "fact_plus_explanation",
+      "symptom": "E1 peak representation has large timing error; frame-level recovery does not automatically restore sequence-level performance",
+      "layer": "learned_representation",
+      "hypothesis": "frame-level peak accuracy is sufficient for deployment sequence prediction",
+      "discriminator": "compare E1, E1r and E1d with sequence parity, calibration, correlation, PSR and SNR features",
+      "evidence": [
+        "SRC-TV3-LOG",
+        "SRC-TV3-DEEP-RESEARCH"
+      ],
+      "root_cause": "early representation loses absolute TOF and sequence-level slope information; E1d-SB is a separate observed representation with additional calibration and quality terms",
+      "root_cause_status": "confirmed_for_historical_representation_family",
+      "residual_ceiling": "single-carrier and feature-quality limits remain after representation repair",
+      "scope": "tunnel_ventilation E1/E1r/E1d historical family",
+      "corrective_action": "treat the full sequence representation and quality features as the unit of comparison",
+      "stop_condition": "do not promote a frame-only representation from frame metrics",
+      "general_fusion_impact": "sensor encoders must preserve deployment-relevant absolute timing and quality, not only local peaks"
+    },
+    {
+      "failure_id": "FAIL-TV3-MRS-EI-NOT-PASSED",
+      "algorithm_id": "TV3-MRS-EI-MEI4",
+      "experiment_id": "EXP-TV3-MRS-EI-CLOSURE",
+      "observation_type": "fact",
+      "symptom": "MRS-EI closure reached a hash-verified freeze but semantic verdict remained not_passed and C3 restoration was not approved",
+      "layer": "uncertainty_protocol_and_gate",
+      "hypothesis": "a complete freeze can be reported as a successful algorithm result",
+      "discriminator": "keep evidence completeness, freeze verdict and semantic pass/fail as separate fields",
+      "evidence": [
+        "SRC-TV3-MRS-EI-FREEZE",
+        "SRC-TV3-LOG"
+      ],
+      "root_cause": "the frozen C2 evidence did not satisfy the semantic acceptance gate; this is a protocol closure, not an implementation success",
+      "root_cause_status": "confirmed",
+      "residual_ceiling": "no deployment uncertainty claim is authorized beyond the closed C2 evidence",
+      "scope": "tunnel_ventilation MRS-EI C2",
+      "corrective_action": "close the route and require an explicitly approved new protocol for reopening",
+      "stop_condition": "do not silently continue into C3 or call the freeze passed",
+      "general_fusion_impact": "formal review must separate artifact completeness from scientific acceptance"
+    },
+    {
+      "failure_id": "FAIL-RCDW-HARD-SUPPRESS",
+      "algorithm_id": "RCDW-HARD-SUPPRESS",
+      "experiment_id": "EXP-RCDW-HARD-SUPPRESS-DIAGNOSTIC",
+      "observation_type": "fact_plus_explanation",
+      "symptom": "documented hard suppression increased clean error and triggered on a large fraction of clean/degraded cases",
+      "layer": "uncertainty_calibration_and_fusion_policy",
+      "hypothesis": "thresholded modality suppression improves robustness whenever ErrorNet predicts high error",
+      "discriminator": "calibrate predicted error on clean and physically recomputed perturbation sets, then compare clean cost and degradation benefit",
+      "evidence": [
+        "SRC-RCDW-DIAGNOSTIC"
+      ],
+      "root_cause": "threshold/maxShift policy was not calibrated for deployment and operated on an incompletely specified standardized-space diagnostic",
+      "root_cause_status": "supported_within_documented_smoke",
+      "residual_ceiling": "robustness benefit is unknown; clean degradation is already observed in scope",
+      "scope": "RCDW Phase6E hard_suppress smoke",
+      "corrective_action": "make calibration and clean-cost gate prerequisites for any suppression route",
+      "stop_condition": "do not enable hard suppression by training loss or threshold intuition alone",
+      "general_fusion_impact": "uncertainty-driven routing requires explicit calibration and deployment-cost metrics"
+    },
+    {
+      "failure_id": "FAIL-RCDW-PERTURBATION-SPACE",
+      "algorithm_id": "RCDW-MGDA-6E",
+      "experiment_id": "EXP-RCDW-PHASE6E-DIAGNOSTIC",
+      "observation_type": "fact",
+      "symptom": "documented perturbations were applied after scaling, so they represent standardized-space changes rather than physical sensor perturbations",
+      "layer": "data_generation_and_perturbation_semantics",
+      "hypothesis": "the perturbation level directly represents physical sensor degradation",
+      "discriminator": "recompute sensor outputs from physical nuisance changes, then apply the same scaler and compare with standardized-space perturbation",
+      "evidence": [
+        "SRC-RCDW-DIAGNOSTIC",
+        "SRC-RCDW-PHASE6E-CONFIG"
+      ],
+      "root_cause": "confirmed mismatch between perturbation implementation and physical interpretation",
+      "root_cause_status": "confirmed",
+      "residual_ceiling": "no physical robustness conclusion is valid from the standardized-only perturbation",
+      "scope": "RCDW documented Phase6B/D/E perturbation suite",
+      "corrective_action": "separate standardized sensitivity tests from physically recomputed degradation tests",
+      "stop_condition": "do not label standardized level 0.11 as a physical sensor fault level",
+      "general_fusion_impact": "nuisance and degradation variables need explicit units and generation semantics in the task contract"
+    },
+    {
+      "failure_id": "FAIL-RCDW-ERRORNET-CORRELATION",
+      "algorithm_id": "RCDW-ERRORNET-DYNAMIC",
+      "experiment_id": "EXP-RCDW-ERRORNET-DIAGNOSTIC",
+      "observation_type": "fact_plus_hypothesis",
+      "symptom": "documented ErrorNet correlation with actual modal errors was near zero or negative",
+      "layer": "error_prediction_and_dynamic_weighting",
+      "hypothesis": "jointly predicted error is a reliable routing signal",
+      "discriminator": "pre-register calibration, rank correlation, component-wise reliability and an independent perturbation discriminator",
+      "evidence": [
+        "SRC-RCDW-DIAGNOSTIC"
+      ],
+      "root_cause": "mechanism not confirmed; the current evidence is insufficient to separate target leakage, calibration failure and perturbation mismatch",
+      "root_cause_status": "unknown",
+      "residual_ceiling": "dynamic weighting benefit cannot be claimed until error prediction is calibrated",
+      "scope": "RCDW historical ErrorNet diagnostics",
+      "corrective_action": "park dynamic routing and recover/rerun the missing artifacts under a calibrated protocol",
+      "stop_condition": "do not use ErrorNet weights as a default fusion policy",
+      "general_fusion_impact": "learned routing requires a separately validated auxiliary target and reliability gate"
+    },
+    {
+      "failure_id": "FAIL-GIB-P3-G3-4",
+      "algorithm_id": "GIB-P3-CANDIDATE-SET",
+      "experiment_id": "EXP-GIB-P3-G3-4",
+      "observation_type": "fact",
+      "symptom": "all seven P3 candidate routes reached terminal rejection at the frozen G3-4 gate",
+      "layer": "candidate_gate_and_information_contract",
+      "hypothesis": "candidate rejection proves the general fusion problem is infeasible",
+      "discriminator": "restrict the conclusion to the frozen GIB cells, candidates, splits, seeds and metric gate",
+      "evidence": [
+        "SRC-GIB-P3-REVIEW",
+        "SRC-GIB-P3-PROMOTION",
+        "SRC-GIB-P3-FREEZE",
+        "SRC-GIB-P3-G3-4-SUMMARY"
+      ],
+      "root_cause": "confirmed candidate-set failure under the pre-registered gate; no single universal model root cause is asserted",
+      "root_cause_status": "confirmed_for_candidate_set",
+      "residual_ceiling": "the gate bounds those candidate routes only; future information contracts are not evaluated",
+      "scope": "gas_information_bench P3 G3-4",
+      "corrective_action": "return to P1/P2 only with an explicit new information hypothesis and new pre-registered gate",
+      "stop_condition": "do not open P4 or expand candidate search from the same failed premise",
+      "general_fusion_impact": "information gates should precede broad architecture search and preserve negative controls"
+    },
+    {
+      "failure_id": "FAIL-HG-HEAD-ARTIFACT-DRIFT",
+      "algorithm_id": "HG-PHASEWINDOW-TCN-GAS",
+      "experiment_id": "EXP-HG-N2-HEAD-GAS",
+      "related_algorithm_ids": [
+        "HG-PHASEWINDOW-TCN-GAS",
+        "HG-PHASEWINDOW-TCN-RAW4",
+        "HG-PHASEWINDOW-TCN-SOFTMAX100"
+      ],
+      "observation_type": "fact",
+      "symptom": "three head metrics files exist, but training.log records a formal dataset FileNotFoundError and the saved model_config uses waveform_int16_scale=32767 while the current PhaseWindowTCN entry accepts waveform_adc_scale",
+      "layer": "artifact_provenance_and_config_contract",
+      "hypothesis": "the saved metrics are directly attributable to a successful run of the current head-sweep entrypoint",
+      "discriminator": "recover the formal data root and replay with a history_audit prefix, then compare run_config, model_config, checkpoint hashes and raw predictions",
+      "evidence": [
+        "SRC-HG-HEAD-SWEEP-CONFIG",
+        "SRC-HG-PHASEWINDOW-MODEL",
+        "SRC-HG-SCALE-MIGRATION",
+        "SRC-HG-HEAD-TRAINING-LOG",
+        "SRC-HG-N2-HEAD-GAS",
+        "SRC-HG-N2-HEAD-RAW4",
+        "SRC-HG-N2-HEAD-SOFTMAX"
+      ],
+      "root_cause": "the current tree contains a provenance/config contract conflict between the recorded execution and the saved head artifacts",
+      "root_cause_status": "confirmed_current_tree_conflict",
+      "residual_ceiling": "head ranking, N2 performance and any information-ceiling interpretation are not supported by these metrics",
+      "scope": "hydrogen_ng n2_head_sweep formal artifact audit",
+      "corrective_action": "downgrade all three head rows to E1 and recover or replay the artifacts under the current waveform_adc_scale contract",
+      "stop_condition": "do not use the three saved metrics as an algorithm conclusion before provenance is closed",
+      "general_fusion_impact": "a formal result must bind entrypoint, model kwargs, data root, target transform, split, seed and output hash"
+    },
+    {
+      "failure_id": "FAIL-HG-HEAD-EQUAL-EVAL",
+      "algorithm_id": "HG-PHASEWINDOW-TCN-SOFTMAX100",
+      "experiment_id": "EXP-HG-N2-HEAD-SOFTMAX100",
+      "observation_type": "fact_plus_hypothesis",
+      "symptom": "gas_head and softmax100 metrics contain exactly equal evaluation objects despite different output_mode values and different checkpoint hashes",
+      "layer": "result_integrity_and_head_comparison",
+      "hypothesis": "the identical evaluation objects arise from a genuine head behavior rather than duplicated or stale evaluation output",
+      "discriminator": "inspect per-sample raw predictions and checkpoint provenance after a successful matched replay; verify the evaluator consumes the selected head output",
+      "evidence": [
+        "SRC-HG-N2-HEAD-GAS",
+        "SRC-HG-N2-HEAD-SOFTMAX",
+        "SRC-HG-HEAD-SWEEP-CONFIG",
+        "SRC-HG-HEAD-TRAINING-LOG"
+      ],
+      "root_cause": "unknown; the anomaly cannot be separated from the broader artifact/config conflict",
+      "root_cause_status": "unknown",
+      "residual_ceiling": "no head comparison or causal explanation can be drawn from the equal evaluation objects",
+      "scope": "hydrogen_ng gas_head versus softmax100 saved metrics",
+      "corrective_action": "retain the anomaly as a discriminator for artifact recovery; compare raw predictions, evaluator inputs and checkpoint loading",
+      "stop_condition": "do not interpret equality as evidence of equivalent parameterizations",
+      "general_fusion_impact": "result integrity checks must include output-head identity and per-sample prediction provenance"
+    }
+  ]
+}

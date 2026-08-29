@@ -1,0 +1,9 @@
+{
+  "schema_version": "gf-a2m-chart-template-1",
+  "template_id": "a2m-primary-v1",
+  "axes": ["iid", "calibration", "environment", "joint", "noise", "composition"],
+  "metrics": ["macro_RNMAE", "component_RNMAE", "P90_group_MAE", "worst_group_MAE"],
+  "series": ["A2M-MLP", "A2M-RESNET", "A2M-FTT"],
+  "uncertainty": "paired_mixture_id_bootstrap_95_ci",
+  "seed_display": "five_independent_seed_records"
+}

@@ -1,0 +1,403 @@
+{
+  "schema_version": "gf-a2h-data-2",
+  "dataset_id": "ar_he_co2",
+  "data_version": "gf-a2h-v2-20260828-r1",
+  "generation_seed": 20260828,
+  "split_seed": 20260828,
+  "observation_mode": "steady_state_repeated_observation",
+  "timesteps": 1,
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage"
+  ],
+  "target_names": ["x_Ar_pct", "x_He_pct", "x_CO2_pct"],
+  "target_units": "mol%",
+  "composition_total_pct": 100.0,
+  "composition_quantization_pct": 0.01,
+  "a1_reference": {
+    "manifest_path": "data/a1_formal/manifest.json",
+    "data_version": "gf-a1-v1-20260827-r1",
+    "content_sha256": "310f9471f99c704fdeb68b846c5d8b351d701bbd7f6cef172a08ceccc77110c4",
+    "split_hash": "e307872897fc56d008ce7d4e95bc77257c1c5aadb40446fb66f38a4f64e90541"
+  },
+  "nominal_parity": {
+    "reference_config": "configs/data/ar_he_co2_a1_v1.json",
+    "absolute_tolerance": 1.0e-12
+  },
+  "physics": {
+    "temperature_k": 298.15,
+    "pressure_pa": 101325.0,
+    "acoustic_path_length_m": 0.2,
+    "ndir_optical_path_length_m": 0.01,
+    "timesteps": 1,
+    "dt_s": 1.0,
+    "tof_delay_s": 0.00008,
+    "ndir_baseline_v": 2.5,
+    "ndir_effective_absorbance_per_co2_percent": 0.04269004521460337,
+    "tcs_baseline_v": 1.1,
+    "tcs_response_v_per_w_m_k": 15.0,
+    "tcs_reference_conductivity_w_m_k": 0.026,
+    "tof_resolution_s": 1.0e-8,
+    "thermal_voltage_resolution_v": 0.0000762939453125,
+    "ndir_voltage_noise_std_v": 0.016,
+    "jacobian_step_pct": 0.01,
+    "signal_bounds": {
+      "ultrasonic_tof": [0.0, 0.01],
+      "thermal_conductivity_voltage": [-2.0, 4.0],
+      "ndir_co2_voltage": [-1.0, 3.5]
+    }
+  },
+  "environment_blocks": [
+    {
+      "environment_id": "ENV-TRAIN-LOW",
+      "temperature_k": 293.15,
+      "pressure_pa": 98000.0,
+      "source_level": "registered_train_context_block"
+    },
+    {
+      "environment_id": "ENV-NOMINAL",
+      "temperature_k": 298.15,
+      "pressure_pa": 101325.0,
+      "source_level": "A1_frozen_reference"
+    },
+    {
+      "environment_id": "ENV-TRAIN-HIGH",
+      "temperature_k": 303.15,
+      "pressure_pa": 105000.0,
+      "source_level": "registered_train_context_block"
+    },
+    {
+      "environment_id": "ENV-NEAR",
+      "temperature_k": 308.15,
+      "pressure_pa": 108000.0,
+      "source_level": "application_range"
+    },
+    {
+      "environment_id": "ENV-MID",
+      "temperature_k": 313.15,
+      "pressure_pa": 112000.0,
+      "source_level": "sensitivity_tier_1"
+    },
+    {
+      "environment_id": "ENV-FAR",
+      "temperature_k": 278.15,
+      "pressure_pa": 90000.0,
+      "source_level": "sensitivity_tier_2"
+    }
+  ],
+  "noise_profiles": [
+    {
+      "noise_profile_id": "NOISE-1X",
+      "white_scale": 1.0,
+      "correlated_scale": 0.0,
+      "batch_scale": 0.0,
+      "source_level": "A1_registered_sensor_scale"
+    },
+    {
+      "noise_profile_id": "NOISE-2X",
+      "white_scale": 2.0,
+      "correlated_scale": 0.0,
+      "batch_scale": 0.0,
+      "source_level": "registered_sensitivity_tier"
+    },
+    {
+      "noise_profile_id": "NOISE-5X",
+      "white_scale": 5.0,
+      "correlated_scale": 0.0,
+      "batch_scale": 0.0,
+      "source_level": "registered_sensitivity_tier"
+    },
+    {
+      "noise_profile_id": "NOISE-10X",
+      "white_scale": 10.0,
+      "correlated_scale": 0.0,
+      "batch_scale": 0.0,
+      "source_level": "registered_sensitivity_tier"
+    },
+    {
+      "noise_profile_id": "NOISE-CORR-5X",
+      "white_scale": 5.0,
+      "correlated_scale": 0.35,
+      "batch_scale": 0.20,
+      "source_level": "sensitivity_tier_1",
+      "correlation_vector": [0.50, 0.25, 0.75]
+    }
+  ],
+  "calibration_profiles": [
+    {
+      "calibration_profile_id": "CAL-NOMINAL",
+      "sensor_offsets": {
+        "ultrasonic_tof": 0.0,
+        "thermal_conductivity_voltage": 0.0,
+        "ndir_co2_voltage": 0.0
+      },
+      "sensor_gains": {
+        "ultrasonic_tof": 1.0,
+        "thermal_conductivity_voltage": 1.0,
+        "ndir_co2_voltage": 1.0
+      },
+      "physical_scales": {
+        "acoustic_path_length": 1.0,
+        "tcs_response": 1.0,
+        "ndir_absorbance": 1.0
+      },
+      "source_level": "A1_frozen_reference"
+    },
+    {
+      "calibration_profile_id": "CAL-LIGHT",
+      "sensor_offsets": {
+        "ultrasonic_tof": 0.00000015,
+        "thermal_conductivity_voltage": 0.006,
+        "ndir_co2_voltage": 0.012
+      },
+      "sensor_gains": {
+        "ultrasonic_tof": 1.0005,
+        "thermal_conductivity_voltage": 1.004,
+        "ndir_co2_voltage": 0.996
+      },
+      "physical_scales": {
+        "acoustic_path_length": 1.0,
+        "tcs_response": 1.0,
+        "ndir_absorbance": 1.0
+      },
+      "source_level": "sensitivity_tier_1"
+    },
+    {
+      "calibration_profile_id": "CAL-SHARED-DRIFT",
+      "sensor_offsets": {
+        "ultrasonic_tof": 0.00000035,
+        "thermal_conductivity_voltage": 0.018,
+        "ndir_co2_voltage": 0.028
+      },
+      "sensor_gains": {
+        "ultrasonic_tof": 1.001,
+        "thermal_conductivity_voltage": 1.010,
+        "ndir_co2_voltage": 0.988
+      },
+      "physical_scales": {
+        "acoustic_path_length": 1.002,
+        "tcs_response": 1.008,
+        "ndir_absorbance": 0.992
+      },
+      "source_level": "sensitivity_tier_1"
+    },
+    {
+      "calibration_profile_id": "CAL-CONFLICT",
+      "sensor_offsets": {
+        "ultrasonic_tof": -0.00000030,
+        "thermal_conductivity_voltage": 0.022,
+        "ndir_co2_voltage": -0.032
+      },
+      "sensor_gains": {
+        "ultrasonic_tof": 0.999,
+        "thermal_conductivity_voltage": 1.012,
+        "ndir_co2_voltage": 0.985
+      },
+      "physical_scales": {
+        "acoustic_path_length": 0.998,
+        "tcs_response": 1.010,
+        "ndir_absorbance": 1.015
+      },
+      "source_level": "sensitivity_tier_2"
+    }
+  ],
+  "composition_regions": {
+    "concentration_band": {
+      "component": "CO2",
+      "minimum_pct": 45.0,
+      "maximum_pct": 55.0
+    },
+    "simplex_sector": {
+      "x_Ar_min_pct": 60.0,
+      "x_He_max_pct": 20.0
+    },
+    "near_boundary_max_pct": 2.0
+  },
+  "families": {
+    "iid": {
+      "splits": {"train": 240, "val": 60, "stress_val": 60, "hard_test": 60},
+      "composition_mode_by_split": {
+        "train": "mixed",
+        "val": "mixed",
+        "stress_val": "mixed",
+        "hard_test": "mixed"
+      },
+      "environment_by_split": {
+        "train": "ENV-NOMINAL",
+        "val": "ENV-NOMINAL",
+        "stress_val": "ENV-NOMINAL",
+        "hard_test": "ENV-NOMINAL"
+      },
+      "calibration_by_split": {
+        "train": "CAL-NOMINAL",
+        "val": "CAL-NOMINAL",
+        "stress_val": "CAL-NOMINAL",
+        "hard_test": "CAL-NOMINAL"
+      },
+      "noise_by_split": {
+        "train": "NOISE-1X",
+        "val": "NOISE-1X",
+        "stress_val": "NOISE-1X",
+        "hard_test": "NOISE-1X"
+      },
+      "repeat_count": 1,
+      "source_level": "A2H_registered_iid_reference"
+    },
+    "noise": {
+      "splits": {"train": 180, "val": 45, "stress_val": 45, "hard_test": 45},
+      "composition_mode_by_split": {
+        "train": "mixed",
+        "val": "mixed",
+        "stress_val": "mixed",
+        "hard_test": "mixed"
+      },
+      "environment_by_split": {
+        "train": "ENV-NOMINAL",
+        "val": "ENV-NOMINAL",
+        "stress_val": "ENV-NOMINAL",
+        "hard_test": "ENV-NOMINAL"
+      },
+      "calibration_by_split": {
+        "train": "CAL-NOMINAL",
+        "val": "CAL-NOMINAL",
+        "stress_val": "CAL-NOMINAL",
+        "hard_test": "CAL-NOMINAL"
+      },
+      "noise_by_split": {
+        "train": "NOISE-1X",
+        "val": "NOISE-2X",
+        "stress_val": "NOISE-5X",
+        "hard_test": "NOISE-10X"
+      },
+      "repeat_count": 3,
+      "source_level": "A2H_registered_noise_pressure"
+    },
+    "environment": {
+      "splits": {"train": 180, "val": 45, "stress_val": 45, "hard_test": 45},
+      "composition_mode_by_split": {
+        "train": "mixed",
+        "val": "mixed",
+        "stress_val": "mixed",
+        "hard_test": "mixed"
+      },
+      "environment_by_split": {
+        "train": ["ENV-TRAIN-LOW", "ENV-NOMINAL", "ENV-TRAIN-HIGH"],
+        "val": "ENV-NEAR",
+        "stress_val": "ENV-MID",
+        "hard_test": "ENV-FAR"
+      },
+      "calibration_by_split": {
+        "train": "CAL-NOMINAL",
+        "val": "CAL-NOMINAL",
+        "stress_val": "CAL-NOMINAL",
+        "hard_test": "CAL-NOMINAL"
+      },
+      "noise_by_split": {
+        "train": "NOISE-1X",
+        "val": "NOISE-1X",
+        "stress_val": "NOISE-1X",
+        "hard_test": "NOISE-1X"
+      },
+      "repeat_count": 1,
+      "source_level": "A2H_environment_range"
+    },
+    "calibration": {
+      "splits": {"train": 180, "val": 45, "stress_val": 45, "hard_test": 45},
+      "composition_mode_by_split": {
+        "train": "mixed",
+        "val": "mixed",
+        "stress_val": "mixed",
+        "hard_test": "mixed"
+      },
+      "environment_by_split": {
+        "train": "ENV-NOMINAL",
+        "val": "ENV-NOMINAL",
+        "stress_val": "ENV-NOMINAL",
+        "hard_test": "ENV-NOMINAL"
+      },
+      "calibration_by_split": {
+        "train": "CAL-NOMINAL",
+        "val": "CAL-LIGHT",
+        "stress_val": "CAL-SHARED-DRIFT",
+        "hard_test": "CAL-CONFLICT"
+      },
+      "noise_by_split": {
+        "train": "NOISE-1X",
+        "val": "NOISE-1X",
+        "stress_val": "NOISE-1X",
+        "hard_test": "NOISE-1X"
+      },
+      "repeat_count": 1,
+      "source_level": "A2H_calibration_sensitivity"
+    },
+    "composition": {
+      "splits": {"train": 240, "val": 60, "stress_val": 60, "hard_test": 60},
+      "composition_mode_by_split": {
+        "train": "mixed",
+        "val": "interior",
+        "stress_val": "concentration_band",
+        "hard_test": "simplex_sector_and_pure"
+      },
+      "environment_by_split": {
+        "train": "ENV-NOMINAL",
+        "val": "ENV-NOMINAL",
+        "stress_val": "ENV-NOMINAL",
+        "hard_test": "ENV-NOMINAL"
+      },
+      "calibration_by_split": {
+        "train": "CAL-NOMINAL",
+        "val": "CAL-NOMINAL",
+        "stress_val": "CAL-NOMINAL",
+        "hard_test": "CAL-NOMINAL"
+      },
+      "noise_by_split": {
+        "train": "NOISE-1X",
+        "val": "NOISE-1X",
+        "stress_val": "NOISE-1X",
+        "hard_test": "NOISE-1X"
+      },
+      "repeat_count": 1,
+      "source_level": "A2H_composition_coverage"
+    },
+    "joint": {
+      "splits": {"train": 180, "val": 45, "stress_val": 45, "hard_test": 45},
+      "composition_mode_by_split": {
+        "train": "mixed",
+        "val": "mixed",
+        "stress_val": "mixed",
+        "hard_test": "simplex_sector_and_pure"
+      },
+      "environment_by_split": {
+        "train": ["ENV-TRAIN-LOW", "ENV-NOMINAL", "ENV-TRAIN-HIGH"],
+        "val": "ENV-NEAR",
+        "stress_val": "ENV-MID",
+        "hard_test": "ENV-FAR"
+      },
+      "calibration_by_split": {
+        "train": "CAL-NOMINAL",
+        "val": "CAL-LIGHT",
+        "stress_val": "CAL-SHARED-DRIFT",
+        "hard_test": "CAL-CONFLICT"
+      },
+      "noise_by_split": {
+        "train": "NOISE-1X",
+        "val": "NOISE-2X",
+        "stress_val": "NOISE-CORR-5X",
+        "hard_test": "NOISE-10X"
+      },
+      "repeat_count": 2,
+      "source_level": "A2H_qualified_joint_pressure"
+    }
+  },
+  "required_hard_test_evidence": [
+    "data_content_sha256",
+    "split_family_hash",
+    "eligible_axes_sha256",
+    "candidate_config_sha256",
+    "matched_baseline_config_sha256",
+    "selected_checkpoint_sha256",
+    "primary_chart_template_sha256",
+    "formal_run_status"
+  ]
+}

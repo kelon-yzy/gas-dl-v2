@@ -1,0 +1,49 @@
+{
+  "schema_version": "gf-a3-temporal-matrix-1",
+  "stage": "A3",
+  "status": "FROZEN_FOR_A3",
+  "frozen_after": "A2M-MLP-retained",
+  "reference_model": {
+    "model_id": "A2M-MLP",
+    "recipe_name": "mlp_lbfgs_width32",
+    "selection_status": "MLP_RETAINED",
+    "input_contract": {
+      "timesteps": "real_time_dimension_required",
+      "sensor_order": "dataset_adapter_defined",
+      "a2m_t1_execution": "not_run"
+    }
+  },
+  "architectures": [
+    {
+      "model_id": "A3-STAT-MLP",
+      "role": "statistical_feature_baseline",
+      "input": "time-series summary features",
+      "a2m_execution": "not_run"
+    },
+    {
+      "model_id": "A3-TCN-LIGHT",
+      "role": "light_temporal_convolution",
+      "input": "masked sensor time series",
+      "a2m_execution": "not_run"
+    },
+    {
+      "model_id": "A3-GRU-1L",
+      "role": "single_layer_recurrent_model",
+      "input": "masked sensor time series",
+      "a2m_execution": "not_run"
+    },
+    {
+      "model_id": "A3-TTRANSFORMER-LIGHT",
+      "role": "light_temporal_transformer",
+      "input": "masked sensor time series",
+      "a2m_execution": "not_run"
+    }
+  ],
+  "shared_constraints": {
+    "group_split": "complete_workbook",
+    "time_mask": "raw_time_mask_preserved",
+    "training_budget": "registered_before_test_unlock",
+    "formal_test": "locked_until_model_and_recipe_freeze",
+    "result_direction": "a3_results_do_not_reopen_a2m_steady_state_ranking"
+  }
+}

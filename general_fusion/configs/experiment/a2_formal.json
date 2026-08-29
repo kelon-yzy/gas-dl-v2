@@ -1,0 +1,20 @@
+{
+  "schema_version": "gf-a2-experiment-1",
+  "stage": "A2-5",
+  "experiment_id": "a2-formal",
+  "data_config": "configs/data/ar_he_co2_a1_v1.json",
+  "data_manifest": "data/a1_formal/manifest.json",
+  "eval_config": "configs/eval/a2_eval.json",
+  "train_config": "configs/train/a2_train.json",
+  "candidate_config": "configs/model/a2_deepsets.json",
+  "baseline_config": "configs/model/a2_concat.json",
+  "primary_chart_template": "configs/experiment/a2_primary_chart_template.json",
+  "selection_record": "outputs/runs/a2/selection.json",
+  "allowed_read_splits": ["train", "inner_oof", "val"],
+  "test_access": {
+    "mode": "locked",
+    "unlock_flag": "--unlock-test"
+  },
+  "run_status": "DRAFT",
+  "output_dir": "outputs/runs/a2/formal"
+}

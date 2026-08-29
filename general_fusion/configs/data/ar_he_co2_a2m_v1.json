@@ -1,0 +1,84 @@
+{
+  "schema_version": "gf-a2m-data-1",
+  "dataset_id": "ar_he_co2",
+  "data_version": "gf-a2m-v1-20260829-r1",
+  "generation_seed": 20260829,
+  "split_seed": 20260829,
+  "observation_mode": "steady_state_single_observation",
+  "timesteps": 1,
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage"
+  ],
+  "target_names": ["x_Ar_pct", "x_He_pct", "x_CO2_pct"],
+  "target_units": "mol%",
+  "composition_total_pct": 100.0,
+  "composition_quantization_pct": 0.01,
+  "a2h_development_source": {
+    "config_path": "configs/data/ar_he_co2_a2h_v2.json",
+    "config_sha256": "8516994fd86b08ebfba33c24b0de780f2478bb8b06d0699cfeb11f87e6651324",
+    "manifest_path": "data/a2h_v2/manifest.json",
+    "schema_version": "gf-a2h-data-2",
+    "data_version": "gf-a2h-v2-20260828-r1",
+    "content_sha256": "67f9f4841e80f0c1f7d355dcaa8b6e954c46475621cc1fbf196f68c814cdb4de",
+    "split_family_hash": "e6f8cd5e04cfe7621deb7dcb48ff870e9fc9a653c511a25e2c051e8741124744",
+    "allowed_splits": ["train", "val", "stress_val"]
+  },
+  "formal_holdout": {
+    "split": "formal",
+    "mixture_id_prefix": "a2m-formal-",
+    "repeat_count": 1,
+    "axes": ["iid", "calibration", "environment", "joint", "noise", "composition"],
+    "primary_axes": ["iid", "calibration", "environment", "joint", "noise"],
+    "families": {
+      "iid": {
+        "count": 60,
+        "composition_mode": "mixed",
+        "environment_id": "ENV-NOMINAL",
+        "calibration_profile_id": "CAL-NOMINAL",
+        "noise_profile_id": "NOISE-1X"
+      },
+      "calibration": {
+        "count": 60,
+        "composition_mode": "interior",
+        "environment_id": "ENV-NOMINAL",
+        "calibration_profile_id": "CAL-CONFLICT",
+        "noise_profile_id": "NOISE-1X"
+      },
+      "environment": {
+        "count": 60,
+        "composition_mode": "interior",
+        "environment_id": "ENV-FAR",
+        "calibration_profile_id": "CAL-NOMINAL",
+        "noise_profile_id": "NOISE-1X"
+      },
+      "joint": {
+        "count": 60,
+        "composition_mode": "interior",
+        "environment_id": "ENV-FAR",
+        "calibration_profile_id": "CAL-CONFLICT",
+        "noise_profile_id": "NOISE-5X"
+      },
+      "noise": {
+        "count": 60,
+        "composition_mode": "interior",
+        "environment_id": "ENV-NOMINAL",
+        "calibration_profile_id": "CAL-NOMINAL",
+        "noise_profile_id": "NOISE-10X"
+      },
+      "composition": {
+        "count": 60,
+        "composition_mode": "simplex_sector_and_pure",
+        "environment_id": "ENV-NOMINAL",
+        "calibration_profile_id": "CAL-NOMINAL",
+        "noise_profile_id": "NOISE-1X"
+      }
+    }
+  },
+  "generator": {
+    "physics_source": "configs/data/ar_he_co2_a2h_v2.json",
+    "signal_semantics": "a2h_frozen_profile_transform",
+    "forbidden_keys": ["base_condition_id", "noise_seed_index", "noise_seed", "sequence_id"]
+  }
+}

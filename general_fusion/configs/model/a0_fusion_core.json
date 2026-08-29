@@ -1,0 +1,26 @@
+{
+  "schema_version": "gf-a0-model-1",
+  "embedding_dim": 16,
+  "hidden_dim": 12,
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage",
+    "HKUST1",
+    "CuBDC",
+    "CuBPDC",
+    "UiO66",
+    "UiO67",
+    "UiO68-NH2"
+  ],
+  "sensor_types": [
+    "acoustic_tof",
+    "thermal_conductivity",
+    "ndir",
+    "qcm_frequency_shift"
+  ],
+  "task_output_dims": {
+    "ar_he_co2": 3,
+    "xylene_e_nose": 3
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": "gf-a2-heads-1",
+  "backbone": "torch_concat",
+  "target_names": ["x_Ar_pct", "x_He_pct", "x_CO2_pct"],
+  "loss": "mse",
+  "heads": [
+    {
+      "id": "H0",
+      "kind": "independent_regression",
+      "constraint": "none",
+      "trainable_mapping": true
+    },
+    {
+      "id": "H1",
+      "kind": "deterministic_simplex_projection",
+      "constraint": "nonnegative_sum_100",
+      "trainable_mapping": false,
+      "base_head": "H0"
+    },
+    {
+      "id": "H2",
+      "kind": "softmax_fixed_total",
+      "constraint": "strictly_positive_sum_100",
+      "temperature": 1.0,
+      "trainable_mapping": true
+    },
+    {
+      "id": "H3",
+      "kind": "sparsemax_fixed_total",
+      "constraint": "nonnegative_sum_100_with_exact_zeros",
+      "trainable_mapping": true,
+      "status": "deferred_until_structural_zero_failure"
+    }
+  ],
+  "audit_order": ["H0", "H1", "H2"],
+  "open_condition_for_H3": "H2 has a structural-zero failure on the registered CO2=0 boundary"
+}

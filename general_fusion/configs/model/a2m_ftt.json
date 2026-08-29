@@ -1,0 +1,21 @@
+{
+  "schema_version": "gf-a2m-model-1",
+  "model_id": "A2M-FTT",
+  "kind": "feature_token_transformer",
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage"
+  ],
+  "sensor_types": ["acoustic_tof", "thermal_conductivity", "ndir"],
+  "input_shape": {"timesteps": 1, "features": 1},
+  "head": {"id": "H0", "output_dim": 3},
+  "recipes": [
+    {"name": "ftt_token8_block1_heads2", "token_dim": 8, "encoder_blocks": 1, "heads": 2},
+    {"name": "ftt_token16_block1_heads2", "token_dim": 16, "encoder_blocks": 1, "heads": 2}
+  ],
+  "uses_sensor_id": true,
+  "uses_sensor_type": true,
+  "uses_time_position_encoding": false,
+  "uses_context": false
+}

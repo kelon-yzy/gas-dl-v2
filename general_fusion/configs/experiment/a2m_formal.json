@@ -1,0 +1,19 @@
+{
+  "schema_version": "gf-a2m-experiment-1",
+  "stage": "A2M-5",
+  "experiment_id": "a2m-formal",
+  "kind": "formal_comparison",
+  "data_config": "configs/data/ar_he_co2_a2m_v1.json",
+  "eval_config": "configs/eval/a2m_eval.json",
+  "train_config": "configs/train/a2m_train.json",
+  "model_configs": [
+    "configs/model/a2m_mlp.json",
+    "configs/model/a2m_resnet.json",
+    "configs/model/a2m_ftt.json"
+  ],
+  "allowed_read_splits": ["formal"],
+  "formal_holdout_access": "locked_until_frozen",
+  "required_formal_run_status": "FROZEN",
+  "unlock_flag": "--unlock-formal",
+  "output_dir": "outputs/runs/a2m/a2m-5-formal"
+}
