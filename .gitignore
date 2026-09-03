@@ -39,3 +39,6 @@ rcdw_mgda/runs/
 .tmp_*/
 **/.tmp_*/
 **/pytest-cache-files-*/
+
+# drawio 编辑器自动备份
+**/.$*.bkp
