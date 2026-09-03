@@ -1,0 +1,21 @@
+{
+  "schema_version": "gf-tqif-model-1",
+  "model_id": "TQIF-MATCHED-CONCAT",
+  "recipe": "tqif_token32_pair32",
+  "embedding_dim": 32,
+  "hidden_dim": 228,
+  "output_dim": 3,
+  "input_shape": {"timesteps": 1, "features": 1},
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage"
+  ],
+  "sensor_types": ["acoustic_tof", "thermal_conductivity", "ndir"],
+  "uses_quality": false,
+  "uses_time": false,
+  "uses_dataset_id": false,
+  "uses_target_name": false,
+  "parameter_match_tolerance": 0.1,
+  "matched_for": "tqif_token32_pair32"
+}

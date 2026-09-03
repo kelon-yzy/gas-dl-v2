@@ -1,0 +1,31 @@
+{
+  "schema_version": "gf-a2-tqif-train-1",
+  "seeds": [17, 29, 43, 71, 101],
+  "loss": {
+    "name": "mse",
+    "target_scale": [100.0, 100.0, 100.0],
+    "additional_terms": []
+  },
+  "max_epochs": 20,
+  "early_stopping": {
+    "enabled": true,
+    "monitor": "val_macro_RNMAE",
+    "patience": 5,
+    "selection_split": "a2.val",
+    "test_access": "forbidden"
+  },
+  "optimizer": {
+    "name": "LBFGS",
+    "learning_rate": 1.0,
+    "weight_decay": 0.0,
+    "max_iter": 10,
+    "history_size": 50
+  },
+  "parameter_match_tolerance": 0.1,
+  "formal_holdout_access": "forbidden",
+  "data_access": {
+    "allowed_splits": ["train", "inner_oof", "val"],
+    "forbidden_keys": ["base_condition_id", "noise_seed", "noise_seed_index", "sequence_id"],
+    "test_access": "forbidden"
+  }
+}

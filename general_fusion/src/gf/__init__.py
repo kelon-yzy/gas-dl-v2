@@ -1,9 +1,21 @@
-"""general_fusion (gf): 通用多模态气体融合主线包。
+"""general_fusion (gf)：通用多模态气体融合主线包。"""
 
-模块职责见 general_fusion/README.md 与 项目总体规划.md v6 §1.3。
-A0 阶段仅提供包入口，实现待接口契约冻结后落地。
-"""
+from __future__ import annotations
 
-from gf import dl, ml, pipeline, sim
+from importlib import import_module
+from types import ModuleType
+
 
 __all__ = ["dl", "ml", "pipeline", "sim"]
+
+
+def __getattr__(name: str) -> ModuleType:
+    if name not in __all__:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = import_module(f"gf.{name}")
+    globals()[name] = module
+    return module
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))

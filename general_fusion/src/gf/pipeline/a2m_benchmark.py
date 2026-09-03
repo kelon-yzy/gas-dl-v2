@@ -22,7 +22,8 @@ from gf.dl.mainstream_architectures import (
 from gf.dl.preprocessing import TrainGroupStandardScaler
 from gf.dl.training import TorchTrainingConfig, train_torch_model, trainable_parameter_count
 from gf.ml.baselines import fit_full_regression_baselines
-from gf.pipeline.runtime import canonical_sha256, runtime_fingerprint, sha256_file
+from gf.pipeline.runtime import runtime_fingerprint, sha256_file
+from gf.pipeline.tqif_common import canonical_hash as canonical_sha256
 from gf.sim.a2h_dataset import load_a2h_dataset
 from gf.sim.a2m_dataset import (
     A2M_AXES,

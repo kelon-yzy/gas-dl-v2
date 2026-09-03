@@ -497,12 +497,19 @@ def _write_checkpoint(
     validation_metric: float,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    model_contract = None
+    checkpoint_contract = getattr(model, "checkpoint_contract", None)
+    if checkpoint_contract is not None:
+        if not callable(checkpoint_contract):
+            raise TypeError("model.checkpoint_contract must be callable")
+        model_contract = checkpoint_contract()
     torch.save(
         {
             "schema_version": "gf-a2-checkpoint-1",
             "seed": int(seed),
             "epoch": int(epoch),
             "validation_macro_RNMAE": float(validation_metric),
+            "model_contract": model_contract,
             "state_dict": model.state_dict(),
         },
         path,

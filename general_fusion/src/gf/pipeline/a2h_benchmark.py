@@ -29,6 +29,7 @@ from gf.dl.training import (
     train_torch_model,
     trainable_parameter_count,
 )
+from gf.pipeline.tqif_common import canonical_hash as _canonical_sha256
 from gf.sim.a1_dataset import A1PhysicsConfig, DEFAULT_A1_PHYSICS, deterministic_signal_vector
 from gf.sim.a2h_audit import run_difficulty_audit
 from gf.sim.a2h_dataset import (
@@ -2382,10 +2383,6 @@ def _resolve_file(root: Path, path: Path) -> Path:
 
 def _relative_path(root: Path, path: Path) -> str:
     return path.resolve().relative_to(root).as_posix()
-
-
-def _canonical_sha256(value: Any) -> str:
-    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
 def _validate_no_forbidden_keys(value: Any) -> None:

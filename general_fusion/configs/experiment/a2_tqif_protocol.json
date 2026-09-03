@@ -1,0 +1,31 @@
+{
+  "schema_version": "gf-a2-tqif-experiment-1",
+  "stage": "A2-TQIF-0",
+  "experiment_id": "a2-tqif-protocol",
+  "kind": "protocol",
+  "data_config": "configs/data/ar_he_co2_a1_v1.json",
+  "data_manifest": "data/a1_formal/manifest.json",
+  "eval_config": "configs/eval/a2_tqif_eval.json",
+  "train_config": "configs/train/a2_tqif_train.json",
+  "ablation_config": "configs/experiment/a2_tqif_ablation.json",
+  "baseline_model_config": "configs/model/a2m_mlp.json",
+  "baseline_recipe": "mlp_lbfgs_width32",
+  "baseline_reference_mode": "rebuild_current_a2_v1",
+  "model_configs": [
+    "configs/model/tqif_token16_pair16.json",
+    "configs/model/tqif_token32_pair32.json",
+    "configs/model/tqif_matched_concat_token16.json",
+    "configs/model/tqif_matched_concat_token32.json"
+  ],
+  "allowed_read_splits": ["train", "inner_oof", "val"],
+  "history_read_only": ["A2", "A2H-v2", "A2M-round1"],
+  "seeds": [17, 29, 43, 71, 101],
+  "forbidden_training_keys": ["base_condition_id", "noise_seed_index", "noise_seed"],
+  "formal_holdout_access": "locked",
+  "test_access": {
+    "mode": "locked",
+    "unlock_flag": "--unlock-test",
+    "old_test_access": "forbidden"
+  },
+  "output_dir": "outputs/runs/a2/tqif"
+}

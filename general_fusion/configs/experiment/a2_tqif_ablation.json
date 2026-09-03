@@ -1,0 +1,35 @@
+{
+  "schema_version": "gf-a2-tqif-experiment-1",
+  "stage": "A2-TQIF-4",
+  "experiment_id": "a2-tqif-ablation",
+  "kind": "mechanism_ablation",
+  "recipes": ["tqif_token16_pair16", "tqif_token32_pair32"],
+  "seeds": [17, 29, 43, 71, 101],
+  "parameter_profile_path": "outputs/runs/a2/tqif/parameter_profiles.json",
+  "matrix": [
+    {"id": "C0", "sensor_evidence": "ordered_concat", "pair_evidence": false, "query_mode": "shared", "head_id": "H0"},
+    {"id": "C1", "sensor_evidence": "token_attention", "pair_evidence": false, "query_mode": "shared", "head_id": "H0"},
+    {"id": "Q1", "sensor_evidence": "token_attention", "pair_evidence": false, "query_mode": "independent", "head_id": "H0"},
+    {"id": "I1", "sensor_evidence": "token_attention", "pair_evidence": true, "query_mode": "shared", "head_id": "H0"},
+    {"id": "TQIF-H0", "sensor_evidence": "token_attention", "pair_evidence": true, "query_mode": "independent", "head_id": "H0"},
+    {"id": "TQIF-STR", "sensor_evidence": "token_attention", "pair_evidence": true, "query_mode": "independent", "head_id": "STR"}
+  ],
+  "comparisons": {
+    "full_fusion_vs_matched_concat": ["TQIF-H0", "C0"],
+    "target_query": [["Q1", "C1"], ["TQIF-H0", "I1"]],
+    "pair_evidence": [["I1", "C1"], ["TQIF-H0", "Q1"]],
+    "output_contract": ["TQIF-STR", "TQIF-H0"]
+  },
+  "frozen_constants": {
+    "PARAM_MATCH_REL_DIFF_MAX": 0.1,
+    "MIN_MACRO_REL_GAIN": 0.05,
+    "MAX_IID_REL_DEGRADATION": 0.05,
+    "SEED_DIRECTION_MIN": 4,
+    "COMPONENT_RNMAE_DEGRADATION_MAX": 0.005,
+    "GROUP_BOOTSTRAP_REPEATS": 2000,
+    "PAIRED_CI_LEVEL": 0.95
+  },
+  "allowed_read_splits": ["train", "inner_oof", "val"],
+  "formal_holdout_access": "locked",
+  "test_access": "locked"
+}

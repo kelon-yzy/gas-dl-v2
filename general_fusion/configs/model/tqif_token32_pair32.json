@@ -1,0 +1,46 @@
+{
+  "schema_version": "gf-tqif-model-1",
+  "model_id": "TQIF",
+  "recipe": "tqif_token32_pair32",
+  "embedding_dim": 32,
+  "token_dim": 32,
+  "attention_heads": 4,
+  "pair_hidden_dim": 32,
+  "pair_rank": 32,
+  "query_ffn_dim": 64,
+  "sensor_projection_layers": 1,
+  "pair_mlp_layers": 2,
+  "query_ffn_layers": 2,
+  "dropout": 0.0,
+  "input_shape": {"timesteps": 1, "features": 1},
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage"
+  ],
+  "sensor_types": ["acoustic_tof", "thermal_conductivity", "ndir"],
+  "target_slot_registry": [
+    {"slot_id": "slot_0", "output_name": "x_Ar_pct", "value_range": [0.0, 100.0], "loss_weight": 1.0},
+    {"slot_id": "slot_1", "output_name": "x_He_pct", "value_range": [0.0, 100.0], "loss_weight": 1.0},
+    {"slot_id": "slot_2", "output_name": "x_CO2_pct", "value_range": [0.0, 100.0], "loss_weight": 1.0}
+  ],
+  "query_mode": "independent",
+  "pair_evidence": true,
+  "head": {
+    "id": "H0",
+    "kind": "target_slot_independent_regression",
+    "constraint": "none",
+    "output_dim": 3
+  },
+  "uses_quality": false,
+  "uses_time": false,
+  "uses_dataset_id": false,
+  "uses_target_name": false,
+  "parameter_match_tolerance": 0.1,
+  "matched_concat": {
+    "model_id": "TQIF-MATCHED-CONCAT",
+    "config": "configs/model/tqif_matched_concat_token32.json",
+    "embedding_dim": 32,
+    "hidden_dim": 228
+  }
+}

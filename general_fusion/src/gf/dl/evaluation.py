@@ -6,9 +6,8 @@ from typing import Any
 
 import numpy as np
 
-from gf.sim.a1_dataset import TARGET_NAMES
 
-
+TARGET_NAMES = ("x_Ar_pct", "x_He_pct", "x_CO2_pct")
 TARGET_RANGES = np.full(len(TARGET_NAMES), 100.0, dtype=np.float64)
 
 
@@ -142,7 +141,7 @@ def group_bootstrap_comparison(
         baseline_error = np.abs(
             target_values[group_indices].mean(axis=0) - baseline_values[group_indices].mean(axis=0)
         )
-        per_group_difference.append(float((method_error - baseline_error).mean() / ranges.mean()))
+        per_group_difference.append(float(np.mean((method_error - baseline_error) / ranges)))
 
     differences = np.asarray(per_group_difference, dtype=np.float64)
     rng = np.random.default_rng(seed)
