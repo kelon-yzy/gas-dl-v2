@@ -31,6 +31,50 @@ GAS_VISCOSITY_PA_S: Mapping[str, float] = MappingProxyType(
     {"Ar": 22.61e-6, "He": 19.60e-6, "CO2": 14.91e-6}
 )
 
+A1_SOUND_SPEED_MODEL_ID = "a1_constant_cp_ideal_v1"
+A2DYN_SOUND_SPEED_MODEL_ID = "a2dyn_cp_t_virial_v1"
+A2DYN_COEFFICIENT_VERSION = "a2dyn-eos-coefficients-20260901-r1"
+A2DYN_TEMPERATURE_RANGE_K = (278.15, 313.15)
+A2DYN_OPERATIONAL_PRESSURE_RANGE_PA = (90_000.0, 112_000.0)
+
+# NASA7 coefficients from the NASA Glenn thermodynamic database.  The first
+# five coefficients are the dimensionless Cp/R polynomial; the two integration
+# constants are retained in the registry asset but are not needed for sound speed.
+A2DYN_NASA7_COEFFICIENTS: Mapping[str, tuple[float, ...]] = MappingProxyType(
+    {
+        "Ar": (2.5, 0.0, 0.0, 0.0, 0.0, -745.375, 4.37967491),
+        "He": (2.5, 0.0, 0.0, 0.0, 0.0, -745.375, 0.928724724),
+        "CO2": (
+            2.35677352,
+            8.98459677e-03,
+            -7.12356269e-06,
+            2.45919022e-09,
+            -1.43699548e-13,
+            -4.83719697e04,
+            9.90105222,
+        ),
+    }
+)
+
+# Critical properties and acentric factors used by the published Tsonopoulos
+# corresponding-states correlation.  Cross pairs use Tsonopoulos' registered
+# critical-property rule in ``_virial_pair_parameters``; no pair is zeroed.
+A2DYN_VIRIAL_CRITICAL_PROPERTIES: Mapping[str, tuple[float, float, float]] = MappingProxyType(
+    {
+        "Ar": (150.687, 4.898e6, -0.00219),
+        "He": (5.1953, 2.2746e5, -0.385),
+        "CO2": (304.1282, 7.3773e6, 0.22394),
+    }
+)
+A2DYN_VIRIAL_PAIR_IDS = (
+    "Ar-Ar",
+    "Ar-He",
+    "Ar-CO2",
+    "He-He",
+    "He-CO2",
+    "CO2-CO2",
+)
+
 SENSOR_TYPES: Mapping[str, str] = MappingProxyType(
     {
         "ultrasonic_tof": "acoustic_tof",
@@ -126,6 +170,270 @@ def ideal_gas_sound_speed(mole_fractions: Mapping[str, float], temperature_k: fl
         raise ValueError("mixture produces invalid molar mass or heat capacity")
     gamma = cp_mix / cv_mix
     return math.sqrt(gamma * R_GAS_J_MOL_K * temperature_k / molar_mass)
+
+
+def sound_speed_for_model(
+    mole_fractions: Mapping[str, float],
+    temperature_k: float,
+    pressure_pa: float,
+    *,
+    model_id: str = A1_SOUND_SPEED_MODEL_ID,
+) -> float:
+    """Resolve the registered sound-speed model without an implicit fallback."""
+
+    if model_id == A1_SOUND_SPEED_MODEL_ID:
+        return ideal_gas_sound_speed(mole_fractions, temperature_k)
+    if model_id == A2DYN_SOUND_SPEED_MODEL_ID:
+        return a2dyn_cp_t_virial_sound_speed(mole_fractions, temperature_k, pressure_pa)
+    raise ValueError(f"unsupported sound speed model: {model_id!r}")
+
+
+def a2dyn_species_heat_capacity(
+    gas: str,
+    temperature_k: float,
+) -> tuple[float, float, float]:
+    """Return NASA7 ``Cp``, first derivative and second derivative for one gas."""
+
+    coefficients = A2DYN_NASA7_COEFFICIENTS.get(gas)
+    if coefficients is None:
+        raise ValueError(f"unsupported A2DYN species: {gas!r}")
+    temperature = _validate_a2dyn_temperature(temperature_k)
+    a1, a2, a3, a4, a5, _, _ = coefficients
+    cp = R_GAS_J_MOL_K * (
+        a1 + a2 * temperature + a3 * temperature**2 + a4 * temperature**3 + a5 * temperature**4
+    )
+    dcp = R_GAS_J_MOL_K * (
+        a2 + 2.0 * a3 * temperature + 3.0 * a4 * temperature**2 + 4.0 * a5 * temperature**3
+    )
+    d2cp = R_GAS_J_MOL_K * (
+        2.0 * a3 + 6.0 * a4 * temperature + 12.0 * a5 * temperature**2
+    )
+    if not math.isfinite(cp) or cp <= 0.0:
+        raise ValueError(f"NASA7 produced invalid Cp for {gas}: {cp}")
+    return cp, dcp, d2cp
+
+
+def a2dyn_ideal_heat_capacity(
+    mole_fractions: Mapping[str, float],
+    temperature_k: float,
+) -> dict[str, float]:
+    """Return mixture ideal ``Cp``/``Cv`` from the registered NASA7 set."""
+
+    _validate_mole_fractions(mole_fractions)
+    temperature = _validate_a2dyn_temperature(temperature_k)
+    species_terms = [
+        a2dyn_species_heat_capacity(gas, temperature) for gas in GAS_MOLAR_MASS_KG_MOL
+    ]
+    cp = sum(
+        mole_fractions[gas] * species_terms[index][0]
+        for index, gas in enumerate(GAS_MOLAR_MASS_KG_MOL)
+    )
+    dcp = sum(
+        mole_fractions[gas] * species_terms[index][1]
+        for index, gas in enumerate(GAS_MOLAR_MASS_KG_MOL)
+    )
+    d2cp = sum(
+        mole_fractions[gas] * species_terms[index][2]
+        for index, gas in enumerate(GAS_MOLAR_MASS_KG_MOL)
+    )
+    cv = cp - R_GAS_J_MOL_K
+    if not math.isfinite(cv) or cv <= 0.0:
+        raise ValueError(f"NASA7 produced invalid mixture Cv: {cv}")
+    return {
+        "cp_molar_j_mol_k": float(cp),
+        "cv_molar_j_mol_k": float(cv),
+        "dcp_dtemperature_j_mol_k2": float(dcp),
+        "d2cp_dtemperature2_j_mol_k3": float(d2cp),
+    }
+
+
+def a2dyn_mixture_virial(
+    mole_fractions: Mapping[str, float],
+    temperature_k: float,
+) -> dict[str, float]:
+    """Return ``B``, ``dB/dT`` and ``d2B/dT2`` for the complete binary mixture."""
+
+    _validate_mole_fractions(mole_fractions)
+    temperature = _validate_a2dyn_temperature(temperature_k)
+    total_b = 0.0
+    total_db = 0.0
+    total_d2b = 0.0
+    for gas_i in GAS_MOLAR_MASS_KG_MOL:
+        for gas_j in GAS_MOLAR_MASS_KG_MOL:
+            fraction = mole_fractions[gas_i] * mole_fractions[gas_j]
+            pair_b, pair_db, pair_d2b = _tsonopoulos_pair_terms(gas_i, gas_j, temperature)
+            total_b += fraction * pair_b
+            total_db += fraction * pair_db
+            total_d2b += fraction * pair_d2b
+    return {
+        "B_m3_mol": float(total_b),
+        "dB_dT_m3_mol_k": float(total_db),
+        "d2B_dT2_m3_mol_k2": float(total_d2b),
+    }
+
+
+def a2dyn_thermodynamic_state(
+    mole_fractions: Mapping[str, float],
+    temperature_k: float,
+    pressure_pa: float,
+) -> dict[str, float]:
+    """Evaluate the truncated virial EOS and all derivatives used by sound speed."""
+
+    _validate_mole_fractions(mole_fractions)
+    temperature = _validate_a2dyn_temperature(temperature_k)
+    pressure = _validate_a2dyn_pressure(pressure_pa)
+    heat_capacity = a2dyn_ideal_heat_capacity(mole_fractions, temperature)
+    virial = a2dyn_mixture_virial(mole_fractions, temperature)
+    molar_mass = sum(
+        mole_fractions[gas] * GAS_MOLAR_MASS_KG_MOL[gas] for gas in GAS_MOLAR_MASS_KG_MOL
+    )
+    if pressure == 0.0:
+        return {
+            **heat_capacity,
+            **virial,
+            "molar_mass_kg_mol": float(molar_mass),
+            "molar_density_mol_m3": 0.0,
+            "cv_molar_j_mol_k": heat_capacity["cv_molar_j_mol_k"],
+            "cp_molar_j_mol_k": heat_capacity["cp_molar_j_mol_k"],
+            "pressure_derivative_density_pa_m3_mol": R_GAS_J_MOL_K * temperature,
+            "pressure_derivative_temperature_pa_k_mol_m3": 0.0,
+            "sound_speed_m_s": _a2dyn_ideal_sound_speed_from_heat_capacity(
+                mole_fractions, temperature, heat_capacity
+            ),
+        }
+
+    b_value = virial["B_m3_mol"]
+    reduced_pressure = pressure / (R_GAS_J_MOL_K * temperature)
+    discriminant = 1.0 + 4.0 * b_value * reduced_pressure
+    if not math.isfinite(discriminant) or discriminant <= 0.0:
+        raise ValueError(f"virial EOS has no positive-density root: discriminant={discriminant}")
+    molar_density = 2.0 * reduced_pressure / (1.0 + math.sqrt(discriminant))
+    if not math.isfinite(molar_density) or molar_density <= 0.0:
+        raise ValueError(f"virial EOS produced invalid molar density: {molar_density}")
+    db_dtemperature = virial["dB_dT_m3_mol_k"]
+    d2b_dtemperature2 = virial["d2B_dT2_m3_mol_k2"]
+    pressure_density = R_GAS_J_MOL_K * temperature * (1.0 + 2.0 * b_value * molar_density)
+    pressure_temperature = R_GAS_J_MOL_K * molar_density * (
+        1.0 + b_value * molar_density + temperature * db_dtemperature * molar_density
+    )
+    cv = heat_capacity["cv_molar_j_mol_k"] - R_GAS_J_MOL_K * molar_density * (
+        2.0 * temperature * db_dtemperature + temperature**2 * d2b_dtemperature2
+    )
+    if not math.isfinite(cv) or cv <= 0.0:
+        raise ValueError(f"virial EOS produced invalid molar Cv: {cv}")
+    cp_minus_cv = temperature * pressure_temperature**2 / (
+        molar_density**2 * pressure_density
+    )
+    cp = cv + cp_minus_cv
+    sound_speed_squared = (
+        pressure_density
+        + temperature * pressure_temperature**2 / (molar_density**2 * cv)
+    ) / molar_mass
+    if not math.isfinite(cp) or cp <= 0.0 or not math.isfinite(sound_speed_squared) or sound_speed_squared <= 0.0:
+        raise ValueError("virial EOS produced invalid heat capacity or sound speed")
+    return {
+        **heat_capacity,
+        **virial,
+        "molar_mass_kg_mol": float(molar_mass),
+        "molar_density_mol_m3": float(molar_density),
+        "cv_molar_j_mol_k": float(cv),
+        "cp_molar_j_mol_k": float(cp),
+        "pressure_derivative_density_pa_m3_mol": float(pressure_density),
+        "pressure_derivative_temperature_pa_k_mol_m3": float(pressure_temperature),
+        "sound_speed_m_s": float(math.sqrt(sound_speed_squared)),
+    }
+
+
+def a2dyn_cp_t_virial_sound_speed(
+    mole_fractions: Mapping[str, float],
+    temperature_k: float,
+    pressure_pa: float,
+) -> float:
+    """Sound speed from the registered temperature-Cp and second-virial EOS."""
+
+    return a2dyn_thermodynamic_state(mole_fractions, temperature_k, pressure_pa)["sound_speed_m_s"]
+
+
+def _a2dyn_ideal_sound_speed_from_heat_capacity(
+    mole_fractions: Mapping[str, float],
+    temperature_k: float,
+    heat_capacity: Mapping[str, float],
+) -> float:
+    molar_mass = sum(
+        mole_fractions[gas] * GAS_MOLAR_MASS_KG_MOL[gas] for gas in GAS_MOLAR_MASS_KG_MOL
+    )
+    cp = heat_capacity["cp_molar_j_mol_k"]
+    cv = heat_capacity["cv_molar_j_mol_k"]
+    speed_squared = cp / cv * R_GAS_J_MOL_K * temperature_k / molar_mass
+    if not math.isfinite(speed_squared) or speed_squared <= 0.0:
+        raise ValueError("temperature-dependent ideal EOS produced invalid sound speed")
+    return math.sqrt(speed_squared)
+
+
+def _validate_a2dyn_temperature(temperature_k: float) -> float:
+    temperature = float(temperature_k)
+    lower, upper = A2DYN_TEMPERATURE_RANGE_K
+    if not math.isfinite(temperature) or not lower <= temperature <= upper:
+        raise ValueError(
+            f"A2DYN temperature must be within [{lower}, {upper}] K, got {temperature}"
+        )
+    return temperature
+
+
+def _validate_a2dyn_pressure(pressure_pa: float) -> float:
+    pressure = float(pressure_pa)
+    _, upper = A2DYN_OPERATIONAL_PRESSURE_RANGE_PA
+    if not math.isfinite(pressure) or pressure < 0.0 or pressure > upper:
+        raise ValueError(f"A2DYN pressure must be within [0, {upper}] Pa, got {pressure}")
+    return pressure
+
+
+def _virial_pair_parameters(gas_i: str, gas_j: str) -> tuple[float, float, float]:
+    if gas_i not in A2DYN_VIRIAL_CRITICAL_PROPERTIES or gas_j not in A2DYN_VIRIAL_CRITICAL_PROPERTIES:
+        raise ValueError(f"unsupported virial pair: {gas_i}-{gas_j}")
+    if gas_i == gas_j:
+        return A2DYN_VIRIAL_CRITICAL_PROPERTIES[gas_i]
+    critical_i = A2DYN_VIRIAL_CRITICAL_PROPERTIES[gas_i]
+    critical_j = A2DYN_VIRIAL_CRITICAL_PROPERTIES[gas_j]
+    critical_pressure = (
+        0.5 * (critical_i[1] ** (2.0 / 3.0) + critical_j[1] ** (2.0 / 3.0))
+    ) ** (3.0 / 2.0)
+    return (
+        math.sqrt(critical_i[0] * critical_j[0]),
+        critical_pressure,
+        0.5 * (critical_i[2] + critical_j[2]),
+    )
+
+
+def _tsonopoulos_pair_terms(
+    gas_i: str,
+    gas_j: str,
+    temperature_k: float,
+) -> tuple[float, float, float]:
+    critical_temperature, critical_pressure, acentric_factor = _virial_pair_parameters(gas_i, gas_j)
+    reduced_temperature = temperature_k / critical_temperature
+    if not math.isfinite(reduced_temperature) or reduced_temperature <= 0.0:
+        raise ValueError("virial reduced temperature must be finite and positive")
+    coefficients = (
+        (0, 0.1445 + acentric_factor * 0.0637),
+        (1, -0.3300),
+        (2, -0.1385 + acentric_factor * 0.3310),
+        (3, -0.0121 - acentric_factor * 0.4230),
+        (8, -0.000607 - acentric_factor * 0.0080),
+    )
+    dimensionless = sum(coefficient * reduced_temperature ** (-power) for power, coefficient in coefficients)
+    first_derivative = sum(
+        -power * coefficient * reduced_temperature ** (-power) / temperature_k
+        for power, coefficient in coefficients
+        if power > 0
+    )
+    second_derivative = sum(
+        power * (power + 1.0) * coefficient * reduced_temperature ** (-power) / temperature_k**2
+        for power, coefficient in coefficients
+        if power > 0
+    )
+    scale = R_GAS_J_MOL_K * critical_temperature / critical_pressure
+    return scale * dimensionless, scale * first_derivative, scale * second_derivative
 
 
 def wms_thermal_conductivity(mole_fractions: Mapping[str, float]) -> float:

@@ -1,0 +1,122 @@
+{
+  "schema_version": "gf-a2-dynamic-experiment-1",
+  "stage": "A2-DYN-0",
+  "experiment_id": "a2-dyn-protocol",
+  "kind": "protocol",
+  "status": "PROTOCOL_FROZEN",
+  "data_config": "configs/data/ar_he_co2_a2_dynamic_v1.json",
+  "eval_config": "configs/eval/a2_dynamic_eval.json",
+  "allowed_read_splits": ["train", "val", "stress_val"],
+  "test_access": "locked",
+  "test_unlock_requires": "DATA_FROZEN",
+  "model_selection_splits": ["train", "val", "stress_val"],
+  "algorithm_search_allowed": false,
+  "complex_access_control": false,
+  "logical_split_filter_field": "split",
+  "work_packages": [
+    "A2-DYN-0",
+    "A2-DYN-1",
+    "A2-DYN-2",
+    "A2-DYN-3",
+    "A2-DYN-4",
+    "A2-DYN-5",
+    "A2-DYN-6"
+  ],
+  "stage_gates": {
+    "A2-DYN-0": "PROTOCOL_FROZEN",
+    "A2-DYN-1": "PHYSICS_VERIFIED",
+    "A2-DYN-2": "PILOT_QUALIFIED",
+    "A2-DYN-3": "DIFFICULTY_QUALIFIED",
+    "A2-DYN-4": "DATA_FROZEN",
+    "A2-DYN-5": "DYNAMIC_QUALIFIED_OR_TERMINAL_STATUS",
+    "A2-DYN-6": "HANDOFF_OR_CLOSED"
+  },
+  "output_dirs": {
+    "runs": "outputs/runs/a2_dynamic_v1",
+    "summary": "outputs/summary/a2_dynamic_v1",
+    "reports": "outputs/reports/a2_dynamic_v1",
+    "archive": "outputs/archive/a2_dynamic_v1"
+  },
+  "run_artifacts": [
+    "run_manifest.json",
+    "resolved_config.json",
+    "train.log",
+    "metrics.json",
+    "predictions.csv",
+    "checkpoints",
+    "diagnostics"
+  ],
+  "source_hash_policy": {
+    "config_hashes_are_required": true,
+    "a1_and_a2h_are_read_only": true,
+    "reference_asset_hashes_are_registered": true,
+    "test_result_reuse_requires_protocol_revision": true
+  },
+  "cli_policy": {
+    "entrypoint": "gf.pipeline.a2_dynamic_benchmark",
+    "allowed_override_arguments": ["--stage", "--project-root"],
+    "frozen_arguments": ["family", "split", "sample_rate", "duration", "threshold", "seed", "model_matrix"],
+    "unimplemented_stage_behavior": "fail_explicitly"
+  },
+  "pilot": {
+    "stage": "A2-DYN-2",
+    "status": "PILOT_QUALIFIED",
+    "seed": 20260831,
+    "mixture_count": 240,
+    "groups_per_family": 40,
+    "split_counts_per_family": {
+      "train": 20,
+      "val": 10,
+      "stress_val": 10
+    },
+    "splits": ["train", "val", "stress_val"],
+    "sample_rates_hz": [1.0, 2.0, 5.0],
+    "durations_s": [120.0, 240.0, 360.0],
+    "registered_reference_sample_rate_hz": 5.0,
+    "registered_reference_duration_s": 240.0,
+    "selected_sample_rate_hz": 5.0,
+    "selected_duration_s": 240.0,
+    "selected_ultrasonic_profile_id": "US-CHIRP-XCORR-PARABOLIC-1",
+    "selected_tof_estimator": "reference_xcorr_parabolic",
+    "selected_excitation_type": "linear_chirp",
+    "result_manifest": "outputs/runs/a2_dynamic_v1/a2-dyn-2r4-pilot/manifest.json",
+    "ultrasonic_candidate_ids": ["US-BURST-XCORR-1", "US-CHIRP-XCORR-PARABOLIC-1"],
+    "pilot_probe_ids": ["P-B-LAST-LS", "P-B-EWMA-LS", "P-B-STAT-LS", "P-O-KIN-LS"],
+    "ewma_alpha": 0.20,
+    "horizons_after_onset_s": [5.0, 15.0, 30.0, 60.0, 120.0, 150.0],
+    "ultrasonic_quality_sample_count": 36,
+    "ultrasonic_internal_noise_std": 0.01,
+    "observation_noise_std_by_sensor": [1.0e-6, 0.002, 0.002],
+    "observation_quantization_by_sensor": [1.0e-8, 0.001, 0.001],
+    "dynamic_gate": {
+      "minimum_active_channel_fraction": 0.95,
+      "minimum_quantized_level_fraction": 1.0,
+      "minimum_t50_pair_fraction": 0.70,
+      "minimum_t50_separation_samples": 2,
+      "minimum_stress_privileged_probe_improvement_fraction": 0.05,
+      "maximum_family_degenerate_fraction": 0.05,
+      "maximum_ndir_saturation_fraction": 0.0,
+      "maximum_tcd_energy_residual_w": 1.0e-10,
+      "minimum_ndir_low_co2_delta_v": 1.0e-5
+    },
+    "resource_gate": {
+      "formal_rows": 6300,
+      "formal_timesteps": 1200,
+      "signal_channels": 3,
+      "float32_bytes": 4,
+      "formal_oracle_float32_channel_arrays": 5,
+      "maximum_formal_core_array_bytes": 805306368,
+      "maximum_pilot_peak_bytes": 268435456,
+      "waveform_persistence": "temporary_only"
+    },
+    "selection_rule": {
+      "sample_rate": "choose_lowest_qualified_rate_within_information_score_gap_of_best_at_registered_duration",
+      "sample_rate_comparison_duration_s": 240.0,
+      "max_information_score_gap": 0.02,
+      "duration": "choose_shortest_qualified_duration_with_P150_and_observed_recovery_at_selected_rate",
+      "ultrasonic": "minimize_p95_absolute_tof_error_then_maximize_lock_rate_then_maximize_snr_then_minimize_latency",
+      "p95_tof_error_gate_s": 1.0e-6,
+      "lock_rate_gate": 0.95
+    }
+  }
+}

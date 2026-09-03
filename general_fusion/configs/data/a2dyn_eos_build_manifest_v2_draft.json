@@ -1,0 +1,62 @@
+{
+  "schema_version": "gf-a2dyn-eos-build-manifest-1",
+  "manifest_id": "a2dyn-eos-build-20260901-r2-draft1",
+  "status": "DRAFT_NOT_FROZEN",
+  "source_manifest": {
+    "path": "configs/data/a2dyn_eos_sources_r2.json",
+    "manifest_id": "a2dyn-eos-sources-20260901-r2",
+    "sha256": "5e816670ea12767de1b16f67688c84dde8f83a5fd4f47453c0807cfc2f1ca27c"
+  },
+  "inputs": {
+    "snapshot_ids": [
+      "tapps-github-main-d930ec74",
+      "coolprop-source-8.0.0-61b616ed",
+      "rsc-he-co2-si-zip-20260901"
+    ],
+    "hash_authority": "source_manifest.source_snapshots"
+  },
+  "generator": {
+    "path": "tools/build_a2dyn_pair_virial_v2.py",
+    "sha256": "2790fa042b911b4af27e53115ca0e166fe162ca338d0cb4b2e84f6ddca28f206",
+    "command": "python general_fusion/tools/build_a2dyn_pair_virial_v2.py --tapps-root C:\\tmp\\a2dyn-sources\\TAPPS --rsc-source C:\\tmp\\a2dyn-sources\\d2cp05924j2_suppl\\as program for paper\\He_CO2_pot_test.f --output C:\\tmp\\a2dyn-sources\\a2dyn_eos_coefficients_v2_rebuild.json",
+    "temperature_fit_nodes": 25,
+    "chebyshev_degree": 12,
+    "source_evaluator_is_offline_only": true
+  },
+  "asset": {
+    "path": "configs/data/a2dyn_eos_coefficients_v2.json",
+    "sha256": "078ccd981371335a9a671b38d02bbfb1c56828d19e391e9e21617cd76da7160a",
+    "model_id": "a2dyn_cp_t_pair_virial_v2",
+    "coefficient_version": "a2dyn-eos-coefficients-20260901-r2-draft1",
+    "runtime_evaluator_path": "src/gf/sim/a2dyn_pair_virial.py",
+    "runtime_evaluator_sha256": "f1b564f9ef5b80e0a893c28f033578e26526824a5a30f294bceef22ba81b1b79"
+  },
+  "reproduction_check": {
+    "rebuild_output_sha256": "3ab7fe2ec1962cc7dcde4767a051b6a9cb5ad2ef195d6c96d9f02fa1c5ca4d98",
+    "semantic_match_with_asset": true,
+    "byte_identical": false,
+    "difference_scope": "JSON serialization layout and numeric spellings only; parsed asset objects are equal"
+  },
+  "verification": {
+    "pair_source_audit": {
+      "path": "docs/algorithm/a2dyn_pair_source_audit_r2_draft.json",
+      "sha256": "ffc4d0a5b65537ae3a786c171991530f4a502572121b04a9a84940cdb19daf80",
+      "status": "COMPUTED_NOT_CERTIFIED",
+      "temperature_count": 71,
+      "independent_validation": "NOT_RUN"
+    },
+    "coolprop_grid_audit": {
+      "reference": "CoolProp 8.0.0 HEOS gas",
+      "simplex_step_pct": 1.0,
+      "temperature_count": 6,
+      "pressure_count": 6,
+      "query_count": 185436,
+      "max_relative_error": 0.0002471720002786711,
+      "off_grid_count": 10000,
+      "off_grid_max_relative_error": 0.00022454764871728902,
+      "pressure_direction_case_count": 30906,
+      "pressure_direction_mismatch_count": 1398,
+      "status": "FAIL"
+    }
+  }
+}

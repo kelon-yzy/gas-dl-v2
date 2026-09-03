@@ -1,0 +1,925 @@
+{
+  "schema_version": "gf-a2-dynamic-data-1",
+  "dataset_id": "ar_he_co2",
+  "data_version": "gf-a2-dynamic-v1-20260902-r4",
+  "protocol_revision": "a2-dyn-0-r4",
+  "status": "PROTOCOL_FROZEN",
+  "generation_seed": 20260831,
+  "split_seed": 20260831,
+  "observation_mode": "dynamic_exposure_sequence",
+  "sensor_ids": [
+    "ultrasonic_tof",
+    "thermal_conductivity_voltage",
+    "ndir_co2_voltage"
+  ],
+  "target_names": ["x_Ar_pct", "x_He_pct", "x_CO2_pct"],
+  "target_units": "mol%",
+  "composition_total_pct": 100.0,
+  "composition_quantization_pct": 0.01,
+  "time_axis": {
+    "duration_s": 240.0,
+    "sample_rate_hz": 5.0,
+    "dt_s": 0.2,
+    "timesteps": 1200,
+    "time_start_s": 0.0,
+    "time_end_s": 239.8,
+    "synchronization": "shared_outer_axis",
+    "missing_data_policy": "no_active_missingness_in_v1",
+    "source_level": "sensitivity_tier_1"
+  },
+  "timesteps": 1200,
+  "dt_s": 0.2,
+  "phases": [
+    {
+      "phase_id": "baseline",
+      "start_s": 0.0,
+      "end_s_exclusive": 30.0,
+      "timesteps": 150,
+      "inlet_semantics": "purge",
+      "source_level": "literature_structure"
+    },
+    {
+      "phase_id": "transition",
+      "start_s": 30.0,
+      "end_s_exclusive": 90.0,
+      "timesteps": 300,
+      "inlet_semantics": "target_onset_and_protocol_transition",
+      "source_level": "literature_structure"
+    },
+    {
+      "phase_id": "steady",
+      "start_s": 90.0,
+      "end_s_exclusive": 180.0,
+      "timesteps": 450,
+      "inlet_semantics": "target_hold",
+      "source_level": "literature_structure"
+    },
+    {
+      "phase_id": "recovery",
+      "start_s": 180.0,
+      "end_s_exclusive": 240.0,
+      "timesteps": 300,
+      "inlet_semantics": "purge_recovery",
+      "source_level": "literature_structure"
+    }
+  ],
+  "prefix_horizons": [
+    {
+      "horizon_id": "P005",
+      "exposure_after_s": 5.0,
+      "cutoff_s": 34.8,
+      "timesteps": 175,
+      "realtime": true,
+      "source_level": "literature_structure"
+    },
+    {
+      "horizon_id": "P015",
+      "exposure_after_s": 15.0,
+      "cutoff_s": 44.8,
+      "timesteps": 225,
+      "realtime": true,
+      "source_level": "literature_structure"
+    },
+    {
+      "horizon_id": "P030",
+      "exposure_after_s": 30.0,
+      "cutoff_s": 59.8,
+      "timesteps": 300,
+      "realtime": true,
+      "source_level": "literature_structure"
+    },
+    {
+      "horizon_id": "P060",
+      "exposure_after_s": 60.0,
+      "cutoff_s": 89.8,
+      "timesteps": 450,
+      "realtime": true,
+      "source_level": "literature_structure"
+    },
+    {
+      "horizon_id": "P120",
+      "exposure_after_s": 120.0,
+      "cutoff_s": 149.8,
+      "timesteps": 750,
+      "realtime": true,
+      "source_level": "literature_structure"
+    },
+    {
+      "horizon_id": "P150",
+      "exposure_after_s": 150.0,
+      "cutoff_s": 179.8,
+      "timesteps": 900,
+      "realtime": true,
+      "source_level": "literature_structure"
+    },
+    {
+      "horizon_id": "FULL",
+      "exposure_after_s": 240.0,
+      "cutoff_s": 239.8,
+      "timesteps": 1200,
+      "realtime": false,
+      "source_level": "literature_structure"
+    }
+  ],
+  "inlet": {
+    "purge_composition_pct": [100.0, 0.0, 0.0],
+    "composition_order": ["Ar", "He", "CO2"],
+    "coefficient_symbol": "b(t)",
+    "coefficient_range": [0.0, 1.0],
+    "composition_formula": "u(t)=(1-b(t))*x_purge+b(t)*x_target",
+    "target_is_fixed_per_observation": true,
+    "source_level": "shared_physics"
+  },
+  "protocol_profiles": [
+    {
+      "protocol_profile_id": "STEP_STANDARD",
+      "kind": "step",
+      "onset_s": 30.0,
+      "exposure_end_s": 180.0,
+      "definition": "b(t)=0 before onset and b(t)=1 after onset",
+      "source_level": "literature_structure"
+    },
+    {
+      "protocol_profile_id": "RAMP_LINEAR",
+      "kind": "ramp",
+      "onset_s": 30.0,
+      "ramp_duration_range_s": [5.0, 30.0],
+      "exposure_end_s": 180.0,
+      "source_level": "literature_structure"
+    },
+    {
+      "protocol_profile_id": "RAMP_SMOOTH",
+      "kind": "smooth_ramp",
+      "onset_s": 30.0,
+      "ramp_duration_range_s": [10.0, 45.0],
+      "exposure_end_s": 180.0,
+      "shape": "smoothstep",
+      "source_level": "literature_structure"
+    },
+    {
+      "protocol_profile_id": "ONSET_SHIFT",
+      "kind": "shifted_onset",
+      "onset_range_s": [20.0, 45.0],
+      "exposure_duration_range_s": [60.0, 150.0],
+      "source_level": "sensitivity_tier_1"
+    },
+    {
+      "protocol_profile_id": "SHORT_PULSE",
+      "kind": "short_pulse",
+      "onset_s": 30.0,
+      "exposure_duration_range_s": [60.0, 120.0],
+      "minimum_effective_exposure_s": 60.0,
+      "recovery_after_exposure": true,
+      "source_level": "sensitivity_tier_1"
+    },
+    {
+      "protocol_profile_id": "MULTI_PULSE",
+      "kind": "multi_pulse",
+      "onset_s": 30.0,
+      "pulse_count_range": [2, 3],
+      "pulse_width_range_s": [15.0, 30.0],
+      "pulse_period_range_s": [50.0, 70.0],
+      "target_switches_within_observation": 0,
+      "source_level": "sensitivity_tier_1"
+    },
+    {
+      "protocol_profile_id": "INCOMPLETE_RECOVERY",
+      "kind": "incomplete_recovery",
+      "onset_s": 30.0,
+      "exposure_duration_range_s": [150.0, 150.0],
+      "exposure_end_s": 180.0,
+      "recovery_residual_range": [0.05, 0.30],
+      "source_level": "sensitivity_tier_1"
+    }
+  ],
+  "transport": {
+    "state_units": "mol%",
+    "update_rule": "analytic_exponential",
+    "shared_chamber_model": "well_mixed_cstr",
+    "local_sensor_model": "first_order_transport_only",
+    "tau_mix_distribution": "log_uniform",
+    "nonzero_transport_distribution": "log_uniform",
+    "zero_transport_probability": 0.20,
+    "minimum_nonzero_transport_s": 0.05,
+    "profiles": [
+      {
+        "transport_profile_id": "KIN-TRAIN",
+        "tau_mix_s": [6.0, 18.0],
+        "tau_transport_ultrasonic_s": [0.0, 1.0],
+        "tau_transport_thermal_s": [1.0, 6.0],
+        "tau_transport_ndir_s": [2.0, 10.0],
+        "phase_duration_jitter_pct": [0.0, 5.0],
+        "source_level": "sensitivity_tier_1"
+      },
+      {
+        "transport_profile_id": "KIN-VAL",
+        "tau_mix_s": [8.0, 22.0],
+        "tau_transport_ultrasonic_s": [0.0, 2.0],
+        "tau_transport_thermal_s": [2.0, 8.0],
+        "tau_transport_ndir_s": [4.0, 14.0],
+        "phase_duration_jitter_pct": [0.0, 8.0],
+        "source_level": "sensitivity_tier_1"
+      },
+      {
+        "transport_profile_id": "KIN-STRESS",
+        "tau_mix_s": [24.0, 45.0],
+        "tau_transport_ultrasonic_s": [1.0, 4.0],
+        "tau_transport_thermal_s": [8.0, 18.0],
+        "tau_transport_ndir_s": [12.0, 28.0],
+        "phase_duration_jitter_pct": [8.0, 20.0],
+        "source_level": "sensitivity_tier_1"
+      },
+      {
+        "transport_profile_id": "KIN-TEST",
+        "tau_mix_s": [45.0, 75.0],
+        "tau_transport_ultrasonic_s": [2.0, 6.0],
+        "tau_transport_thermal_s": [15.0, 30.0],
+        "tau_transport_ndir_s": [24.0, 45.0],
+        "phase_duration_jitter_pct": [15.0, 30.0],
+        "source_level": "sensitivity_tier_2"
+      }
+    ]
+  },
+  "hardware_profiles": {
+    "ultrasonic": {
+    "geometry": "transverse_single_path",
+    "flow_coupling": "excluded_from_v1",
+    "profile_selection": "pilot_must_select_exactly_one",
+    "selection_status": "PILOT_QUALIFIED",
+    "selected_profile_id": "US-CHIRP-XCORR-PARABOLIC-1",
+    "selected_tof_estimator": "reference_xcorr_parabolic",
+    "selected_excitation_type": "linear_chirp",
+    "selection_manifest": "outputs/runs/a2_dynamic_v1/a2-dyn-2r4-pilot/manifest.json",
+    "candidates": [
+        {
+          "ultrasonic_profile_id": "US-BURST-XCORR-1",
+          "excitation_type": "bandlimited_burst",
+          "path_length_m": 0.200,
+          "center_frequency_hz": 400000.0,
+          "fractional_bandwidth": 0.50,
+          "adc_rate_hz": 4000000.0,
+          "pulse_repetition_hz": 200.0,
+          "average_count": 16,
+          "tof_estimator": "reference_xcorr",
+          "reference_waveform_id": "US-REF-BURST-1",
+          "window_duration_s": 0.0015,
+          "attenuation_nepers_per_m_by_component": [0.10, 0.03, 1.20],
+          "multipath_profile_id": "US-MP-NOMINAL",
+          "source_level": "literature_anchor",
+          "field_units": {
+            "ultrasonic_profile_id": "id",
+            "excitation_type": "enum",
+            "path_length_m": "m",
+            "center_frequency_hz": "Hz",
+            "fractional_bandwidth": "fraction",
+            "adc_rate_hz": "Hz",
+            "pulse_repetition_hz": "Hz",
+            "average_count": "count",
+            "window_duration_s": "s",
+            "attenuation_nepers_per_m_by_component": "1/m",
+            "tof_estimator": "enum",
+            "reference_waveform_id": "id",
+            "multipath_profile_id": "id"
+          },
+          "field_sources": {
+            "ultrasonic_profile_id": "literature_structure",
+            "excitation_type": "literature_structure",
+            "path_length_m": "sensitivity_tier_1",
+            "center_frequency_hz": "literature_anchor",
+            "fractional_bandwidth": "literature_anchor",
+            "adc_rate_hz": "literature_anchor",
+            "pulse_repetition_hz": "literature_anchor",
+            "average_count": "literature_anchor",
+            "window_duration_s": "literature_structure",
+            "attenuation_nepers_per_m_by_component": "sensitivity_tier_1",
+            "tof_estimator": "literature_structure",
+            "reference_waveform_id": "literature_structure",
+            "multipath_profile_id": "sensitivity_tier_1"
+          }
+        },
+        {
+          "ultrasonic_profile_id": "US-CHIRP-XCORR-PARABOLIC-1",
+          "excitation_type": "linear_chirp",
+          "path_length_m": 0.200,
+          "center_frequency_hz": 500000.0,
+          "fractional_bandwidth": 0.60,
+          "adc_rate_hz": 5000000.0,
+          "pulse_repetition_hz": 200.0,
+          "average_count": 16,
+          "tof_estimator": "reference_xcorr_parabolic",
+          "reference_waveform_id": "US-REF-CHIRP-1",
+          "window_duration_s": 0.0015,
+          "attenuation_nepers_per_m_by_component": [0.10, 0.03, 1.20],
+          "multipath_profile_id": "US-MP-NOMINAL",
+          "source_level": "literature_anchor",
+          "field_units": {
+            "ultrasonic_profile_id": "id",
+            "excitation_type": "enum",
+            "path_length_m": "m",
+            "center_frequency_hz": "Hz",
+            "fractional_bandwidth": "fraction",
+            "adc_rate_hz": "Hz",
+            "pulse_repetition_hz": "Hz",
+            "average_count": "count",
+            "window_duration_s": "s",
+            "attenuation_nepers_per_m_by_component": "1/m",
+            "tof_estimator": "enum",
+            "reference_waveform_id": "id",
+            "multipath_profile_id": "id"
+          },
+          "field_sources": {
+            "ultrasonic_profile_id": "literature_structure",
+            "excitation_type": "literature_structure",
+            "path_length_m": "sensitivity_tier_1",
+            "center_frequency_hz": "literature_anchor",
+            "fractional_bandwidth": "literature_anchor",
+            "adc_rate_hz": "literature_anchor",
+            "pulse_repetition_hz": "literature_anchor",
+            "average_count": "literature_anchor",
+            "window_duration_s": "literature_structure",
+            "attenuation_nepers_per_m_by_component": "sensitivity_tier_1",
+            "tof_estimator": "literature_structure",
+            "reference_waveform_id": "literature_structure",
+            "multipath_profile_id": "sensitivity_tier_1"
+          }
+        }
+      ],
+      "multipath_profiles": [
+        {
+          "multipath_profile_id": "US-MP-NOMINAL",
+          "components": [],
+          "source_level": "sensitivity_tier_1"
+        },
+        {
+          "multipath_profile_id": "US-MP-OOD",
+          "components": [
+            {"relative_amplitude": 0.08, "delay_s": 0.000012}
+          ],
+          "source_level": "sensitivity_tier_2"
+        }
+      ],
+      "quality_outputs": [
+        "peak_correlation",
+        "snr",
+        "estimated_tof_uncertainty",
+        "lock_status"
+      ],
+      "persisted_outputs": ["tof", "quality_outputs"],
+      "waveform_persistence": "temporary_only_except_registered_fixtures"
+    },
+    "thermal": {
+      "profiles": [
+        {
+          "thermal_profile_id": "TCD-LUMPED-SYNTH-1",
+          "heater_heat_capacity": 0.120,
+          "gas_conductance_scale": 1.000,
+          "substrate_conductance": 0.018,
+          "heater_power": 0.080,
+          "tcr": 0.00385,
+          "bridge_voltage": 3.300,
+          "flow_coupling": 0.020,
+          "heater_resistance_ohm": 12.0,
+          "reference_temperature_k": 298.15,
+          "source_level": "sensitivity_tier_1",
+          "field_units": {
+            "thermal_profile_id": "id",
+            "heater_heat_capacity": "J/K",
+            "gas_conductance_scale": "fraction",
+            "substrate_conductance": "W/K",
+            "heater_power": "W",
+            "tcr": "1/K",
+            "bridge_voltage": "V",
+            "flow_coupling": "fraction",
+            "heater_resistance_ohm": "ohm",
+            "reference_temperature_k": "K"
+          },
+          "field_sources": {
+            "thermal_profile_id": "literature_structure",
+            "heater_heat_capacity": "sensitivity_tier_1",
+            "gas_conductance_scale": "sensitivity_tier_1",
+            "substrate_conductance": "sensitivity_tier_1",
+            "heater_power": "sensitivity_tier_1",
+            "tcr": "literature_anchor",
+            "bridge_voltage": "literature_anchor",
+            "flow_coupling": "literature_structure",
+            "heater_resistance_ohm": "literature_anchor",
+            "reference_temperature_k": "shared_physics"
+          }
+        }
+      ],
+      "formula_id": "tcd_lumped_energy_balance_v1",
+      "steady_state_calibration": {
+        "reference_config": "configs/data/ar_he_co2_a1_v1.json",
+        "reference_signal": "thermal_conductivity_voltage",
+        "fit_once_at": "ENV-NOMINAL/CAL-NOMINAL",
+        "refit_by_split": false,
+        "source_level": "shared_physics"
+      }
+    },
+    "ndir": {
+      "profiles": [
+        {
+          "ndir_profile_id": "NDIR-HIGHRANGE-SHORTPATH-1",
+          "optical_path_m": 0.005,
+          "active_band_id": "CO2-4.26UM-ACTIVE-1",
+          "reference_band_id": "CO2-REF-REFERENCE-1",
+          "source_spectrum_id": "IR-SOURCE-SYNTH-1",
+          "detector_response_id": "IR-DETECTOR-SYNTH-1",
+          "effective_absorption_model_id": "HITRAN2020-BANDINTEGRATED-GAUSSIAN-1",
+          "tau_emitter_detector_s": 0.75,
+          "range_min_mol_pct": 0.0,
+          "range_max_mol_pct": 100.0,
+          "reference_asset_id": "HITRAN2020-CO2-2250-2445-1",
+          "hitran_table_name": "CO2_2250p0000_2445p0000",
+          "active_center_wavenumber_cm1": 2349.0,
+          "active_fwhm_cm1": 20.0,
+          "reference_center_wavenumber_cm1": 2280.0,
+          "reference_fwhm_cm1": 20.0,
+          "wavenumber_range_cm1": [2250.0, 2445.0],
+          "wavenumber_step_cm1": 0.1,
+          "source_level": "literature_anchor",
+          "field_units": {
+            "ndir_profile_id": "id",
+            "optical_path_m": "m",
+            "active_band_id": "id",
+            "reference_band_id": "id",
+            "source_spectrum_id": "id",
+            "detector_response_id": "id",
+            "effective_absorption_model_id": "id",
+            "tau_emitter_detector_s": "s",
+            "range_min_mol_pct": "mol%",
+            "range_max_mol_pct": "mol%",
+            "reference_asset_id": "id"
+            ,"hitran_table_name": "id"
+            ,"active_center_wavenumber_cm1": "cm^-1"
+            ,"active_fwhm_cm1": "cm^-1"
+            ,"reference_center_wavenumber_cm1": "cm^-1"
+            ,"reference_fwhm_cm1": "cm^-1"
+            ,"wavenumber_range_cm1": "cm^-1"
+            ,"wavenumber_step_cm1": "cm^-1"
+          },
+          "field_sources": {
+            "ndir_profile_id": "literature_structure",
+            "optical_path_m": "sensitivity_tier_1",
+            "active_band_id": "literature_anchor",
+            "reference_band_id": "literature_structure",
+            "source_spectrum_id": "literature_structure",
+            "detector_response_id": "literature_structure",
+            "effective_absorption_model_id": "literature_structure",
+            "tau_emitter_detector_s": "sensitivity_tier_1",
+            "range_min_mol_pct": "application_range",
+            "range_max_mol_pct": "application_range",
+            "reference_asset_id": "literature_anchor"
+            ,"hitran_table_name": "literature_anchor"
+            ,"active_center_wavenumber_cm1": "sensitivity_tier_1"
+            ,"active_fwhm_cm1": "sensitivity_tier_1"
+            ,"reference_center_wavenumber_cm1": "sensitivity_tier_1"
+            ,"reference_fwhm_cm1": "sensitivity_tier_1"
+            ,"wavenumber_range_cm1": "literature_anchor"
+            ,"wavenumber_step_cm1": "literature_structure"
+          }
+        }
+      ],
+      "range_switching": "forbidden_in_v1",
+      "active_reference_chain": "active_reference_ratio",
+      "steady_state_calibration": {
+        "reference_config": "configs/data/ar_he_co2_a1_v1.json",
+        "reference_signal": "ndir_co2_voltage",
+        "fit_once_at": "ENV-NOMINAL/CAL-NOMINAL",
+        "refit_by_split": false,
+        "source_level": "shared_physics"
+      }
+    }
+  },
+  "environment_profiles": [
+    {
+      "environment_id": "ENV-TRAIN-LOW",
+      "temperature_k": 293.15,
+      "pressure_pa": 98000.0,
+      "source_level": "a2h_registered_range"
+    },
+    {
+      "environment_id": "ENV-NOMINAL",
+      "temperature_k": 298.15,
+      "pressure_pa": 101325.0,
+      "source_level": "shared_physics",
+      "source_ref": "A1_frozen_reference"
+    },
+    {
+      "environment_id": "ENV-TRAIN-HIGH",
+      "temperature_k": 303.15,
+      "pressure_pa": 105000.0,
+      "source_level": "a2h_registered_range"
+    },
+    {
+      "environment_id": "ENV-NEAR",
+      "temperature_k": 308.15,
+      "pressure_pa": 108000.0,
+      "source_level": "application_range"
+    },
+    {
+      "environment_id": "ENV-MID",
+      "temperature_k": 313.15,
+      "pressure_pa": 112000.0,
+      "source_level": "sensitivity_tier_1"
+    },
+    {
+      "environment_id": "ENV-FAR",
+      "temperature_k": 278.15,
+      "pressure_pa": 90000.0,
+      "source_level": "sensitivity_tier_2"
+    }
+  ],
+  "calibration_profiles": [
+    {
+      "calibration_profile_id": "CAL-NOMINAL",
+      "source_profile_id": "CAL-NOMINAL",
+      "source_registry": "a2h",
+      "dynamic_addition": "sequence_drift_is_selected_by_noise_profile",
+      "source_level": "a2h_registered_range"
+    },
+    {
+      "calibration_profile_id": "CAL-LIGHT",
+      "source_profile_id": "CAL-LIGHT",
+      "source_registry": "a2h",
+      "dynamic_addition": "sequence_drift_is_selected_by_noise_profile",
+      "source_level": "a2h_registered_range"
+    },
+    {
+      "calibration_profile_id": "CAL-SHARED-DRIFT",
+      "source_profile_id": "CAL-SHARED-DRIFT",
+      "source_registry": "a2h",
+      "dynamic_addition": "sequence_drift_is_selected_by_noise_profile",
+      "source_level": "a2h_registered_range"
+    },
+    {
+      "calibration_profile_id": "CAL-CONFLICT",
+      "source_profile_id": "CAL-CONFLICT",
+      "source_registry": "a2h",
+      "dynamic_addition": "sequence_drift_is_selected_by_noise_profile",
+      "source_level": "a2h_registered_range"
+    }
+  ],
+  "noise_profiles": [
+    {
+      "noise_profile_id": "NOISE-1X",
+      "white_noise_scale": 1.0,
+      "ar1_rho_range": [0.00, 0.40],
+      "shared_correlation_load_range": [0.00, 0.10],
+      "drift_strength_range_pct_dynamic_range_per_min": [0.00, 0.10],
+      "independent_repeat_count": 3,
+      "source_level": "a2h_registered_range"
+    },
+    {
+      "noise_profile_id": "NOISE-2X",
+      "white_noise_scale": 2.0,
+      "ar1_rho_range": [0.20, 0.60],
+      "shared_correlation_load_range": [0.10, 0.20],
+      "drift_strength_range_pct_dynamic_range_per_min": [0.10, 0.25],
+      "independent_repeat_count": 3,
+      "source_level": "sensitivity_tier_1"
+    },
+    {
+      "noise_profile_id": "NOISE-5X",
+      "white_noise_scale": 5.0,
+      "ar1_rho_range": [0.65, 0.85],
+      "shared_correlation_load_range": [0.20, 0.35],
+      "drift_strength_range_pct_dynamic_range_per_min": [0.25, 0.75],
+      "independent_repeat_count": 3,
+      "source_level": "sensitivity_tier_1"
+    },
+    {
+      "noise_profile_id": "NOISE-10X",
+      "white_noise_scale": 10.0,
+      "ar1_rho_range": [0.85, 0.97],
+      "shared_correlation_load_range": [0.35, 0.50],
+      "drift_strength_range_pct_dynamic_range_per_min": [0.75, 1.50],
+      "independent_repeat_count": 3,
+      "source_level": "sensitivity_tier_2"
+    },
+    {
+      "noise_profile_id": "NOISE-CORR-5X",
+      "white_noise_scale": 5.0,
+      "ar1_rho_range": [0.65, 0.85],
+      "shared_correlation_load_range": [0.20, 0.35],
+      "drift_strength_range_pct_dynamic_range_per_min": [0.25, 0.75],
+      "correlation_vector": [0.50, 0.25, 0.75],
+      "independent_repeat_count": 3,
+      "source_level": "sensitivity_tier_1"
+    }
+  ],
+  "composition_distribution": {
+    "sampling_strategy": "stratified_low_discrepancy_simplex",
+    "coordinate_order": ["x_Ar_pct", "x_He_pct", "x_CO2_pct"],
+    "non_pure_quantization_pct": 0.01,
+    "non_pure_coordinate_must_be_unique": true,
+    "regions": {
+      "interior": {
+        "proportion": 0.50,
+        "minimum_component_pct": 5.0
+      },
+      "near_boundary": {
+        "proportion": 0.30,
+        "exactly_one_component_range_pct": [0.10, 5.0]
+      },
+      "binary": {
+        "proportion": 0.20,
+        "exactly_one_component": 0.0,
+        "remaining_components_away_from_pure": true
+      },
+      "pure": {
+        "proportion": null,
+        "reserved_for": "D-JOINT/test",
+        "canonical_group_count": 3
+      }
+    },
+    "pure_vertices": [
+      {"mixture_id": "a2dyn-mix-pure-Ar", "composition_pct": [100.0, 0.0, 0.0]},
+      {"mixture_id": "a2dyn-mix-pure-He", "composition_pct": [0.0, 100.0, 0.0]},
+      {"mixture_id": "a2dyn-mix-pure-CO2", "composition_pct": [0.0, 0.0, 100.0]}
+    ],
+    "region_quota_by_split": {
+      "train": {"interior": 1260, "near_boundary": 756, "binary": 504, "pure": 0},
+      "val": {"interior": 315, "near_boundary": 189, "binary": 126, "pure": 0},
+      "stress_val": {"interior": 315, "near_boundary": 189, "binary": 126, "pure": 0},
+      "test": {"interior": 315, "near_boundary": 189, "binary": 123, "pure": 3}
+    }
+  },
+  "families": {
+    "D-IID": {
+      "axis": "iid",
+      "groups_by_split": {"train": 720, "val": 180, "stress_val": 180, "test": 180},
+      "repeat_count": 1,
+      "observation_rows_by_split": {"train": 720, "val": 180, "stress_val": 180, "test": 180},
+      "protocol_by_split": {"train": "STEP_STANDARD", "val": "STEP_STANDARD", "stress_val": "STEP_STANDARD", "test": "STEP_STANDARD"},
+      "transport_by_split": {"train": "KIN-TRAIN", "val": "KIN-TRAIN", "stress_val": "KIN-TRAIN", "test": "KIN-TRAIN"},
+      "environment_by_split": {"train": "ENV-NOMINAL", "val": "ENV-NOMINAL", "stress_val": "ENV-NOMINAL", "test": "ENV-NOMINAL"},
+      "calibration_by_split": {"train": "CAL-NOMINAL", "val": "CAL-NOMINAL", "stress_val": "CAL-NOMINAL", "test": "CAL-NOMINAL"},
+      "noise_by_split": {"train": "NOISE-1X", "val": "NOISE-1X", "stress_val": "NOISE-1X", "test": "NOISE-1X"},
+      "composition_mode_by_split": {"train": "matched_global", "val": "matched_global", "stress_val": "matched_global", "test": "matched_global"},
+      "source_level": "sensitivity_tier_1"
+    },
+    "D-KINETICS": {
+      "axis": "kinetics",
+      "groups_by_split": {"train": 360, "val": 90, "stress_val": 90, "test": 90},
+      "repeat_count": 1,
+      "observation_rows_by_split": {"train": 360, "val": 90, "stress_val": 90, "test": 90},
+      "protocol_by_split": {"train": "STEP_STANDARD", "val": "STEP_STANDARD", "stress_val": "STEP_STANDARD", "test": "STEP_STANDARD"},
+      "transport_by_split": {"train": "KIN-TRAIN", "val": "KIN-VAL", "stress_val": "KIN-STRESS", "test": "KIN-TEST"},
+      "environment_by_split": {"train": "ENV-NOMINAL", "val": "ENV-NOMINAL", "stress_val": "ENV-NOMINAL", "test": "ENV-NOMINAL"},
+      "calibration_by_split": {"train": "CAL-NOMINAL", "val": "CAL-NOMINAL", "stress_val": "CAL-NOMINAL", "test": "CAL-NOMINAL"},
+      "noise_by_split": {"train": "NOISE-1X", "val": "NOISE-1X", "stress_val": "NOISE-1X", "test": "NOISE-1X"},
+      "composition_mode_by_split": {"train": "matched_global", "val": "matched_global", "stress_val": "matched_global", "test": "matched_global"},
+      "source_level": "sensitivity_tier_1"
+    },
+    "D-PROTOCOL": {
+      "axis": "protocol",
+      "groups_by_split": {"train": 360, "val": 90, "stress_val": 90, "test": 90},
+      "repeat_count": 1,
+      "observation_rows_by_split": {"train": 360, "val": 90, "stress_val": 90, "test": 90},
+      "protocol_by_split": {
+        "train": ["STEP_STANDARD", "RAMP_LINEAR", "ONSET_SHIFT"],
+        "val": ["STEP_STANDARD", "RAMP_LINEAR", "ONSET_SHIFT"],
+        "stress_val": ["RAMP_SMOOTH", "SHORT_PULSE", "INCOMPLETE_RECOVERY"],
+        "test": ["RAMP_SMOOTH", "SHORT_PULSE", "MULTI_PULSE", "INCOMPLETE_RECOVERY"]
+      },
+      "transport_by_split": {"train": "KIN-TRAIN", "val": "KIN-VAL", "stress_val": "KIN-STRESS", "test": "KIN-TEST"},
+      "environment_by_split": {"train": "ENV-NOMINAL", "val": "ENV-NOMINAL", "stress_val": "ENV-NOMINAL", "test": "ENV-NOMINAL"},
+      "calibration_by_split": {"train": "CAL-NOMINAL", "val": "CAL-NOMINAL", "stress_val": "CAL-NOMINAL", "test": "CAL-NOMINAL"},
+      "noise_by_split": {"train": "NOISE-1X", "val": "NOISE-1X", "stress_val": "NOISE-1X", "test": "NOISE-1X"},
+      "composition_mode_by_split": {"train": "matched_global", "val": "matched_global", "stress_val": "matched_global", "test": "matched_global"},
+      "source_level": "sensitivity_tier_1"
+    },
+    "D-NOISE-DRIFT": {
+      "axis": "noise_and_drift",
+      "groups_by_split": {"train": 360, "val": 90, "stress_val": 90, "test": 90},
+      "repeat_count": 3,
+      "observation_rows_by_split": {"train": 1080, "val": 270, "stress_val": 270, "test": 270},
+      "protocol_by_split": {"train": "STEP_STANDARD", "val": "STEP_STANDARD", "stress_val": "STEP_STANDARD", "test": "STEP_STANDARD"},
+      "transport_by_split": {"train": "KIN-TRAIN", "val": "KIN-VAL", "stress_val": "KIN-STRESS", "test": "KIN-TEST"},
+      "environment_by_split": {"train": "ENV-NOMINAL", "val": "ENV-NOMINAL", "stress_val": "ENV-NOMINAL", "test": "ENV-NOMINAL"},
+      "calibration_by_split": {"train": "CAL-NOMINAL", "val": "CAL-NOMINAL", "stress_val": "CAL-SHARED-DRIFT", "test": "CAL-CONFLICT"},
+      "noise_by_split": {"train": "NOISE-1X", "val": "NOISE-2X", "stress_val": "NOISE-5X", "test": "NOISE-10X"},
+      "composition_mode_by_split": {"train": "matched_global", "val": "matched_global", "stress_val": "matched_global", "test": "matched_global"},
+      "source_level": "sensitivity_tier_1"
+    },
+    "D-ENV-CAL": {
+      "axis": "environment_and_calibration",
+      "groups_by_split": {"train": 360, "val": 90, "stress_val": 90, "test": 90},
+      "repeat_count": 1,
+      "observation_rows_by_split": {"train": 360, "val": 90, "stress_val": 90, "test": 90},
+      "protocol_by_split": {"train": "STEP_STANDARD", "val": "STEP_STANDARD", "stress_val": "STEP_STANDARD", "test": "STEP_STANDARD"},
+      "transport_by_split": {"train": "KIN-TRAIN", "val": "KIN-VAL", "stress_val": "KIN-STRESS", "test": "KIN-TEST"},
+      "environment_by_split": {
+        "train": ["ENV-TRAIN-LOW", "ENV-NOMINAL", "ENV-TRAIN-HIGH"],
+        "val": "ENV-NEAR",
+        "stress_val": "ENV-MID",
+        "test": "ENV-FAR"
+      },
+      "calibration_by_split": {"train": "CAL-NOMINAL", "val": "CAL-LIGHT", "stress_val": "CAL-SHARED-DRIFT", "test": "CAL-CONFLICT"},
+      "noise_by_split": {"train": "NOISE-1X", "val": "NOISE-1X", "stress_val": "NOISE-1X", "test": "NOISE-1X"},
+      "composition_mode_by_split": {"train": "matched_global", "val": "matched_global", "stress_val": "matched_global", "test": "matched_global"},
+      "source_level": "a2h_registered_range"
+    },
+    "D-JOINT": {
+      "axis": "joint_pressure",
+      "groups_by_split": {"train": 360, "val": 90, "stress_val": 90, "test": 90},
+      "repeat_count": 2,
+      "observation_rows_by_split": {"train": 720, "val": 180, "stress_val": 180, "test": 180},
+      "protocol_by_split": {"train": "STEP_STANDARD", "val": "STEP_STANDARD", "stress_val": "SHORT_PULSE", "test": "INCOMPLETE_RECOVERY"},
+      "transport_by_split": {"train": "KIN-TRAIN", "val": "KIN-VAL", "stress_val": "KIN-STRESS", "test": "KIN-TEST"},
+      "environment_by_split": {"train": ["ENV-TRAIN-LOW", "ENV-NOMINAL", "ENV-TRAIN-HIGH"], "val": "ENV-NEAR", "stress_val": "ENV-MID", "test": "ENV-FAR"},
+      "calibration_by_split": {"train": "CAL-NOMINAL", "val": "CAL-LIGHT", "stress_val": "CAL-SHARED-DRIFT", "test": "CAL-CONFLICT"},
+      "noise_by_split": {"train": "NOISE-1X", "val": "NOISE-2X", "stress_val": "NOISE-CORR-5X", "test": "NOISE-10X"},
+      "composition_mode_by_split": {"train": "matched_global", "val": "matched_global", "stress_val": "matched_global", "test": "D-JOINT_test_includes_pure_vertices"},
+      "pure_vertex_policy": "the_three_canonical_pure_groups_are_only_in_D-JOINT/test",
+      "source_level": "sensitivity_tier_1"
+    }
+  },
+  "split_contract": {
+    "split_order": ["train", "val", "stress_val", "test"],
+    "group_key": "mixture_id",
+    "observation_key": "observation_id",
+    "group_must_be_single_split": true,
+    "observation_id_global_unique": true,
+    "mixture_id_namespace": "a2dyn-mix-",
+    "observation_id_namespace": "a2dyn-obs-",
+    "bootstrap_unit": "mixture_id",
+    "test_access": "locked_until_data_frozen",
+    "totals": {
+      "train": {"groups": 2520, "observations": 3600},
+      "val": {"groups": 630, "observations": 900},
+      "stress_val": {"groups": 630, "observations": 900},
+      "test": {"groups": 630, "observations": 900}
+    },
+    "overall": {"groups": 4410, "observations": 6300}
+  },
+  "record_schema": {
+    "schema_version": "gf-a2-dynamic-record-1",
+    "required_fields": [
+      "schema_version",
+      "observation_id",
+      "mixture_id",
+      "split",
+      "family",
+      "composition_region",
+      "protocol_profile_id",
+      "transport_profile_id",
+      "ultrasonic_profile_id",
+      "thermal_profile_id",
+      "ndir_profile_id",
+      "environment_id",
+      "calibration_profile_id",
+      "noise_profile_id",
+      "exposure_onset_s",
+      "exposure_end_s",
+      "timesteps",
+      "dt_s",
+      "status",
+      "x_Ar_pct",
+      "x_He_pct",
+      "x_CO2_pct"
+    ],
+    "status_values": ["generated", "audited", "rejected"],
+    "forbidden_fields": ["sequence_id", "base_condition_id", "noise_seed_index", "noise_seed"],
+    "model_input_forbidden_fields": [
+      "target",
+      "phase_id",
+      "clean_device_signals",
+      "chamber_composition",
+      "privileged_parameters",
+      "device_states",
+      "real_transport_parameters",
+      "hardware_profile_parameters"
+    ]
+  },
+  "storage": {
+    "data_dir": "data/a2_dynamic_v1",
+    "config_snapshot": "data/a2_dynamic_v1/config_snapshot.json",
+    "manifest": "data/a2_dynamic_v1/manifest.json",
+    "records": "data/a2_dynamic_v1/records.jsonl",
+    "observations": "data/a2_dynamic_v1/observations.npz",
+    "oracle": "data/a2_dynamic_v1/oracle.npz",
+    "device_audit": "data/a2_dynamic_v1/device_audit.npz",
+    "waveform_fixtures": "data/a2_dynamic_v1/waveform_fixtures.npz",
+    "audit": "data/a2_dynamic_v1/audit.json",
+    "waveform_policy": "temporary_during_generation_and_registered_fixtures_only",
+    "source_level": "literature_structure"
+  },
+  "array_contract": {
+    "signals": {"dtype": "float32", "shape": ["N", 3, 1200, 1], "model_visible": true},
+    "valid_mask": {"dtype": "bool", "shape": ["N", 3, 1200, 1], "model_visible": true},
+    "quality": {"dtype": "float32", "shape": ["N", 3, 1200], "model_visible": true, "fixed_value": 1.0},
+    "time_s": {"dtype": "float64", "shape": [1200], "model_visible": true},
+    "target": {"dtype": "float32", "shape": ["N", 3], "model_visible": false},
+    "phase_id": {"dtype": "int8", "shape": ["N", 1200], "model_visible": false},
+    "observation_index": {"dtype": "int64", "shape": ["N"], "model_visible": false}
+  },
+  "physics_reference": {
+    "eos": {
+      "backend": "HEOS",
+      "package_name": "CoolProp",
+      "package_version": "8.0.0",
+      "fluid_name_map": {"Ar": "Argon", "He": "Helium", "CO2": "CarbonDioxide"},
+      "sound_speed_model_id": "a2dyn_direct_multifluid_eos_v1",
+      "definition": "CoolProp.AbstractState(HEOS).speed_sound",
+      "generator_role": "primary_definition",
+      "verification_scope": "generator_consistency",
+      "independent_physics_validation": "NOT_CLAIMED",
+      "model_asset": {
+        "path": "configs/data/a2dyn_direct_heos_v1.json",
+        "sha256": "8d257cd5abf408f4a7593e2ad4467dfb95932fa0449a66009b1cdfd2808dc3c4"
+      },
+      "registered_temperature_range_k": [278.15, 313.15],
+      "registered_pressure_range_pa": [90000.0, 112000.0],
+      "shared_physics_query_path": "src/gf/sim/a2dyn_sound_speed.py",
+      "shared_physics_query_sha256": "e359235c25541b4bbaa372f6ccb00c71faa0d8fd337688a9685891e6fa5323d6",
+      "query_grid": {
+        "simplex_step_pct": 1.0,
+        "include_pure_vertices": true,
+        "temperature_values_k": [278.15, 293.15, 298.15, 303.15, 308.15, 313.15],
+        "pressure_values_pa": [90000.0, 98000.0, 101325.0, 105000.0, 108000.0, 112000.0],
+        "composition_sum_tolerance_pct": 1.0e-9
+      },
+      "error_gate": {
+        "max_relative_error": 0.0,
+        "report_percentiles": [50.0, 95.0, 100.0],
+        "failure_action": "reject_generator_or_runtime"
+      },
+      "off_grid_audit": {
+        "count": 10000,
+        "seed": 20260831,
+        "construction": "nested-radical-inverse-simplex"
+      },
+      "source_level": "shared_physics"
+    },
+    "ndir_reference": {
+      "database": "HITRAN2020",
+      "backend": "hitran_hapi_v1",
+      "package_name": "hitran-api",
+      "package_version": "1.3.0.0",
+      "reference_asset_id": "HITRAN2020-CO2-2250-2445-1",
+      "asset_files": [
+        {
+          "path": "../shared/hitran_cache/CO2_2250p0000_2445p0000.data",
+          "sha256": "7ef9eac6989552b1ed0d049562a7607c58e25ec1c2af2c9a24c97a995901ff27"
+        },
+        {
+          "path": "../shared/hitran_cache/CO2_2250p0000_2445p0000.header",
+          "sha256": "76638ab73584fcc74819bd63b9fa05a87e5b7146c9e6dae56c99a4c7cd336a8b"
+        }
+      ],
+      "bandpass_grid_cm1": {"minimum": 2250.0, "maximum": 2445.0, "step": 0.1},
+      "query_grid_ref": "eos.query_grid",
+      "error_gate": {
+        "max_relative_error": 0.01,
+        "report_percentiles": [50.0, 95.0, 100.0],
+        "failure_action": "reject_ndir_profile"
+      },
+      "source_level": "literature_anchor",
+      "asset_required_stage": "A2-DYN-1"
+    }
+  },
+  "signal_bounds": {
+    "ultrasonic_tof": [0.0, 0.01],
+    "thermal_conductivity_voltage": [-2.0, 4.0],
+    "ndir_co2_voltage": [-1.0, 3.5],
+    "source_registry": "A2H_frozen_signal_bounds"
+  },
+  "source_registry": {
+    "a1": {
+      "config_path": "configs/data/ar_he_co2_a1_v1.json",
+      "config_sha256": "2f03e7fa2da76b0fb4963a31bea90b55f72bf411013ebc729ca99d53caef9ffe",
+      "manifest_path": "data/a1_formal/manifest.json",
+      "data_version": "gf-a1-v1-20260827-r1",
+      "content_sha256": "310f9471f99c704fdeb68b846c5d8b351d701bbd7f6cef172a08ceccc77110c4",
+      "split_hash": "e307872897fc56d008ce7d4e95bc77257c1c5aadb40446fb66f38a4f64e90541",
+      "source_level": "shared_physics"
+    },
+    "a2h": {
+      "config_path": "configs/data/ar_he_co2_a2h_v2.json",
+      "config_sha256": "8516994fd86b08ebfba33c24b0de780f2478bb8b06d0699cfeb11f87e6651324",
+      "manifest_path": "data/a2h_v2/manifest.json",
+      "data_version": "gf-a2h-v2-20260828-r1",
+      "content_sha256": "67f9f4841e80f0c1f7d355dcaa8b6e954c46475621cc1fbf196f68c814cdb4de",
+      "profile_hash": "e03b0bc54e6e7300b8a565f7f9dd42aa8141e37cbbe73344b96ef69357717832",
+      "source_level": "a2h_registered_range"
+    },
+    "shared_physics": {
+      "path": "src/gf/sim/a2dyn_sound_speed.py",
+      "sha256": "e359235c25541b4bbaa372f6ccb00c71faa0d8fd337688a9685891e6fa5323d6",
+      "source_level": "shared_physics"
+    }
+  },
+  "allowed_source_levels": [
+    "shared_physics",
+    "literature_structure",
+    "literature_anchor",
+    "existing_a0_proxy",
+    "a2h_registered_range",
+    "application_range",
+    "sensitivity_tier_1",
+    "sensitivity_tier_2",
+    "hardware_calibrated"
+  ]
+}

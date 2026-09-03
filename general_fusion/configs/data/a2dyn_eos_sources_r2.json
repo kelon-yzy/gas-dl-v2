@@ -1,0 +1,265 @@
+{
+  "schema_version": "gf-a2dyn-eos-source-manifest-1",
+  "manifest_id": "a2dyn-eos-sources-20260901-r2",
+  "status": "WP1_DRAFT_SOURCE_PARITY_PENDING",
+  "candidate_model_id": "a2dyn_cp_t_pair_virial_v2",
+  "registered_temperature_range_k": [278.15, 313.15],
+  "registered_pressure_range_pa": [90000.0, 112000.0],
+  "required_pair_ids": [
+    "Ar-Ar",
+    "Ar-He",
+    "Ar-CO2",
+    "He-He",
+    "He-CO2",
+    "CO2-CO2"
+  ],
+  "source_policy": {
+    "source_evaluator_must_cover_registered_temperature_range": true,
+    "derivative_contract": ["B(T)", "dB_dT", "d2B_dT2"],
+    "production_derivative_policy": "analytic_or_source_integral",
+    "coolprop_role": "reference_only_until_independent_pair_validation",
+    "sparse_table_extrapolation": "forbidden",
+    "unresolved_pair_policy": "block_wp1"
+  },
+  "source_snapshots": [
+    {
+      "snapshot_id": "tapps-github-main-d930ec74",
+      "source_type": "public_git_repository",
+      "url": "https://github.com/gioGarbe/TAPPS",
+      "revision": "d930ec74f696555b6c47266912f4cebca39b3c6a",
+      "license": "MIT",
+      "retrieved_on": "2026-09-01",
+      "executable": true,
+      "file_sha256": {
+        "LICENSE": "4D32F022F9B5549F21F9094E593186148F2DADD69B6BBBA36E5E2947C8908670",
+        "README.md": "2F4E181A5FA6B5A05AA2EA24D452E101453F6122038B158E4E07C6C6D2FDA9E2",
+        "README.TXT": "598AF8B9339391DEDE7DFD69BAFC7C885808E2A7E4E031F58CE9EC765A425345",
+        "thermophysicalPairProperties.py": "60ADA2F03F381A7D31E41593C15D4B8F54F8475D445D13C728D8B9076B50C602",
+        "data/He4_phase_shift_data.json.bz2": "3FACD8FFC3E1F1071F0366751CFDEC4C45948F3574F6B40C1B766B6893762FD2",
+        "data/Ar40_phase_shift_data.json.bz2": "388BEDF1EB84F6571F3BA864A1A89FA38C78B910A7F7CE664FA2523ACAF620CF"
+      },
+      "runtime_check": {
+        "command": "python thermophysicalPairProperties.py -T 278.15 -d data/He4_phase_shift_data.json.bz2",
+        "reported_units": "cm3/mol",
+        "reports": ["B", "T*dB/dT", "T^2*d2B/dT2", "beta_a"]
+      }
+    },
+    {
+      "snapshot_id": "rsc-he-co2-si-fetch-20260901",
+      "source_type": "publisher_supplementary_pdf_text_fetch",
+      "url": "https://pubs.rsc.org/cp/article-supplement/763267/pdf/d2cp05924j1_suppl/",
+      "retrieved_on": "2026-09-01",
+      "evidence_sha256": "DBE7CC0348C86F0F1E1F9ED282A3FFE76FE310E9EFB7469BA058471A6D586729",
+      "executable": false,
+      "content_assessment": "transport tables and PES figures are present; fitted PES parameters and machine-readable B12(T) values are not present"
+    },
+    {
+      "snapshot_id": "nist-ar-co2-thermoml-fetch-20260901",
+      "source_type": "nist_thermoml_json_fetch",
+      "url": "https://trc.nist.gov/ThermoML/10.1021/acs.jced.6b00687.json",
+      "retrieved_on": "2026-09-01",
+      "evidence_sha256": "4FC38C232BC20981F5086E3423EC1093B66A5CC0298F96FA5D60927154EEDA4B",
+      "executable": false,
+      "content_assessment": "density observations and metadata are available for independent validation; no complete production pair evaluator is supplied"
+    },
+    {
+      "snapshot_id": "rsc-he-co2-si-zip-20260901",
+      "source_type": "publisher_supplementary_zip",
+      "url": "https://rscj.silverchair-cdn.com/rscj/content_public/journal/cp/25/19/10.1039_d2cp05924j/2/d2cp05924j2_suppl.zip",
+      "retrieved_on": "2026-09-01",
+      "archive_sha256": "D05796DE6EB52EAB81E9191DDE285616975C198EDA6611AD6EBF1E429493A02C",
+      "license_note": "publisher supplementary material; retained as a controlled external snapshot and not copied into the repository",
+      "executable": true,
+      "file_sha256": {
+        "as program for paper/He_CO2_pot_test.f": "D098F7AED82563269BA5F4136554EE9E592FDC1EFF9103361C8812D81948760E",
+        "as program for paper/vrtp_subroutine.f": "5ECDACA04C0B6963A4BF5ECDC4A2F4F8D3F7328168B5EFBF2516F135ADC16974",
+        "as program for paper/ab_initio_He_CO2.data": "E0AC0E58A0CA2F275A6BBE37259D723A45613BF53BB6CAD1582A380D40BF4FBA",
+        "as program for paper/He_CO2_pot": "2A8F588D1659FE776623D1AA93F36730D067252A1030ED980F716C58D2D0738E",
+        "as program for paper/He_CO2_pot.out": "70807C621490DB432172D2B3BA815E9942C6FDB29BEE2F18314858E59E91ABB6",
+        "as program for paper/0. read these notes": "7209B6BC80B1C31F68354E59D48E7991A6C1BE45353BBBDA2C403F8432189E85"
+      },
+      "execution_check": {
+        "source_program": "He_CO2_pot_test.f",
+        "source_language": "Fortran 77",
+        "source_contains_fitted_pes_parameters": true,
+        "current_host_compiler": "unavailable",
+        "next_step": "port the published potential and independently verify B12 and its two temperature derivatives"
+      }
+    },
+    {
+      "snapshot_id": "coolprop-source-8.0.0-61b616ed",
+      "source_type": "public_git_repository",
+      "url": "https://github.com/CoolProp/CoolProp",
+      "revision": "61b616edfbb49f32633b21d1f901bdba1002340a",
+      "package_version": "8.0.0",
+      "license": "MIT",
+      "retrieved_on": "2026-09-01",
+      "executable": true,
+      "source_role": "published_helmholtz_parameter_source_pending_independent_validation",
+      "file_sha256": {
+        "dev/fluids/Argon.json": "348E3C7BC10372122D84DA32B84490EDE76FF25B5A2C90CF28333F7034D6F63A",
+        "dev/fluids/Helium.json": "BFD70E6A6DBB030B89E6958FBA1006FC775954DA17707A0C49E2CE5439254DC9",
+        "dev/fluids/CarbonDioxide.json": "8E7992BB6E2E00A43421D4B5929F3CA1C7A86F2692911E3B225FC615697C7068",
+        "dev/mixtures/mixture_binary_pairs.json": "83D908F4511CE47D9D0D3A8867B79ADE4C959FA7F6E5F9441B12B297AA24B386",
+        "dev/mixtures/mixture_departure_functions.json": "DB9192FD18BF3E3560ABA9518ED003E69D49C85267F69DA349131C7B982971E8",
+        "src/Backends/Helmholtz/ExcessHEFunction.h": "82BCD41248FFA5B95AB69CD7A0AB2BCA3D109D842BFBABF2574E4A74BF19088F",
+        "src/Backends/Helmholtz/MixtureParameters.cpp": "DA4D4F257089EADE6B1494D347253812BDAC8D053C696E5D2DD056E27018BD7C",
+        "src/Backends/Helmholtz/ReducingFunctions.cpp": "BB26CDBBAEBB8327A59805A43B9ADF1DB0CBC8F8DC281DE39839B8544C0EE42B"
+      },
+      "runtime_check": {
+        "role": "source-parity_only",
+        "independent_validation_required": true,
+        "production_runtime_dependency": false
+      }
+    }
+  ],
+  "derived_assets": [
+    {
+      "asset_id": "a2dyn-eos-coefficients-20260901-r2-draft1",
+      "path": "configs/data/a2dyn_eos_coefficients_v2.json",
+      "sha256": "078ccd981371335a9a671b38d02bbfb1c56828d19e391e9e21617cd76da7160a",
+      "status": "DRAFT_NOT_FROZEN",
+      "generator_path": "tools/build_a2dyn_pair_virial_v2.py",
+      "generator_sha256": "2790fa042b911b4af27e53115ca0e166fe162ca338d0cb4b2e84f6ddca28f206",
+      "runtime_evaluator_path": "src/gf/sim/a2dyn_pair_virial.py",
+      "runtime_evaluator_sha256": "f1b564f9ef5b80e0a893c28f033578e26526824a5a30f294bceef22ba81b1b79",
+      "build_manifest_path": "configs/data/a2dyn_eos_build_manifest_v2_draft.json"
+    }
+  ],
+  "pairs": {
+    "Ar-Ar": {
+      "status": "ACQUIRED_EXECUTABLE",
+      "source_role": "source_evaluator_candidate",
+      "source_snapshot_id": "tapps-github-main-d930ec74",
+      "primary_reference": {
+        "title": "Avoiding interpolation errors for computed second virial coefficients of noble gases",
+        "doi": "10.1088/1681-7575/adfde3",
+        "url": "https://doi.org/10.1088/1681-7575/adfde3"
+      },
+      "data_artifact": "data/Ar40_phase_shift_data.json.bz2",
+      "claimed_source_temperature_range_k": [10.0, 1500.0],
+      "verified_registered_range": true,
+      "ready_for_wp1": true,
+      "independent_validation_candidates": [
+        {
+          "title": "Second acoustic virial coefficients of argon between 100 and 304 K",
+          "doi": "10.1016/0378-4371(89)90026-5"
+        }
+      ]
+    },
+    "Ar-He": {
+      "status": "ACQUIRED_SOURCE_PENDING_VALIDATION",
+      "source_role": "source_evaluator_candidate",
+      "source_snapshot_id": "coolprop-source-8.0.0-61b616ed",
+      "source_evaluator": "CoolProp-Helium-Argon-GaussianExponential-zero-density",
+      "primary_reference": {
+        "title": "Equations of State for the Thermodynamic Properties of Binary Mixtures for Helium-4, Neon, and Argon",
+        "doi": "10.1063/1.5142275",
+        "url": "https://doi.org/10.1063/1.5142275"
+      },
+      "independent_reference": {
+        "title": "Measurement and Correlation of Some Interaction Second Virial Coefficients from -125 to 50 C",
+        "doi": "10.1063/1.1671491",
+        "url": "https://doi.org/10.1063/1.1671491"
+      },
+      "verified_registered_range": false,
+      "executable_artifact": "source_snapshot_parameters",
+      "coolprop_metadata_role": "source_parity_only_until_independent_validation",
+      "ready_for_wp1": true
+    },
+    "Ar-CO2": {
+      "status": "ACQUIRED_SOURCE_PENDING_VALIDATION",
+      "source_role": "source_evaluator_and_independent_validation_candidate",
+      "source_snapshot_id": "coolprop-source-8.0.0-61b616ed",
+      "source_evaluator": "CoolProp-Argon-CarbonDioxide-GERG2008-zero-density",
+      "primary_reference": {
+        "title": "Vapor-Phase (p, rho, T, x) Behavior and Virial Coefficients for the (Argon + Carbon Dioxide) System",
+        "doi": "10.1021/acs.jced.6b00687",
+        "url": "https://doi.org/10.1021/acs.jced.6b00687"
+      },
+      "data_artifact": "https://trc.nist.gov/ThermoML/10.1021/acs.jced.6b00687.json",
+      "verified_data_temperature_range_k": [273.15, 323.15],
+      "independent_sound_speed_reference": {
+        "title": "Speed-of-Sound Measurements in (Argon + Carbon Dioxide) over the Temperature Range from (275 to 500) K at Pressures up to 8 MPa",
+        "doi": "10.1016/j.jct.2016.03.036",
+        "url": "https://doi.org/10.1016/j.jct.2016.03.036"
+      },
+      "verified_registered_range": false,
+      "executable_artifact": "source_snapshot_parameters",
+      "coolprop_metadata_role": "source_parity_only_until_independent_validation",
+      "ready_for_wp1": true
+    },
+    "CO2-CO2": {
+      "status": "ACQUIRED_SOURCE_PENDING_VALIDATION",
+      "source_role": "source_evaluator_candidate",
+      "source_snapshot_id": "coolprop-source-8.0.0-61b616ed",
+      "source_evaluator": "CoolProp-CarbonDioxide-SpanWagner-zero-density",
+      "primary_reference": {
+        "title": "A new equation of state for carbon dioxide covering the fluid region from the triple-point temperature to 1100 K at pressures up to 800 MPa",
+        "doi": "10.1063/1.555991",
+        "url": "https://doi.org/10.1063/1.555991"
+      },
+      "verified_registered_range": false,
+      "executable_artifact": "source_snapshot_parameters",
+      "coolprop_metadata_role": "source_parity_only_until_independent_validation",
+      "independent_validation_required": true,
+      "ready_for_wp1": true
+    },
+    "He-He": {
+      "status": "ACQUIRED_EXECUTABLE",
+      "source_role": "source_evaluator_candidate",
+      "source_snapshot_id": "tapps-github-main-d930ec74",
+      "primary_reference": {
+        "title": "Second virial coefficients for He4 and He3 from an accurate relativistic interaction potential",
+        "doi": "10.1103/PhysRevA.102.042810",
+        "url": "https://doi.org/10.1103/PhysRevA.102.042810"
+      },
+      "data_artifact": "data/He4_phase_shift_data.json.bz2",
+      "claimed_source_temperature_range_k": [0.01, 1500.0],
+      "verified_registered_range": true,
+      "ready_for_wp1": true,
+      "independent_validation_candidates": [
+        {
+          "title": "An Equation of State for the Thermodynamic Properties of Helium",
+          "doi": "10.6028/NIST.IR.8474"
+        }
+      ]
+    },
+    "He-CO2": {
+      "status": "ACQUIRED_EXECUTABLE_SOURCE",
+      "source_role": "required_source_evaluator",
+      "primary_reference": {
+        "title": "Quantum Mechanical and Classical Calculation of the Transport and Relaxation Properties of He-CO2 Complex Using a New PES",
+        "doi": "10.1039/D2CP05924J",
+        "url": "https://doi.org/10.1039/D2CP05924J"
+      },
+      "available_experimental_reference": {
+        "title": "Determination of interaction second virial coefficients; He-CO2 system",
+        "doi": "10.1002/aic.690260611",
+        "url": "https://doi.org/10.1002/aic.690260611",
+        "reported_temperature_range_k": [230.0, 300.0]
+      },
+      "supplementary_acquisition": {
+        "url": "https://rscj.silverchair-cdn.com/rscj/content_public/journal/cp/25/19/10.1039_d2cp05924j/2/d2cp05924j2_suppl.zip",
+        "retrieved": true,
+        "machine_readable_pes_or_b12": true,
+        "source_snapshot_id": "rsc-he-co2-si-zip-20260901"
+      },
+      "verified_registered_range": false,
+      "blocking_reason": "A classical source port is available in the draft builder, but quantum correction, B12(T) derivative parity and independent validation remain pending before registration.",
+      "ready_for_wp1": true
+    }
+  },
+  "blocking_pairs": [],
+  "wp1_admission": {
+    "status": "IN_PROGRESS_DRAFT",
+    "reason": "The six-pair draft asset and offline evaluator are implemented and source-parity diagnostics are computed. Independent validation and the pressure-direction gate remain open, so r3 registration is not admitted.",
+    "completed_actions": [
+      "offline six-pair source build",
+      "analytic Chebyshev derivative evaluator",
+      "pair source-parity diagnostic",
+      "full CoolProp comparison audit"
+    ],
+    "next_allowed_action": "Resolve independent pair validation and pressure-direction failure before any r3 protocol migration"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": "gf-a2dyn-direct-heos-1",
+  "model_id": "a2dyn_direct_multifluid_eos_v1",
+  "status": "FORMAL_SYNTHETIC_GENERATOR",
+  "definition": "CoolProp.AbstractState(HEOS).speed_sound",
+  "backend": "HEOS",
+  "package": {
+    "name": "CoolProp",
+    "version": "8.0.0",
+    "source_revision": "61b616edfbb49f32633b21d1f901bdba1002340a",
+    "binary_module": "CoolProp.CoolProp",
+    "binary_sha256": "eba3061d6e3cf1435573156f61310389ea2e2c8918b893032d9ca5737ed56440"
+  },
+  "phase_constraint": "gas",
+  "component_order": [
+    "Ar",
+    "He",
+    "CO2"
+  ],
+  "fluid_name_map": {
+    "Ar": "Argon",
+    "He": "Helium",
+    "CO2": "CarbonDioxide"
+  },
+  "temperature_range_k": [
+    278.15,
+    313.15
+  ],
+  "pressure_range_pa": [
+    90000.0,
+    112000.0
+  ],
+  "composition_contract": {
+    "basis": "mole_fraction",
+    "lower_bound": 0.0,
+    "upper_bound": 1.0,
+    "sum": 1.0,
+    "sum_tolerance": 1e-12
+  },
+  "runtime_evaluator": {
+    "path": "src/gf/sim/a2dyn_sound_speed.py",
+    "sha256": "e359235c25541b4bbaa372f6ccb00c71faa0d8fd337688a9685891e6fa5323d6"
+  },
+  "verification_scope": "generator_consistency",
+  "independent_physics_validation": "NOT_CLAIMED"
+}

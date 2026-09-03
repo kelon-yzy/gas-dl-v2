@@ -1,0 +1,109 @@
+{
+  "schema_version": "gf-a2dyn-eos-coefficients-2",
+  "model_id": "a2dyn_cp_t_pair_virial_v2",
+  "coefficient_version": "a2dyn-eos-coefficients-20260901-r2-draft1",
+  "status": "DRAFT_SOURCE_PARITY_PENDING_INDEPENDENT_VALIDATION",
+  "temperature_range_k": [278.15, 313.15],
+  "pressure_range_pa": [90000.0, 112000.0],
+  "composition_components": ["Ar", "He", "CO2"],
+  "ideal_heat_capacity": {
+    "source_asset": "configs/data/a2dyn_eos_coefficients_v1.json",
+    "source_field": "ideal_heat_capacity",
+    "reuse_policy": "single_registered_NASA7_source"
+  },
+  "virial": {
+    "representation": "pair-specific-chebyshev-surrogate",
+    "units": {
+      "B_m3_mol": "m^3/mol",
+      "dB_dT_m3_mol_k": "m^3/(mol*K)",
+      "d2B_dT2_m3_mol_k2": "m^3/(mol*K^2)"
+    },
+    "pair_ids": ["Ar-Ar", "Ar-He", "Ar-CO2", "He-He", "He-CO2", "CO2-CO2"],
+    "pair_symmetry": "canonical_pair_id_only",
+    "derivative_policy": "analytic_chebyshev_derivatives",
+    "surrogate_gate": {
+      "max_sound_speed_propagation_error": 5.0e-05,
+      "status": "NOT_CERTIFIED"
+    },
+    "generator": {
+      "path": "general_fusion/tools/build_a2dyn_pair_virial_v2.py",
+      "temperature_fit_nodes": 25,
+      "chebyshev_degree": 12,
+      "source_evaluator_is_offline_only": true
+    },
+    "pairs": {
+      "Ar-Ar": {
+        "representation": "chebyshev_polynomial",
+        "temperature_domain_k": [278.15, 313.15],
+        "normalization": "z=(2*T-T_min-T_max)/(T_max-T_min)",
+        "B_m3_mol_coefficients": [-1.6057732358097163e-05, 3.6326433108541014e-06, -1.2713655782694529e-07, 4.297173934153458e-09, -1.441601261982787e-10, 4.821280627797862e-12, -1.6092489311115094e-13, 5.362694275098521e-15, -1.7844117319802136e-16, 5.932721389480494e-18, -1.9843831972299978e-19, 3.2724960840968956e-21, 2.705606377684746e-21],
+        "derivative_evaluation": "analytic_chebyshev_derivatives",
+        "fit_max_abs_error_m3_mol": 2.710505431213761e-20,
+        "source_snapshot_ids": ["tapps-github-main-d930ec74"],
+        "source_evaluator": "TAPPS phase-shift integral for Ar40",
+        "fit_dataset_ids": ["tapps-Ar40-phase-shift"],
+        "validation_dataset_ids": ["ar-acoustic-virial-1989"]
+      },
+      "Ar-He": {
+        "representation": "chebyshev_polynomial",
+        "temperature_domain_k": [278.15, 313.15],
+        "normalization": "z=(2*T-T_min-T_max)/(T_max-T_min)",
+        "B_m3_mol_coefficients": [7.308779899374289e-06, 5.206007443418796e-07, -9.434628198025244e-09, 3.070147211179363e-11, 7.52377590933864e-12, -5.009055231966844e-13, 2.3943495087762005e-14, -1.0069291223520242e-15, 3.9462713486471415e-17, -1.4534061806717774e-18, -3.4169613759857804e-20, 5.113932539165332e-20, 5.682542539358489e-20],
+        "derivative_evaluation": "analytic_chebyshev_derivatives",
+        "fit_max_abs_error_m3_mol": 5.776764700274328e-19,
+        "source_snapshot_ids": ["coolprop-source-8.0.0-61b616ed"],
+        "source_evaluator": "Tkaczuk Gaussian-exponential departure zero-density limit",
+        "fit_dataset_ids": ["coolprop-Tkaczuk-ArHe-zero-density"],
+        "validation_dataset_ids": ["brewer-vaughn-1969", "blancett-1970"]
+      },
+      "Ar-CO2": {
+        "representation": "chebyshev_polynomial",
+        "temperature_domain_k": [278.15, 313.15],
+        "normalization": "z=(2*T-T_min-T_max)/(T_max-T_min)",
+        "B_m3_mol_coefficients": [-4.325905529371772e-05, 6.42926127185483e-06, -2.3836491773837164e-07, 8.367020323199519e-09, -2.6713867547611824e-10, 6.129792819968435e-12, -9.387268298713355e-14, 7.27037194383299e-14, -1.4704300727358924e-15, -4.239386474338862e-15, 1.6364297992756136e-16, 1.9420799628032763e-16, -1.2367641188854756e-17],
+        "derivative_evaluation": "analytic_chebyshev_derivatives",
+        "fit_max_abs_error_m3_mol": 9.107298248878237e-18,
+        "source_snapshot_ids": ["coolprop-source-8.0.0-61b616ed"],
+        "source_evaluator": "Gernert GERG-2008 departure zero-density limit",
+        "fit_dataset_ids": ["coolprop-Gernert-ArCO2-zero-density"],
+        "validation_dataset_ids": ["nist-ArCO2-ThermoML", "arco2-acoustic-2016"]
+      },
+      "He-He": {
+        "representation": "chebyshev_polynomial",
+        "temperature_domain_k": [278.15, 313.15],
+        "normalization": "z=(2*T-T_min-T_max)/(T_max-T_min)",
+        "B_m3_mol_coefficients": [1.1836906916720228e-05, -7.183399812140472e-08, -4.0898795160919703e-10, 3.853728885012439e-11, -1.5223801776825489e-12, 5.152764865586677e-14, -1.6456042974429403e-15, 5.109511336454529e-17, -1.5632464759102604e-18, 4.639858863061721e-20, -1.4262833480099197e-21, 6.540034960962716e-22, 6.612239368037154e-22],
+        "derivative_evaluation": "analytic_chebyshev_derivatives",
+        "fit_max_abs_error_m3_mol": 2.0328790734103208e-20,
+        "source_snapshot_ids": ["tapps-github-main-d930ec74"],
+        "source_evaluator": "TAPPS phase-shift integral for He4",
+        "fit_dataset_ids": ["tapps-He4-phase-shift"],
+        "validation_dataset_ids": ["nist-he-eos-8474"]
+      },
+      "He-CO2": {
+        "representation": "chebyshev_polynomial",
+        "temperature_domain_k": [278.15, 313.15],
+        "normalization": "z=(2*T-T_min-T_max)/(T_max-T_min)",
+        "B_m3_mol_coefficients": [2.0364886495647208e-05, 6.260412180496397e-07, -2.3570103301374043e-08, 7.736831477328288e-10, -2.4530288391807464e-11, 7.675852528209068e-13, -2.38723890867738e-14, 7.400610035701018e-16, -2.290256558056039e-17, 7.063830722556323e-19, -2.3325402678128212e-20, -7.666124990115046e-22, -1.010091103234822e-21],
+        "derivative_evaluation": "analytic_chebyshev_derivatives",
+        "fit_max_abs_error_m3_mol": 2.371692252312041e-20,
+        "source_snapshot_ids": ["rsc-he-co2-si-zip-20260901"],
+        "source_evaluator": "Nemati-Kande fitted PES classical anisotropic second-virial integral",
+        "fit_dataset_ids": ["rsc-NematiKande-HeCO2-PES-classical-integral"],
+        "validation_dataset_ids": ["holste-heco2-1980", "heco2-quantum-correction-required"]
+      },
+      "CO2-CO2": {
+        "representation": "chebyshev_polynomial",
+        "temperature_domain_k": [278.15, 313.15],
+        "normalization": "z=(2*T-T_min-T_max)/(T_max-T_min)",
+        "B_m3_mol_coefficients": [-0.00012621390257315398, 1.7155817813960318e-05, -8.002703935647616e-07, 3.641147143604806e-08, -1.6209560822930345e-09, 7.294609863187891e-11, -3.10812473733914e-12, -2.0151848619046317e-14, -1.751773942182382e-15, 8.651767876502617e-15, -3.337240278598937e-16, -3.8788019384519615e-16, 2.4907709256611928e-17],
+        "derivative_evaluation": "analytic_chebyshev_derivatives",
+        "fit_max_abs_error_m3_mol": 1.680513367352532e-17,
+        "source_snapshot_ids": ["coolprop-source-8.0.0-61b616ed"],
+        "source_evaluator": "Span-Wagner Helmholtz zero-density limit",
+        "fit_dataset_ids": ["coolprop-SpanWagner-CO2-zero-density"],
+        "validation_dataset_ids": ["co2-independent-virial-required"]
+      }
+    }
+  }
+}

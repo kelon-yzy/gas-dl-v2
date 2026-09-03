@@ -1,0 +1,198 @@
+{
+  "schema_version": "gf-a2-dynamic-eval-1",
+  "parent_schema_version": "gf-eval-1",
+  "dataset_schema_version": "gf-a2-dynamic-data-1",
+  "metric": "macro_RNMAE",
+  "target_ranges": {
+    "x_Ar_pct": 100.0,
+    "x_He_pct": 100.0,
+    "x_CO2_pct": 100.0
+  },
+  "horizon_order": ["P005", "P015", "P030", "P060", "P120", "P150", "FULL"],
+  "primary_realtime_horizons": ["P015", "P030", "P060", "P120"],
+  "early_gate_horizons": ["P015", "P030", "P060"],
+  "required_metrics": [
+    "macro_RNMAE",
+    "component_MAE",
+    "component_RMSE",
+    "component_R2",
+    "P90_group_MAE",
+    "worst_slice_MAE",
+    "negative_rate",
+    "out_of_range_rate",
+    "composition_sum_mae",
+    "AUEC",
+    "TTA@5mol%",
+    "TTA@2mol%",
+    "EarlyGain",
+    "RecoveryConsistency",
+    "LatencyP95"
+  ],
+  "formal_training_seeds": [17, 29, 43, 71, 101],
+  "bootstrap_seed": 20260831,
+  "bootstrap_samples": 2000,
+  "confidence_level": 0.95,
+  "bootstrap_unit": "mixture_id",
+  "split_families": [
+    "D-IID",
+    "D-KINETICS",
+    "D-PROTOCOL",
+    "D-NOISE-DRIFT",
+    "D-ENV-CAL",
+    "D-JOINT"
+  ],
+  "development_splits": ["train", "val", "stress_val"],
+  "test_split": "test",
+  "test_access": {
+    "default": "locked",
+    "unlock_flag": "--unlock-test-after-freeze",
+    "unlock_status": "DATA_FROZEN",
+    "result_reuse_requires_revision": true
+  },
+  "baseline_registry": [
+    {
+      "model_id": "B-LAST",
+      "kind": "deployable",
+      "input": "current_horizon_endpoint",
+      "model": "small_mlp",
+      "causal": true,
+      "reference_role": "endpoint_scalar"
+    },
+    {
+      "model_id": "B-DELTA",
+      "kind": "deployable",
+      "input": "baseline_mean_current_endpoint_delta",
+      "model": "ridge_and_small_mlp",
+      "causal": true,
+      "reference_role": "simple_causal_correction"
+    },
+    {
+      "model_id": "B-EWMA",
+      "kind": "deployable",
+      "input": "causal_ewma_and_first_difference",
+      "model": "ridge_and_small_mlp",
+      "causal": true,
+      "selection_data": "train_only",
+      "reference_role": "smoothed_causal_reference"
+    },
+    {
+      "model_id": "B-STAT",
+      "kind": "deployable",
+      "input": "prefix_statistics",
+      "features": ["mean", "slope", "auc", "variance", "quantiles", "observed_half_range_crossing"],
+      "model": "ridge_gbdt_and_small_mlp",
+      "causal": true,
+      "reference_role": "strong_statistical_baseline"
+    },
+    {
+      "model_id": "B-TCN",
+      "kind": "deployable",
+      "input": "raw_causal_prefix",
+      "model": "lightweight_causal_tcn",
+      "causal": true,
+      "reference_role": "temporal_neural_baseline"
+    },
+    {
+      "model_id": "B-GRU",
+      "kind": "deployable",
+      "input": "raw_causal_prefix",
+      "model": "single_layer_gru",
+      "causal": true,
+      "reference_role": "recurrent_neural_baseline"
+    },
+    {
+      "model_id": "B-STEADY",
+      "kind": "diagnostic",
+      "input": "P150_endpoint",
+      "model": "small_mlp",
+      "causal": false,
+      "allowed_horizons": ["P150", "FULL"],
+      "reference_role": "late_static_sanity_check"
+    },
+    {
+      "model_id": "O-EQ",
+      "kind": "oracle",
+      "input": "clean_equilibrium_reference_signal",
+      "model": "registered_equilibrium_mapping",
+      "causal": false,
+      "reference_role": "equilibrium_upper_bound"
+    },
+    {
+      "model_id": "O-KIN",
+      "kind": "oracle",
+      "input": "clean_device_signal_and_inlet_protocol_with_privileged_kinetics",
+      "model": "registered_kinetic_sensor_inversion",
+      "causal": false,
+      "reference_role": "kinetics_headroom_audit"
+    }
+  ],
+  "qualification_gates": {
+    "dynamic_difficulty": {
+      "baseline_model": "B-LAST",
+      "late_reference_horizon": "P150",
+      "early_horizons": ["P015", "P030", "P060"],
+      "min_relative_degradation": 0.25,
+      "min_horizons_passing": 2,
+      "oracle_model": "O-KIN",
+      "min_oracle_headroom_vs_last": 0.20
+    },
+    "temporal_information": {
+      "reference_candidates": ["B-LAST", "B-DELTA", "B-EWMA"],
+      "reference_selection_split": "val",
+      "reference_selection_family": "D-IID",
+      "reference_freeze_before_test": true,
+      "candidate_models": ["B-STAT", "B-TCN"],
+      "required_horizons": ["P015", "P030", "P060"],
+      "min_mean_relative_improvement": 0.10,
+      "min_horizons_passing": 2,
+      "min_seeds_same_direction": 4,
+      "paired_group_bootstrap_ci_upper_max": 0.0,
+      "max_component_rnmae_degradation": 0.005,
+      "required_families": ["D-IID", "one_qualified_pressure_family"],
+      "late_static_reference": "B-STEADY",
+      "late_horizon": "P150",
+      "max_late_relative_degradation": 0.05
+    },
+    "new_algorithm_headroom": {
+      "simple_model_equivalence_fraction": 0.05,
+      "min_qualified_pressure_axes": 1,
+      "min_oracle_headroom": 0.10,
+      "tcn_must_beat_statistical_baseline": true
+    },
+    "physics_and_schema": {
+      "max_outside_signal_bound_fraction": 0.0,
+      "max_inlet_sum_error_pct": 1.0e-6,
+      "max_chamber_sum_error_pct": 1.0e-5,
+      "min_jacobian_full_rank_fraction": 0.99,
+      "max_jacobian_p95_condition_number": 1000.0,
+      "max_nominal_parity_absolute_error": 1.0e-6
+    }
+  },
+  "metrics_semantics": {
+    "AUEC": {
+      "integration_horizons": ["P015", "P030", "P060", "P120"],
+      "normalization": "elapsed_exposure_seconds",
+      "requires_all_horizons_valid": true
+    },
+    "TTA@5mol%": {"censoring_upper_bound": "exposure_end_s", "never_reached_value": "right_censored"},
+    "TTA@2mol%": {"censoring_upper_bound": "exposure_end_s", "never_reached_value": "right_censored"},
+    "EarlyGain": {"lower_is_better_metric": "macro_RNMAE", "reference_frozen": "B-REF"},
+    "RecoveryConsistency": {"role": "diagnostic_only", "not_in_realtime_gate": true}
+  },
+  "realtime": {
+    "clock": "virtual_clock_full_and_wall_clock_smoke",
+    "prefix_must_be_causal": true,
+    "future_padding": "forbidden",
+    "state_reset_between_observations": true,
+    "latency_metric": "p95_ms",
+    "minimum_update_period_s": 0.5
+  },
+  "terminal_statuses": [
+    "DYNAMIC_QUALIFIED",
+    "TEMPORAL_REDUNDANT",
+    "DYNAMIC_UNIDENTIFIABLE",
+    "PHYSICS_INVALID",
+    "BASELINE_SATURATED",
+    "INVALID_PROTOCOL"
+  ]
+}

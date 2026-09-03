@@ -544,6 +544,52 @@ def load_dataset(dataset_dir: str | Path) -> A1Dataset:
     return dataset
 
 
+def load_dataset_splits(
+    dataset_dir: str | Path,
+    *,
+    allowed_splits: Sequence[str],
+) -> A1Dataset:
+    """Load only the manifest rows in an explicit split allowlist."""
+
+    requested = tuple(dict.fromkeys(str(value) for value in allowed_splits))
+    if not requested or any(value not in {"train", "val", "test"} for value in requested):
+        raise ValueError("allowed_splits must contain only train, val, and test")
+    dataset_path = Path(dataset_dir)
+    manifest_path = dataset_path / "manifest.json"
+    observations_path = dataset_path / "observations.npz"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    _validate_manifest_keys(manifest)
+    if manifest.get("schema_version") != A1_SCHEMA_VERSION:
+        raise ValueError(f"unsupported A1 schema version: {manifest.get('schema_version')!r}")
+    if manifest.get("dataset_id") != "ar_he_co2":
+        raise ValueError(f"unsupported A1 dataset_id: {manifest.get('dataset_id')!r}")
+    if manifest.get("sensor_ids") != list(SENSOR_IDS):
+        raise ValueError("A1 sensor_ids do not match the frozen contract")
+    if manifest.get("target_names") != list(TARGET_NAMES):
+        raise ValueError("A1 target_names do not match the frozen contract")
+    conditions = tuple(A1Condition.from_dict(raw) for raw in manifest["conditions"])
+    with np.load(observations_path, allow_pickle=False) as archive:
+        signals = np.array(archive["signals"], dtype=np.float32, copy=True)
+    expected_count = int(manifest["sample_count"])
+    if len(conditions) != expected_count or signals.shape != (expected_count, len(SENSOR_IDS)):
+        raise ValueError(
+            f"dataset shape mismatch: conditions={len(conditions)}, signals={signals.shape}, expected={expected_count}"
+        )
+    expected_hash = manifest.get("content_sha256")
+    if not isinstance(expected_hash, str) or expected_hash != _content_sha256(manifest, signals):
+        raise ValueError("A1 dataset content hash does not match manifest")
+    selected_indices = [
+        index for index, condition in enumerate(conditions) if condition.split in requested
+    ]
+    if not selected_indices:
+        raise ValueError(f"allowed_splits have no rows: {requested}")
+    return A1Dataset(
+        conditions=tuple(conditions[index] for index in selected_indices),
+        signals=signals[selected_indices],
+        manifest=manifest,
+    )
+
+
 def _quantize_composition(values: Sequence[float]) -> tuple[float, float, float]:
     if len(values) != 3:
         raise ValueError("composition must contain three values")

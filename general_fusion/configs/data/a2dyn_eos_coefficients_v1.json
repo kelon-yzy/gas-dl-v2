@@ -1,0 +1,80 @@
+{
+  "schema_version": "gf-a2dyn-eos-coefficients-1",
+  "model_id": "a2dyn_cp_t_virial_v1",
+  "coefficient_version": "a2dyn-eos-coefficients-20260901-r1",
+  "temperature_range_k": [278.15, 313.15],
+  "pressure_range_pa": [90000.0, 112000.0],
+  "composition_components": ["Ar", "He", "CO2"],
+  "ideal_heat_capacity": {
+    "representation": "NASA7",
+    "cp_formula": "Cp/R = a1 + a2*T + a3*T^2 + a4*T^3 + a5*T^4",
+    "temperature_unit": "K",
+    "heat_capacity_unit": "J/(mol*K)",
+    "gas_constant_j_mol_k": 8.314462618,
+    "source": {
+      "title": "Coefficients for Calculating Thermodynamic and Transport Properties of Individual Species",
+      "publisher": "NASA Glenn Research Center",
+      "report": "NASA TM-4513",
+      "url": "https://ntrs.nasa.gov/citations/19940013151",
+      "dataset_url": "https://raw.githubusercontent.com/Cantera/cantera/main/data/nasa_gas.yaml"
+    },
+    "species": {
+      "Ar": {
+        "temperature_ranges_k": [200.0, 6000.0],
+        "coefficients": [2.5, 0.0, 0.0, 0.0, 0.0, -745.375, 4.37967491]
+      },
+      "He": {
+        "temperature_ranges_k": [200.0, 6000.0],
+        "coefficients": [2.5, 0.0, 0.0, 0.0, 0.0, -745.375, 0.928724724]
+      },
+      "CO2": {
+        "temperature_ranges_k": [200.0, 1000.0, 6000.0],
+        "coefficients": [2.35677352, 8.98459677e-03, -7.12356269e-06, 2.45919022e-09, -1.43699548e-13, -4.83719697e+04, 9.90105222]
+      }
+    }
+  },
+  "virial": {
+    "representation": "Tsonopoulos-1974-corresponding-states",
+    "equation": "B_ij = R*Tc_ij/Pc_ij * (B0(Tr_ij) + omega_ij*B1(Tr_ij))",
+    "temperature_unit": "K",
+    "pressure_unit": "Pa",
+    "second_virial_unit": "m^3/mol",
+    "source": {
+      "title": "An empirical correlation of second virial coefficients",
+      "publisher": "AIChE Journal",
+      "year": 1974,
+      "doi": "10.1002/aic.690200209",
+      "url": "https://doi.org/10.1002/aic.690200209"
+    },
+    "cross_coefficient_source": {
+      "title": "Second Virial Cross-Coefficients: Correlation and Prediction of kij",
+      "publisher": "Advances in Chemistry Series",
+      "year": 1979,
+      "doi": "10.1021/ba-1979-0182.ch008",
+      "url": "https://doi.org/10.1021/ba-1979-0182.ch008"
+    },
+    "pure_component_properties": {
+      "Ar": {"critical_temperature_k": 150.687, "critical_pressure_pa": 4898000.0, "acentric_factor": -0.00219},
+      "He": {"critical_temperature_k": 5.1953, "critical_pressure_pa": 227460.0, "acentric_factor": -0.385},
+      "CO2": {"critical_temperature_k": 304.1282, "critical_pressure_pa": 7377300.0, "acentric_factor": 0.22394}
+    },
+    "critical_property_source": {
+      "Ar": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C7440371&Mask=1",
+      "He": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C7440597&Mask=1",
+      "CO2": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C124389&Mask=1"
+    },
+    "cross_pair_rule": {
+      "critical_temperature": "sqrt(Tc_i*Tc_j)",
+      "critical_pressure": "[(Pc_i^(2/3)+Pc_j^(2/3))/2]^(3/2)",
+      "acentric_factor": "(omega_i+omega_j)/2",
+      "binary_interaction_parameter": 0.0,
+      "missing_pair_policy": "error"
+    },
+    "pair_ids": ["Ar-Ar", "Ar-He", "Ar-CO2", "He-He", "He-CO2", "CO2-CO2"],
+    "cross_pairs": {
+      "Ar-He": {"registered": true},
+      "Ar-CO2": {"registered": true},
+      "He-CO2": {"registered": true}
+    }
+  }
+}
