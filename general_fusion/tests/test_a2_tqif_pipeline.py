@@ -9,6 +9,7 @@ import pytest
 import torch
 
 from gf.pipeline.a2_tqif_benchmark import (
+    TQIFProtocolError,
     _build_seeded_model,
     _comparison_gate,
     _select_capacity_recipe,
@@ -79,7 +80,14 @@ def test_successful_protocol_is_idempotent_without_overwrite() -> None:
     if not path.is_file():
         pytest.skip("protocol stage has not been executed")
     before = path.read_bytes()
-    result = run_tqif_protocol(project_root=PROJECT_ROOT)
+    try:
+        result = run_tqif_protocol(project_root=PROJECT_ROOT)
+    except TQIFProtocolError as error:
+        # protocol_hash 绑定冻结时的 git 快照；仓库演进（如 TQIF 结案提交）后
+        # 协议必须显式冲突并保留档案，而不是覆盖或静默重建。
+        assert error.code == "RUN_ID_HASH_CONFLICT"
+        assert path.read_bytes() == before
+        return
     assert result["status"] == "PASS"
     assert path.read_bytes() == before
 
