@@ -1,6 +1,6 @@
 # general_fusion — 通用多模态气体融合主线
 
-对应 [项目总体规划.md](项目总体规划.md) v8 的 A0–A6 新主线。方向与论证边界见
+对应 [项目总体规划.md](项目总体规划.md) v10 的 A0–A6 新主线。方向与论证边界见
 [多模态气体检测通用融合算法_项目指导方向.md](多模态气体检测通用融合算法_项目指导方向.md)。
 
 ## 证据链
@@ -49,10 +49,12 @@ A2H 已完成 A2H-0 至 A2H-7 并以 `NEGATIVE_RESULT` 关闭：正式 v2 数据
 [A2H 分步执行计划](docs/algorithm/09_A2H分步执行计划.md)、[A2H 正式报告](outputs/reports/a2h_v2/A2H正式报告.md) 和
 [A2H 评审记录](outputs/reports/a2h_v2/A2H评审记录.md)。
 
-A2M 已完成 A2M-0 至 A2M-6，并以 `MLP_RETAINED` 关闭：A1 历史 B5 明确区分为 `B5-SK`，当前运行时建立 `A2M-MLP` 新参考；独立 formal holdout 在 `FROZEN` 状态下一次解锁，RESNET 和 FTT 均未通过开发与 formal 晋级门。A3 完整输入参考冻结为 `A2M-MLP / mlp_lbfgs_width32`；TCN、GRU 和时序 Transformer 矩阵仅由 A3 的真实时间维协议执行。详见
+A2M 首轮已完成 A2M-0 至 A2M-6，并以 `MLP_RETAINED` 关闭：A1 历史 B5 明确区分为 `B5-SK`，当前运行时建立 `A2M-MLP` 强对照；独立 formal holdout 在 `FROZEN` 状态下一次解锁，RESNET 和 FTT 均未通过开发与 formal 晋级门。该结论只覆盖首轮候选集合，MLP 不作为创新算法。详见
 [A2M 主流架构对照分步执行计划](docs/algorithm/10_A2M主流架构对照分步执行计划.md)、[A2M 评审记录](docs/algorithm/11_A2M评审记录.md) 和 [A3 时序架构矩阵](configs/experiment/a3_temporal_matrix.json)。
 
-当前下一阶段为 A3 外部数据集验证。
+`GF-I14 TQIF-Net` 已判定科学失败并放弃。两档完整 TQIF 相对 matched C0 分别退化 343.05% 和 77.99%，均为 0/5 seed 改善；失败不能由参数量不匹配解释。TQIF 不再调参、扩容、补跑消融或进入 A2H、A2M，代码与产物只作复现。当前没有活跃创新候选，下一步是使用新算法 ID 重新定义问题并预注册方案；A3 继续阻塞。详见 [TQIF 失败归档](docs/algorithm/12_TQIF新算法设计与A2至A2M验证计划.md)及 [算法实验结果记录](docs/algorithm/08_算法实验结果记录.md)。
+
+下一轮 A2 先增加 `A2-DYN` 动态时间序列数据子工作包，不新增平行顶层阶段。它把当前 `T=1` 稳态标量扩展为带气室混合、进气协议、分传感器滞后、时序噪声和因果前缀评价的正式动态 benchmark；A0 的 32 点一阶响应仍只视为接口 smoke。R4 已完成协议冻结、物理 smoke 和 pilot 资格审计（冻结 `5 Hz / 240 s` 与 `US-CHIRP-XCORR-PARABOLIC-1`），开发难度审计与 test 生成均已通过；完整 6,300 观测 / 4,410 组数据包已冻结（`DATA_FROZEN`，2026-09-03），A2-DYN-5 完整基线与时间增量信息门尚未执行，因此尚未进入新时序算法构思。详见 [Ar–He–CO₂ 动态时间序列仿真与数据分布规划](docs/algorithm/13_Ar-He-CO2动态时间序列仿真与数据分布规划.md)。
 
 ```powershell
 python -m pytest -q
