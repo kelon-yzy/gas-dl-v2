@@ -39,6 +39,12 @@ from gf.sim.a2_dynamic_dataset import (
 from gf.pipeline.a2_dynamic_pilot import run_a2_dynamic_pilot
 from gf.pipeline.a2_dynamic_protocol import run_a2_dynamic_protocol
 from gf.pipeline.a2_dynamic_protocol import validate_a2_dynamic_configs
+from gf.pipeline.a2_dynamic_baselines import (
+    run_a2_dynamic_baselines,
+    run_a2_dynamic_handoff,
+    run_a2_dynamic_replay_smoke,
+    run_a2_dynamic_report,
+)
 
 
 PROTOCOL_STAGE = "protocol"
@@ -52,6 +58,7 @@ PLANNED_STAGES = (
     "baselines",
     "replay-smoke",
     "report",
+    "handoff",
 )
 
 
@@ -66,6 +73,14 @@ def run_a2_dynamic_benchmark(stage: str, *, project_root: str = ".") -> dict[str
         return run_a2_dynamic_test_generation(project_root=project_root)
     if stage == "audit":
         return run_a2_dynamic_difficulty_audit(project_root=project_root)
+    if stage == "baselines":
+        return run_a2_dynamic_baselines(project_root=project_root)
+    if stage == "replay-smoke":
+        return run_a2_dynamic_replay_smoke(project_root=project_root)
+    if stage == "report":
+        return run_a2_dynamic_report(project_root=project_root)
+    if stage == "handoff":
+        return run_a2_dynamic_handoff(project_root=project_root)
     if stage != PROTOCOL_STAGE:
         if stage not in PLANNED_STAGES:
             raise ValueError(f"unknown A2-DYN stage {stage!r}; expected one of {PLANNED_STAGES}")
@@ -134,24 +149,41 @@ def run_a2_dynamic_development_generation(
 def run_a2_dynamic_difficulty_audit(
     project_root: str | Path = ".",
 ) -> dict[str, Any]:
-    """执行 A2-DYN-3 开发数据审计并写出 eligible axes 证据。"""
+    """对冻结完整数据包重跑 A2-DYN-3R2 难度审计与 A2-DYN-4R2 冻结审计。
+
+    A2-DYN-3R2 修复（F1–F6）改变了审计口径但不重新生成数据：本函数从
+    冻结的完整包重建开发子集（使用 A2-DYN-4 备份的开发 manifest，内容
+    hash 必须逐位复现），在开发子集上运行修正后的难度审计，并在完整包
+    上原样重跑冻结审计（不重绑定 source hash，content hash 必须不变）。
+    """
 
     from gf.sim.a2_dynamic_audit import (
         run_a2_dynamic_difficulty_audit as audit_dynamic_dataset,
     )
+    from gf.sim.a2_dynamic_audit import run_a2_dynamic_freeze_audit
 
     root = _resolve_project_root(project_root)
     config_paths = _dynamic_config_paths(root)
     data_config = _read_json_object(config_paths["data"])
     eval_config = _read_json_object(config_paths["eval"])
     experiment_config = _read_json_object(config_paths["experiment"])
+    a2h_config = _read_json_object(
+        root / str(data_config["source_registry"]["a2h"]["config_path"])
+    )
     dataset_dir = root / str(data_config["storage"]["data_dir"])
     dataset = load_a2_dynamic_dataset(dataset_dir)
-    data_manifest_path = dataset_dir / "manifest.json"
-    data_manifest = _read_json_object(data_manifest_path)
-    freshness = _validate_dynamic_dataset_freshness(
+    if dataset.manifest.get("contains_test") is not True or (
+        dataset.manifest.get("development_only") is not False
+    ):
+        raise ValueError(
+            "A2-DYN-3R2 re-audit requires the frozen full package "
+            "(contains_test=true, development_only=false); "
+            "development-only packages are historical A2-DYN-3 artifacts"
+        )
+    development = _development_subset_of_frozen_package(dataset, root)
+    freshness = _frozen_reaudit_freshness(
         root,
-        data_manifest,
+        dataset.manifest,
         data_config=data_config,
         eval_config=eval_config,
         experiment_config=experiment_config,
@@ -159,60 +191,293 @@ def run_a2_dynamic_difficulty_audit(
     physics_audit = run_a2_dynamic_physics_smoke(root)
     if physics_audit["status"] != "PASS":
         raise ValueError(
-            "A2-DYN-1 physics smoke must pass before the difficulty audit: "
+            "A2-DYN-1 physics smoke must pass before the re-audit: "
             f"{physics_audit['status']}"
         )
-    audit = audit_dynamic_dataset(
+    difficulty_audit = audit_dynamic_dataset(
+        development,
+        data_config=data_config,
+        eval_config=eval_config,
+        experiment_config=experiment_config,
+        physics_audit=physics_audit,
+        a2h_config=a2h_config,
+    )
+    difficulty_audit["stage"] = "A2-DYN-3R2"
+    difficulty_audit["dataset_freshness"] = freshness
+    difficulty_audit["physics_audit_refresh"] = {
+        "status": "PASS",
+        "source": "run_a2_dynamic_physics_smoke",
+        "dependency_hashes": physics_audit["dependency_hashes"],
+    }
+    difficulty_audit["reaudit_scope"] = {
+        "work_package": "A2-DYN-3R2",
+        "criteria_revision": "F1-F6 remediation (docs/algorithm/archive/15)",
+        "data_regenerated": False,
+        "development_content_source": (
+            "outputs/runs/a2_dynamic_v1/a2-dyn-4-test/development_subset_backup"
+        ),
+        "full_package_content_sha256": dataset.manifest["content_sha256"],
+    }
+    difficulty_sha256 = _canonical_json_sha256(difficulty_audit)
+    difficulty_audit["audit_sha256"] = difficulty_sha256
+
+    freeze_audit = run_a2_dynamic_freeze_audit(
         dataset,
         data_config=data_config,
         eval_config=eval_config,
         experiment_config=experiment_config,
         physics_audit=physics_audit,
+        development_content_sha256=str(development.manifest["content_sha256"]),
     )
-    audit["dataset_freshness"] = freshness
-    audit["physics_audit_refresh"] = {
+    freeze_audit["stage"] = "A2-DYN-4R2"
+    freeze_audit["dataset_freshness"] = freshness
+    freeze_audit["physics_audit_refresh"] = {
         "status": "PASS",
         "source": "run_a2_dynamic_physics_smoke",
         "dependency_hashes": physics_audit["dependency_hashes"],
     }
-    audit_sha256 = _canonical_json_sha256(audit)
-    audit["audit_sha256"] = audit_sha256
+    freeze_audit["reaudit_scope"] = {
+        "work_package": "A2-DYN-4R2",
+        "criteria_revision": "F4/F6 remediation (docs/algorithm/archive/15)",
+        "data_regenerated": False,
+        "source_hashes_rebound": False,
+    }
+    freeze_sha256 = _canonical_json_sha256(freeze_audit)
+    freeze_audit["audit_sha256"] = freeze_sha256
+
     summary_dir = root / "outputs" / "summary" / "a2_dynamic_v1"
-    run_dir = root / "outputs" / "runs" / "a2_dynamic_v1" / "a2-dyn-3-development"
+    run_dir = root / "outputs" / "runs" / "a2_dynamic_v1" / "a2-dyn-3r2-reaudit"
+    archive_dir = root / "outputs" / "archive" / "a2_dynamic_v1"
     summary_dir.mkdir(parents=True, exist_ok=True)
     run_dir.mkdir(parents=True, exist_ok=True)
-    _write_json(summary_dir / "a2_dyn_3_audit.json", audit)
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(summary_dir / "a2_dyn_3r2_audit.json", difficulty_audit)
+    _write_json(summary_dir / "a2_dyn_4r2_freeze_audit.json", freeze_audit)
+    eligible_path = summary_dir / "eligible_dynamic_axes.json"
+    if eligible_path.exists():
+        _write_json(
+            archive_dir / "eligible_dynamic_axes_a2dyn3_r1.json",
+            _read_json_object(eligible_path),
+        )
     _write_json(
-        summary_dir / "eligible_dynamic_axes.json",
+        eligible_path,
         {
-            "schema_version": audit["schema_version"],
-            "stage": audit["stage"],
-            "status": audit["status"],
-            "development_only": audit["development_only"],
-            "contains_test": audit["contains_test"],
-            "content_sha256": audit["content_sha256"],
-            "audit_sha256": audit_sha256,
-            "qualified_families": audit["qualified_families"],
-            "eligible_dynamic_axes": audit["eligible_dynamic_axes"],
-            "failed_requirements": audit["failed_requirements"],
+            "schema_version": difficulty_audit["schema_version"],
+            "stage": difficulty_audit["stage"],
+            "status": difficulty_audit["status"],
+            "development_only": difficulty_audit["development_only"],
+            "contains_test": difficulty_audit["contains_test"],
+            "content_sha256": difficulty_audit["content_sha256"],
+            "audit_sha256": difficulty_sha256,
+            "qualified_families": difficulty_audit["qualified_families"],
+            "eligible_dynamic_axes": difficulty_audit["eligible_dynamic_axes"],
+            "failed_requirements": difficulty_audit["failed_requirements"],
         },
     )
-    _write_json(run_dir / "audit_manifest.json", audit)
-    _write_json(dataset_dir / "audit.json", audit)
-    data_manifest["status"] = audit["status"]
-    data_manifest["audit_status"] = audit["status"]
-    data_manifest["audit_sha256"] = audit_sha256
-    _write_json(data_manifest_path, data_manifest)
+    _write_json(run_dir / "audit_manifest.json", difficulty_audit)
+    _write_json(run_dir / "freeze_audit_manifest.json", freeze_audit)
+    _write_json(
+        run_dir / "resolved_config.json",
+        {
+            "data_config": data_config,
+            "evaluation_config": eval_config,
+            "experiment_config": experiment_config,
+            "a2h_config": a2h_config,
+        },
+    )
+    _write_json(dataset_dir / "audit.json", freeze_audit)
+    data_manifest = dict(dataset.manifest)
+    data_manifest["audit_status"] = freeze_audit["status"]
+    data_manifest["audit_sha256"] = freeze_sha256
+    data_manifest["status"] = freeze_audit["status"]
+    _write_json(dataset_dir / "manifest.json", data_manifest)
+    freeze_passed = freeze_audit["status"] == "DATA_FROZEN"
+    overall_status = (
+        difficulty_audit["status"]
+        if (difficulty_audit["status"] != "DIFFICULTY_QUALIFIED" or freeze_passed)
+        else "DATA_FREEZE_FAILED"
+    )
     return {
-        "status": audit["status"],
-        "stage": "A2-DYN-3",
-        "operation": "audit",
+        "status": overall_status,
+        "stage": "A2-DYN-3R2",
+        "operation": "reaudit",
+        "difficulty_status": difficulty_audit["status"],
+        "freeze_status": freeze_audit["status"],
         "dataset_dir": str(dataset_dir.relative_to(root)).replace("\\", "/"),
-        "audit_sha256": audit_sha256,
-        "eligible_dynamic_axes": audit["eligible_dynamic_axes"],
-        "qualified_families": audit["qualified_families"],
-        "failed_requirements": audit["failed_requirements"],
-        "summary_path": "outputs/summary/a2_dynamic_v1/a2_dyn_3_audit.json",
+        "development_content_sha256": difficulty_audit["content_sha256"],
+        "full_package_content_sha256": dataset.manifest["content_sha256"],
+        "difficulty_audit_sha256": difficulty_sha256,
+        "freeze_audit_sha256": freeze_sha256,
+        "eligible_dynamic_axes": difficulty_audit["eligible_dynamic_axes"],
+        "qualified_families": difficulty_audit["qualified_families"],
+        "failed_requirements": difficulty_audit["failed_requirements"],
+        "freeze_failed_requirements": freeze_audit["failed_requirements"],
+        "summary_path": "outputs/summary/a2_dynamic_v1/a2_dyn_3r2_audit.json",
+    }
+
+
+def _development_subset_of_frozen_package(
+    dataset: Any,
+    root: Path,
+) -> Any:
+    """从冻结完整包重建 A2-DYN-3 开发子集（开发行在前、test 行在后）。
+
+    开发子集的 manifest 身份来自 A2-DYN-4 备份的原始开发 manifest；重建
+    后必须逐位复现其 ``content_sha256``，否则说明数据内容与冻结时不一致。
+    """
+
+    from dataclasses import replace
+
+    from gf.sim.a2_dynamic_dataset import (
+        _dynamic_array_mapping,
+        dynamic_content_sha256,
+    )
+
+    records = dataset.records
+    development_rows = np.asarray(
+        [index for index, record in enumerate(records) if str(record["split"]) != "test"],
+        dtype=np.int64,
+    )
+    test_rows = np.asarray(
+        [index for index, record in enumerate(records) if str(record["split"]) == "test"],
+        dtype=np.int64,
+    )
+    count = int(development_rows.size)
+    if count == 0 or test_rows.size == 0:
+        raise ValueError("frozen package must contain both development and test rows")
+    if not np.array_equal(development_rows, np.arange(count, dtype=np.int64)) or (
+        not np.array_equal(test_rows, np.arange(count, len(records), dtype=np.int64))
+    ):
+        raise ValueError(
+            "frozen package rows must be ordered development-first then test; "
+            "cannot reconstruct the A2-DYN-3 development subset"
+        )
+    backup_manifest_path = (
+        root
+        / "outputs"
+        / "runs"
+        / "a2_dynamic_v1"
+        / "a2-dyn-4-test"
+        / "development_subset_backup"
+        / "manifest.json"
+    )
+    if not backup_manifest_path.is_file():
+        raise ValueError(
+            "development subset backup manifest is missing: "
+            f"{backup_manifest_path.relative_to(root)}"
+        )
+    development_manifest = _read_json_object(backup_manifest_path)
+    subset = replace(
+        dataset,
+        records=records[:count],
+        signals=dataset.signals[:count],
+        valid_mask=dataset.valid_mask[:count],
+        quality=dataset.quality[:count],
+        target=dataset.target[:count],
+        phase_id=dataset.phase_id[:count],
+        observation_index=np.arange(count, dtype=np.int64),
+        inlet_composition=dataset.inlet_composition[:count],
+        inlet_coefficient=dataset.inlet_coefficient[:count],
+        chamber_composition=dataset.chamber_composition[:count],
+        equilibrium_reference_signals=dataset.equilibrium_reference_signals[:count],
+        clean_device_signals=dataset.clean_device_signals[:count],
+        device_states=dataset.device_states[:count],
+        privileged_parameters=dataset.privileged_parameters[:count],
+        device_audit={
+            key: np.asarray(value)[:count] for key, value in dataset.device_audit.items()
+        },
+        manifest=development_manifest,
+    )
+    expected_hash = development_manifest.get("content_sha256")
+    actual_hash = dynamic_content_sha256(
+        development_manifest,
+        subset.records,
+        _dynamic_array_mapping(subset),
+    )
+    if expected_hash != actual_hash:
+        raise ValueError(
+            "reconstructed development subset does not reproduce the frozen "
+            f"content hash: expected {expected_hash}, got {actual_hash}"
+        )
+    return subset
+
+
+_REAUDIT_ALLOWED_CHANGED_DEPENDENCIES = frozenset(
+    {
+        "configs/eval/a2_dynamic_eval.json",
+        "configs/experiment/a2_dynamic_protocol.json",
+        "src/gf/pipeline/a2_dynamic_benchmark.py",
+        "src/gf/pipeline/a2_dynamic_protocol.py",
+        "src/gf/sim/a2_dynamic_audit.py",
+        "src/gf/sim/a2_dynamic_audit/__init__.py",
+        "src/gf/sim/a2_dynamic_audit/_baselines.py",
+        "src/gf/sim/a2_dynamic_audit/_dynamic.py",
+        "src/gf/sim/a2_dynamic_audit/_freeze.py",
+        "src/gf/sim/a2_dynamic_audit/_heos_interpolation.py",
+        "src/gf/sim/a2_dynamic_audit/_jacobian.py",
+        "src/gf/sim/a2_dynamic_audit/_physics.py",
+        "src/gf/sim/a2_dynamic_audit/_schema.py",
+        "src/gf/sim/a2_dynamic_audit/_shared.py",
+        "src/gf/sim/a2_sensor_devices.py",
+    }
+)
+
+
+def _frozen_reaudit_freshness(
+    root: Path,
+    manifest: Mapping[str, Any],
+    *,
+    data_config: Mapping[str, Any],
+    eval_config: Mapping[str, Any],
+    experiment_config: Mapping[str, Any],
+) -> dict[str, Any]:
+    """冻结重审计的新鲜度检查：数据内容不变，口径文件白名单内演进。
+
+    常规 freshness（当前配置/源 hash 必须与 manifest 一致）在重审计下必然
+    失败——F1–F6 有意修改了审计口径文件。此处改为：数据配置 hash 必须仍与
+    冻结值一致；eval / experiment / 源文件只允许审计口径白名单内的差异，
+    白名单外的任何源文件变化都说明生成语义可能改变，重审计必须拒绝。
+    """
+
+    data_config_match = (
+        manifest.get("config_sha256") == _canonical_json_sha256(data_config)
+    )
+    if not data_config_match:
+        raise ValueError(
+            "A2-DYN-3R2 re-audit requires the frozen data config to be unchanged"
+        )
+    stored_hashes = dict(manifest.get("source_hashes", {}))
+    current_hashes = _dynamic_dependency_hashes(root)
+    changed = sorted(
+        key
+        for key in set(stored_hashes) | set(current_hashes)
+        if stored_hashes.get(key) != current_hashes.get(key)
+    )
+    unexpected = [key for key in changed if key not in _REAUDIT_ALLOWED_CHANGED_DEPENDENCIES]
+    if unexpected:
+        raise ValueError(
+            "A2-DYN-3R2 re-audit refuses to run: dependencies outside the "
+            f"audit-criteria allowlist changed: {unexpected}"
+        )
+    return {
+        "status": "PASS",
+        "mode": "frozen_data_reaudit",
+        "data_config_sha256_match": True,
+        "evaluation_config_sha256_match": (
+            manifest.get("evaluation_config_sha256")
+            == _canonical_json_sha256(eval_config)
+        ),
+        "experiment_config_sha256_match": (
+            manifest.get("experiment_config_sha256")
+            == _canonical_json_sha256(experiment_config)
+        ),
+        "changed_dependencies": changed,
+        "changed_dependency_allowlist": sorted(_REAUDIT_ALLOWED_CHANGED_DEPENDENCIES),
+        "note": (
+            "A2-DYN-3R2 re-audit: frozen data audited under revised criteria; "
+            "content hashes verified unchanged; only audit-criteria dependencies "
+            "differ from the frozen manifest binding"
+        ),
     }
 
 
@@ -735,7 +1000,15 @@ def _dynamic_dependency_hashes(root: Path) -> dict[str, str]:
         "outputs/runs/a2_dynamic_v1/a2-dyn-2r4-pilot/manifest.json",
         "src/gf/pipeline/a2_dynamic_benchmark.py",
         "src/gf/pipeline/a2_dynamic_protocol.py",
-        "src/gf/sim/a2_dynamic_audit.py",
+        "src/gf/sim/a2_dynamic_audit/__init__.py",
+        "src/gf/sim/a2_dynamic_audit/_baselines.py",
+        "src/gf/sim/a2_dynamic_audit/_dynamic.py",
+        "src/gf/sim/a2_dynamic_audit/_freeze.py",
+        "src/gf/sim/a2_dynamic_audit/_heos_interpolation.py",
+        "src/gf/sim/a2_dynamic_audit/_jacobian.py",
+        "src/gf/sim/a2_dynamic_audit/_physics.py",
+        "src/gf/sim/a2_dynamic_audit/_schema.py",
+        "src/gf/sim/a2_dynamic_audit/_shared.py",
         "src/gf/sim/a2_dynamic_dataset.py",
         "src/gf/sim/a2_dynamic_physics.py",
         "src/gf/sim/a2_sensor_devices.py",
@@ -773,6 +1046,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "DEVELOPMENT_GENERATED",
         "DIFFICULTY_QUALIFIED",
         "DATA_FROZEN",
+        "DEVELOPMENT_BASELINES_COMPLETE",
+        "REPLAY_SMOKE_COMPLETE",
+        "REPORT_GENERATED",
     } else 1
 
 
@@ -784,9 +1060,13 @@ __all__ = [
     "PLANNED_STAGES",
     "main",
     "run_a2_dynamic_benchmark",
+    "run_a2_dynamic_baselines",
     "run_a2_dynamic_development_generation",
     "run_a2_dynamic_difficulty_audit",
+    "run_a2_dynamic_handoff",
     "run_a2_dynamic_physics_smoke",
     "run_a2_dynamic_pilot",
+    "run_a2_dynamic_replay_smoke",
+    "run_a2_dynamic_report",
     "run_a2_dynamic_test_generation",
 ]

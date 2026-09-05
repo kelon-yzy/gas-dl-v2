@@ -107,6 +107,26 @@ def test_a2_dynamic_eval_keeps_steady_baseline_out_of_early_competition() -> Non
     assert steady["allowed_horizons"] == ["P150", "FULL"]
 
 
+def test_a2_dynamic_five_keeps_formal_test_locked_until_data_frozen() -> None:
+    evaluation = _load_json(CONFIG_ROOT / "eval" / "a2_dynamic_eval.json")
+    experiment = _load_json(CONFIG_ROOT / "experiment" / "a2_dynamic_protocol.json")
+
+    assert experiment["allowed_read_splits"] == ["train", "val", "stress_val"]
+    assert experiment["model_selection_splits"] == ["train", "val", "stress_val"]
+    assert experiment["test_unlock_requires"] == "DATA_FROZEN"
+    assert evaluation["test_access"]["unlock_status"] == "DATA_FROZEN"
+
+    invalid_evaluation = deepcopy(evaluation)
+    invalid_evaluation["test_access"]["unlock_status"] = "DATA_FREEZE_FAILED"
+    with pytest.raises(A2DynamicProtocolError, match="locked until DATA_FROZEN"):
+        validate_a2_dynamic_eval_config(invalid_evaluation)
+
+    invalid_experiment = deepcopy(experiment)
+    invalid_experiment["test_unlock_requires"] = "DATA_FREEZE_FAILED"
+    with pytest.raises(A2DynamicProtocolError, match="test_unlock_requires"):
+        validate_a2_dynamic_experiment_config(invalid_experiment)
+
+
 def _minimal_record(*, observation_id: str, mixture_id: str, split: str = "train") -> dict[str, object]:
     return {
         "schema_version": "gf-a2-dynamic-record-1",

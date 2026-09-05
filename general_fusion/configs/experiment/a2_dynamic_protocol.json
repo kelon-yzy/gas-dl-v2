@@ -94,6 +94,8 @@
       "minimum_t50_pair_fraction": 0.70,
       "minimum_t50_separation_samples": 2,
       "minimum_stress_privileged_probe_improvement_fraction": 0.05,
+      "minimum_transition_variance_ratio": 4.0,
+      "minimum_transition_variance_ratio_pass_fraction": 0.95,
       "maximum_family_degenerate_fraction": 0.05,
       "maximum_ndir_saturation_fraction": 0.0,
       "maximum_tcd_energy_residual_w": 1.0e-10,

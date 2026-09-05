@@ -20,7 +20,7 @@ EVAL_CONFIG_RELATIVE_PATH = Path("configs/eval/a2_dynamic_eval.json")
 EXPERIMENT_CONFIG_RELATIVE_PATH = Path("configs/experiment/a2_dynamic_protocol.json")
 
 DATA_SCHEMA_VERSION = "gf-a2-dynamic-data-1"
-EVAL_SCHEMA_VERSION = "gf-a2-dynamic-eval-1"
+EVAL_SCHEMA_VERSION = "gf-a2-dynamic-eval-2"
 EXPERIMENT_SCHEMA_VERSION = "gf-a2-dynamic-experiment-1"
 
 SENSOR_IDS = (
@@ -1067,7 +1067,7 @@ def validate_a2_dynamic_eval_config(config: Mapping[str, Any]) -> None:
         if model_id in baseline_map:
             raise A2DynamicProtocolError(f"duplicate baseline model_id {model_id!r}")
         baseline_map[model_id] = baseline
-    expected_models = {"B-LAST", "B-DELTA", "B-EWMA", "B-STAT", "B-TCN", "B-GRU", "B-STEADY", "O-EQ", "O-KIN"}
+    expected_models = {"B-LAST", "B-DELTA", "B-EWMA", "B-STAT", "B-TCN", "B-GRU", "B-STEADY", "O-EQ", "O-KIN", "O-KIN-OBS"}
     if set(baseline_map) != expected_models:
         raise A2DynamicProtocolError("baseline_registry does not cover the frozen deployable, diagnostic, and oracle baselines")
     for model_id, baseline in baseline_map.items():
@@ -1080,13 +1080,28 @@ def validate_a2_dynamic_eval_config(config: Mapping[str, Any]) -> None:
         raise A2DynamicProtocolError("B-EWMA selection must use train only")
     if baseline_map["B-STEADY"].get("causal") is not False or baseline_map["B-STEADY"].get("allowed_horizons") != ["P150", "FULL"]:
         raise A2DynamicProtocolError("B-STEADY may only be a late diagnostic baseline")
-    if any(baseline_map[model_id].get("kind") != "oracle" for model_id in ("O-EQ", "O-KIN")):
-        raise A2DynamicProtocolError("O-EQ and O-KIN must remain oracle-only")
+    if any(baseline_map[model_id].get("kind") != "oracle" for model_id in ("O-EQ", "O-KIN", "O-KIN-OBS")):
+        raise A2DynamicProtocolError("O-EQ, O-KIN, and O-KIN-OBS must remain oracle-only")
+    if baseline_map["O-KIN-OBS"].get("reference_role") != "noise_limited_headroom_audit":
+        raise A2DynamicProtocolError("O-KIN-OBS must stay registered as the noise-limited headroom oracle")
 
     gates = _mapping(config.get("qualification_gates"), "qualification_gates")
     difficulty = _mapping(gates.get("dynamic_difficulty"), "qualification_gates.dynamic_difficulty")
-    if difficulty.get("baseline_model") != "B-LAST" or difficulty.get("late_reference_horizon") != "P150" or difficulty.get("early_horizons") != ["P015", "P030", "P060"] or difficulty.get("min_relative_degradation") != 0.25 or difficulty.get("min_horizons_passing") != 2 or difficulty.get("oracle_model") != "O-KIN" or difficulty.get("min_oracle_headroom_vs_last") != 0.20:
-        raise A2DynamicProtocolError("dynamic difficulty gates are not frozen")
+    difficulty_expectation = {
+        "baseline_model": "B-LAST",
+        "late_reference_horizon": "P120",
+        "secondary_late_reference_horizon": "P150",
+        "pairing": "valid_at_both_horizons",
+        "min_paired_rows": 60,
+        "early_horizons": ["P015", "P030", "P060"],
+        "min_relative_degradation": 0.25,
+        "min_horizons_passing": 2,
+        "oracle_model": "O-KIN-OBS",
+        "min_oracle_headroom_vs_last": 0.20,
+    }
+    for key, expected in difficulty_expectation.items():
+        if difficulty.get(key) != expected:
+            raise A2DynamicProtocolError(f"qualification_gates.dynamic_difficulty.{key} is not frozen")
     temporal = _mapping(gates.get("temporal_information"), "qualification_gates.temporal_information")
     for key, expected in {
         "reference_candidates": ["B-LAST", "B-DELTA", "B-EWMA"],
@@ -1103,12 +1118,13 @@ def validate_a2_dynamic_eval_config(config: Mapping[str, Any]) -> None:
         "required_families": ["D-IID", "one_qualified_pressure_family"],
         "late_static_reference": "B-STEADY",
         "late_horizon": "P150",
+        "late_horizon_pairing": "valid_at_both_horizons",
         "max_late_relative_degradation": 0.05,
     }.items():
         if temporal.get(key) != expected:
             raise A2DynamicProtocolError(f"qualification_gates.temporal_information.{key} is not frozen")
     headroom = _mapping(gates.get("new_algorithm_headroom"), "qualification_gates.new_algorithm_headroom")
-    if headroom.get("simple_model_equivalence_fraction") != 0.05 or headroom.get("min_qualified_pressure_axes") != 1 or headroom.get("min_oracle_headroom") != 0.10 or headroom.get("tcn_must_beat_statistical_baseline") is not True:
+    if headroom.get("simple_model_equivalence_fraction") != 0.05 or headroom.get("min_qualified_pressure_axes") != 1 or headroom.get("oracle_model") != "O-KIN-OBS" or headroom.get("min_oracle_headroom") != 0.10 or headroom.get("tcn_must_beat_statistical_baseline") is not True:
         raise A2DynamicProtocolError("new algorithm headroom gates are not frozen")
     physics_gates = _mapping(gates.get("physics_and_schema"), "qualification_gates.physics_and_schema")
     for key, expected in {
@@ -1250,6 +1266,8 @@ def validate_a2_dynamic_pilot_config(config: Mapping[str, Any]) -> None:
         "minimum_t50_pair_fraction": 0.70,
         "minimum_t50_separation_samples": 2,
         "minimum_stress_privileged_probe_improvement_fraction": 0.05,
+        "minimum_transition_variance_ratio": 4.0,
+        "minimum_transition_variance_ratio_pass_fraction": 0.95,
         "maximum_family_degenerate_fraction": 0.05,
         "maximum_ndir_saturation_fraction": 0.0,
         "maximum_tcd_energy_residual_w": 1.0e-10,

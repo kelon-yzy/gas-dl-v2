@@ -1,5 +1,5 @@
 {
-  "schema_version": "gf-a2-dynamic-eval-1",
+  "schema_version": "gf-a2-dynamic-eval-2",
   "parent_schema_version": "gf-eval-1",
   "dataset_schema_version": "gf-a2-dynamic-data-1",
   "metric": "macro_RNMAE",
@@ -113,9 +113,9 @@
       "model_id": "O-EQ",
       "kind": "oracle",
       "input": "clean_equilibrium_reference_signal",
-      "model": "registered_equilibrium_mapping",
+      "model": "small_mlp_same_class_as_blast",
       "causal": false,
-      "reference_role": "equilibrium_upper_bound"
+      "reference_role": "equilibrium_upper_bound_same_model_class"
     },
     {
       "model_id": "O-KIN",
@@ -123,17 +123,28 @@
       "input": "clean_device_signal_and_inlet_protocol_with_privileged_kinetics",
       "model": "registered_kinetic_sensor_inversion",
       "causal": false,
-      "reference_role": "kinetics_headroom_audit"
+      "reference_role": "identifiability_upper_bound_clean_only"
+    },
+    {
+      "model_id": "O-KIN-OBS",
+      "kind": "oracle",
+      "input": "observed_device_signal_and_inlet_protocol_with_privileged_kinetics",
+      "model": "registered_kinetic_sensor_inversion_on_observed_signals",
+      "causal": false,
+      "reference_role": "noise_limited_headroom_audit"
     }
   ],
   "qualification_gates": {
     "dynamic_difficulty": {
       "baseline_model": "B-LAST",
-      "late_reference_horizon": "P150",
+      "late_reference_horizon": "P120",
+      "secondary_late_reference_horizon": "P150",
+      "pairing": "valid_at_both_horizons",
+      "min_paired_rows": 60,
       "early_horizons": ["P015", "P030", "P060"],
       "min_relative_degradation": 0.25,
       "min_horizons_passing": 2,
-      "oracle_model": "O-KIN",
+      "oracle_model": "O-KIN-OBS",
       "min_oracle_headroom_vs_last": 0.20
     },
     "temporal_information": {
@@ -151,11 +162,13 @@
       "required_families": ["D-IID", "one_qualified_pressure_family"],
       "late_static_reference": "B-STEADY",
       "late_horizon": "P150",
+      "late_horizon_pairing": "valid_at_both_horizons",
       "max_late_relative_degradation": 0.05
     },
     "new_algorithm_headroom": {
       "simple_model_equivalence_fraction": 0.05,
       "min_qualified_pressure_axes": 1,
+      "oracle_model": "O-KIN-OBS",
       "min_oracle_headroom": 0.10,
       "tcn_must_beat_statistical_baseline": true
     },

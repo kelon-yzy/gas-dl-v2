@@ -445,13 +445,18 @@ def estimate_ndir_equilibrium_co2_series(
     dt_s: float,
     profile: NDIRDeviceProfile | Mapping[str, Any],
     absorbance_scale: float = 1.0,
+    domain_tolerance: float | None = None,
 ) -> np.ndarray:
     """从 clean NDIR 电压反演每个时刻的局部平衡 CO₂ 组成。
 
     ``simulate_ndir`` 的动态状态是 active/reference 比值的一阶更新，
     因而可用已观测 prefix 反解其平衡比值，再在注册 HITRAN 查找表上插值。
-    大于 float32 持久化误差预算的越界、非单调或 profile 不一致都会显式报错；
+    大于输入误差预算的越界、非单调或 profile 不一致都会显式报错；
     只有在该明确预算内才把比值投影回注册端点，避免把通用 clip 当作兜底。
+
+    ``domain_tolerance`` 是注册反演域（比值单位）的准入预算，默认 None 时
+    使用 float32 持久化预算（16 eps），适用于 clean 输入；观测输入的反演
+    （含标定、漂移与噪声）必须显式传入按该行注册扰动包络推导的预算。
     """
 
     ndir = _coerce_ndir_profile(profile)
@@ -462,6 +467,8 @@ def estimate_ndir_equilibrium_co2_series(
     pressure = _finite(pressure_pa, "pressure_pa", positive=True)
     dt = _finite(dt_s, "dt_s", positive=True)
     absorption_scale = _finite(absorbance_scale, "absorbance_scale", positive=True)
+    if domain_tolerance is not None:
+        tolerance = _finite(domain_tolerance, "domain_tolerance", positive=True)
     ratio = clean / NDIR_BASELINE_V
     if ndir.tau_emitter_detector_s == 0.0:
         equilibrium_ratio = ratio.copy()
@@ -491,7 +498,8 @@ def estimate_ndir_equilibrium_co2_series(
         raise SensorDeviceError("registered NDIR ratio curve must be strictly decreasing in CO2")
     lower = float(ratio_grid[-1])
     upper = float(ratio_grid[0])
-    tolerance = max(abs(lower), abs(upper), 1.0) * (16.0 * np.finfo(np.float32).eps)
+    if domain_tolerance is None:
+        tolerance = max(abs(lower), abs(upper), 1.0) * (16.0 * np.finfo(np.float32).eps)
     if np.any(equilibrium_ratio < lower - tolerance) or np.any(equilibrium_ratio > upper + tolerance):
         raise SensorDeviceError("clean NDIR prefix contains a ratio outside the registered inversion range")
     equilibrium_ratio = np.clip(equilibrium_ratio, lower, upper)

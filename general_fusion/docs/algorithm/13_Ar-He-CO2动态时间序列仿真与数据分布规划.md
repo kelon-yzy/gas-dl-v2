@@ -1,19 +1,32 @@
 # 下一轮 A2：Ar–He–CO₂ 动态时间序列仿真与数据分布规划
 
+> **暂停注记（2026-09-05）**：[项目总体规划](../../项目总体规划.md) v11 §2.2 已暂停本工作包的后续扩建、完整 v2 生成和新增时序架构筛选，并且不把动态 v2 冻结设为新研究的前置条件。本文与从属的 13a / 13b 继续作为 v1 数据、前向模型、扰动链、因果前缀和基线工具的规格与执行事实源供复用，**已发生的机器终态、阈值和 hash 不修改**；其中「后续动作」「下一步」类条文不再排期。`15_A2-DYN审计缺陷修复规划.md` 已于同日归档至 [archive/](archive/README.md)。
+
 > 制定日期：2026-08-31 \
-> 文档状态：`DESIGN_COMPLETE / A2-DYN-0_R4_PROTOCOL_FROZEN / A2-DYN-1R4_EXECUTED / A2-DYN-1_PHYSICS_VERIFIED / A2-DYN-2R4_PILOT_QUALIFIED / A2-DYN-3_DEVELOPMENT_GENERATED / A2-DYN-3_DIFFICULTY_QUALIFIED / A2-DYN-4_TEST_GENERATED / A2-DYN-4_DATA_FROZEN` \
+> 文档状态：`DESIGN_COMPLETE / A2-DYN-0_R4_PROTOCOL_FROZEN / A2-DYN-1R4_EXECUTED / A2-DYN-1_PHYSICS_VERIFIED / A2-DYN-2R4_PILOT_QUALIFIED / A2-DYN-3R2_DIFFICULTY_QUALIFIED / A2-DYN-4_TEST_GENERATED / A2-DYN-4R2_FREEZE_FAILED_KNOWN_DEFECT / A2-DYN-5_DEVELOPMENT_COMPLETE_TEMPORAL_REDUNDANT / A2-DYN-5_FORMAL_BLOCKED / A2-DYN-6_BLOCKED_DATA_FREEZE_FAILED` \
 > 工作包定位：下一轮 A2 的数据与问题重定义子工作包，不新增 A2I 或平行顶层阶段 \
 > 上位事实源：[项目总体规划](../../项目总体规划.md) \
-> 相关契约：[统一任务与接口契约](01_统一任务与接口契约.md)、[A1 数据与物理规格](05_A1数据与物理规格.md)、[A2H 分步执行计划](09_A2H分步执行计划.md) \
+> 相关契约：[统一任务与接口契约](01_统一任务与接口契约.md)、[A1 数据与物理规格](05_A1数据与物理规格.md)、[A2H 分步执行计划](archive/09_A2H分步执行计划.md)（已归档） \
 > 传感器证据：[传感器仿真文献调研与 A2-DYN 对比](14_传感器仿真文献调研与A2-DYN对比.md) \
 > 声速生成定义：CoolProp HEOS 8.0.0 直接作为 `a2dyn_direct_multifluid_eos_v1` 的合成声速算子；历史 pair-v2 仅保留为失败证据 \
 > 历史失败边界：[TQIF 失败归档](12_TQIF新算法设计与A2至A2M验证计划.md)
+
+## 文档结构与归属（2026-09-04 D5 拆分）
+
+主规划回答"要做什么、为什么、什么条件下停"；以下两类内容已按职责拆分，状态由本文件统一持有：
+
+| 承接文件 | 承接的 §13 节 | 内容 |
+| --- | --- | --- |
+| [13a_A2-DYN执行记录.md](13a_A2-DYN执行记录.md)（从属于 13） | §19–§22（及后续 R2 执行事实节） | 各阶段已发生的执行事实 |
+| [13b_A2-DYN物理与审计规格.md](13b_A2-DYN物理与审计规格.md)（从属于 13） | §4、§6、§8、§10、§13、§15 | 被代码与主规划共同引用的稳定规格 |
+
+三份文件节号沿用 §13 编号，跨文件引用写作「13b §x」「13a §x」。正文中被迁出节的位置保留指针行。
 
 ## 0. 结论与执行摘要
 
 当前 Ar–He–CO₂ 正式 A1、A2、A2H 和 A2M 数据都是 `T=1` 的稳态标量。仓库虽已有 A0 的 32 点一阶响应 smoke，但它只有 3 个配方、固定时间常数和单次纯 Ar 到目标气体的确定性过渡，只证明统一接口能承载时间维，不能作为正式动态 benchmark。
 
-下一轮 A2 在设计新算法前，先增加 `A2-DYN` 动态数据子工作包。它要建立真正随时间演化的气室组成、进气协议、传感器响应、时序噪声和在线前缀评价，而不是把一个稳态值重复 1,200 次。当前 R4 机器协议已冻结，开发数据已生成并通过难度审计，A2-DYN-4 已生成 test 并聚合为 6,300 观测 / 4,410 组的完整数据包且冻结 hash（`DATA_FROZEN`，2026-09-03）；完整基线与时间增量信息门仍未执行。
+下一轮 A2 在设计新算法前，先增加 `A2-DYN` 动态数据子工作包。它要建立真正随时间演化的气室组成、进气协议、传感器响应、时序噪声和在线前缀评价，而不是把一个稳态值重复 1,200 次。当前 R4 机器协议已冻结；开发数据已生成，难度审计在 R2 修正口径（配对总体 + O-KIN-OBS 噪声受限 headroom）下为 `DIFFICULTY_QUALIFIED`（A2-DYN-3R2，2026-09-04，见 [13a §23](13a_A2-DYN执行记录.md)）；A2-DYN-4 已生成 test 并聚合为 6,300 观测 / 4,410 组的完整数据包，内容 hash 冻结（`3da0e478…`）但 R2 口径的冻结审计失败（test NOISE-10X 两族 11–20% 行低于可辨识线），冻结状态降级为 `DATA_FREEZE_FAILED` 并登记缺陷（见 [13a §24](13a_A2-DYN执行记录.md)），v1 数据保留不重新生成。A2-DYN-5 已完成 train / val / stress_val 基线、B-REF、动态指标和因果回放，开发证据为 `TEMPORAL_REDUNDANT`；正式 test 与完整阶段终态仍由 `DATA_FROZEN` 硬门阻塞。A2-DYN-6 已生成显式阻断记录，未生成新算法 handoff；v1 不以限制口径绕过该门。
 
 - 三路低频传感器输出：超声 ToF、热导电压、CO₂ NDIR 电压；
 - 共同气室、局部传感器输运、平衡物性、器件或采集、观测扰动五层物理链；
@@ -195,173 +208,6 @@ v1 主任务保持现有三组分样本级回归，不修改任务语义：
 
 报告中不得把 `literature_anchor`、`existing_a0_proxy` 或 `sensitivity_tier_*` 写成实测传感器响应。
 
-## 4. 动态物理链
-
-### 4.1 状态与符号
-
-| 符号 | shape | 含义 |
-| --- | --- | --- |
-| `x_purge` | 3 | 基线吹扫气体组成，v1 沿用纯 Ar |
-| `x_target` | 3 | 本条序列的目标进气组成 |
-| `b(t)` | scalar | 进气协议混合系数，范围 `[0,1]` |
-| `u(t)` | 3 | 进入气室的瞬时组成 |
-| `x_ch(t)` | 3 | 气室内共同真实组成 |
-| `x_s(t)` | 3 | 传感器 `s` 的局部声路或小气室组成 |
-| `p_s(t)` | scalar 或 vector | 由局部组成得到的平衡物性 |
-| `q_s(t)` | sensor-specific | 器件或内部采集状态 |
-| `z_s(t)` | scalar | 器件或估计器输出的 clean 低频读数 |
-| `y_s(t)` | scalar | 加入标定、漂移、噪声与量化后的观测 |
-
-进气组成定义为：
-
-$$
-u(t)=(1-b(t))x_{purge}+b(t)x_{target}.
-$$
-
-`b(t)` 由 step、ramp、pulse 等协议决定，但 `x_target` 在一条观测内固定。
-
-### 4.2 共同气室与局部输运
-
-用连续搅拌气室的一阶质量守恒近似：
-
-$$
-\frac{d x_{ch}(t)}{dt}=\frac{1}{\tau_{mix}}\left(u(t)-x_{ch}(t)\right),
-\qquad \tau_{mix}=\frac{V_{chamber}}{Q}.
-$$
-
-当一个采样步内 `u_k` 不变时，使用解析离散更新：
-
-$$
-x_{ch,k+1}=u_k+
-\left(x_{ch,k}-u_k\right)\exp\left(-\frac{\Delta t}{\tau_{mix}}\right).
-$$
-
-选择解析更新而不是一般 Euler 步进，是为了在 `u_k` 和初始状态位于组成单纯形时自然保持非负与闭合。任何浮点误差修正只能是有记录的数值容差检查，不能每步重新归一化来隐藏积分错误。
-
-共同气室只是 well-mixed v1 假设，不再同时代表三台传感器的局部死体积。每路局部组成满足：
-
-$$
-\frac{d x_s(t)}{dt}
-=\frac{x_{ch}(t)-x_s(t)}{\tau_{transport,s}}.
-$$
-
-当一个外层采样步内 `x_ch,k` 不变时，仍使用解析更新。若传感器直接位于共同气室且没有可辨别的局部换气体积，对应配置字段显式设置为零，此时 `x_s=x_ch`；不能用一个不明来源的固定 `tau_s` 同时表示局部换气、换能器响应和输出平均。机器字段统一使用 `tau_transport_ultrasonic_s`、`tau_transport_thermal_s` 和 `tau_transport_ndir_s`，不把公式下标直接当作字段名。
-
-### 4.3 平衡物性与 A1 一致性
-
-每个时刻先对 `x_s(t)` 调用现有平衡物理：
-
-| 传感器 | 平衡物性 | 已有事实源 | v1 设备层用途 |
-| --- | --- | --- |
-| 超声 ToF | 版本化混合声速与理论声程 ToF | `src/gf/sim/a2dyn_sound_speed.py` 中显式选择的声速算子 | `a1_constant_cp_ideal_v1` 只保留历史回归；正式 A2-DYN 使用 `a2dyn_direct_multifluid_eos_v1` 决定传播时延 |
-| 热导电压 | WMS 混合热导率与 A1 电压锚点 | `wms_thermal_conductivity`、`thermal_conductivity_voltage` | 热导率进入电热状态；A1 电压只作名义稳态 parity |
-| NDIR | HITRAN2020 CO₂ 线强与 Voigt 吸收的 active/reference 带宽积分 | `a2_sensor_devices.py` 的注册 HITRAN 表 | 吸收进入 active/reference 光学链；A1 标量电压只作历史迁移参考 |
-
-名义环境和名义 hardware profile 下，热导设备层稳态输出通过一次校准映射对齐 A1 deterministic signal 的冻结容差；NDIR 不再把 A1 标量电压当作等价物理公式，而是以注册 HITRAN2020 active/reference 核直接审计零点、低浓度灵敏度和高浓度饱和。超声则以 A2-DYN 配置显式选择的新声速算子为物理事实源；A1 ToF 只保留为旧算子回归和迁移差值，不再要求新物性通过 gain、delay 或其他校准强制回到旧数值。动态模块不得复制声速、WMS 或 Beer–Lambert 公式；设备层只负责把共享物性变成可测读数。
-
-`A2-DYN-1` 的两套自建低压维里声速均已因压力方向门失败而退出正式生成路径。R4 直接使用固定版本 CoolProp HEOS 生成声速；适配层只冻结版本、相态、组成、温压域和运行时 hash，不复制 EOS 公式。具体执行与验收见第 19.2 节。生成器不可用或越域时显式失败，不得用校准、噪声、旧模型或缩小审计域掩盖问题。
-
-### 4.4 超声双时间尺度采集
-
-v1 冻结为横穿共同气室、与主流近似正交的单声程几何，因此名义传播时延为：
-
-$$
-\tau_{prop,k}=\frac{L_{us}}{c(x_{us,k},T_k,p_k)}.
-$$
-
-该几何不把流速作为 v1 超声输入。若未来改成斜置流动声路，必须升版并同时生成上、下游 ToF，不能在现有单程公式上追加经验流速偏置。
-
-每个外层时刻内部临时生成短接收波形：
-
-$$
-a_k(t)=A_k\left[
-r(t-\tau_{prop,k})
-+\sum_m \beta_m r(t-\tau_{prop,k}-\Delta_m)
-\right]+n_k(t),
-$$
-
-其中 `r(t)` 是 hardware profile 的参考波包，`A_k` 表示几何扩散和组成相关衰减，`beta_m` 与 `Delta_m` 表示有限个预注册多径分量，`n_k(t)` 是内部 ADC 与电子噪声。批量生成不得逐点运行 KLM 或 FEM；参考波包采用带限解析模板或独立验证的固定资产。
-
-内部采集固定执行：重复发射与平均 → 带通滤波 → 参考波形互相关粗定位 → 注册的三点抛物线亚采样精化（若候选启用）→ 输出 `tof`。`A2-DYN-2` 只在预注册的 `bandlimited_burst` 与 `linear_chirp` 候选间做 pilot，随后冻结一个正式 excitation profile。内部载频、ADC rate、重复频率和平均次数属于 acquisition profile，不等于外层 1、2 或 5 Hz 过程采样率。
-
-超声同时产生 `peak_correlation`、`snr`、`estimated_tof_uncertainty` 和 `lock_status` 审计量。v1 模型输入仍只有低频 ToF；质量审计量默认不进入 `FusionCore`。失锁必须显式拒绝该 observation 或 profile，不得回退到理论 `L/c`。A0 的 `0.5 s` 不再作为正式超声时间常数。
-
-### 4.5 热导集总电热模型
-
-热导通道使用一个加热器热节点：
-
-$$
-C_h\frac{dT_h}{dt}
-=P_{Joule}
--G_g(k_{mix},v)(T_h-T_g)
--G_s(T_h-T_{sub}),
-$$
-
-$$
-R_h=R_0\left[1+\alpha_R(T_h-T_0)\right].
-$$
-
-`k_mix` 只能来自共享 WMS 算子；`C_h`、`G_s`、气体传热几何系数、加热功率、TCR 和桥压来自冻结的 thermal hardware profile。由 `R_h` 和唯一桥路方程得到 clean 电压。响应幅值与电热时间常数应随气体组成自然变化，不再使用 A0 的固定 `10 s × multiplier` 作为正式响应。
-
-传感器宏观换气只由 `x_thermal(t)` 和 `tau_transport_thermal_s` 表达，微桥热惯性只由上述能量平衡表达。名义稳态通过一次显式校准映射对齐 A1 `thermal_conductivity_voltage`；该校准不能在不同 split 重新拟合。
-
-### 4.6 NDIR 光学与局部气室模型
-
-v1 采用单一高量程短光程 profile，覆盖注册的 0–100 mol% CO₂ 范围，不在序列内切换量程。active 和 reference 通道分别为：
-
-$$
-V_{act,k}\propto
-\int S(\lambda)F_{act}(\lambda)D(\lambda)
-\exp[-\kappa(\lambda,T_k,p_k)x_{CO2,k}L]d\lambda,
-$$
-
-$$
-V_{ref,k}\propto
-\int S(\lambda)F_{ref}(\lambda)D(\lambda)d\lambda.
-$$
-
-正式 R4 设备模型直接调用 HAPI 的 HITRAN2020 CO₂ 表，在注册波数网格上计算 Voigt 吸收，再用 active/reference 高斯带宽积分形成透过率；压力展宽使用 `air` 稀释代理，属于 `sensitivity_tier_1` 假设，不是实测器件标定。`optical_path_m`、active/reference band、source spectrum、detector response 和电子热响应均属于 NDIR hardware profile。
-
-NDIR 慢响应拆为两部分：`x_ndir(t)` 表示光学气室换气或扩散；可选 `tau_emitter_detector` 只表示光源与探测器电子热响应。A0 的固定 `8 s` 只有在被重新登记为局部气室输运候选并通过 pilot 后才可复用，不能继续称为通用 NDIR 时间常数。
-
-最终 clean 输出由冻结的 active/reference 比值映射产生；零 CO₂ 基线和低 CO₂ 灵敏度由 R4 HAPI 参考核直接审计，A1 `ndir_co2_voltage` 不再被当作等价物理公式。全组成网格必须报告饱和比例、量化平台长度和低 CO₂ 灵敏度；若高量程 profile 不能同时满足边界与可辨识性要求，v1 终态为 `PHYSICS_INVALID`，不能靠随机抖动恢复信息。
-
-### 4.7 观测链
-
-每路最终观测按固定次序形成：
-
-$$
-y_s(t)=Q_s\left[
-g_s z_s(t)+o_s+r_s(t)+c_s(t)+w_s(t)
-\right].
-$$
-
-其中：
-
-- `g_s`：序列级 gain；
-- `o_s`：序列级 offset；
-- `r_s(t)`：慢漂移项；
-- `c_s(t)`：时间相关噪声或共享环境噪声；
-- `w_s(t)`：白噪声；
-- `Q_s`：传感器量化算子。
-
-处理顺序固定为：共同气室 → 局部输运 → 共享平衡物性 → 器件或采集 → gain/offset → 漂移 → 相关噪声 → 白噪声 → 量化 → 边界审计。不能在量化后再次添加连续噪声，也不能通过 clip 让越界样本伪装合法。
-
-超声内部波形噪声先于 ToF 估计，外层 `w_s(t)` 则表示估计结果或模块输出上的剩余噪声；二者必须使用不同字段和 profile，不能对同一噪声源重复计数。
-
-### 4.8 时序噪声
-
-相关噪声用显式 AR(1) 过程：
-
-$$
-c_{s,k}=\rho_s c_{s,k-1}
-+\sqrt{1-\rho_s^2}\,\epsilon_{s,k}.
-$$
-
-`\epsilon` 的边际尺度由每传感器 noise profile 决定。共享扰动通过一个公共过程和固定通道载荷向量投影，不能把三路噪声简单复制成完全相同。
-
-漂移是序列级随机截距与低频斜率，不允许每个时间点独立重抽标定参数。重复观测共享 `mixture_id`，但拥有不同 `observation_id` 和独立观测噪声。
-
 ## 5. 时间轴、阶段与在线窗口
 
 ### 5.1 Canonical v1 时间轴（R4 冻结）
@@ -401,7 +247,7 @@ $$
 | `P030` | 30 s | 300 | 主早期指标之一 |
 | `P060` | 60 s | 450 | 中期主指标 |
 | `P120` | 120 s | 750 | 接近稳态前的主指标 |
-| `P150` | 150 s | 900 | recovery 前完整暴露 |
+| `P150` | 150 s | 900 | recovery 前完整暴露；cutoff 与 steady/recovery 边界重合（标准 onset 下恰为 180 s），受 phase duration jitter 影响约半数序列的该行失效，只作副参照（13a §23/§24 实测 P150 有效行 31–141，不参与门判定） |
 | `FULL` | 240 s | 1,200 | 离线诊断，不能代表实时主结果 |
 
 主评价以 `P015/P030/P060/P120` 为核心。`P005` 可能受不可约滞后支配，单列报告；`P150` 用于连接稳态结果；recovery 只用于机制审计，不作为在线预测必须拥有的未来信息。
@@ -423,138 +269,6 @@ $$
 多脉冲始终使用同一个 `x_target`，不在一条 v1 序列中切换到第二个目标配方。多目标切换属于未来稠密状态跟踪任务。
 
 `SHORT_PULSE` 的首次有效暴露时长不得短于 60 s，因此 P015、P030 和 P060 仍可评价。每条记录保存 `exposure_end_s`；cutoff 晚于首次暴露结束的 horizon 不进入实时主指标，只标记为 protocol diagnostic。不能把恢复后的未来信息用于补齐 P120 或 P150。
-
-## 6. 动力学与扰动分布
-
-### 6.1 过程、局部输运与 hardware profile
-
-#### 6.1.1 共同气室与局部输运
-
-以下范围是 v1 sensitivity 计划值，需经 `A2-DYN-2` pilot 确认：
-
-| 参数 | train | val | stress_val | test |
-| --- | --- | --- | --- | --- |
-| `tau_mix_s` | 6–18 s | 8–22 s | 24–45 s | 45–75 s |
-| `tau_transport_ultrasonic_s` | 0–1 s | 0–2 s | 1–4 s | 2–6 s |
-| `tau_transport_thermal_s` | 1–6 s | 2–8 s | 8–18 s | 15–30 s |
-| `tau_transport_ndir_s` | 2–10 s | 4–14 s | 12–28 s | 24–45 s |
-| phase duration jitter | 0–5% | 0–8% | 8–20% | 15–30% |
-
-`tau_mix_s` 和非零局部输运时间使用 log-uniform。局部输运范围是 `sensitivity_tier_*`，只表示主气室到声路或小气室的换气，不代表换能器、微桥或光电器件固有响应。train 不含 test 的极慢区间；stress_val 和 test 仍必须通过边界与可辨识性审计。
-
-#### 6.1.2 超声 acquisition profile
-
-| 字段 | v1 规则 | 来源等级 |
-| --- | --- | --- |
-| `geometry` | 固定 `transverse_single_path` | `literature_structure` |
-| `path_length_m` | A2-DYN-0 冻结一个合成声程 | `sensitivity_tier_1` |
-| `excitation_type` | pilot 候选仅 `bandlimited_burst`、`linear_chirp` | `literature_structure` |
-| `center_frequency_hz`、`fractional_bandwidth` | 随候选 profile 固定，不逐 observation 重抽 | `literature_anchor` |
-| `adc_rate_hz` | 至少满足带限波形离散和亚采样精化测试 | `literature_anchor` |
-| `pulse_repetition_hz`、`average_count` | 共同决定 acquisition window | `literature_anchor` |
-| `tof_estimator` | 固定 `reference_xcorr` 或 `reference_xcorr_parabolic` | `literature_structure` |
-| `multipath_profile` | train 仅轻微；stress_val、test 使用冻结 OOD 档 | `sensitivity_tier_*` |
-
-具体频率、声程、ADC rate 和平均次数不能由不同论文拼成所谓典型仪器。A2-DYN-0 只冻结两个内部一致的完整候选；A2-DYN-2 根据无噪声偏差、失锁率、SNR、计算量和任务信息冻结一个正式 profile。test 不使用未在 pilot 中注册的新估计器。
-
-#### 6.1.3 Thermal hardware profile
-
-唯一名义 profile 为 `TCD-LUMPED-SYNTH-1`，至少包含：
-
-- `heater_heat_capacity`；
-- `gas_conductance_scale`；
-- `substrate_conductance`；
-- `heater_power`；
-- `tcr`；
-- `bridge_voltage`；
-- `flow_coupling`。
-
-这些字段按设备级 profile 固定，不逐时间点重抽。train、val、stress_val 和 test 的差异通过完整 profile ID 表达，不能再使用公共 sensor multiplier。任何 OOD profile 都必须保持正热容、正热导、有限稳态温升和能量守恒。
-
-#### 6.1.4 NDIR hardware profile
-
-唯一主量程语义为 `NDIR-HIGHRANGE-SHORTPATH-1`，至少包含：
-
-- `optical_path_m`；
-- `active_band_id` 与 `reference_band_id`；
-- `source_spectrum_id`；
-- `detector_response_id`；
-- `effective_absorption_model_id`；
-- `tau_emitter_detector`；
-- `range_min_mol_pct=0`、`range_max_mol_pct=100`。
-
-v1 不使用依据当前读数自动切换的双量程，避免引入隐藏路由。若单一高量程 profile 无法在全单纯形同时通过低浓度灵敏度和高浓度饱和门，应判定该组成域的物理设计失败并升版，不得静默切换增益。
-
-所有真实 `tau_mix_s`、三路 `tau_transport_*_s`、hardware 参数、内部波形参数和 device state 都是特权生成参数，不作为模型输入。
-
-### 6.2 环境 profile
-
-沿用 A2H 已登记的环境块作为序列平均工况：
-
-| split | environment | 温度 | 压力 | 来源等级 |
-| --- | --- | ---: | ---: | --- |
-| train | `ENV-TRAIN-LOW` | 293.15 K | 98,000 Pa | registered train block |
-| train | `ENV-NOMINAL` | 298.15 K | 101,325 Pa | A1 reference |
-| train | `ENV-TRAIN-HIGH` | 303.15 K | 105,000 Pa | registered train block |
-| val | `ENV-NEAR` | 308.15 K | 108,000 Pa | application range |
-| stress_val | `ENV-MID` | 313.15 K | 112,000 Pa | sensitivity tier 1 |
-| test | `ENV-FAR` | 278.15 K | 90,000 Pa | sensitivity tier 2 |
-
-v1 的单条序列内温压默认保持常量，以先隔离气体交换和传感器动力学。慢温压变化只放入 `D-JOINT` 诊断，不与主动力学族混合。温压作为可观测上下文时，所有基线必须使用同一 context arm；未知环境 arm 则所有模型都不读取。
-
-### 6.3 标定 profile
-
-沿用 A2H 的四级结构：
-
-- train：`CAL-NOMINAL`；
-- val：`CAL-LIGHT`；
-- stress_val：`CAL-SHARED-DRIFT`；
-- test：`CAL-CONFLICT`。
-
-gain、offset 和物理 scale 的具体数值复用 A2H 配置事实源，不在动态生成器中复制。动态层只增加“序列内漂移斜率”，且该斜率必须独立登记。
-
-### 6.4 噪声与漂移 profile
-
-| 参数 | train | val | stress_val | test |
-| --- | --- | --- | --- | --- |
-| 白噪声档 | `NOISE-1X` | `NOISE-2X` | `NOISE-5X` | `NOISE-10X` |
-| AR(1) `rho` | 0.00–0.40 | 0.20–0.60 | 0.65–0.85 | 0.85–0.97 |
-| 共享相关载荷 | 0–0.10 | 0.10–0.20 | 0.20–0.35 | 0.35–0.50 |
-| 漂移强度 | 0–0.10% 动态范围/min | 0.10–0.25%/min | 0.25–0.75%/min | 0.75–1.50%/min |
-| 独立重复数 | 3 | 3 | 3 | 3 |
-
-`NOISE-CORR-5X` 可作为 stress_val 的预注册 profile。test 范围必须经 oracle 和信号边界审计；若 10× 加强相关噪声后 oracle 同样失效，应判 `DYNAMIC_UNIDENTIFIABLE`，不能把它作为“更困难”的有效 test。
-
-### 6.5 组成分布
-
-三组分总和约束使组成空间只有两个自由度。v1 不依赖纯随机 Dirichlet 填满样本，而使用单纯形分层与低差异采样：
-
-| 区域 | 计划比例 | 定义 |
-| --- | ---: | --- |
-| interior | 50% | 每个组分至少 5 mol% |
-| near-boundary | 30% | 恰有一个组分位于 0.1–5 mol% |
-| binary | 20% | 恰有一个组分为 0，另外两个远离纯气端点 |
-| pure vertices | 3 个规范组 | 三个纯气端点，只作为专门 stress 或 test slice |
-
-组成生成规则：
-
-1. 在 0.01 mol% 量化后，全数据的非纯气配方坐标不得重复。
-2. 三个 pure vertex 各只有一个规范 `mixture_id`，不能为跨 split 方便伪造多个组 ID。
-3. 同一配方的重复噪声、协议或环境观测共享同一 `mixture_id`。
-4. family 和 split 的抽样先冻结配额，再抽配方；不能看模型误差后移动 simplex 区域。
-5. stress_val 与 test 的组成边际尽量与对应参照族匹配，避免把动力学 OOD 和组成 OOD 混成一个不可归因差异。
-6. 只有 `D-JOINT` 的专门 slice 允许把边界组成与动态压力结合。
-
-按全部 family 汇总后的精确 group 配额为：
-
-| split | interior | near-boundary | binary | pure | 合计 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| train | 1,260 | 756 | 504 | 0 | 2,520 |
-| val | 315 | 189 | 126 | 0 | 630 |
-| stress_val | 315 | 189 | 126 | 0 | 630 |
-| test | 315 | 189 | 123 | 3 | 630 |
-
-三个规范 pure vertex 全部放入 `D-JOINT/test`，替换该格原有的三个 binary 配额，形成明确的纯气外推诊断。它们不复制到其他 split，也不计入动态非退化幅值比例的分母。
 
 ## 7. 数据族、规模与 split
 
@@ -613,103 +327,6 @@ gain、offset 和物理 scale 的具体数值复用 A2H 配置事实源，不在
 5. test 同时报告 iid、单轴和 joint，不只给一个汇总平均。
 6. split manifest 保存每个 split 的有序 group 列表和 SHA-256。
 7. group bootstrap 必须在 `mixture_id` 层配对抽样。
-
-## 8. 数据契约与存储
-
-### 8.1 聚合数据包
-
-计划目录：
-
-```text
-data/a2_dynamic_v1/
-  config_snapshot.json
-  manifest.json
-  records.jsonl
-  observations.npz
-  oracle.npz
-  device_audit.npz
-  waveform_fixtures.npz
-  audit.json
-```
-
-允许 train、val、stress_val 和 test 共同存放在 `observations.npz`。`records.jsonl` 提供逐 observation 的身份和分层字段；`oracle.npz` 保存共同气室与低频 clean state；`device_audit.npz` 保存不供模型读取的设备质量量。`waveform_fixtures.npz` 只保存 manifest 登记的小规模超声解析与可视化样本，不包含全部 observation 的高频波形，也不建立权限系统。
-
-### 8.2 主数组
-
-| 数组 | dtype / shape | 模型可见 | 说明 |
-| --- | --- | --- | --- |
-| `signals` | `float32[N,3,1200,1]` | 是 | 三路最终观测 |
-| `valid_mask` | `bool[N,3,1200,1]` | 是 | v1 主数据应全真 |
-| `quality` | `float32[N,3,1200]` | 是 | 模型可见的有效性标记固定为 1；组成相关设备质量只写入 `device_audit`，不暴露给模型 |
-| `time_s` | `float64[1200]` | 是 | 全数据共享时间轴 |
-| `target` | `float32[N,3]` | 训练 split 可见 | 目标进气配方 |
-| `phase_id` | `int8[N,1200]` | 默认否 | 评价与审计 |
-| `observation_index` | `int64[N]` | 否 | 对齐 records |
-
-### 8.3 Oracle 数组
-
-| 数组 | dtype / shape | 用途 |
-| --- | --- | --- |
-| `inlet_composition` | `float32[N,1200,3]` | 检查进气协议和闭合 |
-| `chamber_composition` | `float32[N,1200,3]` | 检查质量守恒和响应 |
-| `equilibrium_reference_signals` | `float32[N,3,1200]` | 配置选择的共享平衡物性输出；超声使用新声速，热导用于 A1 稳态 parity，NDIR 使用 HAPI active/reference 核 |
-| `clean_device_signals` | `float32[N,3,1200]` | 局部输运和设备层之后、观测扰动之前的读数 |
-| `device_states` | `float32[N,3,1200]` | 超声估计状态、加热器温度和 NDIR 光学比值的统一审计投影 |
-| `privileged_parameters` | 结构化数值表 | 过程、局部输运、hardware 和 oracle 分层 |
-
-`device_audit.npz` 至少包含超声 `peak_correlation`、`snr`、`estimated_tof_uncertainty`、`lock_status`，热导能量平衡 residual，以及 NDIR active/reference 电压、饱和标记和量化平台长度。训练 adapter 默认只打开 `observations.npz` 和公开 records 字段；oracle 与设备审计可由审计 pipeline 读取，但不能通过 metadata 传入 `FusionCore`。
-
-### 8.4 records 字段
-
-每行至少包含：
-
-| 字段 | 约束 |
-| --- | --- |
-| `schema_version` | 固定 `gf-a2-dynamic-record-1` |
-| `observation_id` | 全数据唯一 |
-| `mixture_id` | 非空，真实 group key |
-| `split` | train、val、stress_val、test |
-| `family` | 六个 family 之一 |
-| `composition_region` | interior、near_boundary、binary、pure |
-| `protocol_profile_id` | 指向冻结 protocol |
-| `transport_profile_id` | 指向共同气室与局部输运 profile |
-| `ultrasonic_profile_id` | 指向冻结的几何、激励和估计器 profile |
-| `thermal_profile_id` | 指向冻结电热 profile |
-| `ndir_profile_id` | 指向冻结光学与量程 profile |
-| `environment_id` | 指向冻结环境块 |
-| `calibration_profile_id` | 指向冻结标定 |
-| `noise_profile_id` | 指向冻结噪声 |
-| `exposure_onset_s`、`exposure_end_s` | 定义协议的首次有效暴露区间 |
-| `timesteps` | 1,200 |
-| `dt_s` | 0.2 |
-| `status` | generated、audited、rejected |
-
-禁止字段：
-
-- `sequence_id` 作为 group；
-- `base_condition_id`；
-- `noise_seed_index`；
-- `noise_seed`；
-- 可直接恢复标签的文件名编码；
-- 把真实输运时间、hardware 参数、内部波形质量量、device state 或 clean signal 填入模型可见 metadata。
-
-### 8.5 UnifiedSample 映射
-
-每条 observation 映射为：
-
-- `signals`：长度 3 的 tuple，每项 `float32[1200,1]`；
-- `sensor_id`：固定三路唯一 ID；
-- `sensor_type`：沿用现有注册；
-- `valid_mask`：与 signal 同 shape；
-- `quality`：每路 `float32[1200]`；v1 模型可见有效性标记固定为 1，实际设备质量放在审计专用 `device_audit`，不用隐藏 noise profile 编码；
-- `time`：三路共享但分别提供严格递增数组；
-- `target`：`float32[3]`；
-- `target_mask`：三个真；
-- `group_id`：与原始 `mixture_id` 完全相同；
-- `dataset_id`：`ar_he_co2`；
-- `metadata["mixture_id"]`：原始值。
-
-现有 collate 已支持 `T>1`，不为动态数据另建第二套 batch schema。
 
 ## 9. 实时与流式仿真接口
 
@@ -773,99 +390,6 @@ data/a2_dynamic_v1/
 
 对 `SHORT_PULSE`、`MULTI_PULSE` 等协议，只有 cutoff 不晚于 `exposure_end_s` 的 horizon 进入实时准确率聚合。无效 horizon 使用显式 `horizon_valid=false`，不得用末次有效预测、0 或序列末值填充。
 
-## 10. 质量、物理与动态真实性审计
-
-### 10.1 Schema 审计
-
-- 数组数量、dtype 和 shape 与 manifest 一致；
-- `N=6300`、`T=1200`、`S=3`；
-- records 行数与 observation index 一一对应；
-- 所有时间有限且严格递增；
-- target 有限、非负且和为 100；
-- `mixture_id` 非空，同组不跨 split；
-- observation ID 唯一；
-- 禁止字段不存在；
-- content hash、config hash 和 split hash 可重算。
-
-### 10.2 质量守恒
-
-对每个时间点检查：
-
-$$
-x_{Ar}(t)+x_{He}(t)+x_{CO2}(t)=100\%.
-$$
-
-计划容差：
-
-- inlet composition：绝对和误差不超过 `1e-6 mol%`；
-- chamber composition：绝对和误差不超过 `1e-5 mol%`；
-- 任一组分不得低于 `-1e-7 mol%`；
-- 超出容差立即失败，不通过逐步归一化隐藏。
-
-### 10.3 平衡一致性
-
-1. 对相同组成和温压，动态模块调用的声速、WMS 热导率和 Beer–Lambert 算子与配置显式选择的共享物理算子绝对差不超过 `1e-12`；pipeline 和设备层不得另建公式。
-2. A2-DYN 声速的正式合成定义是固定版本 CoolProp HEOS `speed_sound()`。完整组成单纯形、注册温压块和固定 seed 离网点必须与该同一生成算子逐点一致，最大相对差为 `0`；同时保存生成器版本、二进制 hash、运行入口 hash、压力方向统计和明确的 `generator_consistency` 验证范围。本项不把 HEOS 自身准确性写成独立验证结论。
-3. 名义 hardware profile 的稳态热导电压仍与 A1 deterministic signal 做 parity；NDIR 则以注册 HITRAN2020 active/reference 结果做零点、灵敏度和饱和审计，不把 A1 标量 NDIR 公式冒充为同一物理算子。超声波形估计 ToF 与新声速算子的理论传播时延按内部采样误差门验收；A1 旧 ToF 只报告迁移差值，不作为新声速的校准目标。设备层校准只在名义 profile 建立一次，不能按 split 重拟合。
-4. 对足够长的名义 step audit，局部组成、热导电热状态和 NDIR 光电状态分别收敛到其理论或高精度数值稳态；不能再用统一 `5 tau_s` 判断三路。
-5. A1、A2H 的原文件和 content hash 不变；A2-DYN r1/r2 与 pair-v2 只作为只读失败证据。
-6. 单位转换只发生在共享物理边界，不能在 dataset、device model 和 adapter 各做一次。
-
-### 10.4 分层解析与设备回归
-
-对无观测扰动的固定 fixture 分层检查：
-
-- 共同 CSTR 与每路非零局部输运的数值序列逐点匹配解析指数更新，`t50`、`t90` 与理论值偏差不超过一个外层采样间隔；
-- 超声无噪声、无多径时，`reference_xcorr` 的 ToF 偏差不超过一个内部 ADC sample；`reference_xcorr_parabolic` 的偏差不超过 `0.25` 个内部 sample；
-- 超声改变内部 ADC rate 后估计误差按预注册方向收敛，低相关或相位歧义必须显式失锁；
-- 热导电热状态满足离散能量平衡，稳态温升与集总解析解一致，改变 `k_mix` 会同时改变稳态幅值和响应时间；
-- NDIR 在零 CO₂ 时回到 active/reference 校准基线，直接 HITRAN 带宽积分的 active/reference 输出必须通过低 CO₂ 灵敏度和高量程饱和审计；
-- recovery 使用同一共同气室、局部输运和设备方程返回 purge，不完全恢复 residual 与配置一致；
-- 任一 fixture 失败都保留错误，不得回退到理论 ToF、A1 电压或旧固定一阶曲线。
-
-### 10.5 动态非退化
-
-排除“时间轴存在但信号实为常量或稳态复制”：
-
-1. 非纯气序列中，至少 95% 有两路以上 peak-to-peak 大于各自名义噪声标准差的 5 倍。
-2. 每路有效动态序列至少覆盖 10 个不同量化级。
-3. 至少 70% 的名义序列存在两路低频观测 `t50` 相差两个以上外层采样点；超声内部传播时间不参与该统计。
-4. baseline、transition、steady、recovery 均有非空点。
-5. clean signal 的 transition 方差不能全部由白噪声解释。
-6. 任意 family 若超过 5% 序列被判为动态退化，该 family 不进入正式训练。
-
-纯气或目标等于 purge 的序列不能用于上面幅值比例的分母，应单列为边界审计。
-
-### 10.6 边界、饱和与量化
-
-- 沿用 A2H signal bounds；
-- 报告每路 min、max、P01、P99；
-- 报告越界率、靠近边界 1% 的比例和量化唯一值数；
-- 越界不 clip，标记 profile 无效；
-- 超声报告失锁率、低相关率、ToF 不确定度和多径 stress 的峰选择错误率；
-- 热导报告温升范围、能量 residual、桥路饱和率和组成相关时间常数分位数；
-- NDIR 报告 active/reference 范围、低 CO₂ 灵敏度、高 CO₂ 饱和率和连续量化平台长度，防止指数压缩导致假可辨识；
-- pure CO₂ 若进入饱和区，只能作为明确失败或 stress 证据，不能计入正常可回归样本；
-- ToF 与热导若被量化成大段平台，调整采样或 resolution profile，而不是加随机抖动掩盖。
-
-### 10.7 可辨识性
-
-审计至少包括：
-
-1. 固定动力学 nuisance 时，目标组成到多 horizon 观测的有限差分 Jacobian；
-2. 未知 nuisance 时，目标组成与 `tau_mix_s`、局部输运、冻结 hardware profile 的联合局部 Jacobian；
-3. 各 family、split 和 horizon 的 rank fraction；
-4. condition number P50、P95、max；
-5. pure 和结构零边界单列；
-6. 特权 kinetics oracle 与可部署基线的 headroom。
-
-默认资格：
-
-- 目标组成 Jacobian full-rank fraction ≥0.99；
-- P95 condition number <1000；
-- oracle 预测有限且组成合法；
-- 至少两个早期 horizon 留有可部署学习器可利用的 headroom。
-
 ## 11. 基线、指标与时间信息资格门
 
 ### 11.1 数据资格基线
@@ -879,8 +403,9 @@ $$
 | `B-TCN` | 原始三路因果前缀 | 轻量 causal TCN | 最小时序神经基线 |
 | `B-GRU` | 原始三路因果前缀 | 单层 GRU | 架构类型诊断 |
 | `B-STEADY` | P150 的三个低频读数 | A2M-MLP 同级小 MLP | 只作接近稳态的静态对照，不参与早期因果竞争 |
-| `O-EQ` | clean equilibrium reference signal | 特权平衡 oracle | 目标可达上界 |
-| `O-KIN` | clean device signal 加真实输运与 hardware 参数 | 特权数值 oracle | 区分 nuisance 与不可辨识 |
+| `O-EQ` | clean equilibrium reference signal | 与 B-LAST 同模型类的小 MLP（同结构、同 seed、同标准化） | 同模型类、clean 平衡输入的上界；若实测劣于 B-LAST 则降级为参照并单独记录 |
+| `O-KIN` | clean device signal 加真实输运与 hardware 参数 | 特权数值 oracle | 前向模型可逆性上界（无噪输入），不衡量可部署 headroom，只报告不判定 |
+| `O-KIN-OBS` | 最终观测信号（含标定、漂移、AR(1)、白噪、量化）加真实输运与 hardware 参数 | 与 O-KIN 完全相同的反演算子 | 噪声受限 headroom 参照；§11.4 门 2 与 §11.6 均以它为准 |
 
 这些基线只用于数据资格和 headroom 判断，不自动成为新算法候选。所有可部署基线使用相同 split、scaler、seed、训练预算和输出头。`B-EWMA` 的平滑系数只用 train 选择并在 val、stress_val、test 固定。`B-STEADY` 使用未来稳定读数，只能作为 P150 和 FULL 的静态 sanity check，不能与 P015、P030、P060 的实时模型做可部署性等价比较。
 
@@ -913,8 +438,8 @@ $$
 
 至少满足：
 
-1. `B-LAST` 在 P015、P030、P060 中至少两个 horizon 相对 P150 退化 ≥25%，证明早期问题不是稳态复制。
-2. `O-KIN` 在相同早期 horizon 相对 `B-LAST` 保留 ≥20% 的误差改善空间。
+1. `B-LAST` 在 P015、P030、P060 中至少两个 horizon 相对晚期参照退化 ≥25%，证明早期问题不是稳态复制。晚期参照主值为 P120，副值为 P150；比值的分子与分母**必须在同时于早期 horizon 与晚期参照 horizon 有效的同一批行**上计算（`horizon_valid` 同时为真）。任一 family 在主参照上的配对行数低于 60 时，该 family 判 `FAILED` 而不是照常出数。P150 因与 recovery 边界重合会损失约半数序列，只作副值报告，不参与判定。
+2. `O-KIN-OBS`（与 O-KIN 完全相同的反演算子和特权动力学参数、输入最终观测信号）在相同早期 horizon 相对 `B-LAST` 保留 ≥20% 的误差改善空间；headroom 与 B-LAST 在 O-KIN-OBS 反演成功的同一批 val 行上配对计算，反演失败按行显式计入 `inversion_failure_fraction`，不静默丢弃、不放宽反演容差。`O-KIN`（clean 输入）保留为前向模型可逆性上界，只报告不判定。
 3. 早期 oracle 没有因极端噪声或 incomplete exposure 全面失效。
 4. 各 family 的关键动态参数能由审计区分，不能所有变化只映射为同一个幅值缩放。
 
@@ -930,18 +455,18 @@ $$
 - 任一组分 RNMAE 不退化超过 0.005；
 - 改善至少在 `D-IID` 与一个合格压力 family 上同时成立；
 - 结果不是通过读取 phase、真实输运或 hardware 参数、future padding 或 oracle metadata 获得；
-- 在 P150 上相对 `B-STEADY` 的 macro_RNMAE 退化不超过 5%，避免用牺牲稳态准确率换取早期表面收益。
+- 在 P150 上相对 `B-STEADY` 的 macro_RNMAE 退化不超过 5%，避免用牺牲稳态准确率换取早期表面收益；该比值同样必须在 `B-STEADY` 与被测模型同时有效的同一批行上配对计算，P150 因 recovery 边界失效的序列不得进入分子或分母。
 
 门通过才形成 `DYNAMIC_QUALIFIED`。只在 FULL 或 recovery 后改善不算实时增量信息。
 
 ### 11.6 新算法 headroom 门
 
-动态数据合格后，还要判断是否值得设计复杂方法：
+动态数据合格后，还要判断是否值得设计复杂方法。本节的 oracle 一律指 `O-KIN-OBS`（噪声受限 headroom 参照）；`O-KIN` 只证明前向模型可逆，不作为 headroom 依据：
 
-- 若 `B-EWMA` 或 `B-STAT` 已进入 `O-KIN` 的 5% 等价带，优先保留简单方法；
+- 若 `B-EWMA` 或 `B-STAT` 已进入 `O-KIN-OBS` 的 5% 等价带，优先保留简单方法；
 - 若 `B-TCN` 相对 `B-STAT` 无稳定收益，不能仅因“深度学习”继续扩展 Transformer；
-- 若 `B-TCN` 已接近 oracle，但在线成本高，后续研究问题只能转向效率或压缩，不能声称更高精度 headroom；
-- 只有至少一个合格压力轴仍保留 ≥10% 的 oracle headroom，才进入新融合算法构思。
+- 若 `B-TCN` 已接近 `O-KIN-OBS`，但在线成本高，后续研究问题只能转向效率或压缩，不能声称更高精度 headroom；
+- 只有至少一个合格压力轴仍保留 ≥10% 的 `O-KIN-OBS` headroom，才进入新融合算法构思。
 
 ## 12. A2-DYN 分步执行
 
@@ -1052,7 +577,7 @@ pilot 规模：
 
 ### 12.5 A2-DYN-4：生成 test 与冻结数据（1–2 天）
 
-> 已执行（2026-09-03）：`generate-test` 阶段生成 900 条 test 并聚合成完整包，冻结审计通过，见 [§22 A2-DYN-4 执行事实](#22-a2-dyn-4-执行事实)。
+> 已执行（2026-09-03）：`generate-test` 阶段生成 900 条 test 并聚合成完整包，R1 口径冻结审计通过；2026-09-04 的 R2 修正口径重审失败（`DATA_FREEZE_FAILED`，test NOISE-10X 可辨识缺陷登记），执行事实见 [13a §22](13a_A2-DYN执行记录.md) 与 [13a §24](13a_A2-DYN执行记录.md)。
 
 目标：在分布和难度已经由开发数据确认后生成完整数据包。
 
@@ -1072,6 +597,8 @@ pilot 规模：
 - status 为 `DATA_FROZEN`。
 
 ### 12.6 A2-DYN-5：时间信息基线与实时回放（4–7 天）
+
+> 当前门状态：仅开发侧实现解除阻塞，允许读取 train、val 和 stress_val；由于 A2-DYN-4R2 为 `DATA_FREEZE_FAILED`，正式 test 评价、完整阶段终态和 `DYNAMIC_QUALIFIED` 均保持阻塞。恢复正式执行必须由 v2 数据通过 `DATA_FROZEN`，不得把 v1 test 缺陷改写为受限解锁。
 
 目标：判断时间维是否真的产生增量价值。
 
@@ -1107,35 +634,9 @@ pilot 规模：
 - 不通过增加网络、seed 或隐藏窗口改变结论；
 - 如需改变物理激励或标签任务，建立 v2 规划而非覆盖 v1。
 
-## 13. 计划影响文件与职责
-
-| 位置 | 计划文件 | 唯一职责 |
-| --- | --- | --- |
-| 数据配置 | `configs/data/ar_he_co2_a2_dynamic_v1.json` | 外层时间轴、数据分布、输运与 hardware profile、规模 |
-| 评价配置 | `configs/eval/a2_dynamic_eval.json` | horizon、指标、资格门、seed、bootstrap |
-| 实验配置 | `configs/experiment/a2_dynamic_protocol.json` | 工作包顺序、允许 split、pilot 轴、候选和冻结选择、产物目录 |
-| 平衡物理 | `src/gf/sim/ar_he_co2.py` | 继续作为三路平衡公式唯一事实源 |
-| A2-DYN 声速生成资产 | `configs/data/a2dyn_direct_heos_v1.json` | CoolProp HEOS 版本、source revision、二进制 hash、组成/温压域和运行入口 hash |
-| A2-DYN 历史物性草案 | `configs/data/a2dyn_eos_coefficients_v1.json`、`configs/data/a2dyn_eos_coefficients_v2.json` | 仅作为旧近似与失败审计证据，不进入正式 R4 生成路径 |
-| 动态物理 | `src/gf/sim/a2_dynamic_physics.py` | 进气协议、共同气室、局部输运和时序扰动 |
-| 设备模型 | `src/gf/sim/a2_sensor_devices.py` | 超声短波形与 ToF、TCD 电热状态、NDIR 光学与参考通道 |
-| A2-DYN-2 pilot | `src/gf/pipeline/a2_dynamic_pilot.py` | 固定 240 组 pilot、采样率/时长比较、设备探针、基线和资源门 |
-| 数据生成 | `src/gf/sim/a2_dynamic_dataset.py` | 配方、observation、manifest、打包 |
-| 数据审计 | `src/gf/sim/a2_dynamic_audit.py` | 守恒、EOS、设备状态、动态、边界、Jacobian、oracle |
-| 数据适配 | `src/gf/dl/adapters/ar_he_co2.py` | 将动态包映射到 UnifiedSample |
-| 基线 | `src/gf/dl/temporal_baselines.py` | B-LAST、B-DELTA、B-EWMA、B-STAT、B-TCN、B-GRU、B-STEADY 与 B-REF 选择 |
-| 编排 | `src/gf/pipeline/a2_dynamic_benchmark.py` | generate、audit、baseline、replay、report |
-| 测试 | `tests/test_a2_dynamic_*.py` | 解析输运、设备采集、schema、因果前缀、最小 smoke |
-| 数据 | `data/a2_dynamic_v1/` | 聚合动态数据包 |
-| 运行 | `outputs/runs/a2_dynamic_v1/` | 单次运行 manifest、预测和 checkpoint |
-| 汇总 | `outputs/summary/a2_dynamic_v1/` | 指标、比较、合格轴和 hash |
-| 报告 | `outputs/reports/a2_dynamic_v1/` | 数据与时间信息资格报告 |
-
-不得在 pipeline 中再实现一套 profile 抽样或指标公式。配置是范围事实源，sim 是生成事实源，dl 是模型事实源，pipeline 只编排。
-
 ## 14. 计划 CLI
 
-以下是阶段接口；当前已实现 `protocol`、`physics-smoke`、`pilot`、`generate-development`、`audit` 与 `generate-test`，其余阶段（`baselines`、`replay-smoke`、`report`）未实现时必须明确失败，不得返回伪造通过状态：
+以下是阶段接口；`protocol`、`physics-smoke`、`pilot`、`generate-development`、`audit`、`generate-test`、`baselines`、`replay-smoke`、`report` 与 `handoff` 均已实现。由于 A2-DYN-4R2 为 `DATA_FREEZE_FAILED`，后四个阶段当前只允许开发侧 train / val / stress_val，并在产物中显式保留正式 test 硬门；`handoff` 会写出 A2-DYN-6 阻断事实而不会伪造 handoff。任何未实现或门禁失败都必须明确失败，不得返回伪造通过状态：
 
 ```powershell
 python -m gf.pipeline.a2_dynamic_benchmark --stage protocol --project-root .
@@ -1147,43 +648,10 @@ python -m gf.pipeline.a2_dynamic_benchmark --stage generate-test --project-root 
 python -m gf.pipeline.a2_dynamic_benchmark --stage baselines --project-root .
 python -m gf.pipeline.a2_dynamic_benchmark --stage replay-smoke --project-root .
 python -m gf.pipeline.a2_dynamic_benchmark --stage report --project-root .
+python -m gf.pipeline.a2_dynamic_benchmark --stage handoff --project-root .
 ```
 
 CLI 只选择已经注册的 stage 和项目根。family、split 数、时间轴、阈值、seed 和模型矩阵不能通过临时命令行覆盖冻结配置。
-
-## 15. 验证矩阵
-
-| 层级 | 必做验证 |
-| --- | --- |
-| 单元测试 | 解析混合与局部输运、step/ramp、AR(1)、量化顺序 |
-| 超声设备 | 波形时移、平均与滤波、互相关、相位精化、失锁、多径、内部采样率收敛 |
-| 热导设备 | 电热能量守恒、稳态温升、组成相关幅值与时间常数、桥路边界 |
-| NDIR 设备 | HITRAN 网格误差、active/reference 零点、高量程饱和与低浓度灵敏度 |
-| 物理测试 | 闭合、非负、CoolProp HEOS 生成器一致性全网格与离网点对照、压力方向、A1 旧算子回归、热导 A1 parity、NDIR HAPI 零点/灵敏度/饱和、t50/t90、recovery |
-| schema | shape、dtype、records 对齐、禁用字段、group 互斥、hash |
-| 因果测试 | prefix 无未来、在线与离线同前缀一致、state reset |
-| pilot | 1/2/5 Hz、120/240/360 s、超声候选、动态非退化、内存 |
-| 难度 | Jacobian、condition number、oracle headroom、family 资格 |
-| 基线 | B-REF 冻结、五 seed、相同 scaler/预算、逐 horizon、逐 family |
-| 统计 | 2,000 次 mixture group bootstrap、逐组分退化界 |
-| 实时 | virtual-clock 全量、wall-clock 小规模、p95 延迟 |
-| 回归 | A1/A2H 文件 hash 不变、全量项目测试 |
-
-代码实现阶段的最小命令：
-
-```powershell
-python -m pytest -q tests/test_a2_dynamic_physics.py
-python -m pytest -q tests/test_a2_sensor_devices.py
-python -m pytest -q tests/test_a2_dynamic_dataset.py
-python -m pytest -q tests/test_a2_dynamic_pilot.py
-python -m pytest -q tests/test_a2_dynamic_protocol.py
-python -m pytest -q tests/test_a2_dynamic_benchmark.py
-python -m pytest -q
-git diff --check
-git status --short
-```
-
-默认单元测试超时 60 s；正式生成、五 seed 训练和 bootstrap 不塞入普通单元测试。
 
 ## 16. 产物与报告
 
@@ -1254,6 +722,8 @@ outputs/runs/a2_dynamic_v1/<run_id>/
 | 混淆外层与超声内部采样 | 试图以 2 Hz 离散载波或把 240 s 提升到 MHz | 强制双时间尺度接口 |
 | 采样率过高造成冗余 | 相邻点高度重复且 5 Hz 无增益 | 保留较低采样率 |
 | recovery 泄漏未来 | 只有 FULL 明显改善 | 不计入实时主结论 |
+| 晚期参照 horizon 与 phase 边界重合 | 某 horizon 的 `horizon_valid` 行数显著低于早期 horizon；B-LAST 误差随 horizon 非单调 | 参照 horizon 必须落在 phase 内部而非边界；判据改配对总体（主参照 P120、副 P150）；不通过挪动 phase 时长补救 |
+| 高噪声档压过可辨识线 | test 冻结审计中某噪声档的 active fraction 或退化率超标（R2 实测 NOISE-10X 族 11–20%） | 按预注册门判 `DATA_FREEZE_FAILED` 并登记缺陷；不放宽 5σ 判据或退化率门限；v1 test 只保留冻结审计证据，不进入 A2-DYN-5 模型评价；v2 数据规划时调整 test 噪声档分布并重新冻结 |
 | protocol 与组成混杂 | 不同 family 的组成边际明显不同 | 重做配额匹配，不用模型修正 |
 | 重复观测虚增样本 | 行级 bootstrap 给出过窄 CI | 强制 mixture group bootstrap |
 | phase 字段泄漏 | 模型直接读取真实 phase 或 target onset | 默认不提供；另立 matched context arm |
@@ -1281,101 +751,11 @@ outputs/runs/a2_dynamic_v1/<run_id>/
 - [x] 分层动态物理与设备采集已实现，EOS 以外的 A2-DYN-1 解析和设备检查通过；
 - [x] `a2dyn_direct_multifluid_eos_v1` 已直接使用固定 CoolProp HEOS，完整网格、离网、压力方向与设备门通过，A2-DYN-1 为 `PHYSICS_VERIFIED`；
 - [x] A2-DYN-2R4 pilot 选定外层采样率、时长、超声 acquisition 和有效参数范围（`5 Hz / 240 s / US-CHIRP-XCORR-PARABOLIC-1`）；
-- [x] 开发数据生成并通过难度审计（`DIFFICULTY_QUALIFIED`）；
-- [x] test 和完整数据包生成、hash 冻结（A2-DYN-4 `DATA_FROZEN`，2026-09-03）；
-- [ ] B-LAST、B-DELTA、B-EWMA、B-STAT、B-TCN、B-GRU、B-STEADY 与 oracle 五 seed 完整；
-- [ ] 在线回放和延迟报告完整；
-- [ ] 时间增量信息门形成唯一终态；
+- [x] 开发数据生成并通过难度审计（`DIFFICULTY_QUALIFIED`；2026-09-04 R2 修正口径重审计仍 `DIFFICULTY_QUALIFIED`，终态记 A2-DYN-3R2，见 [13a §23](13a_A2-DYN执行记录.md)）；
+- [x] test 和完整数据包生成（2026-09-03）；R1 口径冻结审计通过并 `DATA_FROZEN`，2026-09-04 R2 修正口径重审失败降级为 `DATA_FREEZE_FAILED`（缺陷登记，见 [13a §24](13a_A2-DYN执行记录.md)），内容 hash `3da0e478…` 不变，v1 数据不重新生成；
+- [x] A2-DYN-5 开发侧 B-LAST、B-DELTA、B-EWMA、B-STAT、B-TCN、B-GRU、B-STEADY 与 oracle 矩阵完成（train / val / stress_val；正式 test 仍被 `DATA_FROZEN` 硬门阻塞）；
+- [x] 开发侧在线回放和延迟 smoke 完成；正式 test 延迟未宣称；
+- [x] 开发侧时间增量信息门已形成证据（当前候选为 `TEMPORAL_REDUNDANT`）；正式阶段终态仍为 `FORMAL_BLOCKED_DATA_FREEZE_FAILED`；
+- [x] A2-DYN-6 handoff/关闭阶段已执行并写出 `A2_DYN_6_BLOCKED_DATA_FREEZE_FAILED`；未生成 `dynamic_handoff.json`，未启动新算法搜索；
 - [ ] 只有 `DYNAMIC_QUALIFIED` 才生成新算法 handoff。
 
-## 19. A2-DYN-1 执行事实
-
-### 19.1 已终止的近似声速路径
-
-首轮固定热容模型与后续 pair-virial 模型都能通过绝对声速误差门，但压力方向分别有 `1,091 / 30,906` 和 `1,398 / 30,906` 个不一致。根因是截断维里近似与 HEOS 多流体 Helmholtz 状态方程不是同一生成定义；pair-v2 因此保持为草案失败证据，不进入正式 R4。
-
-### 19.2 当前正式声速生成定义
-
-`a2dyn_direct_multifluid_eos_v1` 直接调用固定版本 CoolProp 8.0.0 的 HEOS `speed_sound()`。适配层只负责显式气相、`Ar/He/CO2` 组分顺序、注册温压域、运行时版本和二进制 hash 校验，不实现第二套 EOS，也不提供旧模型回退。完整网格、离网审计和压力方向结果如下：
-
-| 审计项目 | A2-DYN-1R4 结果 |
-| --- | ---: |
-| 协议与生成资产 | `PASS` |
-| 完整网格 | 185,436 点，最大相对差 `0` |
-| 固定 seed 离网审计 | 10,000 点，最大相对差 `0` |
-| 压力方向 | `0 / 30,906` 不一致 |
-| 共享物性与设备 smoke | `PASS`，无理论 ToF 回退 |
-| 验证范围 | `generator_consistency` |
-
-执行产物为 [physics_audit_r4.json](../../outputs/summary/a2_dynamic_v1/physics_audit_r4.json) 和 [A2-DYN-1R4 manifest](../../outputs/runs/a2_dynamic_v1/a2-dyn-1r4-physics-smoke/manifest.json)。`A2-DYN-1` 的声速生成门通过，允许进入 `A2-DYN-2`；这不等同于独立验证 HEOS 的物理准确性。
-
-## 20. A2-DYN-2 执行事实
-
-`A2-DYN-2R4` 已由 `src/gf/pipeline/a2_dynamic_pilot.py` 完成并返回 `PILOT_QUALIFIED`。执行严格使用实验配置中的 240 组、六族各 40 组和 train / val / stress_val = 120 / 60 / 60；不生成 test、不写入正式 `data/a2_dynamic_v1`，也不把 `noise_seed`、`sequence_id` 或高频 ADC 数组写入产物。
-
-| 项目 | 结果 |
-| --- | ---: |
-| 外层比较 | 1 / 2 / 5 Hz；120 / 240 / 360 s |
-| 冻结外层轴 | `5 Hz / 240 s` |
-| 冻结超声 | `US-CHIRP-XCORR-PARABOLIC-1`，`reference_xcorr_parabolic` |
-| 超声探针 | 36 点；锁定率 `1.000`；linear chirp p95 ToF 误差约 `3.19e-9 s` |
-| 动态双通道有效率 | `1.000` |
-| 低频 t50 双通道分离率 | `0.9875` |
-| 六族动态退化率 | `0` |
-| TCD 最大能量 residual | `2.70e-14 W` |
-| NDIR 最大饱和率 / 信号越界 | `0 / 0` |
-| stress P060 O-KIN 相对 B-LAST | `44.99%` 信息增益 |
-| 正式信号数组估算 | `90,720,000` bytes（signals 单数组） |
-| pilot 资源峰值 / 高频波形持久化 | 约 `226 MB`（实际值随进程运行记录） / `0` bytes |
-
-为保证 HEOS 只在同一物理轨迹上比较，pilot 在 5 Hz / 360 s 参考网格上完成一次直接 HEOS 计算，低频候选只做外层重采样与时长截断；正式冻结为 5 Hz / 240 s。正式选择已回写到 `configs/data/ar_he_co2_a2_dynamic_v1.json` 和 `configs/experiment/a2_dynamic_protocol.json`。证据文件为 [pilot_audit_r4.json](../../outputs/summary/a2_dynamic_v1/pilot_audit_r4.json)、[A2-DYN-2R4 manifest](../../outputs/runs/a2_dynamic_v1/a2-dyn-2r4-pilot/manifest.json) 和 [resolved_config.json](../../outputs/runs/a2_dynamic_v1/a2-dyn-2r4-pilot/resolved_config.json)。
-
-## 21. A2-DYN-3 执行事实
-
-`A2-DYN-3` 已由 `src/gf/pipeline/a2_dynamic_benchmark.py` 完成并返回 `DIFFICULTY_QUALIFIED`。开发包只生成 train、val、stress_val，不生成 test；6 个 family 全部合格，`D-IID` 通过，5 个相互独立的动态压力轴进入 `eligible_dynamic_axes.json`，无失败要求。审计前强制重跑 physics smoke，并对 19 个源依赖和配置执行 freshness 校验，结果均为 `PASS`。
-
-| 项目 | 结果 |
-| --- | ---: |
-| 唯一 `mixture_id` / group | `3,780` |
-| train | 2,520 groups / 3,600 observations |
-| val | 630 groups / 900 observations |
-| stress_val | 630 groups / 900 observations |
-| signals | `[5400, 3, 1200, 1]`，float32 |
-| oracle clean / device state | `[5400, 3, 1200]` |
-| 合格 family | `D-IID`、`D-KINETICS`、`D-PROTOCOL`、`D-NOISE-DRIFT`、`D-ENV-CAL`、`D-JOINT` |
-| eligible 动态轴 | `D-KINETICS`、`D-PROTOCOL`、`D-NOISE-DRIFT`、`D-ENV-CAL`、`D-JOINT` |
-| 动态非退化 / Jacobian | `PASS / PASS`；有效通道率与量化级数率均为 `1.000`，低频 t50 配对率 `0.8335`；固定目标、联合参数和剔除 nuisance 后目标满秩率均为 `1.000` |
-| Jacobian 条件数 | 固定目标 P95 `45.56`；联合目标 P95 `38.88`，均低于门限 `1000` |
-| 设备与边界 | NDIR 饱和率 `0`，信号越界率 `0`，超声锁定率 `1.000`；peak correlation `0.96494–0.97706`、SNR `318.37–397.32`、ToF 不确定度 `5.03e-10–6.28e-10 s`；TCD 最大能量 residual `2.7263e-14 W` |
-| 数据 `content_sha256` | `82837b52b54f1d76ebc5b72a5eae796c931e3e86ad26ee52b7f1161661355a1d` |
-| 审计 `audit_sha256` | `3f4ac9d19c614f88c235b2491c358c23b5d4b7b8438c61814153289fc8d8132b` |
-
-基线资格门中各 family 的 B-LAST、O-EQ、O-KIN 拟合状态均为 `PASS`。B-LAST 使用显式记录的 `lbfgs`、`max_iter=2000`、`tol=1e-3`，不再硬编码成功状态；O-KIN 使用 clean device signal、inlet protocol 和特权 kinetics 参数，先以注册 HITRAN 曲线反演 CO₂，再在注册 HEOS 的 1% simplex 分段线性 ToF 曲线上做有界一维反演，不读取 `target` 或 `chamber_composition`。每个 family 的 O-KIN headroom 在 3 个早期前缀通过；D-IID、D-KINETICS、D-PROTOCOL 的相对退化在 2 个早期前缀通过，D-NOISE-DRIFT、D-ENV-CAL、D-JOINT 在 3 个早期前缀通过，满足至少 2 个前缀的阶段门。oracle 组成在 float32 序列化后最大和误差为 `0`，由显式序列化闭合逻辑保证，不靠审计放宽容差。
-
-执行产物为 [a2_dyn_3_audit.json](../../outputs/summary/a2_dynamic_v1/a2_dyn_3_audit.json)、[eligible_dynamic_axes.json](../../outputs/summary/a2_dynamic_v1/eligible_dynamic_axes.json)、[数据 manifest](../../data/a2_dynamic_v1/manifest.json)、[audit.json](../../data/a2_dynamic_v1/audit.json) 和 [A2-DYN-3 audit manifest](../../outputs/runs/a2_dynamic_v1/a2-dyn-3-development/audit_manifest.json)。A2-DYN-4 的 test 生成与完整数据冻结已执行，见 [§22](#22-a2-dyn-4-执行事实)。
-
-## 22. A2-DYN-4 执行事实
-
-`A2-DYN-4` 已由 `src/gf/pipeline/a2_dynamic_benchmark.py --stage generate-test` 完成并返回 `DATA_FROZEN`（2026-09-03）。生成前先重跑 physics smoke 并强制 `PASS`；开发子集（3,780 groups / 5,400 observations）的 manifest 与 audit 先备份到 [development_subset_backup](../../outputs/runs/a2_dynamic_v1/a2-dyn-4-test/development_subset_backup/)（内容 hash `82837b52…` 与 A2-DYN-3 存档一致），随后 test 配方从同一低差异池中、以开发 3,780 个已占用坐标之外的唯一点抽取；3 个规范 pure 顶点按配置替换 D-JOINT/test 的 3 个 binary 配额，固定在该 family 尾部，不混入数字编号流（test 数字组 ID 连续为 `a2dyn-mix-0003781…0004407`）。聚合写盘后执行冻结审计（schema / 守恒与设备 / test 动态非退化 / pure 边界四类），并重算 content hash 与 audit hash。执行过程中修正了两处实现缺陷：数组拼接的键映射错误（`inlet_composition` vs `inlet`）与 pure 顶点边界审计把 pure-He / pure-CO2 误当 purge 恒等序列；两者均导致审计显式失败后修复，未引入静默降级。
-
-| 项目 | 结果 |
-| --- | ---: |
-| 唯一 `mixture_id` / group | `4,410` |
-| train | 2,520 groups / 3,600 observations |
-| val | 630 groups / 900 observations |
-| stress_val | 630 groups / 900 observations |
-| test | 630 groups / 900 observations |
-| signals | `[6300, 3, 1200, 1]`，float32 |
-| test 区域配额（interior / near_boundary / binary / pure） | 组级 `315 / 189 / 123 / 3`，行级与冻结配置一致 |
-| pure 顶点 | `a2dyn-mix-pure-Ar/He/CO2`，仅 D-JOINT/test，各 2 条观测 |
-| 开发 ↔ test group / 组成零交集 | `PASS`（4,410 组全部唯一；非纯气坐标 4,407 个互不重复） |
-| 完整包 schema 审计 | `PASS`（records / groups / 区域 / hash / 数组不变量全部通过） |
-| 守恒与设备审计（6,294 非 pure 行） | `PASS`：信号越界 `0`、NDIR 饱和率 `0`、超声锁率 `1.000`、TCD 最大能量残差 `2.7263e-14 W` |
-| test 动态非退化（897 非 pure 行） | `PASS`：有效通道率 `1.000`、量化级数率 `1.000`、t50 配对率 `0.9004`、六族退化率 `0` |
-| pure 边界审计 | `PASS`：pure-Ar 目标等于 purge 且 clean 全程静态；pure-He / pure-CO2 clean 有预期动态；越界 `0`、饱和 `0`、锁率 `1.000` |
-| 完整包 `content_sha256` | `3da0e478eca52bb6a31e1fe2c2d5b3d066341fec3516be1a29fe7ed3077aeb95` |
-| 冻结审计 `audit_sha256` | `87344bb532ab56dfd0a28b6b938c8b9641e9231725043a3869bceda75a9a54f0` |
-| 开发子集 content（存档，不覆盖） | `82837b52b54f1d76ebc5b72a5eae796c931e3e86ad26ee52b7f1161661355a1d` |
-| physics smoke 重跑 / dataset freshness | `PASS / PASS`（源依赖 hash 已在最终冻结时重绑定） |
-
-test 与开发 split 可同文件存储（§8.1），`data/a2_dynamic_v1/audit.json` 已替换为 A2-DYN-4 冻结审计；A2-DYN-3 难度审计完整存档于 `outputs/summary/a2_dynamic_v1/a2_dyn_3_audit.json`、`outputs/runs/a2_dynamic_v1/a2-dyn-3-development/audit_manifest.json` 与 `development_subset_backup/`。执行产物为 [a2_dyn_4_freeze_audit.json](../../outputs/summary/a2_dynamic_v1/a2_dyn_4_freeze_audit.json)、[A2-DYN-4 manifest](../../outputs/runs/a2_dynamic_v1/a2-dyn-4-test/manifest.json) 和 [resolved_config.json](../../outputs/runs/a2_dynamic_v1/a2-dyn-4-test/resolved_config.json)。A2-DYN-5 的基线、B-REF 冻结、在线回放与时间增量信息门仍未执行。

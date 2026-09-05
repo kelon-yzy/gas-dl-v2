@@ -70,10 +70,14 @@ _MODULE_EXPORTS = {
     "gf.pipeline.a2_dynamic_benchmark": (
         "PLANNED_STAGES",
         "run_a2_dynamic_benchmark",
+        "run_a2_dynamic_baselines",
         "run_a2_dynamic_development_generation",
         "run_a2_dynamic_difficulty_audit",
+        "run_a2_dynamic_handoff",
         "run_a2_dynamic_physics_smoke",
         "run_a2_dynamic_test_generation",
+        "run_a2_dynamic_replay_smoke",
+        "run_a2_dynamic_report",
     ),
     "gf.pipeline.a2_dynamic_pilot": ("run_a2_dynamic_pilot",),
     "gf.pipeline.a2_dynamic_protocol": (
