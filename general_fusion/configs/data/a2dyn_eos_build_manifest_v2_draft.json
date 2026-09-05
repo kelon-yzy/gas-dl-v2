@@ -39,7 +39,7 @@
   },
   "verification": {
     "pair_source_audit": {
-      "path": "docs/algorithm/a2dyn_pair_source_audit_r2_draft.json",
+      "path": "outputs/archive/a2dyn_pair_source_audit_r2_draft.json",
       "sha256": "ffc4d0a5b65537ae3a786c171991530f4a502572121b04a9a84940cdb19daf80",
       "status": "COMPUTED_NOT_CERTIFIED",
       "temperature_count": 71,

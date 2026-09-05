@@ -12,9 +12,13 @@
 
 ## 主线阶段
 
-项目主线自 2026-08-27 起改为「通用多模态融合算法」执行计划（现为 v10），定义在 [general_fusion/项目总体规划.md](general_fusion/项目总体规划.md)，长期方向见 [general_fusion/多模态气体检测通用融合算法_项目指导方向.md](general_fusion/多模态气体检测通用融合算法_项目指导方向.md)。
+项目主线自 2026-08-27 起改为「通用多模态融合算法」执行计划（现为 v11），定义在 [general_fusion/项目总体规划.md](general_fusion/项目总体规划.md)，长期方向见 [general_fusion/多模态气体检测通用融合算法_项目指导方向.md](general_fusion/多模态气体检测通用融合算法_项目指导方向.md)。
 
-阶段链：A0 统一契约（2026-08-27）→ A1 Ar-He-CO₂ 仿真 benchmark（2026-08-28）→ A2 通用融合核心 → A2H 高难度压力实验 → A2M 综合收口 → A3 xylene-e-nose 外部验证 → A4 可变传感器集合 → A5 真实混合气验证；A6 论文整合并行。A2、A2H、A2M 首轮分别以负结果、负结果和 `MLP_RETAINED` 关闭；`GF-I14 TQIF-Net` 又在 A2 两档容量比较中全面退化，项目终态为 `SCIENTIFIC_FAILURE / ABANDONED`。TQIF 不得重开、改名或局部修补；当前在下一轮 A2 内先执行 `A2-DYN` 动态数据子工作包（A2-DYN-0 至 A2-DYN-4 已完成：机器协议、物理、pilot、开发难度审计与完整 6,300 观测 / 4,410 组数据包 `DATA_FROZEN`，2026-09-03，见 `general_fusion/docs/algorithm/13_Ar-He-CO2动态时间序列仿真与数据分布规划.md`），A2-DYN-5 时间增量信息门通过后才重新构思具有新算法 ID 的候选，当前候选尚未冻结。A3 因没有创新候选继续阻塞，`general_fusion/configs/experiment/a3_temporal_matrix.json` 只作历史草案。
+阶段链：A0 统一契约（2026-08-27）→ A1 Ar-He-CO₂ 仿真 benchmark（2026-08-28）→ A2 通用融合核心 → A2H 高难度压力实验 → A2M 综合收口 → A3 xylene-e-nose 外部验证 → A4 可变传感器集合 → A5 真实混合气验证；A6 论文整合并行。A2、A2H、A2M 首轮分别以负结果、负结果和 `MLP_RETAINED` 关闭；`GF-I14 TQIF-Net` 又在 A2 两档容量比较中全面退化，项目终态为 `SCIENTIFIC_FAILURE / ABANDONED`。TQIF 不得重开、改名或局部修补。
+
+`A2-DYN` 动态数据子工作包自 2026-09-05 起按 v11 §2.2 **暂停**：不继续扩建、不生成完整 v2、不新增时序架构筛选，动态 v2 冻结也不再是新研究的前置条件。已发生的事实保留：A2-DYN-0 至 A2-DYN-3 通过机器协议、物理、pilot 与开发难度门，完整 6,300 观测 / 4,410 组数据包已于 2026-09-03 生成；2026-09-04 审计口径修正（配对总体 + O-KIN-OBS 门，工作单已归档于 `general_fusion/docs/algorithm/archive/15_A2-DYN审计缺陷修复规划.md`）后难度终态为 `A2-DYN-3R2 DIFFICULTY_QUALIFIED`、完整包冻结因 test NOISE-10X 可辨识缺陷降级 `DATA_FREEZE_FAILED`（v1 保留不重生成，缺陷登记于 `13a_A2-DYN执行记录.md` §23/§24）；A2-DYN-5 完成开发侧五 seed 基线、B-REF、动态指标与因果回放，开发证据为 `TEMPORAL_REDUNDANT`；A2-DYN-6 写出 `A2_DYN_6_BLOCKED_DATA_FREEZE_FAILED` 阻断记录，未生成 handoff。前向模型、扰动链、因果前缀与基线工具保留供后续诊断复用；规格与执行事实见 `general_fusion/docs/algorithm/13_Ar-He-CO2动态时间序列仿真与数据分布规划.md` 及其 13a/13b 附属。
+
+当前工作项是下一轮 A2 的问题定义与开发诊断准备（v11 §4 步骤 2–3），诊断实验尚未启动。A3 因没有创新候选继续阻塞，`general_fusion/configs/experiment/a3_temporal_matrix.json` 只作历史草案。各阶段首轮的分步执行计划（A0/A1/A2/A2H/A2M）已归档至 `general_fusion/docs/algorithm/archive/`，只读、不作新实验协议来源。
 
 旧 P0–P3 主线已全部关闭（P3 于 2026-08-26 在 G3-4 失败停止），不再作为前置执行链；tv3 不再排期新实验，hg / sg 保留为跨场景复现台。
 
@@ -45,7 +49,7 @@
 general_fusion/          # 通用融合主线（当前活跃子工程，包名 gf，src 布局）
 ├── src/gf/              #   sim/（Ar-He-CO₂ 生成与审计）dl/（契约、适配器、融合核心、训练、主流架构）ml/（基线）pipeline/（各阶段 benchmark 与 smoke 编排）
 ├── configs/             #   data/ model/ train/ eval/ experiment/ 五类配置（正式事实源）
-├── docs/algorithm/      #   A0–A2M 契约、TQIF 失败归档、评审记录与结果记录
+├── docs/algorithm/      #   A0–A2M 契约与规格、评审记录、TQIF 失败归档、文献分析（archive/ 存首轮分步执行计划，只读）
 ├── docs/history/        #   旧项目历史算法与失败经验复盘（只读）
 ├── data/ outputs/       #   benchmark 与运行产物（.gitignore 排除）
 └── tests/
@@ -128,9 +132,10 @@ syngas / tunnel_ventilation 场景下闭包类 loss 由 `validate_loss_compositi
 
 | 文档 | 位置 | 内容 |
 |------|------|------|
-| **项目总体规划** | `general_fusion/项目总体规划.md` | **主线入口（v10）**：A0–A6 阶段定义、TQIF 失败归档、新算法重新构思与近期动作 |
+| **项目总体规划** | `general_fusion/项目总体规划.md` | **主线入口（v11）**：A0–A6 阶段定义、A2-DYN 暂停边界、下一轮 A2 开发诊断步骤与近期动作 |
 | 项目指导方向 | `general_fusion/多模态气体检测通用融合算法_项目指导方向.md` | 长期方向、数据职责、论文结构论证边界（与总体规划配套） |
-| A0–A2M 与 TQIF 记录 | `general_fusion/docs/algorithm/` | 统一契约、评价协议、历史评审、TQIF 失败归档与算法实验结果记录 |
+| A0–A2M 与 TQIF 记录 | `general_fusion/docs/algorithm/` | 统一契约、评价协议、规格、历史评审、TQIF 失败归档、算法实验结果记录与文献分析（16/17） |
+| 首轮分步执行计划归档 | `general_fusion/docs/algorithm/archive/` | A0/A1/A2/A2H/A2M 首轮协议与 A2-DYN 审计修复工作单，只读，不作新实验协议来源 |
 | P1 阶段产物 | `docs/p1/` | 检索协议、七视角检索结果、创新点候选集、评审记录、正式关闭审查 |
 | 项目级文档导航 | `docs/README.md` | 跨场景文档索引与各场景文档入口 |
 | 场景隔离重构 | `场景隔离重构计划.md` | 子工程拆分的目录归属与迁移记录 |
